@@ -154,6 +154,16 @@ impl LogJob {
     pub fn is_done(&self) -> bool {
         self.stack.is_empty()
     }
+
+    /// The directory that will be read next.
+    pub fn next(&self) -> Option<NodeId> {
+        self.stack.last().copied()
+    }
+
+    /// Directories known so far that are still to be read.
+    pub fn waiting(&self) -> usize {
+        self.stack.len()
+    }
 }
 
 impl Tree {
@@ -428,14 +438,16 @@ impl Tree {
         self.run_job(&mut job, Duration::MAX);
     }
 
-    /// Advances a [`LogJob`] until it finishes or exceeds `budget`.
+    /// Advances a [`LogJob`] until it finishes or exceeds `budget`. One read
+    /// per step, so that a slow disk (a cloud mount) still gets its progress
+    /// drawn and Esc seen: `expand` would read all the children at once, and
+    /// here they come next anyway.
     pub fn run_job(&mut self, job: &mut LogJob, budget: Duration) {
         let start = Instant::now();
         while let Some(n) = job.stack.pop() {
+            self.scan(n);
             if job.expand {
-                self.expand(n);
-            } else {
-                self.scan(n);
+                self.nodes[n].expanded = true;
             }
             job.dirs += 1;
             // Reverse order so children are visited alphabetically.
@@ -822,6 +834,27 @@ mod tests {
         );
         tree.expand_all(ROOT);
         assert_eq!(tree.logged_totals().dirs, 5);
+    }
+
+    #[test]
+    fn expanding_a_branch_reads_one_directory_per_step() {
+        let tmp = crate::testing::tempdir();
+        for top in ["a", "b", "c"] {
+            for sub in ["x", "y", "z"] {
+                fs::create_dir_all(tmp.path().join(top).join(sub)).unwrap();
+            }
+        }
+        let mut tree = Tree::new(tmp.path().to_path_buf());
+        let mut job = LogJob::new(ROOT, true);
+        let mut read = tree.logged_totals().dirs;
+        while !job.is_done() {
+            tree.run_job(&mut job, Duration::ZERO);
+            let now = tree.logged_totals().dirs;
+            assert!(now - read <= 1, "{} directories in one step", now - read);
+            read = now;
+        }
+        assert_eq!(read, 13);
+        assert_eq!(tree.visible_rows().len(), 13, "all of it expanded");
     }
 
     #[test]
