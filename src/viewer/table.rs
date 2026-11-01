@@ -22,6 +22,56 @@ pub struct TableRow {
     pub cells: Vec<String>,
 }
 
+/// The list of a file's sheets or tables (Tab), with what the typed text left of it.
+#[derive(Debug, Clone)]
+pub struct SheetList {
+    pub query: String,
+    /// Indices of the sheets kept by `query`.
+    pub shown: Vec<usize>,
+    /// The cursor, in `shown`.
+    pub cursor: usize,
+    pub scroll: usize,
+}
+
+impl SheetList {
+    /// The most that can be typed: no name needs more to be told apart.
+    const MAX_QUERY_CHARS: usize = 256;
+
+    pub fn new(names: &[String], current: usize) -> Self {
+        Self {
+            query: String::new(),
+            shown: (0..names.len()).collect(),
+            cursor: current.min(names.len().saturating_sub(1)),
+            scroll: 0,
+        }
+    }
+
+    pub fn push(&mut self, c: char, names: &[String]) {
+        if self.query.chars().count() < Self::MAX_QUERY_CHARS {
+            self.query.push(c);
+            self.narrow(names);
+        }
+    }
+
+    pub fn pop(&mut self, names: &[String]) {
+        if self.query.pop().is_some() {
+            self.narrow(names);
+        }
+    }
+
+    fn narrow(&mut self, names: &[String]) {
+        let query = self.query.to_lowercase();
+        self.shown = names
+            .iter()
+            .enumerate()
+            .filter(|(_, name)| name.to_lowercase().contains(&query))
+            .map(|(i, _)| i)
+            .collect();
+        self.cursor = 0;
+        self.scroll = 0;
+    }
+}
+
 /// A structured tabular dataset (from CSV, spreadsheet, SQLite or DBF).
 #[derive(Debug, Clone)]
 pub struct TableGrid {
@@ -29,6 +79,8 @@ pub struct TableGrid {
     pub title: String,
     pub sheets: Vec<String>,
     pub current_sheet: usize,
+    /// From which of `sheets` on they are views of a database.
+    pub first_view: usize,
     pub headers: Vec<String>,
     pub rows: Vec<TableRow>,
     /// Filtered row indices (or all rows if no filter active).
@@ -40,6 +92,8 @@ pub struct TableGrid {
     pub scroll_row: usize,
     pub scroll_col: usize,
 
+    /// The query that gave these rows, when a whole query was typed.
+    pub query: Option<String>,
     // Active filter query string
     pub active_filter: Option<String>,
     pub filter_expr: Option<Expr>,
@@ -94,6 +148,7 @@ impl TableGrid {
             title,
             sheets: Vec::new(),
             current_sheet: 0,
+            first_view: usize::MAX,
             headers,
             rows,
             filtered_indices: (0..count).collect(),
@@ -101,6 +156,7 @@ impl TableGrid {
             cursor_col: 0,
             scroll_row: 0,
             scroll_col: 0,
+            query: None,
             active_filter: None,
             filter_expr: None,
             col_widths: Vec::new(),
@@ -167,6 +223,15 @@ impl TableGrid {
                 self.scroll_row = 0;
                 Ok(self.filtered_indices.len())
             }
+        }
+    }
+
+    /// How a sheet's name is shown: a database's view says so.
+    pub fn view_mark(&self, sheet: usize) -> &'static str {
+        if sheet >= self.first_view {
+            " (view)"
+        } else {
+            ""
         }
     }
 

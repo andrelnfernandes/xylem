@@ -124,6 +124,7 @@ Das CSV-Trennzeichen (Komma, Semikolon, Tabulator oder senkrechter Strich) wird 
 | PgUp PgDn | eine Seite Zeilen nach oben oder unten |
 | Home End | erste oder letzte Spalte |
 | `[` `]` | vorheriges oder nächstes Blatt einer Tabellenkalkulation oder vorherige oder nächste Tabelle einer SQLite-Datenbank, im Kreis; das löscht den Filter |
+| `Tab` | die Liste der Blätter oder Tabellen: Teil eines Namens tippen grenzt sie ein, Enter öffnet einen Eintrag und Esc geht zurück; ein anderes Blatt zu öffnen löscht den Filter. In einer Datenbank stehen Views nach den Tabellen, markiert mit `(view)` |
 | `g` oder `:` | zu einer Zeile über ihre Nummer in der Datei springen; hat der Filter sie ausgeblendet, zur nächsten behaltenen |
 | `\` oder `&` | der SQL-Filter |
 | `m` oder Insert | markiert den Datensatz unter dem Cursor oder hebt die Markierung auf und geht zum nächsten; **Ctrl+B** schreibt dann nur die markierten |
@@ -160,6 +161,16 @@ Schlüsselwörter können groß oder klein geschrieben werden.
 - **Werte:** Text in einfachen oder doppelten Anführungszeichen (`\'` für ein Anführungszeichen darin), Zahlen, `TRUE`, `FALSE` und `NULL`. Was in Anführungszeichen steht, ist immer Text, nie eine Spalte.
 - **Zellen:** Der Typ ergibt sich aus dem Aussehen der Zelle. Leer ist `NULL`, `true` und `false` sind Wahrheitswerte, Zahlen sind Zahlen und der Rest ist Text. Schreiben Sie also `code = 7`, nicht `code = '7'`: Text und Zahl sind nie gleich, und eine Zelle mit `007` ist die Zahl 7. Textvergleiche unterscheiden Groß- und Kleinschreibung.
 - **Größe:** Ein Filter hat höchstens 1.024 Byte und 128 Terme.
+
+### Eine ganze Abfrage in einer Datenbank
+
+In einer SQLite-Datenbank nimmt dieselbe Eingabe auch eine ganze Abfrage an, die mit `SELECT` oder `WITH` beginnt, mit allem, was SQLite kann: `JOIN`, `GROUP BY`, `ORDER BY`, Funktionen.
+
+```
+SELECT c.name, sum(o.price) FROM customers c JOIN orders o ON o.code = c.code GROUP BY c.name
+```
+
+Der Rahmen zeigt `QUERY:`, und das Raster das Ergebnis. Eine Bedingung filtert dann diese Zeilen, und **Ctrl+B** schreibt alles, was die Abfrage liefert. Eine leere Eingabe löscht den Filter und führt danach zurück zur Tabelle; auch `Tab`, `[` und `]` führen zu einer Tabelle. Eine Abfrage liest nur, und nur eine auf einmal: Alles andere wird abgelehnt, und ein Fehler lässt den Bildschirm unverändert. Die Grenzen unten gelten, also stoppt eine langsame Abfrage nach 3 s und zeigt die bisherigen Zeilen; ein Batch hat diese Grenze nicht. Xylem ändert keine Datenbanken: `UPDATE`, `DELETE` und Ähnliches erhalten eine Meldung, die das sagt. Zum Ändern nehmen Sie ein anderes Programm: `O` im Dateifenster öffnet sie in dem unter `opener` eingestellten, und `'*.db' = 'sqlite3 %f'` unter `[editors]` lässt `E` sie in `sqlite3` öffnen.
 
 ### Grenzen
 

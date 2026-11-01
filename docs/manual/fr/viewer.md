@@ -125,6 +125,7 @@ Le séparateur du CSV (virgule, point-virgule, tabulation ou barre verticale) es
 | PgUp PgDn | une page de lignes vers le haut ou vers le bas |
 | Home End | première ou dernière colonne |
 | `[` `]` | feuille précédente ou suivante d'un classeur, ou table d'une base SQLite, en boucle ; cela efface le filtre |
+| `Tab` | la liste des feuilles ou tables : tapez une partie d'un nom pour la réduire, Entrée en ouvre une et Échap revient ; en ouvrir une autre efface le filtre. Dans une base, les vues viennent après les tables, marquées `(view)` |
 | `g` ou `:` | aller à une ligne par son numéro dans le fichier ; si le filtre l'a masquée, à la suivante qu'il a gardée |
 | `\` ou `&` | le filtre SQL |
 | `m` ou Insert | marque ou démarque l'enregistrement sous le curseur et passe au suivant ; **Ctrl+B** n'écrit alors que les marqués |
@@ -161,6 +162,16 @@ Les mots-clés s'écrivent en majuscules ou en minuscules.
 - **Valeurs :** du texte entre apostrophes ou guillemets (`\'` pour une apostrophe à l'intérieur), des nombres, `TRUE`, `FALSE` et `NULL`. Ce qui est entre guillemets est toujours du texte, jamais une colonne.
 - **Cellules :** le type vient de l'apparence de la cellule. Vide, c'est `NULL`, `true` et `false` sont des booléens, les nombres sont des nombres et le reste est du texte. Écrivez donc `code = 7`, et non `code = '7'` : un texte et un nombre ne sont jamais égaux, et une cellule contenant `007` est le nombre 7. Les comparaisons de texte respectent la casse.
 - **Taille :** un filtre compte au plus 1 024 octets et 128 termes.
+
+### Une requête complète dans une base
+
+Dans une base SQLite, la même invite accepte une requête complète, commençant par `SELECT` ou `WITH`, avec tout ce que SQLite sait faire : `JOIN`, `GROUP BY`, `ORDER BY`, fonctions.
+
+```
+SELECT c.name, sum(o.price) FROM customers c JOIN orders o ON o.code = c.code GROUP BY c.name
+```
+
+Le cadre indique `QUERY:`, et la grille montre le résultat. Une condition filtre alors ces lignes, et **Ctrl+B** écrit tout ce que donne la requête. Laisser l'invite vide efface le filtre, puis revient à la table ; `Tab`, `[` et `]` vont aussi à une table. Une requête ne fait que lire, une à la fois : tout le reste est refusé, et une erreur laisse l'écran tel quel. Les limites ci-dessous s'appliquent : une requête lente s'arrête à 3 s et montre les lignes obtenues ; un Batch n'a pas cette limite. Xylem ne modifie pas les bases : `UPDATE`, `DELETE` et les autres reçoivent un message qui le dit. Pour en modifier une, utilisez un autre programme : `O` dans la fenêtre des fichiers l'ouvre dans celui défini par `opener`, et `'*.db' = 'sqlite3 %f'` dans `[editors]` fait que `E` l'ouvre dans `sqlite3`.
 
 ### Limites
 

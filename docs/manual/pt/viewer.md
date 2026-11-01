@@ -123,6 +123,7 @@ O separador do CSV (vírgula, ponto e vírgula, tabulação ou barra vertical) �
 | PgUp PgDn | uma página de linhas para cima ou para baixo |
 | Home End | primeira ou última coluna |
 | `[` `]` | aba anterior ou seguinte de uma planilha, ou tabela de um banco SQLite, dando a volta; isso limpa o filtro |
+| `Tab` | a lista de abas ou tabelas: digite parte de um nome para reduzi-la, Enter abre uma e Esc volta; abrir outra limpa o filtro. Num banco, as views vêm depois das tabelas, marcadas com `(view)` |
 | `g` ou `:` | pula para uma linha pelo número dela no arquivo; se o filtro a escondeu, para a próxima que ele manteve |
 | `\` ou `&` | o filtro SQL |
 | `m` ou Insert | marca ou desmarca o registro sob o cursor e vai para o próximo; o **Ctrl+B** passa a gravar só os marcados |
@@ -159,6 +160,16 @@ As palavras-chave podem estar em maiúsculas ou minúsculas.
 - **Valores:** texto entre aspas simples ou duplas (`\'` para uma aspa dentro dele), números, `TRUE`, `FALSE` e `NULL`. O que está entre aspas é sempre texto, nunca coluna.
 - **Células:** o tipo vem da aparência da célula. Vazia é `NULL`, `true` e `false` são booleanos, números são números e o resto é texto. Por isso escreva `code = 7`, não `code = '7'`: texto e número nunca são iguais, e uma célula com `007` é o número 7. Comparações de texto distinguem maiúsculas de minúsculas.
 - **Tamanho:** um filtro tem no máximo 1.024 bytes e 128 termos.
+
+### Uma query inteira num banco
+
+Num banco SQLite, o mesmo prompt aceita uma query inteira, começando com `SELECT` ou `WITH`, com tudo o que o SQLite faz: `JOIN`, `GROUP BY`, `ORDER BY`, funções.
+
+```
+SELECT c.name, sum(o.price) FROM customers c JOIN orders o ON o.code = c.code GROUP BY c.name
+```
+
+A moldura diz `QUERY:`, e a grade mostra o resultado. Uma condição filtra então essas linhas, e **Ctrl+B** grava tudo o que a query dá. Deixar o prompt vazio limpa o filtro e depois volta à tabela; `Tab`, `[` e `]` também vão para uma tabela. A query só lê, uma de cada vez: qualquer outra coisa é recusada, e um erro deixa a tela como estava. Os limites abaixo valem, então uma query lenta para em 3 s e mostra as linhas que obteve; o Batch não tem esse limite. O Xylem não altera bancos: `UPDATE`, `DELETE` e parecidos recebem uma mensagem dizendo isso. Para alterar um banco, use outro programa: `O` na janela de arquivos o abre no definido em `opener`, e `'*.db' = 'sqlite3 %f'` em `[editors]` faz o `E` abri-lo no `sqlite3`.
 
 ### Limites
 

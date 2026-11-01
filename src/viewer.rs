@@ -196,6 +196,8 @@ pub struct Viewer {
     problem: Option<String>,
     /// Tabular grid for CSV, spreadsheet, SQLite, or DBF files.
     pub table: Option<table::TableGrid>,
+    /// The list of the table's sheets, while it is open (Tab).
+    pub sheet_list: Option<table::SheetList>,
     /// Text mode shows only the lines this filter kept. `lines` stays whole:
     /// the margin keeps each line's number, and the colors their context.
     filter: Option<LineFilter>,
@@ -281,7 +283,9 @@ impl Viewer {
             "jsonl" | "ndjson" => tabular_loader::load_jsonl(&path, budget),
             "xlsx" | "ods" | "xls" | "xlsb" => tabular_loader::load_spreadsheet(&path, 0, budget),
             "dbf" => tabular_loader::load_dbf(&path, budget),
-            "sqlite" | "sqlite3" | "db" => tabular_loader::load_sqlite(&path, None, budget),
+            "sqlite" | "sqlite3" | "db" => {
+                tabular_loader::load_sqlite(&path, records::SqlitePart::First, budget)
+            }
             "parquet" => tabular_loader::load_parquet(&path, budget),
             _ => Err("Not supported".to_string()),
         })
@@ -323,6 +327,7 @@ impl Viewer {
                     path: self.path.clone(),
                     sheet: t.current_sheet,
                     table: t.sheets.get(t.current_sheet).cloned(),
+                    query: t.query.clone(),
                     filter: t.filter_expr.clone(),
                     unpacked: self.load.limits.output as u64,
                     marked: t.marked.clone(),
@@ -368,7 +373,6 @@ impl Viewer {
     }
 
     /// `[` and `]`: another sheet of a spreadsheet or table of a database.
-    /// Stays where it is, saying why, if that one cannot be read.
     fn switch_sheet(&mut self, forward: bool) {
         let Some(t) = &self.table else { return };
         let count = t.sheets.len();
@@ -380,9 +384,20 @@ impl Viewer {
         } else {
             (t.current_sheet + count - 1) % count
         };
+        self.open_sheet(target);
+    }
+
+    /// Replaces the table with another sheet or table of the file. Stays where it
+    /// is, saying why, if that one cannot be read.
+    fn open_sheet(&mut self, target: usize) {
+        let Some(t) = &self.table else { return };
         let budget = self.table_budget();
         let grid = if tabular_loader::uses_c_parser(&self.path) {
-            tabular_loader::load_sqlite(&self.path, Some(&t.sheets[target]), budget)
+            tabular_loader::load_sqlite(
+                &self.path,
+                records::SqlitePart::Table(&t.sheets[target]),
+                budget,
+            )
         } else {
             tabular_loader::load_spreadsheet(&self.path, target, budget)
         };
@@ -731,6 +746,7 @@ impl Viewer {
             lines_cut: text.cut,
             problem: None,
             table: None,
+            sheet_list: None,
             filter: None,
             md: None,
             md_file: false,
@@ -1174,9 +1190,104 @@ impl Viewer {
         rows
     }
 
+    /// What was typed in the SQL prompt: a condition over the rows on screen or, in
+    /// a database, a whole query. What goes wrong leaves the table as it was.
+    pub fn sql_prompt(&mut self, text: &str) {
+        let text = text.trim();
+        let Some(t) = &mut self.table else { return };
+        if tabular_loader::is_write_statement(text) {
+            self.note = Some(records::READS_ONLY.into());
+            return;
+        }
+        if tabular_loader::is_whole_query(text) {
+            if !tabular_loader::is_sqlite(&self.path) {
+                self.note =
+                    Some("A whole query works on SQLite databases: write a condition".into());
+                return;
+            }
+            let current = t.current_sheet;
+            let budget = self.table_budget();
+            let part = records::SqlitePart::Query(text);
+            match tabular_loader::load_sqlite(&self.path, part, budget) {
+                Ok(mut grid) => {
+                    grid.query = Some(text.to_string());
+                    grid.current_sheet = current;
+                    let rows = grid.rows.len();
+                    let word = if rows == 1 { "row" } else { "rows" };
+                    self.note = Some(format!("Query gave {rows} {word}"));
+                    self.table = Some(grid);
+                }
+                Err(e) if e == records::READS_ONLY => self.note = Some(e),
+                Err(e) => self.note = Some(format!("SQL error: {e}")),
+            }
+            return;
+        }
+        // Empty clears the filter first, and then leaves the query.
+        if text.is_empty() && t.active_filter.is_none() && t.query.is_some() {
+            let current = t.current_sheet;
+            self.open_sheet(current);
+            return;
+        }
+        let filter = (!text.is_empty()).then_some(text);
+        self.note = Some(match t.apply_filter(filter) {
+            Ok(count) => format!("Filter matched {count} rows"),
+            Err(e) => format!("SQL error: {e}"),
+        });
+    }
+
+    /// Tab in a table: the list of the file's sheets or tables.
+    fn open_sheet_list(&mut self) {
+        let Some(t) = &self.table else { return };
+        if t.sheets.len() < 2 {
+            self.note = Some("This file has only one sheet or table".into());
+            return;
+        }
+        self.sheet_list = Some(table::SheetList::new(&t.sheets, t.current_sheet));
+    }
+
+    /// A key in the list of sheets: it takes them all, since typing narrows it.
+    fn sheet_list_key(&mut self, key: KeyEvent) {
+        let (Some(list), Some(t)) = (&mut self.sheet_list, &self.table) else {
+            self.sheet_list = None;
+            return;
+        };
+        let last = list.shown.len().saturating_sub(1);
+        let page = self.page.max(1);
+        let plain = !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        match key.code {
+            KeyCode::Up => list.cursor = list.cursor.saturating_sub(1),
+            KeyCode::Down => list.cursor = (list.cursor + 1).min(last),
+            KeyCode::PageUp => list.cursor = list.cursor.saturating_sub(page),
+            KeyCode::PageDown => list.cursor = (list.cursor + page).min(last),
+            KeyCode::Home => list.cursor = 0,
+            KeyCode::End => list.cursor = last,
+            KeyCode::Backspace => list.pop(&t.sheets),
+            KeyCode::Char(c) if plain => list.push(c, &t.sheets),
+            KeyCode::Esc | KeyCode::Tab => self.sheet_list = None,
+            KeyCode::Enter => {
+                let Some(&target) = list.shown.get(list.cursor) else {
+                    return;
+                };
+                // The one already open stays as it is, with its filter and marks.
+                let other = target != t.current_sheet || t.query.is_some();
+                self.sheet_list = None;
+                if other {
+                    self.open_sheet(target);
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// Handles a key; what does not belong to the viewer itself (close, switch
     /// file, search) comes back as an `Action`.
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
+        if self.sheet_list.is_some() {
+            self.sheet_list_key(key);
+            return Action::None;
+        }
         // Route movement keys to table when in Table mode
         if self.mode == ViewMode::Table
             && let Some(t) = &mut self.table
@@ -1307,6 +1418,10 @@ impl Viewer {
                         from: SearchFrom::Page,
                     }
                 }
+            }
+            KeyCode::Tab if self.mode == ViewMode::Table => {
+                self.open_sheet_list();
+                Action::None
             }
             KeyCode::Char(']') => {
                 self.switch_sheet(true);
@@ -2119,6 +2234,188 @@ mod tests {
         assert_eq!(state(&v), (2, "three".to_string()), "wraps around");
         press(&mut v, KeyCode::Char(']'));
         assert_eq!(state(&v), (0, "one".to_string()));
+    }
+
+    #[test]
+    fn tab_lists_the_sheets_and_typing_narrows_them() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("book.xlsx");
+        xlsx_file(&path, &["one", "two", "three"]);
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        let current = |v: &Viewer| v.table.as_ref().unwrap().current_sheet;
+
+        assert_eq!(v.table.as_ref().unwrap().view_mark(0), "", "only databases");
+        press(&mut v, KeyCode::Tab);
+        assert_eq!(v.sheet_list.as_ref().unwrap().shown, [0, 1, 2]);
+        press(&mut v, KeyCode::Char('T'));
+        assert_eq!(v.sheet_list.as_ref().unwrap().shown, [1, 2], "any case");
+        press(&mut v, KeyCode::Down);
+        press(&mut v, KeyCode::Enter);
+        assert!(v.sheet_list.is_none());
+        assert_eq!(current(&v), 2);
+        assert_eq!(v.table.as_ref().unwrap().active_cell(), Some("three"));
+
+        // It opens on the sheet in use, and Esc leaves it there.
+        press(&mut v, KeyCode::Tab);
+        assert_eq!(v.sheet_list.as_ref().unwrap().cursor, 2);
+        press(&mut v, KeyCode::Up);
+        press(&mut v, KeyCode::Esc);
+        assert!(v.sheet_list.is_none());
+        assert_eq!(current(&v), 2);
+
+        // With nothing left, Enter has nothing to open, and Backspace brings them back.
+        press(&mut v, KeyCode::Tab);
+        press(&mut v, KeyCode::Char('z'));
+        assert!(v.sheet_list.as_ref().unwrap().shown.is_empty());
+        press(&mut v, KeyCode::Enter);
+        assert!(v.sheet_list.is_some());
+        assert_eq!(current(&v), 2);
+        press(&mut v, KeyCode::Backspace);
+        assert_eq!(v.sheet_list.as_ref().unwrap().shown.len(), 3);
+        press(&mut v, KeyCode::Esc);
+
+        // The sheet already open keeps its filter.
+        let t = v.table.as_mut().unwrap();
+        t.apply_filter(Some("A = 'three'")).unwrap();
+        press(&mut v, KeyCode::Tab);
+        press(&mut v, KeyCode::Enter);
+        assert!(v.table.as_ref().unwrap().active_filter.is_some());
+    }
+
+    fn shop_db(dir: &Path) -> PathBuf {
+        let path = dir.join("shop.db");
+        rusqlite::Connection::open(&path)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE people (id, name);
+                 INSERT INTO people VALUES (1, 'ana'), (2, 'bob');
+                 CREATE TABLE orders (who, item);
+                 INSERT INTO orders VALUES (1, 'pen'), (1, 'ink'), (2, 'cup');",
+            )
+            .unwrap();
+        path
+    }
+
+    #[test]
+    fn a_whole_query_joins_tables_and_empty_goes_back() {
+        let tmp = crate::testing::tempdir();
+        let mut v = Viewer::open(shop_db(tmp.path()), LOAD).unwrap();
+        let shown = |v: &Viewer| {
+            let t = v.table.as_ref().unwrap();
+            (t.query.clone(), t.headers.clone(), t.visible_row_count())
+        };
+        // orders comes before people, and stays the sheet in use.
+        assert_eq!(v.table.as_ref().unwrap().current_sheet, 0);
+
+        let join = "select name, item from people join orders on who = id order by item";
+        v.sql_prompt(join);
+        assert_eq!(
+            shown(&v),
+            (
+                Some(join.to_string()),
+                vec!["name".into(), "item".into()],
+                3
+            )
+        );
+        assert_eq!(v.note.as_deref(), Some("Query gave 3 rows"));
+        assert_eq!(v.table.as_ref().unwrap().current_sheet, 0);
+
+        // A mistake leaves what was on screen.
+        v.sql_prompt("SELECT nothing FROM nowhere");
+        assert!(
+            v.note.as_deref().unwrap().starts_with("SQL error"),
+            "{:?}",
+            v.note
+        );
+        assert_eq!(shown(&v).2, 3);
+        for write in [
+            "DELETE FROM people",
+            "update people set name = 'x'",
+            "WITH c AS (SELECT 1) DELETE FROM people",
+        ] {
+            v.sql_prompt(write);
+            assert_eq!(v.note.as_deref(), Some(records::READS_ONLY), "{write}");
+            assert_eq!(shown(&v).2, 3, "{write}");
+        }
+
+        // A condition filters the query's rows; empty clears it, and then the query.
+        v.sql_prompt("name = 'ana'");
+        assert_eq!(shown(&v).2, 2);
+        assert!(shown(&v).0.is_some());
+        v.sql_prompt("");
+        assert_eq!(shown(&v).2, 3);
+        assert!(shown(&v).0.is_some());
+        v.sql_prompt("");
+        assert_eq!(shown(&v).0, None);
+        assert_eq!(shown(&v).1, ["who", "item"]);
+
+        // The list and [ ] leave a query too, even for the table in use.
+        v.sql_prompt(join);
+        press(&mut v, KeyCode::Tab);
+        press(&mut v, KeyCode::Enter);
+        assert_eq!(shown(&v).0, None);
+        assert_eq!(shown(&v).1, ["who", "item"]);
+    }
+
+    #[test]
+    fn views_come_after_the_tables_and_say_so() {
+        let tmp = crate::testing::tempdir();
+        let path = shop_db(tmp.path());
+        rusqlite::Connection::open(&path)
+            .unwrap()
+            .execute_batch(
+                "CREATE VIEW a_view AS SELECT name, item FROM people JOIN orders ON who = id;",
+            )
+            .unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.sheets, ["orders", "people", "a_view"]);
+        assert_eq!(t.headers, ["who", "item"], "a table opens first");
+        assert_eq!(t.view_mark(1), "");
+        assert_eq!(t.view_mark(2), " (view)");
+
+        press(&mut v, KeyCode::Tab);
+        for c in "view".chars() {
+            press(&mut v, KeyCode::Char(c));
+        }
+        press(&mut v, KeyCode::Enter);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.current_sheet, 2);
+        assert_eq!(t.headers, ["name", "item"]);
+        assert_eq!(t.visible_row_count(), 3);
+        assert_eq!(t.view_mark(t.current_sheet), " (view)");
+    }
+
+    #[test]
+    fn a_whole_query_is_only_for_databases_and_a_column_can_be_called_select() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("a.csv");
+        std::fs::write(&path, "select,with\n1,2\n3,4\n").unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.sql_prompt("SELECT * FROM a");
+        assert!(v.note.as_deref().unwrap().contains("SQLite"));
+        assert_eq!(v.table.as_ref().unwrap().visible_row_count(), 2);
+        v.sql_prompt("select = 3");
+        assert_eq!(v.note.as_deref(), Some("Filter matched 1 rows"));
+        v.sql_prompt("update != 3");
+        assert!(
+            v.note.as_deref().unwrap().starts_with("Filter matched"),
+            "a column"
+        );
+    }
+
+    #[test]
+    fn tab_says_when_there_is_nothing_to_list() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("one.csv");
+        std::fs::write(&path, "id\n1\n").unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        press(&mut v, KeyCode::Tab);
+        assert!(v.sheet_list.is_none());
+        assert_eq!(
+            v.note.as_deref(),
+            Some("This file has only one sheet or table")
+        );
     }
 
     #[test]

@@ -1873,6 +1873,8 @@ pub enum Source {
         sheet: usize,
         /// The table of a database.
         table: Option<String>,
+        /// The query typed over a database, which comes before the table.
+        query: Option<String>,
         filter: Option<Expr>,
         /// The most a spreadsheet may unpack to.
         unpacked: u64,
@@ -2045,6 +2047,7 @@ impl Source {
                 path,
                 sheet,
                 table,
+                query,
                 filter,
                 marked,
                 ..
@@ -2058,7 +2061,12 @@ impl Source {
                     sequence: 0,
                     deliver,
                 };
-                records::read_table(path, *sheet, table.as_deref(), budget, &mut sink)
+                let part = match (query, table) {
+                    (Some(query), _) => records::SqlitePart::Query(query),
+                    (None, Some(table)) => records::SqlitePart::Table(table),
+                    (None, None) => records::SqlitePart::First,
+                };
+                records::read_table(path, *sheet, part, budget, &mut sink)
             }
             Source::Text {
                 text,
@@ -2751,6 +2759,7 @@ mod tests {
             path: path.to_path_buf(),
             sheet: 0,
             table: None,
+            query: None,
             filter: filter.map(|f| sql_filter::SqlFilter::parse(f).unwrap()),
             unpacked: u64::MAX,
             marked: Default::default(),
@@ -3721,6 +3730,7 @@ mod tests {
             path: source_db.clone(),
             sheet: 0,
             table: Some("t".to_string()),
+            query: None,
             filter: None,
             unpacked: u64::MAX,
             marked: Default::default(),
@@ -3735,6 +3745,33 @@ mod tests {
         assert_eq!(row("s"), ["Text(\"x\")"]);
         assert_eq!(row("b"), ["Blob([0, 255])"]);
         assert_eq!(row("n"), ["Null"]);
+    }
+
+    #[test]
+    fn a_batch_writes_all_that_a_whole_query_gives() {
+        let tmp = crate::testing::tempdir();
+        let source_db = tmp.path().join("in.db");
+        rusqlite::Connection::open(&source_db)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE a (id, name); INSERT INTO a VALUES (1, 'ana'), (2, 'bob');
+                 CREATE TABLE b (who, item); INSERT INTO b VALUES (1, 'pen'), (2, 'cup');",
+            )
+            .unwrap();
+        let source = Source::Table {
+            path: source_db.clone(),
+            sheet: 0,
+            table: Some("a".to_string()),
+            query: Some("SELECT name, item FROM a JOIN b ON who = id ORDER BY id".to_string()),
+            filter: None,
+            unpacked: u64::MAX,
+            marked: Default::default(),
+        };
+        let out = tmp.path().join("out.txt");
+        let mask = Mask::parse("%{name}=%{item}", Escape::Raw, &source_db, 1).unwrap();
+        let found = preview(&source, mask).unwrap();
+        run_to_file(source, found.output, &out);
+        assert_eq!(std::fs::read_to_string(&out).unwrap(), "ana=pen\nbob=cup\n");
     }
 
     #[test]
@@ -3854,6 +3891,7 @@ mod tests {
             path,
             sheet,
             table,
+            query,
             filter,
             unpacked,
             ..
@@ -3865,6 +3903,7 @@ mod tests {
             path,
             sheet,
             table,
+            query,
             filter,
             unpacked,
             // Places, from 0; the third record is hidden by the filter.

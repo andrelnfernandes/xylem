@@ -6,7 +6,7 @@
 use std::ops::ControlFlow;
 use std::path::Path;
 
-use super::records::{self, Budget, Cell, End, MAX_COLS, RecordSink};
+use super::records::{self, Budget, Cell, End, MAX_COLS, RecordSink, SqlitePart};
 use super::table::{TableGrid, TableRow};
 
 pub use super::records::column_letter;
@@ -43,6 +43,50 @@ pub fn is_tabular_candidate(path: &Path) -> bool {
 
 /// The formats read by libraries in C: SQLite and Parquet's zstd codec.
 /// Everything else here is parsed in Rust.
+pub fn is_sqlite(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+    matches!(ext.as_str(), "sqlite" | "sqlite3" | "db")
+}
+
+/// Whether what was typed in the SQL prompt is a whole query and not a condition.
+/// A column may be called `select` or `with`: `select = 1` is still a condition.
+pub fn is_whole_query(text: &str) -> bool {
+    starts_a_statement(text, &["select", "with"])
+}
+
+/// Whether what was typed in the SQL prompt asks to change something, which Xylem
+/// does not do. A column may have one of these names too.
+pub fn is_write_statement(text: &str) -> bool {
+    starts_a_statement(
+        text,
+        &[
+            "update", "delete", "insert", "replace", "drop", "alter", "create", "truncate",
+            "attach", "detach", "pragma", "vacuum", "reindex",
+        ],
+    )
+}
+
+fn starts_a_statement(text: &str, statements: &[&str]) -> bool {
+    let mut words = text.split_whitespace();
+    let Some(first) = words.next() else {
+        return false;
+    };
+    if !statements.iter().any(|s| first.eq_ignore_ascii_case(s)) {
+        return false;
+    }
+    let Some(next) = words.next() else {
+        return false;
+    };
+    !next.starts_with(['=', '<', '>', '!'])
+        && !["is", "in", "like", "ilike", "not"]
+            .iter()
+            .any(|word| next.eq_ignore_ascii_case(word))
+}
+
 pub fn uses_c_parser(path: &Path) -> bool {
     let ext = path
         .extension()
@@ -57,6 +101,7 @@ pub fn uses_c_parser(path: &Path) -> bool {
 struct GridSink {
     sheets: Vec<String>,
     current_sheet: usize,
+    first_view: Option<usize>,
     headers: Vec<String>,
     rows: Vec<TableRow>,
     rows_cut: bool,
@@ -64,6 +109,10 @@ struct GridSink {
 }
 
 impl RecordSink for GridSink {
+    fn first_view(&mut self, index: usize) {
+        self.first_view = Some(index);
+    }
+
     fn sheets(&mut self, names: &[String], current: usize) {
         self.sheets = names.iter().map(|s| TableGrid::sanitize_cell(s)).collect();
         self.current_sheet = current;
@@ -124,6 +173,7 @@ impl GridSink {
         let mut grid = TableGrid::new(path.display().to_string(), self.headers, self.rows);
         grid.sheets = self.sheets;
         grid.current_sheet = self.current_sheet;
+        grid.first_view = self.first_view.unwrap_or(usize::MAX);
         grid.cut = (!cut.is_empty()).then(|| cut.join(", "));
         grid
     }
@@ -163,14 +213,8 @@ pub fn load_spreadsheet(path: &Path, sheet: usize, budget: Budget) -> Result<Tab
 }
 
 /// Load a table or query result from an SQLite database.
-pub fn load_sqlite(
-    path: &Path,
-    table_or_query: Option<&str>,
-    budget: Budget,
-) -> Result<TableGrid, String> {
-    load(path, |sink| {
-        records::read_sqlite(path, table_or_query, budget, sink)
-    })
+pub fn load_sqlite(path: &Path, part: SqlitePart<'_>, budget: Budget) -> Result<TableGrid, String> {
+    load(path, |sink| records::read_sqlite(path, part, budget, sink))
 }
 
 /// Load an Apache Parquet file (.parquet).
@@ -241,7 +285,7 @@ mod tests {
         }
 
         // Test loading default table
-        let grid = load_sqlite(file.path(), None, Budget::unlimited()).unwrap();
+        let grid = load_sqlite(file.path(), SqlitePart::First, Budget::unlimited()).unwrap();
         assert_eq!(grid.sheets, vec!["users".to_string()]);
         assert_eq!(grid.headers, vec!["id", "name", "balance"]);
         assert_eq!(grid.rows.len(), 2);
@@ -250,7 +294,7 @@ mod tests {
         // Test custom SELECT query
         let grid_query = load_sqlite(
             file.path(),
-            Some("SELECT name, balance FROM users WHERE balance > 150"),
+            SqlitePart::Query("SELECT name, balance FROM users WHERE balance > 150"),
             Budget::unlimited(),
         )
         .unwrap();
@@ -444,7 +488,7 @@ mod tests {
             .unwrap()
             .execute_batch("CREATE TABLE t (b); INSERT INTO t VALUES (x'0001');")
             .unwrap();
-        let grid = load_sqlite(file.path(), None, Budget::unlimited()).unwrap();
+        let grid = load_sqlite(file.path(), SqlitePart::First, Budget::unlimited()).unwrap();
         assert_eq!(grid.rows[0].cells, ["<Blob 2 bytes>"]);
     }
 }

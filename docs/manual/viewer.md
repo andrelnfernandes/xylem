@@ -121,6 +121,7 @@ The CSV separator (comma, semicolon, tab or vertical bar) is detected from the s
 | PgUp PgDn | a page of rows up or down |
 | Home End | first or last column |
 | `[` `]` | previous or next sheet of a spreadsheet, or table of a SQLite database, going around; this clears the filter |
+| `Tab` | the list of sheets or tables: type part of a name to narrow it, Enter opens one and Esc goes back; opening another one clears the filter. In a database, views come after the tables, marked `(view)` |
 | `g` or `:` | jump to a row by its number in the file; if the filter hid it, to the next one kept |
 | `\` or `&` | the SQL filter |
 | `m` or Insert | mark or unmark the record under the cursor, and go to the next; **Ctrl+B** then writes only the marked ones |
@@ -157,6 +158,16 @@ Keywords can be in any case.
 - **Values:** text in single or double quotes (`\'` for a quote inside it), numbers, `TRUE`, `FALSE` and `NULL`. Anything in quotes is text, never a column.
 - **Cells:** the type comes from what the cell looks like. Empty is `NULL`, `true` and `false` are booleans, numbers are numbers, and the rest is text. So write `code = 7`, not `code = '7'`: text and a number are never equal, and a cell with `007` is the number 7. Text comparisons distinguish upper and lower case.
 - **Size:** a filter has at most 1,024 bytes and 128 terms.
+
+### A whole query in a database
+
+In a SQLite database, the same prompt takes a whole query, starting with `SELECT` or `WITH`, with all that SQLite can do: `JOIN`, `GROUP BY`, `ORDER BY`, functions.
+
+```
+SELECT c.name, sum(o.price) FROM customers c JOIN orders o ON o.code = c.code GROUP BY c.name
+```
+
+The frame says `QUERY:`, and the grid shows what it gave. A condition then filters those rows, and **Ctrl+B** writes all that the query gives. Leaving the prompt empty clears the filter and then goes back to the table; `Tab`, `[` and `]` go to a table too. A query only reads, one at a time: anything else is refused, and a mistake leaves the screen as it was. The limits below apply, so a slow query stops at 3 s and shows the rows it got; a Batch has no such limit. Xylem does not change databases: `UPDATE`, `DELETE` and the like get a message saying so. To change one, use another program: `O` in the file window opens it in the one set in `opener`, and `'*.db' = 'sqlite3 %f'` under `[editors]` makes `E` open it in `sqlite3`.
 
 ### Limits
 

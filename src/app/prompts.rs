@@ -658,22 +658,8 @@ impl App {
                 Ok(())
             }
             PromptKind::ViewerSqlFilter => {
-                if let Some(v) = &mut self.viewer
-                    && let Some(t) = &mut v.table
-                {
-                    let query = if text.trim().is_empty() {
-                        None
-                    } else {
-                        Some(text.as_str())
-                    };
-                    match t.apply_filter(query) {
-                        Ok(count) => {
-                            v.note = Some(format!("Filter matched {count} rows"));
-                        }
-                        Err(e) => {
-                            v.note = Some(format!("SQL error: {e}"));
-                        }
-                    }
+                if let Some(v) = &mut self.viewer {
+                    v.sql_prompt(&text);
                 }
                 Ok(())
             }

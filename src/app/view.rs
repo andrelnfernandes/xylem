@@ -313,13 +313,14 @@ impl App {
                 let current = v
                     .table
                     .as_ref()
-                    .and_then(|t| t.active_filter.clone())
+                    .and_then(|t| t.active_filter.clone().or_else(|| t.query.clone()))
                     .unwrap_or_default();
-                self.open_prompt(
-                    PromptKind::ViewerSqlFilter,
-                    "SQL Filter (WHERE ...): ".to_string(),
-                    &current,
-                );
+                let label = if crate::viewer::tabular_loader::is_sqlite(&v.path) {
+                    "SQL (WHERE ... or SELECT ...): "
+                } else {
+                    "SQL Filter (WHERE ...): "
+                };
+                self.open_prompt(PromptKind::ViewerSqlFilter, label.to_string(), &current);
             }
             ViewerAction::Batch => self.viewer_batch(),
             ViewerAction::FilterLines => {
