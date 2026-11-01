@@ -3,7 +3,8 @@
 What is known to be left to do, kept here so it does not live only on one
 machine. The user-facing summary is under "For later" in the
 [README](README.md#for-later); detailed plans are in [docs/plans/](docs/plans/)
-(in Portuguese).
+(in Portuguese). The order of the work and the rhythm of releases are in
+[docs/plans/roadmap.md](docs/plans/roadmap.md).
 
 ## Security
 
@@ -62,7 +63,7 @@ as a link is what `cp -a` and `rsync -l` do).
      over ssh, Git over ssh, periodic refresh instead of inotify.
 - **Disk usage, phases 3 and 4** ([docs/plans/usage.md](docs/plans/usage.md);
   phases 1 and 2 are in 0.4.0): actions inside the Usage view (tag, delete,
-  prune, viewer); optional treemap, grouping by type, export.
+  prune, viewer); with no date, grouping by type and export.
 - **Duplicate files** ([docs/plans/usage.md](docs/plans/usage.md), "Duplicados";
   [the manual](docs/manual/duplicates.md)): done on local folders, whole folders
   included, and through rclone by the service's hashes. Still open: over SSH
@@ -73,14 +74,19 @@ as a link is what `cp -a` and `rsync -l` do).
   Drive reads every folder in it before the first draw (over 29 s on a blank
   screen, with a cold cache); Branch, Usage and Compare still read folder by
   folder, and a single slow read holds the screen up.
-- **Xylem in its own window**, further ahead: see "For later" in the README.
-- Postponed by choice: macros, chown, Graft, macOS.
+- **From ZTreeWin, next:** JFC (compare the contents of two files), and saving
+  and loading the log (Zlist), so that the tree of a disk or a Drive opens at once.
+- Postponed by choice: macros, chown, Graft. macOS: to look at again when there
+  is a machine to test on.
+- Left out by decision: Xylem in its own window, external converters, HTML in the
+  viewer, a treemap, the mouse, and what of ZTreeWin serves parity more than use
+  (Wash, Volume, Hide, video commands).
 - **New file viewers** ([docs/plans/viewers.md](docs/plans/viewers.md)):
   six subprojects, security first. Done: subproject 1 (encodings, compressed
   files, the size limit; PRs #44 to #49), and the table mode with SQLite and the
   SQL filter (subprojects 2 and 5; PR #63), documented in
-  [the manual](docs/manual/viewer.md). Still to do: SDF in the table mode, as an
-  extra; the windowed viewer (3); logs (4); external converters (6).
+  [the manual](docs/manual/viewer.md). Still to do: the windowed viewer (3); logs
+  (4), of which the line filter is done; SDF in the table mode, as an extra.
 - **Rendered Markdown in the viewer**
   ([docs/plans/markdown.md](docs/plans/markdown.md)): done, on `.md` and
   `.markdown`. Still open: the help's small parser could move to the same
@@ -89,9 +95,3 @@ as a link is what `cp -a` and `rsync -l` do).
 - **Batch over files and records** ([docs/plans/batch.md](docs/plans/batch.md)):
   complete. Left for when they are missed: Parquet and XLSX as outputs. Records into
   `.bat`/`.cmd` wait for item 2 of Security.
-- **HTML rendered in the viewer**, after the Markdown mode: study a way to show
-  `.html` acceptably, not perfectly: whoever wants a faithful page opens it in the
-  browser. `pulldown-cmark` does not read HTML. First candidates: `html2text`, or
-  `html5ever` directly to share the Markdown mode's drawing. Nothing runs or is
-  downloaded (no JavaScript, CSS or images), links show their real address, and H
-  still reaches the source: without CSS, text a page hides does appear.
