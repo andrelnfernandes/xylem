@@ -124,14 +124,14 @@ Das CSV-Trennzeichen (Komma, Semikolon, Tabulator oder senkrechter Strich) wird 
 | PgUp PgDn | eine Seite Zeilen nach oben oder unten |
 | Home End | erste oder letzte Spalte |
 | `[` `]` | vorheriges oder nächstes Blatt einer Tabellenkalkulation oder vorherige oder nächste Tabelle einer SQLite-Datenbank, im Kreis; das löscht den Filter |
-| `g` oder `:` | zu einer Zeile springen, gezählt werden nur die vom Filter behaltenen |
+| `g` oder `:` | zu einer Zeile über ihre Nummer in der Datei springen; hat der Filter sie ausgeblendet, zur nächsten behaltenen |
 | `\` oder `&` | der SQL-Filter |
 | `m` oder Insert | markiert den Datensatz unter dem Cursor oder hebt die Markierung auf und geht zum nächsten; **Ctrl+B** schreibt dann nur die markierten |
 | `M` | löscht die Markierungen |
 | `T` | zum Text der Datei und zurück |
 | `H` | von der Tabelle zum Text, dann Hex, dann zurück zur Tabelle |
 
-Der Rahmen zeigt `TABLE [2/5: Name]`, wenn es mehrere Blätter oder Tabellen gibt, und die untere Zeile die Position des Cursors: `Cell B7 (Row 7 of 120)`. Die letzte Zeile des Rasters enthält den ganzen Zellinhalt und den aktiven Filter. Die Suche (`F`, `B`, `/`) schaut nicht in das Raster und findet dort nichts; sie funktioniert im Textmodus.
+Der Rahmen zeigt `TABLE [2/5: Name]`, wenn es mehrere Blätter oder Tabellen gibt, und die untere Zeile die Position des Cursors: `Cell B7 (Row 7 of 120)`. Mit Filter behalten die Zeilen ihre Nummer aus der Datei, und diese Zeile nennt zusätzlich den Treffer: `Cell A13 (Row 13 of 31, match 2 of 8)`. Die letzte Zeile des Rasters enthält den ganzen Zellinhalt und den aktiven Filter. Die Suche (`F`, `B`, `/`) schaut nicht in das Raster und findet dort nichts; sie funktioniert im Textmodus.
 
 Markierungen bleiben unter einem Filter erhalten, und Batch schreibt, was markiert ist und vom Filter behalten wird. Sie gehören zum geöffneten Blatt oder zur Tabelle und gehen beim Wechsel verloren. Ändert sich die Datei nach dem Markieren, verweigert Batch, da an diesen Stellen andere Datensätze stehen können.
 

@@ -2509,13 +2509,18 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 } else {
                     format!(", {} marked", fmt_num(t.marked.len() as u64))
                 };
-                format!(
-                    "Cell {}{} (Row {} of {}{marked})",
-                    cell_col_letter,
-                    t.cursor_row + 1,
-                    t.cursor_row + 1,
-                    t.visible_row_count()
-                )
+                let row = t.cursor_file_row();
+                let total = t.rows.len();
+                let matched = if t.active_filter.is_some() {
+                    format!(
+                        ", match {} of {}",
+                        (t.cursor_row + 1).min(t.visible_row_count()),
+                        t.visible_row_count()
+                    )
+                } else {
+                    String::new()
+                };
+                format!("Cell {cell_col_letter}{row} (Row {row} of {total}{matched}{marked})")
             } else {
                 "Table".to_string()
             }
@@ -3039,7 +3044,7 @@ fn draw_table_grid(
         row_spans.push(Span::styled(
             format!(
                 "{:>width$}{}│ ",
-                display_row_idx + 1,
+                real_row_idx + 1,
                 if is_marked { "*" } else { " " },
                 width = row_num_width
             ),
@@ -3084,8 +3089,9 @@ fn draw_table_grid(
     };
 
     let bottom_text = format!(
-        "Cell: {} │ Content: {}{}",
+        "Cell: {}{} │ Content: {}{}",
         crate::viewer::tabular_loader::column_letter(grid.cursor_col),
+        grid.cursor_file_row(),
         active_content,
         filter_notice
     );

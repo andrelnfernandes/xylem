@@ -123,14 +123,14 @@ O separador do CSV (vírgula, ponto e vírgula, tabulação ou barra vertical) �
 | PgUp PgDn | uma página de linhas para cima ou para baixo |
 | Home End | primeira ou última coluna |
 | `[` `]` | aba anterior ou seguinte de uma planilha, ou tabela de um banco SQLite, dando a volta; isso limpa o filtro |
-| `g` ou `:` | pula para uma linha, contando só as que o filtro manteve |
+| `g` ou `:` | pula para uma linha pelo número dela no arquivo; se o filtro a escondeu, para a próxima que ele manteve |
 | `\` ou `&` | o filtro SQL |
 | `m` ou Insert | marca ou desmarca o registro sob o cursor e vai para o próximo; o **Ctrl+B** passa a gravar só os marcados |
 | `M` | limpa as marcas |
 | `T` | vai para o texto do arquivo e volta |
 | `H` | da tabela para o texto, depois hexadecimal, depois de volta à tabela |
 
-A moldura mostra `TABLE [2/5: nome]` quando há mais de uma aba ou tabela, e a linha de baixo mostra onde está o cursor: `Cell B7 (Row 7 of 120)`. A última linha da grade traz o conteúdo inteiro da célula e o filtro em uso. A busca (`F`, `B`, `/`) não olha dentro da grade e nada encontra ali; ela funciona no modo texto.
+A moldura mostra `TABLE [2/5: nome]` quando há mais de uma aba ou tabela, e a linha de baixo mostra onde está o cursor: `Cell B7 (Row 7 of 120)`. Com filtro, as linhas mantêm o número que têm no arquivo, e essa linha diz também qual é a ocorrência: `Cell A13 (Row 13 of 31, match 2 of 8)`. A última linha da grade traz o conteúdo inteiro da célula e o filtro em uso. A busca (`F`, `B`, `/`) não olha dentro da grade e nada encontra ali; ela funciona no modo texto.
 
 As marcas continuam sob um filtro, e o Batch grava o que está marcado e o filtro mantém. Elas pertencem à aba ou tabela aberta e se perdem ao trocá-la. Se o arquivo mudar depois da marcação, o Batch recusa, pois outros registros podem estar naquelas posições.
 

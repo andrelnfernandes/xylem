@@ -125,14 +125,14 @@ Le séparateur du CSV (virgule, point-virgule, tabulation ou barre verticale) es
 | PgUp PgDn | une page de lignes vers le haut ou vers le bas |
 | Home End | première ou dernière colonne |
 | `[` `]` | feuille précédente ou suivante d'un classeur, ou table d'une base SQLite, en boucle ; cela efface le filtre |
-| `g` ou `:` | aller à une ligne, en ne comptant que celles gardées par le filtre |
+| `g` ou `:` | aller à une ligne par son numéro dans le fichier ; si le filtre l'a masquée, à la suivante qu'il a gardée |
 | `\` ou `&` | le filtre SQL |
 | `m` ou Insert | marque ou démarque l'enregistrement sous le curseur et passe au suivant ; **Ctrl+B** n'écrit alors que les marqués |
 | `M` | efface les marques |
 | `T` | aller au texte du fichier et revenir |
 | `H` | du tableau au texte, puis à l'hexadécimal, puis retour au tableau |
 
-Le cadre affiche `TABLE [2/5: nom]` s'il y a plusieurs feuilles ou tables, et la ligne du bas la position du curseur : `Cell B7 (Row 7 of 120)`. La dernière ligne de la grille donne le contenu entier de la cellule et le filtre en cours. La recherche (`F`, `B`, `/`) ne regarde pas dans la grille et n'y trouve rien ; elle fonctionne en mode texte.
+Le cadre affiche `TABLE [2/5: nom]` s'il y a plusieurs feuilles ou tables, et la ligne du bas la position du curseur : `Cell B7 (Row 7 of 120)`. Avec un filtre, les lignes gardent leur numéro dans le fichier, et cette ligne indique aussi de quelle correspondance il s'agit : `Cell A13 (Row 13 of 31, match 2 of 8)`. La dernière ligne de la grille donne le contenu entier de la cellule et le filtre en cours. La recherche (`F`, `B`, `/`) ne regarde pas dans la grille et n'y trouve rien ; elle fonctionne en mode texte.
 
 Les marques restent sous un filtre, et Batch écrit ce qui est marqué et conservé par le filtre. Elles appartiennent à la feuille ou à la table ouverte et sont perdues en en changeant. Si le fichier change après le marquage, Batch refuse, car d'autres enregistrements peuvent occuper ces places.
 

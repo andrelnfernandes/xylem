@@ -124,14 +124,14 @@ El separador del CSV (coma, punto y coma, tabulación o barra vertical) se detec
 | PgUp PgDn | una página de filas hacia arriba o hacia abajo |
 | Home End | primera o última columna |
 | `[` `]` | hoja anterior o siguiente de una hoja de cálculo, o tabla de una base SQLite, dando la vuelta; esto borra el filtro |
-| `g` o `:` | saltar a una fila, contando solo las que el filtro dejó |
+| `g` o `:` | saltar a una fila por su número en el archivo; si el filtro la ocultó, a la siguiente que dejó |
 | `\` o `&` | el filtro SQL |
 | `m` o Insert | marca o desmarca el registro bajo el cursor y pasa al siguiente; **Ctrl+B** escribe entonces solo los marcados |
 | `M` | borra las marcas |
 | `T` | ir al texto del archivo y volver |
 | `H` | de la tabla al texto, luego hexadecimal, luego de vuelta a la tabla |
 
-El marco muestra `TABLE [2/5: nombre]` cuando hay más de una hoja o tabla, y la línea inferior dónde está el cursor: `Cell B7 (Row 7 of 120)`. La última línea de la cuadrícula trae el contenido completo de la celda y el filtro en uso. La búsqueda (`F`, `B`, `/`) no mira dentro de la cuadrícula y no encuentra nada ahí; funciona en modo texto.
+El marco muestra `TABLE [2/5: nombre]` cuando hay más de una hoja o tabla, y la línea inferior dónde está el cursor: `Cell B7 (Row 7 of 120)`. Con filtro, las filas conservan el número que tienen en el archivo, y esta línea añade qué coincidencia es: `Cell A13 (Row 13 of 31, match 2 of 8)`. La última línea de la cuadrícula trae el contenido completo de la celda y el filtro en uso. La búsqueda (`F`, `B`, `/`) no mira dentro de la cuadrícula y no encuentra nada ahí; funciona en modo texto.
 
 Las marcas se mantienen bajo un filtro, y Batch escribe lo marcado que el filtro conserva. Pertenecen a la hoja o tabla abierta y se pierden al cambiarla. Si el archivo cambia después de marcar, Batch se niega, pues puede haber otros registros en esas posiciones.
 

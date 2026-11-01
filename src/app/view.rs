@@ -302,7 +302,7 @@ impl App {
                         format!("GOTO offset (0-{max:X}): ")
                     }
                     ViewMode::Table => {
-                        let total = v.table.as_ref().map(|t| t.visible_row_count()).unwrap_or(1);
+                        let total = v.table.as_ref().map_or(1, |t| t.rows.len().max(1));
                         format!("GOTO row (1-{total}): ")
                     }
                 };

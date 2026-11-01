@@ -170,6 +170,35 @@ impl TableGrid {
         }
     }
 
+    /// The number the row under the cursor has in the file, from 1. A filter hides
+    /// rows but does not renumber them.
+    pub fn cursor_file_row(&self) -> usize {
+        self.filtered_indices
+            .get(self.cursor_row)
+            .copied()
+            .unwrap_or(self.cursor_row)
+            + 1
+    }
+
+    /// Go to a row by its number in the file, from 1, and say where the cursor
+    /// landed. If the filter hid that row, it goes to the next one kept.
+    pub fn goto_row(&mut self, row: usize, page_height: usize) -> String {
+        let total = self.rows.len().max(1);
+        let row = row.clamp(1, total);
+        let Some(&last) = self.filtered_indices.last() else {
+            return "No rows to go to".to_string();
+        };
+        let wanted = (row - 1).min(last);
+        self.cursor_row = self.filtered_indices.partition_point(|&r| r < wanted);
+        self.scroll_row = self.cursor_row.saturating_sub(page_height / 2);
+        let shown = self.cursor_file_row();
+        if shown == row {
+            format!("Row {row} of {total}")
+        } else {
+            format!("Row {row} is filtered out: showing row {shown}")
+        }
+    }
+
     /// Total count of rows currently visible (matching filter).
     pub fn visible_row_count(&self) -> usize {
         self.filtered_indices.len()

@@ -632,13 +632,11 @@ impl App {
                 let clean = text.trim().trim_start_matches(':').trim();
                 if let Some(v) = &mut self.viewer {
                     if v.mode == ViewMode::Table {
-                        if let Some(t) = &mut v.table
-                            && let Ok(row) = clean.parse::<usize>()
-                            && row > 0
-                            && row <= t.visible_row_count()
-                        {
-                            t.cursor_row = row - 1;
-                            t.scroll_row = (row - 1).saturating_sub(v.page / 2);
+                        if let Some(t) = &mut v.table {
+                            match clean.parse::<usize>() {
+                                Ok(row) if row > 0 => v.note = Some(t.goto_row(row, v.page)),
+                                _ => v.note = Some(format!("Invalid row number: {text}")),
+                            }
                         }
                     } else if matches!(v.mode, ViewMode::Text | ViewMode::Rendered) {
                         match clean.parse::<usize>() {
