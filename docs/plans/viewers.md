@@ -56,7 +56,7 @@ removê-lo deixaria de abrir esses Parquet e pouco reduziria o risco enquanto o
 SQLite existir. Isolar esses parsers em um processo próprio fica como evolução.
 
 Decisão do autor: **trocar essas bibliotecas em C por Rust assim que houver
-opção utilizável** (item 7 de Security no [BACKLOG](../../BACKLOG.md)). O bloqueio
+opção utilizável** (item 6 de Security no [BACKLOG](../../BACKLOG.md)). O bloqueio
 no Autoview é provisório e cai para cada formato que passar a ser lido em Rust.
 
 ## Subprojetos
@@ -69,7 +69,7 @@ externos vêm por último, como opção.
 | 1 | Codificações (UTF-8, UTF-16, CP850, CP437, 1252), `.gz/.xz/.zst/.bz2` soltos, limite de tamanho configurável | Rust, dentro do Xylem | — | **feito** (PRs #44 a #49); spec em [viewer-encoding.md](viewer-encoding.md) |
 | 2 | Modo tabela + planilhas (XLSX, ODS), bancos (SQLite), DBF, CSV, JSONL, Parquet com busca e SQL | Rust (+ SQLite defensivo) | 1 | **feito** (PR #63), menos o SDF; spec em [viewer-tables.md](viewer-tables.md) |
 | 3 | Viewer em janelas, como o `less`: lê sob demanda, monta o índice de linhas em segundo plano, carrega de forma assíncrona e Esc cancela | — | 1 | não iniciado |
-| 4 | Logs: follow, ir para o fim, filtro de linhas, cor por nível, ANSI só SGR | Rust, dentro do Xylem | 3 | não iniciado |
+| 4 | Logs: follow, ir para o fim, filtro de linhas, cor por nível, ANSI só SGR | Rust, dentro do Xylem | 3 | só o filtro de linhas está feito (`&`, antes do Batch); o resto não iniciado |
 | 5 | SQLite | `rusqlite` com `bundled`, em modo defensivo | 2 | **feito** junto com o subprojeto 2 (PR #63) |
 | 6 | `[viewers]`: programas externos (`pdftotext`, `exiftool`, `ffprobe`...) | programa externo | — | não iniciado |
 
@@ -91,13 +91,11 @@ Notas de cada subprojeto:
 - **4:** "ir para o fim" num arquivo comprimido exige descomprimir tudo,
   jogando fora o que não se mostra. Isso roda em segundo plano, com Esc,
   limite de tempo e limite de bytes descartados, como o `archive::Extractor`.
-- **5:** há três caminhos, a decidir no spec dele:
-  - `rusqlite` com `bundled`: C dentro do processo. Exige o modo defensivo:
-    somente leitura, `trusted_schema=OFF`, `SQLITE_DBCONFIG_DEFENSIVE` e
-    tempo limite para views (o guia "Defense Against the Dark Arts" do
-    sqlite.org).
-  - `sqlite3 -readonly -safe` como filtro isolado.
-  - um leitor próprio do formato de arquivo.
+- **5:** escolhido o `rusqlite` com `bundled`: C dentro do processo, em modo
+  defensivo (somente leitura, `trusted_schema=OFF`, `SQLITE_DBCONFIG_DEFENSIVE`
+  e tempo limite para views, como no guia "Defense Against the Dark Arts" do
+  sqlite.org). Descartados: `sqlite3 -readonly -safe` como filtro isolado e um
+  leitor próprio do formato. Veja "Código em C", acima.
 - **6:**
   - desligado por padrão e nunca no Autoview;
   - no Linux, roda isolado: Landlock (só leitura do arquivo e das
@@ -131,64 +129,18 @@ es, de, fr e zh) e precisa acompanhar cada mudança.
 
 ## Como retomar (para quem continuar o trabalho)
 
-- **Onde estamos:** subprojeto 1 concluído e no `main` (PRs #44 a #49, de
-  2026-10-27). Subprojetos 2 e 5 (modo tabela e SQLite) no `main` pelo PR #63,
-  menos o SDF, e descritos no [manual](../manual/viewer.md).
-  Histórico do subprojeto 1: o spec
-  ([viewer-encoding.md](viewer-encoding.md)) foi aprovado pelo autor e o
-  plano de implementação ([viewer-encoding-plan.md](viewer-encoding-plan.md))
-  foi executado.
-  - **PR 1 (guarda bidi, Tarefas 1 a 4): implementado** no branch
-    `bidi-guard`, ainda sem push nem PR.
-  - **PR 2 (módulo `decompress` e correção do Alt+F5, Tarefas 5 a 7):
-    implementado** no branch `decompress`, ainda sem push nem PR.
-  - **PR 3 (viewer mostra comprimidos e opção `viewer_decompress`, Tarefas
-    8 e 9): implementado** no branch `viewer-decompress`, ainda sem push nem
-    PR.
-  - **PR 4 (codificações e a tecla `O`, Tarefas 10 e 11): implementado** no
-    branch `viewer-charset`, ainda sem push nem PR.
-  - **PR 5 (`viewer_max_size` e a RAM, Tarefa 12): implementado** no branch
-    `viewer-max-size`, ainda sem push nem PR.
-  - **PR 6 (`cargo audit` no CI, Tarefa 13): implementado** no branch
-    `ci-audit`, ainda sem push nem PR.
-  - **Subprojeto 1 implementado** nos PRs 1 a 6, em branches encadeados
-    (`bidi-guard` → `decompress` → `viewer-decompress` → `viewer-charset` →
-    `viewer-max-size` → `ci-audit`), nada enviado.
-- **Revisão final (2026-10-27): feita, e a onda de correções aplicada.** Os
-  achados e as decisões estão em
-  [viewer-encoding-final-review.md](viewer-encoding-final-review.md). Cada
-  correção foi no branch onde o problema nasceu, com rebase da pilha:
-  - `bidi-guard`: T4 (o `O` num nome com bidi abre os arquivos da pergunta,
-    não a seleção do momento do `y`) e "la visionneuse" no francês;
-  - `decompress`: C1 (o limite de tempo fica do lado da entrada, com o
-    leitor `Deadline`; streams, membros, blocos e frames vazios não o
-    burlam mais) e M5 (erro claro no Alt+F5 para dicionário do xz acima do
-    limite);
-  - `viewer-decompress`: M1 (o cabeçalho guarda `(truncated or corrupt)`,
-    `(incomplete: …)` ou `(not decompressed: …)` depois que o aviso some),
-    M6 (`(V to view)` só quando os 64 MiB do V bastam; no xz, sempre), M8
-    (doc do campo `viewer_decompress`) e M2 (manual, 6 línguas);
-  - `viewer-max-size`: C2 (orçamento de memória do `text_lines`, 2× o
-    limite de leitura, com `(showing first N lines)`), I1 (cada quadro
-    custa o que cabe na tela; linhas de mais de 10.000 caracteres sem cor)
-    e M3 + M9 (manual, 6 línguas);
-  - `ci-audit`: M7 (`cargo-audit` fixo na 0.22.2 e auditoria semanal).
-  - **Próximo passo:** uma re-revisão só das correções; depois push e PRs.
-  - **Decisão em aberto para o autor:** RUSTSEC-2025-0141 (`bincode` sem
-    manutenção, via `syntect`). Ele só lê os dumps embutidos do próprio
-    `syntect`, nunca arquivos do usuário; hoje é um aviso, não falha o CI.
-- **Correções feitas no spec ao escrever o plano** (já incorporadas):
-  - o `ruzstd` 0.9.1 já limita a janela a 128 MiB por padrão
-    (`new_with_max_window_size`);
-  - o limite do xz se calcula com `lzma_rust2::lzma2_get_memory_usage`
-    (40 + 64 + dict/1024 KiB);
-  - o `catch_unwind` precisa de um hook que não restaure o terminal dentro
-    da área protegida (`src/panic_guard.rs`);
-  - as letras do F12 seguem a ordem dos PRs (J, K, L).
-- **PR 8 (declaração de segurança): implementado** no branch `security-statement`
-  (base `ci-audit`), conforme [security-statement.md](security-statement.md). Textos
-  adicionados no README (en/pt-BR) e no manual (6 idiomas), testes validados.
-  Falta commit e PR (aguardando autorização do autor).
+- **Onde estamos:** subprojeto 1 no `main` (PRs #44 a #49, de 2026-10-27), com a
+  revisão final e suas correções em
+  [viewer-encoding-final-review.md](viewer-encoding-final-review.md); o spec é
+  [viewer-encoding.md](viewer-encoding.md) e o plano executado,
+  [viewer-encoding-plan.md](viewer-encoding-plan.md). A declaração de segurança
+  está no `main` (PR #50). Subprojetos 2 e 5 (modo tabela e SQLite) no `main` pelo
+  PR #63, menos o SDF, e descritos no [manual](../manual/viewer.md). O filtro de
+  linhas do subprojeto 4 também já está no `main`.
+- **Falta:** o SDF, o subprojeto 3, o resto do 4 (que depende do 3) e o 6.
+- **Decisão em aberto para o autor:** RUSTSEC-2025-0141 (`bincode` sem
+  manutenção, via `syntect`). Ele só lê os dumps embutidos do próprio
+  `syntect`, nunca arquivos do usuário; hoje é um aviso, não falha o CI.
 - **Medições:** ficam em `~/.cache/xt-dev/viewer-mem/`:
   - `data/app.log`: log de 16 MiB;
   - `scripts/gen.py`: gera o log;

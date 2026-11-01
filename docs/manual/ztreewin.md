@@ -61,7 +61,7 @@ other programs", below.
 | Feature | In ZTreeWin | In Xylem |
 |---|---|---|
 | Filespec | name with its own name and extension rules, date, size, attribute, inverted filespec (Ctrl+I), labels | glob for names, date and size as in ZTreeWin (with K/M/G); no attributes, inversion or labels |
-| Viewer | Alpha, Dump, Hex, Junk and Wrap modes; character sets; hex editing; bookmarks; auto-scroll | text or hex, with ZTreeWin's search (F, B, /, \\, Space, + and -), soft wrap (W), line numbers (#), goto line (g / :), line filter with regex (&); up to the size limit (`viewer_max_size`, 16 MiB to 1 GiB); no hex editing, by choice (see "What Xylem leaves to other programs") |
+| Viewer | Alpha, Dump, Hex, Junk and Wrap modes; character sets; hex editing; bookmarks; auto-scroll | text, hex, tables with a SQL filter and rendered Markdown, with ZTreeWin's search (F, B, /, \\, Space, + and -), soft wrap (W), line numbers (#), goto line (g / :), line filter with regex (&); up to the size limit (`viewer_max_size`, 16 MiB to 1 GiB); no hex editing, by choice (see "What Xylem leaves to other programs") |
 | Ctrl+S | text, hex or Unicode; searches only the ZIP index | text or hex |
 | Attributes | Windows attributes (R, A, S, H) | Unix permissions in octal (`644`); no owner/group. On Windows, R, H, S and A, as in ZTreeWin |
 | Sort | Name, Ext, Date, Time, Length, Alpha, nuMber, Size, Value, Unsorted; Charset; same/diff in split screen | Name, Ext, Date, Size, ascending/descending, Path first; each window has its own order |
@@ -94,15 +94,25 @@ Things the ZTreeWin v2.2 manual has no counterpart for:
 - **Disk usage** (Alt+W): a branch's folders and files together, largest
   first, down to what fills the disk; Alt+K shows each folder's share in the
   tree. See [disk usage](usage.md).
+- **Duplicates** (Alt+Y): files and whole folders with the same contents,
+  compared by SHA-256, or by the service's own hashes in a folder mounted by
+  rclone, with nothing downloaded. One copy of each group always stays. See
+  [duplicates](duplicates.md).
 - **A viewer that reads more:** syntax colors, the text encoding found by
   itself (UTF-8, UTF-16, CP850, Windows-1252, CP437), `.gz`, `.xz`, `.zst` and
   `.bz2` files shown decompressed, and hidden text direction characters (Trojan
   Source) shown instead of obeyed. See [the viewer](viewer.md).
+- **Tables and Markdown:** spreadsheets, CSV, JSON Lines, DBF, SQLite and
+  Parquet open in a grid with a SQL filter, and Markdown files open rendered.
+  See [the viewer](viewer.md).
 - **Archives without an external archiver:** ZIP, 7z and TAR (plain, gzip, xz,
   bzip2, zstd) open as folders, and ZIP and TAR are created, all by Xylem
   itself. See [archives](archives.md).
 - **Batch rename** with search and replace (`s/foo/bar/`), counters and case
   changes. See [rename](rename.md).
+- **Batch over records:** Ctrl+B in the viewer turns the records of a table or
+  the lines of a text into a script, JSON, CSV, XML, HTML, SQL or a SQLite
+  database, with template files if you want. See [Batch](execute.md).
 - **Oops:** O (or Ctrl+Z) puts back where it was what was last sent to the
   system trash. See [delete](delete.md).
 - **The clipboard everywhere:** Y copies the path even over SSH or inside tmux
@@ -157,6 +167,13 @@ The keys follow ZTreeWin's. The exceptions:
 | F2 | (nothing) | rereads the directory, same as F3 |
 | F9 | applications menu (not implemented) | Ctrl/Alt menus |
 | F12 | macros (not implemented) | configuration |
+| Alt+B | Batch of the current file (not implemented) | bookmarks |
+| Alt+H | Hide (not implemented) | help |
+| Alt+O | Open in a new terminal window (not implemented) | types the tagged files in the built-in terminal |
+| Alt+R | Release (not implemented; `-` releases the branch) | renames the tagged files |
+| Alt+T, Alt+U | tag and untag by attribute (not implemented) | tag and untag all |
+| Alt+W | Wash (not implemented) | disk usage |
+| Alt+Z | Zlist (not implemented) | the built-in terminal in full screen |
 | `/` | same as `?` (statistics) | Treespec, like `\` (`?` still shows the statistics) |
 | Ctrl+C, Ctrl+M in the tree | (nothing) | Copy/Move of the current directory's tagged files |
 | Copy path to clipboard | Ctrl+Insert | Y or Ctrl+Insert (Ctrl+Y for tagged; works via OSC 52 and system clipboard) |

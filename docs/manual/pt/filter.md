@@ -15,50 +15,6 @@ cabeçalho diz o resultado: `[filter error: 24 of 850 lines]`.
 | Enter | aplicar |
 | Esc | cancelar |
 
-Aperte `&` de novo para mudar o filtro. **Enter com o prompt vazio desliga o
-filtro**, e a linha no alto da tela continua lá. Um filtro que não encontra nada
-ou é inválido não muda nada, e o rodapé diz o motivo.
-
-Com um filtro ligado, a rolagem e a [busca](viewer.md) percorrem só as linhas
-mantidas. `g` recebe um número de linha do arquivo; se essa linha estiver
-escondida, vai para a próxima mantida. O filtro continua depois de editar o
-arquivo (`E`) ou mudar a codificação (`O`), e termina quando o visualizador
-fecha.
-
-Só o que o visualizador leu é filtrado: se o cabeçalho diz `(showing first N
-MiB)`, o resto do arquivo não é examinado. O filtro vê as linhas como elas
-aparecem, então uma tabulação é espaços (use `\s`, não `\t`) e um caractere de
-controle é `·`. No modo tabela, `&` abre o filtro SQL.
-
-## Texto simples
-
-As mesmas regras da busca: ignorando maiúsculas, os acentos também não contam
-(`AÇÃO` encontra `ação`), e um `*` no meio combina com qualquer coisa na mesma
-linha (`erro*disco`).
-
-## Expressões regulares
-
-O termo pode combinar em qualquer lugar da linha, a não ser que você o ancore.
-Maiúsculas são ignoradas, a não ser que você aperte **F2**; aqui os acentos
-contam.
-
-| Escreva | Para combinar com |
-|---|---|
-| `.` | qualquer caractere |
-| `\d` `\D` | um dígito, qualquer coisa menos dígito |
-| `\w` `\W` | letra, dígito ou `_`, qualquer outra coisa |
-| `\s` `\S` | um espaço, qualquer outra coisa |
-| `[abc]` `[^abc]` | um destes, qualquer coisa menos estes |
-| `[a-z0-9]` | um nestas faixas |
-| `^` `$` | o início, o fim da linha |
-| `\b` | a borda de uma palavra |
-| `a*` `a+` `a?` | zero ou mais, um ou mais, zero ou um |
-| `a{3}` `a{2,5}` | exatamente 3, de 2 a 5 |
-| `a+?` | um ou mais, o mínimo possível |
-| `(abc)` | um grupo, para repetir ou dar alternativas |
-| `(?P<nome>abc)` | um grupo com nome |
-| `(?i)` `(?-i)` | ignorar maiúsculas ou diferenciar daqui em diante |
-
 ## Expressões regulares
 
 O termo pode combinar em qualquer lugar da linha, a não ser que você o ancore.
@@ -109,5 +65,20 @@ As mesmas regras da busca: ignorando maiúsculas, os acentos também não contam
 linha (`erro*disco`).
 
 ## Com um filtro ligado
+
+Aperte `&` de novo para mudar o filtro. **Enter com o prompt vazio desliga o
+filtro**, e a linha no alto da tela continua lá. Um filtro que não encontra nada
+ou é inválido não muda nada, e o rodapé diz o motivo.
+
+Com um filtro ligado, a rolagem e a [busca](viewer.md) percorrem só as linhas
+mantidas. `g` recebe um número de linha do arquivo; se essa linha estiver
+escondida, vai para a próxima mantida. O filtro continua depois de editar o
+arquivo (`E`) ou mudar a codificação (`O`), e termina quando o visualizador
+fecha.
+
+Só o que o visualizador leu é filtrado: se o cabeçalho diz `(showing first N
+MiB)`, o resto do arquivo não é examinado. O filtro vê as linhas como elas
+aparecem, então uma tabulação é espaços (use `\s`, não `\t`) e um caractere de
+controle é `·`. No modo tabela, `&` abre o filtro SQL.
 
 Veja também: [o visualizador](viewer.md).

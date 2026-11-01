@@ -3,6 +3,10 @@
 Origem: conversa de 2026-10-30, desdobramento do Subprojeto 2 de
 [docs/plans/viewers.md](viewers.md).
 
+Estado: implementado (PR #63), com duas diferenças em relação ao que está abaixo:
+SQLite e Parquet só abrem com `V`, nunca no Autoview, por serem lidos por código em C
+([viewers.md](viewers.md)), e o SDF ficou para depois.
+
 ## 1. Objetivo
 
 Permitir que o visualizador do Xylem (`V` e Autoview `F7`) apresente dados

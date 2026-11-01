@@ -124,7 +124,8 @@ USAGE  /home/andre
 | Alt+I | Info do item, como no resto do Xylem |
 | Alt+X | terminal nessa pasta |
 | `T` / `U` | marca / desmarca o arquivo, ou todos os do ramo |
-| `D`, Del, Shift+Del | apaga, como na janela de arquivos |
+| Del, Shift+Del | apaga, como na janela de arquivos |
+| `D` | procura duplicados na pasta listada (já implementado; por isso `D` não apaga aqui) |
 | Alt+P | Prune da pasta sob o cursor |
 | `V` | viewer do arquivo |
 | F3 | relê o ramo da pasta atual |
@@ -316,6 +317,8 @@ DUPLICATES  /home/andre/gdrive      38 grupos · 112 arquivos · 6,4 GiB a liber
 - O painel da direita mostra o caminho inteiro e as datas do item.
 
 ## Fases
+
+Feitas juntas (PR #74); veja "Como ficou", abaixo.
 
 - **D1:** duplicados no disco local (tamanho, começo e fim, conteúdo), tela,
   marcar todos menos um, apagar com conferência. Testes com hard links,

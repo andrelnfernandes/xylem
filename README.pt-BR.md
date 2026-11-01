@@ -39,7 +39,7 @@ rapidez assim que relatada.
 Ainda assim, erros acontecem. Veja o que o Xylem faz para manter o risco baixo:
 
 - Tudo o que o Xylem lê por conta própria (texto, hex, codificações, arquivos
-  comprimidos, pacotes, planilhas, CSV, DBF) passa por analisadores em Rust com
+  comprimidos, pacotes, Markdown, planilhas, CSV, JSON Lines, DBF) passa por analisadores em Rust com
   segurança de memória. A exceção são bancos SQLite e arquivos Parquet, lidos
   por bibliotecas em C: elas só rodam quando você abre esse arquivo com V, nunca
   no Autoview. Nenhum programa externo é executado em um arquivo a menos que
@@ -54,8 +54,10 @@ Ainda assim, erros acontecem. Veja o que o Xylem faz para manter o risco baixo:
   caminhos absolutos são recusados, links simbólicos dentro de pacotes não são
   extraídos, bits setuid são descartados e nomes enviados por servidores SFTP são
   verificados.
-- O status automático do Git ignora o `core.fsmonitor` do repositório e ignora
-  repositórios que definam seus próprios filtros.
+- Olhar um repositório Git não executa nada que ele nomeie: nem ganchos,
+  `core.fsmonitor`, diffs externos ou conversões de texto, a não ser que a pasta
+  dele esteja em `git_trusted`. Um repositório com filtros próprios fica sem
+  marcadores, Status, Diff e Blame.
 - As dependências são verificadas contra o banco de dados do RustSec no CI.
 
 Você pode reduzir ainda mais a superfície de ataque:
@@ -204,11 +206,13 @@ mkdir -p ~/.local/share/man/man1 && xy --man > ~/.local/share/man/man1/xy.1
 - **Achar coisas:** Filespec por nome, data e tamanho, Treespec para digitar um
   caminho, bookmarks, e Ctrl+S para buscar texto nos arquivos marcados.
 - **Olhar dentro:** um visualizador de texto e hex com busca, filtro de linhas
-  com expressões regulares e cores de sintaxe, um modo tabela com filtro SQL
+  com expressões regulares e cores de sintaxe, Markdown renderizado, um modo tabela com filtro SQL
   para planilhas, CSV, JSON Lines, DBF, SQLite e Parquet, Ctrl+B para transformar
   esses registros ou linhas em um script, JSON, SQL ou o que for, Autoview ao lado da lista,
   arquivos ZIP, 7z e TAR abertos como diretórios, e modos de exibição que
   mostram o dono ou o que cada arquivo é.
+- **Duplicados:** Alt+Y acha arquivos e pastas inteiras com o mesmo conteúdo,
+  sem baixar nada de uma pasta montada pelo rclone, e sempre deixa uma cópia.
 - **Para onde vai o espaço:** a visão Usage (Alt+W) lista as pastas e os
   arquivos de um ramo pelo espaço que ocupam, do maior para o menor, até o
   que enche o disco; o Alt+K Percent mostra a parte de cada pasta na própria
@@ -260,18 +264,26 @@ nativos: se você lê um desses idiomas, [sugestões são bem-vindas](docs/manua
 - `src/input.rs` — comandos e o campo de texto dos prompts
 - `src/keymap.rs` — teclas padrão e trocas da configuração
 - `src/help.rs` — a ajuda (F1): tópicos, links e a página de manual
-- `docs/manual/` — o manual: os tópicos da ajuda, em Markdown (em inglês)
+- `docs/manual/` — o manual: os tópicos da ajuda, em Markdown (em inglês; as traduções ficam em subpastas)
 - [`demo/`](demo/README.pt-BR.md) — arquivos em todos os formatos e templates de Batch para testar
 - `src/filetype.rs` — o que um arquivo é, para o modo de exibição Tipo
 - `src/ui.rs` — desenho da tela (ratatui)
 - `src/viewer.rs` — visualizador texto/hex
+- `src/viewer/` — modo tabela, Markdown renderizado, filtro de linhas, filtro SQL e Batch sobre registros
+- `src/usage.rs` — a visão Usage
+- `src/duplicates.rs` — a busca de duplicados
+- `src/search.rs` — busca de texto, nos arquivos marcados e no visualizador
+- `src/decompress.rs` — arquivos comprimidos, com limites
+- `src/charset.rs` — codificações de texto
+- `src/bidi.rs` — a proteção contra caracteres ocultos de direção do texto
 - `src/archive.rs` — leitura de ZIP, 7z e TAR; criação de ZIP e TAR
 - `src/watch.rs` — avisos de mudanças no disco (inotify)
 - `src/shell.rs` — editor e comandos do shell (com aspas seguras)
 - `src/editors.rs` — qual editor o E usa para cada arquivo (`[editors]`)
 - `src/term.rs` — terminal embutido (pseudoterminal, códigos de teclas, cores)
 - `src/git.rs` — menu Git (Ctrl+G) e marcadores de estado, pelo programa `git`
-- `src/rclone.rs` — qual serviço de nuvem é uma pasta montada pelo rclone
+- `src/rclone.rs` — pastas montadas pelo rclone: qual serviço, listagens e hashes
+- `src/remote/` — máquinas remotas: SFTP pelo `ssh` do sistema
 - `src/config.rs` — arquivo de configuração, temas e formatos
 - `src/settings.rs` — tela de configuração (F12)
 - `src/state.rs` — histórico dos prompts entre execuções
@@ -282,7 +294,8 @@ nativos: se você lê um desses idiomas, [sugestões são bem-vindas](docs/manua
 - `tests/e2e.rs` — testes de ponta a ponta: o `xy` de verdade num pseudo-terminal, dirigido por teclas (Linux); o `cargo test` também roda testes de propriedades (proptest) do Filespec e das máscaras de renomeação
 - `docs/icons/` — o ícone, em SVG, PNG (16 a 512) e ICO
 - `build.rs` — embute o ícone no `xy.exe` (Windows)
-- `packaging/linux/` — atalho para o menu (`xylem.desktop`)
+- `packaging/linux/` — atalho para o menu (`xylem.desktop`) e os pacotes `.deb` e `.rpm` (`packages.sh`)
+- `site/` — o site
 
 ## Roteiro
 
@@ -303,7 +316,11 @@ nativos: se você lê um desses idiomas, [sugestões são bem-vindas](docs/manua
   a linha, filtro de linhas, proteção contra caracteres ocultos de direção do
   texto e um [modo tabela](docs/manual/pt/viewer.md) com filtro SQL para
   planilhas (XLSX, ODS), CSV, JSON Lines, DBF com seus arquivos memo, SQLite e
-  Parquet.
+  Parquet, e Markdown renderizado.
+- Batch (Ctrl+B) sobre arquivos marcados, os registros de uma tabela ou as linhas
+  de um texto, com templates, condições, totais e saída em SQLite.
+- Duplicados (Alt+Y): arquivos e pastas inteiras, em discos locais e pelos hashes
+  que o rclone fornece.
 
 ### Próximos passos
 
@@ -317,9 +334,6 @@ nativos: se você lê um desses idiomas, [sugestões são bem-vindas](docs/manua
   conversores externos como o `pdftotext` ou o `exiftool`.
 - **Uso do disco:** ações dentro da visão Usage (marcar, excluir, Prune,
   visualizar), depois um treemap opcional, agrupamento por tipo e exportação.
-- **Arquivos duplicados:** nesta máquina (por tamanho, depois pelo conteúdo),
-  no Google Drive pelos checksums que ele já guarda, e pastas inteiras
-  duplicadas.
 - **Do ZTreeWin:** os itens de "O que o Xylem ainda não tem" na
   [comparação com o ZTreeWin](docs/manual/pt/ztreewin.md), como o JFC, o
   Global, o mouse e salvar o log.

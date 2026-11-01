@@ -65,7 +65,7 @@ Xylem anderen Programmen überlässt" weiter unten.
 | Funktion | In ZTreeWin | In Xylem |
 |---|---|---|
 | Filespec | Name mit eigenen Regeln für Stamm und Erweiterung, Datum, Größe, Attribut, umgekehrter Filespec (Ctrl+I), Labels | Glob-Muster für Namen, Datum und Größe wie in ZTreeWin (mit K/M/G); keine Attribute, Umkehrung oder Labels |
-| Betrachter | Modi Alpha, Dump, Hex, Junk und Wrap; Zeichensätze; Hex-Bearbeitung; Lesezeichen; Auto-Scroll | Text oder Hex, mit ZTreeWin-Suche (F, B, /, \\, Space, + und -), Zeilenumbruch (W), Zeilennummern (#), Springen zu Zeile (g / :); bis zum Größenlimit (`viewer_max_size`, 16 MiB bis 1 GiB); bewusst keine Hex-Bearbeitung (siehe „Was Xylem anderen Programmen überlässt") |
+| Betrachter | Modi Alpha, Dump, Hex, Junk und Wrap; Zeichensätze; Hex-Bearbeitung; Lesezeichen; Auto-Scroll | Text, Hex, Tabellen mit SQL-Filter und gerendertes Markdown, mit ZTreeWin-Suche (F, B, /, \\, Space, + und -), Zeilenumbruch (W), Zeilennummern (#), Springen zu Zeile (g / :), Zeilenfilter mit Regex (&); bis zum Größenlimit (`viewer_max_size`, 16 MiB bis 1 GiB); bewusst keine Hex-Bearbeitung (siehe „Was Xylem anderen Programmen überlässt") |
 | Ctrl+S | Text, Hex oder Unicode; durchsucht nur den ZIP-Index | Text oder Hex |
 | Attribute | Windows-Attribute (R, A, S, H) | Unix-Berechtigungen oktal (`644`); kein Eigentümer/Gruppe. Unter Windows R, H, S und A wie in ZTreeWin |
 | Sortieren | Name, Ext, Date, Time, Length, Alpha, nuMber, Size, Value, Unsorted; Charset; gleich/unterschiedlich bei geteiltem Bildschirm | Name, Ext, Date, Size, aufsteigend/absteigend, Pfad zuerst; jedes Fenster hat seine eigene Reihenfolge |
@@ -98,16 +98,26 @@ Dinge, für die das ZTreeWin-v2.2-Handbuch keine Entsprechung hat:
 - **Speicherbelegung** (Alt+W): die Ordner und Dateien eines Zweigs zusammen,
   die größten zuerst, bis hin zu dem, was die Platte füllt; Alt+K zeigt im
   Baum den Anteil jedes Ordners. Siehe [Speicherbelegung](usage.md).
+- **Duplikate** (Alt+Y): Dateien und ganze Ordner mit gleichem Inhalt, verglichen
+  per SHA-256 oder, in einem mit rclone eingehängten Ordner, über die Prüfsummen
+  des Dienstes, ohne etwas herunterzuladen. Eine Kopie jeder Gruppe bleibt immer.
+  Siehe [Duplikate](duplicates.md).
 - **Ein Betrachter, der mehr liest:** Syntaxfarben, die Textkodierung selbst
   erkannt (UTF-8, UTF-16, CP850, Windows-1252, CP437), `.gz`-, `.xz`-, `.zst`-
   und `.bz2`-Dateien entpackt angezeigt, und versteckte
   Textrichtungszeichen (Trojan Source) angezeigt statt befolgt. Siehe
   [den Betrachter](viewer.md).
+- **Tabellen und Markdown:** Tabellenkalkulationen, CSV, JSON Lines, DBF, SQLite
+  und Parquet öffnen sich in einem Raster mit SQL-Filter, Markdown-Dateien
+  gerendert. Siehe [den Betrachter](viewer.md).
 - **Archive ohne externes Packprogramm:** ZIP, 7z und TAR (unkomprimiert, gzip,
   xz, bzip2, zstd) öffnen sich als Ordner, und ZIP und TAR werden erstellt,
   alles von Xylem selbst. Siehe [Archive](archives.md).
 - **Stapelumbenennung** mit Suchen und Ersetzen (`s/foo/bar/`), Zählern und
   Groß-/Kleinschreibung. Siehe [Umbenennen](rename.md).
+- **Batch über Datensätze:** Ctrl+B im Betrachter macht aus den Datensätzen einer
+  Tabelle oder den Zeilen eines Textes ein Skript, JSON, CSV, XML, HTML, SQL oder
+  eine SQLite-Datenbank, auf Wunsch mit Vorlagendateien. Siehe [Batch](execute.md).
 - **Oops:** O (oder Ctrl+Z) legt das zuletzt in den System-Papierkorb
   Verschobene an seinen Platz zurück. Siehe [Löschen](delete.md).
 - **Die Zwischenablage überall:** Y kopiert den Pfad auch über SSH oder in
@@ -165,6 +175,13 @@ Die Tastenbelegung folgt ZTreeWin, mit diesen Ausnahmen:
 | F2 | (nichts) | liest das Verzeichnis neu ein, genau wie F3 |
 | F9 | Anwendungsmenü (nicht implementiert) | Ctrl-/Alt-Menüs |
 | F12 | Makros (nicht implementiert) | Konfiguration |
+| Alt+B | Batch der aktuellen Datei (nicht implementiert) | Lesezeichen |
+| Alt+H | Hide (nicht implementiert) | Hilfe |
+| Alt+O | In neuem Terminalfenster öffnen (nicht implementiert) | tippt die markierten Dateien im eingebauten Terminal |
+| Alt+R | Release (nicht implementiert; `-` gibt den Zweig frei) | benennt die markierten Dateien um |
+| Alt+T, Alt+U | nach Attribut markieren und Markierung aufheben (nicht implementiert) | alle markieren und alle Markierungen aufheben |
+| Alt+W | Wash (nicht implementiert) | Speicherbelegung |
+| Alt+Z | Zlist (nicht implementiert) | das eingebaute Terminal im Vollbild |
 | `/` | wie `?` (Statistiken) | Treespec, genau wie `\` (`?` zeigt weiterhin die Statistiken) |
 | Ctrl+C, Ctrl+M im Baum | (nichts) | Kopieren/Verschieben der markierten Dateien des aktuellen Verzeichnisses |
 | Pfad in Zwischenablage kopieren | Ctrl+Insert | Y oder Ctrl+Insert (Ctrl+Y für markierte; funktioniert über OSC 52 und System-Zwischenablage) |

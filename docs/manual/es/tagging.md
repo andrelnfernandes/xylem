@@ -42,6 +42,15 @@ estos menús abierto, la siguiente letra cuenta como Ctrl+letra o Alt+letra
 kitty, basta con **mantener pulsado Ctrl o Alt** para mostrar el menú
 correspondiente.
 
+Al soltar la tecla vuelve el menú habitual, como en ZTree.
+
+El terminal tiene que informar de Ctrl y Alt pulsados y soltados por sí solos, y
+solo el protocolo de teclado de kitty lo hace: kitty, Ghostty, WezTerm, foot
+(Wayland) y el Alacritty reciente lo admiten, y en Ubuntu o Debian la mayoría
+está a un paquete de distancia (`sudo apt install kitty`, o `ghostty`,
+`alacritty`, `foot`). Los terminales basados en VTE (GNOME Terminal, Ptyxis,
+Terminator, Tilix) aún no lo admiten, así que en ellos los menús siguen en F9.
+
 **Ctrl+M:** en la mayoría de las terminales, Ctrl+M llega igual que Enter. Xylem
 activa el protocolo de teclado de kitty cuando la terminal lo admite (kitty,
 WezTerm, foot, Ghostty, Alacritty reciente, iTerm2), y entonces Ctrl+M mueve los
