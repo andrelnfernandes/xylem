@@ -77,11 +77,14 @@ le panneau indique simplement rclone.
 
 ## Ce qui change
 
-- **Tout passe par le réseau.** Chaque lecture de répertoire est une requête :
-  sur un grand Drive ou bucket, `*` (lire toute la branche) et Branch (`B`)
-  peuvent prendre du temps. Ouvrir uniquement les répertoires dont vous avez
-  besoin (→ ou `+`) est rapide, puisqu'ils sont lus à mesure que vous les
-  ouvrez.
+- **Tout passe par le réseau.** Chaque lecture de répertoire est une requête, et
+  un service comme Google Drive les refuse quand elles sont trop nombreuses.
+  Aussi, sur un dossier monté, `*` demande à rclone toute la branche en une seule
+  liste, bien plus rapide, et remplit l'arbre à la fin ; Échap laisse l'arbre tel
+  quel. Si rclone échoue ou montre d'autres dossiers que le montage, `*` lit
+  dossier par dossier. Branch (`B`) lit toujours ainsi et peut prendre du temps.
+  Ouvrir uniquement les répertoires dont vous avez besoin (→ ou `+`) est rapide,
+  puisqu'ils sont lus à mesure que vous les ouvrez.
 - **Les modifications faites ailleurs** (dans le navigateur, sur le téléphone)
   n'apparaissent qu'après F3, et une fois le cache de répertoires expiré
   (`--dir-cache-time`).
@@ -100,6 +103,34 @@ le panneau indique simplement rclone.
 - **S3 n'a pas de vrais répertoires**, seulement des noms contenant `/` : un
   répertoire vide peut disparaître une fois démonté, et renommer ou déplacer un
   répertoire copie puis supprime chacun des fichiers qu'il contient.
+
+## Quand le service refuse : erreur 403
+
+Google Drive limite le nombre de requêtes acceptées par minute. Sur un Drive
+encombré de petits fichiers et dossiers (sauvegardes de projets, `node_modules`,
+extensions d'éditeur), **les erreurs 403 sont courantes** : `Quota exceeded`,
+`rateLimitExceeded`. rclone attend et réessaie, donc tout ralentit, et il peut
+finir par abandonner. Tout gestionnaire de fichiers qui lit dossier par dossier à
+travers le montage se heurte à la même limite.
+
+Ce que fait Xylem : `*` affiche le nombre de requêtes refusées et, après 100,
+demande s'il faut continuer d'essayer ou arrêter ; arrêter laisse l'arbre tel
+quel. Si rclone abandonne, Xylem le signale et ne passe pas de lui-même à la
+lecture dossier par dossier, qui ne serait que davantage refusée.
+
+Ce qui aide, à commencer par le premier point :
+
+- **Lire par dossiers.** Au lieu de `*` à la racine, utilisez `*` sur des dossiers
+  plus petits, ou ouvrez-les avec → ou `+`. Sur un Drive encombré, c'est souvent la
+  meilleure voie.
+- **Votre propre `client_id`.** Si vous n'en avez pas créé, rclone utilise un client
+  partagé avec ses autres utilisateurs, et le quota aussi. Créer le vôtre est
+  gratuit : le [guide de rclone](https://rclone.org/drive/#making-your-own-client-id)
+  l'explique. Ensuite, autorisez de nouveau avec `rclone config`. Les limites de
+  votre compte restent, mais l'usage des autres ne compte plus contre vous.
+- **Garder les listes plus longtemps :** `--dir-cache-time 1h` sur `rclone mount`.
+- **Supprimer ce qui peut être recréé.** Moins de dossiers, c'est moins de requêtes,
+  quel que soit le programme.
 
 ## Trouver ce qui remplit votre Google Drive
 

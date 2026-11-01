@@ -68,6 +68,11 @@ as a link is what `cp -a` and `rsync -l` do).
   included, and through rclone by the service's hashes. Still open: over SSH
   (needs writing on the remote machine, phase 3 above, to be of use); whole
   folders in the cloud.
+- **Cloud mounts:** `*` asks rclone for the whole branch at once
+  ([the manual](docs/manual/cloud.md)). Still open: opening the root of a large
+  Drive reads every folder in it before the first draw (over 29 s on a blank
+  screen, with a cold cache); Branch, Usage and Compare still read folder by
+  folder, and a single slow read holds the screen up.
 - **Xylem in its own window**, further ahead: see "For later" in the README.
 - Postponed by choice: macros, chown, Graft, macOS.
 - **New file viewers** ([docs/plans/viewers.md](docs/plans/viewers.md)):

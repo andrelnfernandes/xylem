@@ -6,11 +6,12 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::SystemTime;
 
 use crate::duplicates::{self, Fail, Found, Notes, Progress};
+use crate::model::tree::{FileEntry, FileKind};
 use crate::platform::Mount;
 
 /// A remote of rclone, as mounted.
@@ -77,6 +78,7 @@ pub fn spec_of(spec: &str, point: &Path, dir: &Path) -> Option<String> {
 pub struct Listed {
     /// Relative to the folder listed, and checked to stay inside it.
     pub path: PathBuf,
+    pub is_dir: bool,
     pub size: u64,
     pub modified: Option<SystemTime>,
     pub id: Option<String>,
@@ -104,6 +106,8 @@ const HASHES: [&str; 11] = [
 struct Line {
     #[serde(rename = "Path")]
     path: String,
+    #[serde(rename = "IsDir", default)]
+    is_dir: bool,
     #[serde(rename = "Size", default)]
     size: i64,
     #[serde(rename = "ModTime", default)]
@@ -114,9 +118,9 @@ struct Line {
     hashes: HashMap<String, String>,
 }
 
-/// One line of the output of `rclone lsjson`, which has one file per line
-/// between the brackets. `None` for what is not a file. A path that leaves the
-/// folder listed is not taken: what a server says is hostile input as well.
+/// One line of the output of `rclone lsjson`, which has one entry per line
+/// between the brackets. `None` for what is not an entry. A path that leaves
+/// the folder listed is not taken: what a server says is hostile input as well.
 pub fn parse_listed(line: &[u8]) -> Option<Listed> {
     let line = line.trim_ascii();
     let line = line.strip_suffix(b",").unwrap_or(line);
@@ -134,6 +138,7 @@ pub fn parse_listed(line: &[u8]) -> Option<Listed> {
     });
     Some(Listed {
         path,
+        is_dir: line.is_dir,
         // Documents of Google Docs and the like have no size: -1.
         size: u64::try_from(line.size).unwrap_or(0),
         modified: chrono::DateTime::parse_from_rfc3339(&line.mod_time)
@@ -194,18 +199,21 @@ impl Running {
 /// A line longer than this is not rclone's.
 const MAX_LINE: u64 = 4 * 1024 * 1024;
 
-/// Runs `rclone lsjson` on `spec` with `args`, giving `each` every file. An
-/// error says what rclone said.
+/// Runs `rclone lsjson` on `spec` with `args`, giving `each` every entry. An
+/// error says what rclone said. `refused` counts the requests it had to repeat,
+/// which it only tells with `--log-level DEBUG`.
 fn lsjson(
     program: &str,
     spec: &str,
     args: &[&str],
     running: &Running,
     cancel: &AtomicBool,
+    refused: &Arc<AtomicU64>,
     mut each: impl FnMut(Listed),
 ) -> Result<(), String> {
-    let mut child = Command::new(program)
-        .args(["lsjson", "-R", "--files-only", "--fast-list"])
+    let mut command = Command::new(program);
+    command
+        .args(["lsjson", "-R", "--fast-list"])
         .args(args)
         .arg("--")
         .arg(spec)
@@ -213,36 +221,59 @@ fn lsjson(
         .current_dir(crate::platform::home_dir().unwrap_or_else(|| PathBuf::from("/")))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                format!("{program} is not in the PATH")
-            } else {
-                format!("cannot run {program}: {e}")
+        .stderr(Stdio::piped());
+    let mut started = command.spawn();
+    // Right after it is written (an update of rclone), for a moment.
+    for _ in 0..100 {
+        match &started {
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                started = command.spawn();
             }
-        })?;
+            _ => break,
+        }
+    }
+    let mut child = started.map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            format!("{program} is not in the PATH")
+        } else {
+            format!("cannot run {program}: {e}")
+        }
+    })?;
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     running.set(child);
     if cancel.load(Ordering::Relaxed) {
         running.stop();
     }
-    // Read on the side, or a chatty rclone would block on it: the last line
-    // is what explains a failure.
+    // Read on the side, to the end, or a chatty rclone would block on it: its
+    // failure, or else the last line, is what explains a failure.
+    let counted = refused.clone();
     let errors = std::thread::spawn(move || {
-        let mut last = String::new();
+        let (mut last, mut failed) = (String::new(), None);
         if let Some(stderr) = stderr {
-            for line in BufReader::new(stderr.take(64 * 1024 * 1024))
-                .split(b'\n')
-                .map_while(Result::ok)
-            {
-                if !line.is_empty() {
-                    last = String::from_utf8_lossy(&line).into_owned();
+            let mut reader = BufReader::new(stderr);
+            let mut line = Vec::new();
+            loop {
+                line.clear();
+                let read = reader.by_ref().take(MAX_LINE).read_until(b'\n', &mut line);
+                if matches!(read, Ok(0) | Err(_)) {
+                    break;
+                }
+                let text = String::from_utf8_lossy(&line);
+                let text = text.trim();
+                if text.contains("low level retry") {
+                    counted.fetch_add(1, Ordering::Relaxed);
+                }
+                if text.contains("Failed to") {
+                    failed = Some(text.to_string());
+                }
+                if !text.is_empty() {
+                    last = text.to_string();
                 }
             }
         }
-        last
+        failed.unwrap_or(last)
     });
     let mut too_long = false;
     if let Some(stdout) = stdout {
@@ -293,13 +324,14 @@ pub fn list_hashes(
     running: &Running,
 ) -> Result<Found, Fail> {
     let drive = remote.service.as_deref() == Some("Google Drive");
-    let mut args = vec!["--hash"];
+    let mut args = vec!["--files-only", "--hash"];
     if drive {
         args.push("--drive-skip-shortcuts");
     }
     let mut listed = Vec::new();
     let mut notes = Notes::default();
-    lsjson(program, spec, &args, running, cancel, |file| {
+    let refused = Arc::default();
+    lsjson(program, spec, &args, running, cancel, &refused, |file| {
         progress.listed.fetch_add(1, Ordering::Relaxed);
         let ignored = file
             .path
@@ -344,8 +376,13 @@ pub fn list_hashes(
     // know only means they are not told apart.
     let mut shared = HashSet::new();
     if drive && !listed.is_empty() {
-        let args = ["--drive-shared-with-me", "--no-modtime", "--no-mimetype"];
-        let _ = lsjson(program, spec, &args, running, cancel, |file| {
+        let args = [
+            "--files-only",
+            "--drive-shared-with-me",
+            "--no-modtime",
+            "--no-mimetype",
+        ];
+        let _ = lsjson(program, spec, &args, running, cancel, &refused, |file| {
             shared.extend(file.id);
         });
     }
@@ -356,6 +393,155 @@ pub fn list_hashes(
         notes,
         cloud: Some(remote.clone()),
     })
+}
+
+/// More than this is not a folder but a loop (shortcuts can make one), or
+/// a server trying to fill the memory.
+const MAX_ENTRIES: u64 = 20_000_000;
+
+/// How far a [`TreeJob`] went.
+#[derive(Default)]
+pub struct TreeProgress {
+    /// Files and folders listed so far.
+    pub entries: AtomicU64,
+    /// Requests the service refused, or that failed, and were repeated.
+    pub refused: Arc<AtomicU64>,
+}
+
+/// All that is below a folder: paths relative to it, with the file (`Some`) or
+/// a directory (`None`).
+pub type Listing = Vec<(PathBuf, Option<FileEntry>)>;
+
+/// The folders directly inside `dir`, as the mount shows them.
+fn folders_in(dir: &Path) -> std::io::Result<HashSet<std::ffi::OsString>> {
+    let mut folders = HashSet::new();
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            folders.insert(entry.file_name());
+        }
+    }
+    Ok(folders)
+}
+
+/// All that is below `spec`, the folder `dir` of a mount, in one listing:
+/// reading it folder by folder through the mount costs a request each, and a
+/// service like Google Drive refuses them when they are too many.
+///
+/// Options given to `rclone mount` cannot be seen from here, and can make it
+/// show something else (another root folder, filters). So the folders at the
+/// top have to be those the mount shows, or this is an error.
+fn list_tree(
+    program: &str,
+    drive: bool,
+    spec: &str,
+    dir: &Path,
+    progress: &TreeProgress,
+    running: &Running,
+    cancel: &AtomicBool,
+) -> Result<Listing, String> {
+    let meta = std::fs::metadata(dir).map_err(|e| e.to_string())?;
+    // The mount shows the same permissions on every file: those of a folder,
+    // less the execution.
+    let mode = 0o100000 | (crate::platform::mode(&meta) & 0o666);
+    let mut listing = Vec::new();
+    let mut top = HashSet::new();
+    let mut too_many = false;
+    // One refusal it gives up on ends the whole listing, so it insists. Google
+    // Drive refuses bursts: without one, a large Drive reached its quota.
+    let mut args = vec![
+        "--no-mimetype",
+        "--low-level-retries",
+        "40",
+        "--log-level",
+        "DEBUG",
+    ];
+    if drive {
+        args.extend(["--tpslimit", "10"]);
+    }
+    let refused = &progress.refused;
+    let done = lsjson(program, spec, &args, running, cancel, refused, |item| {
+        if progress.entries.fetch_add(1, Ordering::Relaxed) >= MAX_ENTRIES {
+            too_many = true;
+            running.stop();
+            return;
+        }
+        let mut names = item.path.iter();
+        if let Some(first) = names.next()
+            && (item.is_dir || names.next().is_some())
+        {
+            top.insert(first.to_os_string());
+        }
+        let Some(name) = item.path.file_name().map(|n| n.to_os_string()) else {
+            return;
+        };
+        let file = (!item.is_dir).then_some(FileEntry {
+            name,
+            size: item.size,
+            disk: item.size,
+            link: None,
+            modified: item.modified,
+            mode,
+            kind: FileKind::File,
+            tagged: false,
+        });
+        listing.push((item.path, file));
+    });
+    if too_many {
+        return Err(format!("{spec} lists too much"));
+    }
+    done?;
+    let mounted = folders_in(dir).map_err(|e| e.to_string())?;
+    if top != mounted {
+        return Err(format!("{program} shows other folders than the mount"));
+    }
+    Ok(listing)
+}
+
+/// [`list_tree`] running on a thread of its own.
+pub struct TreeJob {
+    pub progress: Arc<TreeProgress>,
+    cancel: Arc<AtomicBool>,
+    running: Running,
+    rx: mpsc::Receiver<Result<Listing, String>>,
+}
+
+impl TreeJob {
+    pub fn start(program: &str, drive: bool, spec: String, dir: PathBuf) -> TreeJob {
+        let progress = Arc::new(TreeProgress::default());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let running = Running::default();
+        let (tx, rx) = mpsc::channel();
+        let program = program.to_string();
+        let (count, stop, child) = (progress.clone(), cancel.clone(), running.clone());
+        std::thread::spawn(move || {
+            let _ = tx.send(list_tree(
+                &program, drive, &spec, &dir, &count, &child, &stop,
+            ));
+        });
+        TreeJob {
+            progress,
+            cancel,
+            running,
+            rx,
+        }
+    }
+
+    /// The result, once there is one.
+    pub fn poll(&self) -> Option<Result<Listing, String>> {
+        match self.rx.try_recv() {
+            Ok(result) => Some(result),
+            Err(mpsc::TryRecvError::Empty) => None,
+            Err(mpsc::TryRecvError::Disconnected) => Some(Err("the listing stopped".into())),
+        }
+    }
+}
+
+impl Drop for TreeJob {
+    fn drop(&mut self) {
+        self.cancel.store(true, Ordering::Relaxed);
+        self.running.stop();
+    }
 }
 
 /// The service of the remote `name`, read from rclone's configuration once
@@ -611,6 +797,68 @@ vendor = nextcloud
         assert_eq!(at("/elsewhere"), None);
         let bucket = spec_of("s3:bucket", point, Path::new("/home/u/gdrive/a"));
         assert_eq!(bucket.as_deref(), Some("s3:bucket/a"));
+    }
+
+    #[cfg(unix)]
+    fn tree_of(program: &str, dir: &Path) -> Result<Listing, String> {
+        list_tree(
+            program,
+            true,
+            "gdrive:",
+            dir,
+            &TreeProgress::default(),
+            &Running::default(),
+            &AtomicBool::new(false),
+        )
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_whole_tree_comes_in_one_listing() {
+        let tmp = crate::testing::tempdir();
+        std::fs::create_dir(tmp.path().join("docs")).unwrap();
+        let body = r#"echo '['
+echo '{"Path":"docs","Size":-1,"ModTime":"2024-01-02T03:04:05Z","IsDir":true},'
+echo '{"Path":"docs/a.txt","Size":5,"ModTime":"2024-01-02T03:04:05Z","IsDir":false},'
+echo '{"Path":"../../etc/passwd","Size":5,"IsDir":false},'
+echo '{"Path":"sheet.xlsx","Size":-1,"IsDir":false}'
+echo ']'"#;
+        let program = fake_rclone(tmp.path(), body);
+        let listing = tree_of(&program, tmp.path()).unwrap();
+        let paths: Vec<_> = listing.iter().map(|(p, _)| p.to_str().unwrap()).collect();
+        assert_eq!(paths, ["docs", "docs/a.txt", "sheet.xlsx"]);
+        assert!(listing[0].1.is_none(), "a folder");
+        let file = listing[1].1.as_ref().unwrap();
+        assert_eq!(file.name, "a.txt");
+        assert_eq!(file.size, 5);
+        assert_eq!(file.mode & 0o111, 0);
+        assert_eq!(listing[2].1.as_ref().unwrap().size, 0, "a Google document");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn google_drive_is_listed_without_bursts() {
+        let tmp = crate::testing::tempdir();
+        let body = r#"case "$*" in
+*"--low-level-retries 40"*"--tpslimit 10"*) exit 0 ;;
+*) echo "asked: $*" >&2; exit 3 ;;
+esac"#;
+        let program = fake_rclone(tmp.path(), body);
+        assert_eq!(tree_of(&program, tmp.path()).unwrap().len(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn another_tree_than_the_mount_is_not_taken() {
+        let tmp = crate::testing::tempdir();
+        std::fs::create_dir(tmp.path().join("mine")).unwrap();
+        let body = r#"echo '{"Path":"theirs","IsDir":true}'"#;
+        let program = fake_rclone(tmp.path(), body);
+        let why = tree_of(&program, tmp.path()).unwrap_err();
+        assert!(why.contains("other folders"), "{why}");
+        let program = fake_rclone(tmp.path(), "echo 'bad remote' >&2; exit 3");
+        let why = tree_of(&program, tmp.path()).unwrap_err();
+        assert!(why.contains("bad remote"), "{why}");
     }
 
     /// A script in place of rclone: no network, and no rclone needed.

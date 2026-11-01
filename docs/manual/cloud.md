@@ -71,10 +71,14 @@ comes from rclone's configuration file (`~/.config/rclone/rclone.conf`, or
 
 ## What is different there
 
-- **Everything goes over the network.** Each directory read is a request: on
-  a large Drive or bucket, `*` (log the whole branch) and Branch (`B`) can
-  take a while. Opening just the directories you need (→ or `+`) is quick,
-  since they are read as you open them.
+- **Everything goes over the network.** Each directory read is a request, and
+  a service like Google Drive refuses them when they are too many. So, on a
+  mounted folder, `*` asks rclone for the whole branch in a single listing,
+  which is far quicker, and fills the tree when it ends; Esc leaves the tree as
+  it was. If rclone fails or shows other folders than the mount, `*` reads
+  folder by folder. Branch (`B`) always reads that way and can take a while.
+  Opening just the directories you need (→ or `+`) is quick, since they are read
+  as you open them.
 - **Changes made elsewhere** (in the browser, on the phone) show up only after
   F3, and after the directory cache expires (`--dir-cache-time`).
 - **Delete:** answer `P` (permanently) rather than `T`: on Linux, the trash
@@ -89,6 +93,33 @@ comes from rclone's configuration file (`~/.config/rclone/rclone.conf`, or
 - **S3 has no real directories**, only names with `/` in them: an empty
   directory may vanish once unmounted, and renaming or moving a directory
   copies and deletes each file in it.
+
+## When the service refuses: error 403
+
+Google Drive limits how many requests it takes per minute. On a Drive crowded
+with small files and folders (backups of projects, `node_modules`, editor
+extensions), **403 errors are common**: `Quota exceeded`, `rateLimitExceeded`.
+rclone waits and tries again, so everything slows down, and in the end it may
+give up. Any file manager that reads folder by folder through the mount meets
+the same limit.
+
+What Xylem does: `*` shows how many requests were refused and, after 100, asks
+whether to keep trying or stop; stopping leaves the tree as it was. If rclone
+gives up, Xylem says so and does not read folder by folder on its own, because
+that would only be refused more.
+
+What helps, starting with the first:
+
+- **Log by folders.** Instead of `*` at the root, use `*` on smaller folders, or
+  open them with → or `+`. It is often the better way on a crowded Drive.
+- **Your own `client_id`.** Unless you made one, rclone uses a client shared with
+  its other users, and so is the quota. Making your own is free:
+  [rclone's guide](https://rclone.org/drive/#making-your-own-client-id) explains
+  it. Afterwards, authorize again with `rclone config`. The limits of your
+  account remain, but other people's use no longer counts against you.
+- **Keep listings longer:** `--dir-cache-time 1h` on `rclone mount`.
+- **Remove what can be recreated.** Fewer folders mean fewer requests, for any
+  program.
 
 ## Finding what fills your Google Drive
 

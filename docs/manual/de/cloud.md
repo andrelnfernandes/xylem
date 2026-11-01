@@ -81,10 +81,13 @@ verschlüsselt, steht im Feld lediglich rclone.
 ## Was dort anders ist
 
 - **Alles läuft über das Netzwerk.** Jedes gelesene Verzeichnis ist eine
-  Netzwerkanfrage: Auf einem großen Drive oder Bucket können `*` (gesamten
-  Zweig einlesen) und Branch (`B`) eine Weile dauern. Das gezielte Öffnen nur
-  der benötigten Verzeichnisse (→ oder `+`) geht hingegen schnell, da sie erst
-  beim Öffnen gelesen werden.
+  Netzwerkanfrage, und ein Dienst wie Google Drive lehnt sie ab, wenn es zu viele
+  werden. Daher fragt `*` in einem eingehängten Ordner rclone nach dem gesamten
+  Zweig in einer einzigen, viel schnelleren Liste und füllt den Baum am Ende; Esc
+  lässt den Baum unverändert. Schlägt rclone fehl oder zeigt es andere Ordner als
+  die Einhängung, liest `*` Ordner für Ordner. Branch (`B`) liest immer so und
+  kann eine Weile dauern. Das gezielte Öffnen nur der benötigten Verzeichnisse
+  (→ oder `+`) geht hingegen schnell, da sie erst beim Öffnen gelesen werden.
 - **Anderswo vorgenommene Änderungen** (im Browser, auf dem Smartphone)
   erscheinen erst nach F3 und nachdem der Verzeichnis-Cache abgelaufen ist
   (`--dir-cache-time`).
@@ -105,6 +108,34 @@ verschlüsselt, steht im Feld lediglich rclone.
   leeres Verzeichnis kann nach dem Aushängen verschwinden, und beim Umbenennen
   oder Verschieben eines Verzeichnisses wird jede enthaltene Datei einzeln
   kopiert und gelöscht.
+
+## Wenn der Dienst ablehnt: Fehler 403
+
+Google Drive begrenzt, wie viele Anfragen es pro Minute annimmt. Auf einem Drive
+voller kleiner Dateien und Ordner (Projekt-Backups, `node_modules`,
+Editor-Erweiterungen) sind **403-Fehler häufig**: `Quota exceeded`,
+`rateLimitExceeded`. rclone wartet und versucht es erneut, also wird alles langsam,
+und am Ende kann es aufgeben. Jeder Dateimanager, der über die Einhängung Ordner für
+Ordner liest, stößt an dieselbe Grenze.
+
+Was Xylem tut: `*` zeigt, wie viele Anfragen abgelehnt wurden, und fragt nach 100, ob
+es weiter versuchen oder aufhören soll; Aufhören lässt den Baum unverändert. Gibt
+rclone auf, meldet Xylem das und liest nicht von sich aus Ordner für Ordner, denn das
+würde nur noch mehr abgelehnt.
+
+Was hilft, beginnend mit dem ersten Punkt:
+
+- **Nach Ordnern einlesen.** Statt `*` im Stammverzeichnis verwenden Sie `*` auf
+  kleineren Ordnern oder öffnen sie mit → oder `+`. Auf einem vollen Drive ist das oft
+  der bessere Weg.
+- **Eine eigene `client_id`.** Ohne eigene nutzt rclone einen Client, den es mit seinen
+  anderen Nutzern teilt, und damit auch das Kontingent. Eine eigene ist kostenlos: Die
+  [Anleitung von rclone](https://rclone.org/drive/#making-your-own-client-id) erklärt
+  es. Danach autorisieren Sie erneut mit `rclone config`. Die Grenzen Ihres Kontos
+  bleiben, aber die Nutzung anderer zählt nicht mehr gegen Sie.
+- **Listen länger behalten:** `--dir-cache-time 1h` bei `rclone mount`.
+- **Entfernen, was sich neu erstellen lässt.** Weniger Ordner bedeuten weniger
+  Anfragen, in jedem Programm.
 
 ## Herausfinden, was Ihr Google Drive füllt
 

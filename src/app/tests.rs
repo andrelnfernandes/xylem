@@ -99,6 +99,148 @@ fn leaving_showall_selects_file_dir() {
     assert_eq!(names(&app), ["a.rs"]);
 }
 
+/// `*` as on a cloud mount, with a script in place of rclone.
+#[cfg(unix)]
+fn cloud_log(body: &str) -> (tempfile::TempDir, App) {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = crate::testing::tempdir();
+    create_dir_all(tmp.path().join("docs/deep")).unwrap();
+    let script = tmp.path().join("fake-rclone");
+    write(&script, format!("#!/bin/sh\n{body}\n")).unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut app = App::new(tmp.path().to_path_buf());
+    app.cloud_log = Some(CloudLog {
+        job: crate::rclone::TreeJob::start(
+            script.to_str().unwrap(),
+            false,
+            "gdrive:".into(),
+            tmp.path().to_path_buf(),
+        ),
+        pane: 0,
+        id: ROOT,
+        service: "Google Drive".into(),
+        ask_at: REFUSALS_TO_ASK,
+    });
+    (tmp, app)
+}
+
+/// A script that repeats `count` requests.
+#[cfg(unix)]
+fn refusing(count: u64, then: &str) -> String {
+    format!(
+        "i=0; while [ $i -lt {count} ]; do echo 'DEBUG: pacer: low level retry 1/40 (error 403' >&2; i=$((i+1)); done; {then}"
+    )
+}
+
+#[cfg(unix)]
+fn until_asked(app: &mut App) {
+    while app.confirm.is_none() {
+        assert!(app.busy(), "it ended without asking");
+        app.tick(Duration::from_millis(5));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn too_many_refusals_ask_and_stopping_leaves_the_tree_alone() {
+    let (tmp, mut app) = cloud_log(&refusing(REFUSALS_TO_ASK, "exec sleep 30"));
+    until_asked(&mut app);
+    assert!(
+        app.confirm
+            .as_ref()
+            .unwrap()
+            .question
+            .contains("Google Drive refused 100")
+    );
+    press(&mut app, KeyCode::Char('s'));
+    assert!(!app.busy());
+    assert!(app.message.as_deref().unwrap().contains("smaller folders"));
+    let docs = app.panes[0].tree.find(&tmp.path().join("docs")).unwrap();
+    assert!(!app.panes[0].tree.node(docs).expanded);
+}
+
+#[cfg(unix)]
+#[test]
+fn keeping_on_asks_again_only_after_more_refusals() {
+    let body = format!(
+        "{}; {}; echo '{{\"Path\":\"docs\",\"IsDir\":true}}'; echo '{{\"Path\":\"docs/deep\",\"IsDir\":true}}'; sleep 1",
+        refusing(REFUSALS_TO_ASK, "sleep 1"),
+        refusing(REFUSALS_TO_ASK, "sleep 1")
+    );
+    let (_tmp, mut app) = cloud_log(&body);
+    until_asked(&mut app);
+    press(&mut app, KeyCode::Char('k'));
+    assert!(app.cloud_log.is_some(), "still listing");
+    assert_eq!(app.cloud_log.as_ref().unwrap().ask_at, 2 * REFUSALS_TO_ASK);
+    until_asked(&mut app);
+    // It ends with the question open: the question goes.
+    while app.busy() {
+        app.tick(Duration::from_millis(5));
+    }
+    assert!(app.confirm.is_none());
+    assert!(app.message.is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_listing_says_so_and_reads_nothing_more() {
+    let (tmp, mut app) = cloud_log(&refusing(3, "exit 1"));
+    while app.busy() {
+        app.tick(Duration::from_millis(5));
+    }
+    assert!(app.job.is_none(), "not folder by folder");
+    let message = app.message.as_deref().unwrap();
+    assert!(message.contains("refused the listing"), "{message}");
+    let docs = app.panes[0].tree.find(&tmp.path().join("docs")).unwrap();
+    assert!(!app.panes[0].tree.node(docs).expanded);
+}
+
+#[cfg(unix)]
+#[test]
+fn star_on_a_cloud_mount_takes_the_whole_listing() {
+    let (tmp, mut app) = cloud_log(
+        r#"echo '{"Path":"docs","IsDir":true}'
+echo '{"Path":"docs/deep","IsDir":true}'
+echo '{"Path":"docs/deep/only-in-the-listing.txt","Size":9,"IsDir":false}'"#,
+    );
+    while app.busy() {
+        app.tick(Duration::from_millis(5));
+    }
+    let tree = &app.panes[0].tree;
+    let deep = tree.find(&tmp.path().join("docs/deep")).unwrap();
+    assert!(tree.node(deep).expanded);
+    assert_eq!(tree.node(deep).files[0].name, "only-in-the-listing.txt");
+    assert!(app.message.is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn star_on_a_cloud_mount_reads_the_folders_if_rclone_fails() {
+    let (tmp, mut app) = cloud_log("echo 'no such remote' >&2; exit 3");
+    write(tmp.path().join("docs/deep/real.txt"), "x").unwrap();
+    while app.busy() {
+        app.tick(Duration::from_millis(5));
+    }
+    let tree = &app.panes[0].tree;
+    let deep = tree.find(&tmp.path().join("docs/deep")).unwrap();
+    assert_eq!(tree.node(deep).files[0].name, "real.txt");
+    assert!(app.message.as_deref().unwrap().contains("no such remote"));
+}
+
+#[cfg(unix)]
+#[test]
+fn esc_stops_the_listing_and_leaves_the_tree_alone() {
+    let (tmp, mut app) = cloud_log("exec sleep 30");
+    press(&mut app, KeyCode::Down);
+    assert!(app.cloud_log.is_some(), "other keys wait");
+    press(&mut app, KeyCode::Esc);
+    assert!(app.cloud_log.is_none());
+    assert!(!app.busy());
+    assert_eq!(app.message.as_deref(), Some("Logging cancelled"));
+    let docs = app.panes[0].tree.find(&tmp.path().join("docs")).unwrap();
+    assert!(!app.panes[0].tree.node(docs).expanded);
+}
+
 #[test]
 fn the_folder_being_logged_is_on_screen() {
     use ratatui::{Terminal, backend::TestBackend};
@@ -3279,6 +3421,21 @@ fn copy_path() -> String {
         .join("trip.jpg")
         .display()
         .to_string()
+}
+
+#[test]
+fn deleting_folders_can_switch_between_trash_and_permanent() {
+    let (tmp, mut app) = duplicates_sample();
+    app.ask_delete_folders(vec![tmp.path().join("photos-copy")], true);
+    press(&mut app, KeyCode::Char('p'));
+    let question = &app.confirm.as_ref().expect("asks again").question;
+    assert!(question.contains("DELETE"), "{question}");
+    press(&mut app, KeyCode::Char('t'));
+    let question = &app.confirm.as_ref().expect("asks again").question;
+    assert!(question.contains("to trash"), "{question}");
+    press(&mut app, KeyCode::Char('n'));
+    assert!(app.confirm.is_none());
+    assert!(tmp.path().join("photos-copy").exists());
 }
 
 #[test]

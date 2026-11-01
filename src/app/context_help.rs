@@ -23,6 +23,7 @@ impl App {
                 ConfirmKind::Sort(_) => "sort",
                 ConfirmKind::Kbyte(_) => "info",
                 ConfirmKind::OpenHidden { .. } => "files",
+                ConfirmKind::KeepListing => "cloud",
                 ConfirmKind::DeleteFolders { .. } | ConfirmKind::ReadThroughNetwork(_) => {
                     "duplicates"
                 }
