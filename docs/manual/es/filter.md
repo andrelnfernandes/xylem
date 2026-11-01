@@ -15,48 +15,6 @@ acción. La cabecera indica el resultado: `[filter error: 24 of 850 lines]`.
 | Enter | aplicar |
 | Esc | cancelar |
 
-Pulsa `&` otra vez para cambiar el filtro. **Enter con el prompt vacío lo
-desactiva**, y la línea en lo alto de la pantalla sigue allí. Un filtro que no
-encuentra nada o no es válido no cambia nada, y el pie indica el motivo.
-
-Con un filtro activo, el desplazamiento y la [búsqueda](viewer.md) recorren solo
-las líneas conservadas. `g` recibe un número de línea del archivo; si esa línea
-está oculta, va a la siguiente conservada. El filtro sigue tras editar el archivo
-(`E`) o cambiar la codificación (`O`), y termina al cerrar el visor.
-
-Solo se filtra lo que el visor leyó: si la cabecera dice `(showing first N MiB)`,
-el resto del archivo no se examina. El filtro ve las líneas tal como aparecen, así
-que una tabulación son espacios (usa `\s`, no `\t`) y un carácter de control es
-`·`. En el modo tabla, `&` abre el filtro SQL.
-
-## Texto simple
-
-Las mismas reglas que la búsqueda: al ignorar mayúsculas, los acentos tampoco
-cuentan (`AÇÃO` encuentra `ação`), y un `*` en medio coincide con cualquier cosa
-en la misma línea (`error*disco`).
-
-## Expresiones regulares
-
-El término puede coincidir en cualquier parte de la línea, salvo que lo ancles.
-Las mayúsculas se ignoran salvo que pulses **F2**; aquí los acentos cuentan.
-
-| Escribe | Para que coincida con |
-|---|---|
-| `.` | cualquier carácter |
-| `\d` `\D` | un dígito, cualquier cosa menos un dígito |
-| `\w` `\W` | letra, dígito o `_`, cualquier otra cosa |
-| `\s` `\S` | un espacio, cualquier otra cosa |
-| `[abc]` `[^abc]` | uno de estos, cualquier cosa menos estos |
-| `[a-z0-9]` | uno en estos rangos |
-| `^` `$` | el inicio, el final de la línea |
-| `\b` | el borde de una palabra |
-| `a*` `a+` `a?` | cero o más, uno o más, cero o uno |
-| `a{3}` `a{2,5}` | exactamente 3, de 2 a 5 |
-| `a+?` | uno o más, los menos posibles |
-| `(abc)` | un grupo, para repetir o dar alternativas |
-| `(?P<nombre>abc)` | un grupo con nombre |
-| `(?i)` `(?-i)` | ignorar mayúsculas o distinguirlas desde aquí |
-
 ## Expresiones regulares
 
 El término puede coincidir en cualquier parte de la línea, salvo que lo ancles.
@@ -106,5 +64,19 @@ cuentan (`AÇÃO` encuentra `ação`), y un `*` en medio coincide con cualquier 
 en la misma línea (`error*disco`).
 
 ## Con un filtro activo
+
+Pulsa `&` otra vez para cambiar el filtro. **Enter con el prompt vacío lo
+desactiva**, y la línea en lo alto de la pantalla sigue allí. Un filtro que no
+encuentra nada o no es válido no cambia nada, y el pie indica el motivo.
+
+Con un filtro activo, el desplazamiento y la [búsqueda](viewer.md) recorren solo
+las líneas conservadas. `g` recibe un número de línea del archivo; si esa línea
+está oculta, va a la siguiente conservada. El filtro sigue tras editar el archivo
+(`E`) o cambiar la codificación (`O`), y termina al cerrar el visor.
+
+Solo se filtra lo que el visor leyó: si la cabecera dice `(showing first N MiB)`,
+el resto del archivo no se examina. El filtro ve las líneas tal como aparecen, así
+que una tabulación son espacios (usa `\s`, no `\t`) y un carácter de control es
+`·`. En el modo tabla, `&` abre el filtro SQL.
 
 Véase también: [el visor](viewer.md).

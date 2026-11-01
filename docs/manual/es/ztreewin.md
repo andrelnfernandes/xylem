@@ -64,7 +64,7 @@ deja a otros programas", más abajo.
 | Función | En ZTreeWin | En Xylem |
 |---|---|---|
 | Filespec | nombre con reglas propias de nombre y extensión, fecha, tamaño, atributo, filtro invertido (Ctrl+I), etiquetas | glob para nombres, fecha y tamaño como en ZTreeWin (con K/M/G); sin atributos, inversión ni etiquetas |
-| Visor | modos Alpha, Dump, Hex, Junk y Wrap; juegos de caracteres; edición hexadecimal; marcadores; desplazamiento automático | texto o hexadecimal, con la búsqueda de ZTreeWin (F, B, /, \\, Space, + y -), ajuste de línea (W), números de línea (#), ir a línea (g / :); hasta el límite de tamaño (`viewer_max_size`, de 16 MiB a 1 GiB); sin edición hexadecimal, por decisión propia (consulta "Lo que Xylem deja a otros programas") |
+| Visor | modos Alpha, Dump, Hex, Junk y Wrap; juegos de caracteres; edición hexadecimal; marcadores; desplazamiento automático | texto, hexadecimal, tablas con filtro SQL y Markdown renderizado, con la búsqueda de ZTreeWin (F, B, /, \\, Space, + y -), ajuste de línea (W), números de línea (#), ir a línea (g / :), filtro de líneas con regex (&); hasta el límite de tamaño (`viewer_max_size`, de 16 MiB a 1 GiB); sin edición hexadecimal, por decisión propia (consulta "Lo que Xylem deja a otros programas") |
 | Ctrl+S | texto, hexadecimal o Unicode; en archivos ZIP busca solo en el índice | texto o hexadecimal |
 | Atributos | atributos de Windows (R, A, S, H) | permisos Unix en octal (`644`); sin propietario/grupo. En Windows, R, H, S y A, como en ZTreeWin |
 | Ordenar | Name, Ext, Date, Time, Length, Alpha, nuMber, Size, Value, Unsorted; Charset; igual/diferente en pantalla dividida | Nombre, Extensión, Fecha, Tamaño, ascendente/descendente, Ruta primero; cada ventana tiene su propio orden |
@@ -97,16 +97,26 @@ Cosas para las que el manual de ZTreeWin v2.2 no tiene equivalente:
 - **Uso del disco** (Alt+W): las carpetas y archivos de una rama juntos, los
   más grandes primero, hasta llegar a lo que llena el disco; Alt+K muestra en
   el árbol la parte de cada carpeta. Consulta [uso del disco](usage.md).
+- **Duplicados** (Alt+Y): archivos y carpetas enteras con el mismo contenido,
+  comparados por SHA-256, o por los hashes del propio servicio en una carpeta
+  montada con rclone, sin descargar nada. Siempre queda una copia de cada grupo.
+  Consulta [duplicados](duplicates.md).
 - **Un visor que lee más:** colores de sintaxis, la codificación del texto
   detectada sola (UTF-8, UTF-16, CP850, Windows-1252, CP437), archivos `.gz`,
   `.xz`, `.zst` y `.bz2` mostrados descomprimidos, y los caracteres ocultos de
   dirección del texto (Trojan Source) mostrados en vez de obedecidos. Consulta
   [el visor](viewer.md).
+- **Tablas y Markdown:** hojas de cálculo, CSV, JSON Lines, DBF, SQLite y
+  Parquet se abren en una cuadrícula con filtro SQL, y los archivos Markdown se
+  abren renderizados. Consulta [el visor](viewer.md).
 - **Archivos comprimidos sin compresor externo:** ZIP, 7z y TAR (sin
   comprimir, gzip, xz, bzip2, zstd) se abren como carpetas, y ZIP y TAR se
   crean, todo por el propio Xylem. Consulta [archivos comprimidos](archives.md).
 - **Renombrado por lotes** con buscar y reemplazar (`s/foo/bar/`), contadores
   y cambios de mayúsculas/minúsculas. Consulta [renombrar](rename.md).
+- **Batch sobre registros:** Ctrl+B en el visor convierte los registros de una
+  tabla o las líneas de un texto en un script, JSON, CSV, XML, HTML, SQL o una
+  base SQLite, con archivos de plantilla si quieres. Consulta [Batch](execute.md).
 - **Oops:** O (o Ctrl+Z) devuelve a su lugar lo último que se envió a la
   papelera del sistema. Consulta [eliminar](delete.md).
 - **El portapapeles en todas partes:** Y copia la ruta incluso por SSH o
@@ -165,6 +175,13 @@ Las teclas siguen las de ZTreeWin. Las excepciones:
 | F2 | (nada) | vuelve a leer el directorio, igual que F3 |
 | F9 | menú de aplicaciones (no implementado) | menús Ctrl/Alt |
 | F12 | macros (no implementadas) | configuración |
+| Alt+B | Batch del archivo actual (no implementado) | marcadores |
+| Alt+H | Hide (no implementado) | ayuda |
+| Alt+O | Abrir en una ventana de terminal nueva (no implementado) | escribe los archivos marcados en la terminal integrada |
+| Alt+R | Release (no implementado; `-` libera la rama) | renombra los archivos marcados |
+| Alt+T, Alt+U | marcar y desmarcar por atributo (no implementado) | marcar y desmarcar todos |
+| Alt+W | Wash (no implementado) | uso del disco |
+| Alt+Z | Zlist (no implementado) | la terminal integrada a pantalla completa |
 | `/` | igual que `?` (estadísticas) | Treespec, como `\` (`?` sigue mostrando las estadísticas) |
 | Ctrl+C, Ctrl+M en el árbol | (nada) | Copiar/Mover los archivos marcados del directorio actual |
 | Copiar ruta al portapapeles | Ctrl+Insert | Y o Ctrl+Insert (Ctrl+Y para los marcados; funciona mediante OSC 52 y el portapapeles del sistema) |

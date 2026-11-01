@@ -42,6 +42,15 @@ Ctrl+Buchstabe bzw. Alt+Buchstabe (`F9` `M` = Ctrl+M); `Esc` bricht ab. In
 Terminals mit dem Kitty-Tastaturprotokoll genügt es, **Ctrl oder Alt gedrückt
 zu halten**, um das entsprechende Menü anzuzeigen.
 
+Beim Loslassen erscheint wieder das übliche Menü, wie in ZTree.
+
+Das Terminal muss das Drücken und Loslassen von Ctrl und Alt allein melden, und
+das kann nur das Kitty-Tastaturprotokoll: kitty, Ghostty, WezTerm, foot (Wayland)
+und aktuelles Alacritty unterstützen es, und unter Ubuntu oder Debian sind die
+meisten nur ein Paket entfernt (`sudo apt install kitty`, oder `ghostty`,
+`alacritty`, `foot`). VTE-basierte Terminals (GNOME Terminal, Ptyxis, Terminator,
+Tilix) unterstützen es noch nicht, dort bleiben die Menüs also auf F9.
+
 **Ctrl+M:** In den meisten Terminals wird Ctrl+M genau wie Enter übertragen.
 Xylem aktiviert das Kitty-Tastaturprotokoll, wenn das Terminal es unterstützt
 (kitty, WezTerm, foot, Ghostty, aktuelles Alacritty, iTerm2), sodass Ctrl+M die

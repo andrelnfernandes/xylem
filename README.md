@@ -37,7 +37,8 @@ such malfunction is a serious bug, and it will be fixed promptly once reported.
 Nevertheless, bugs happen. Here is what Xylem does to keep the risk small:
 
 - Everything Xylem reads on its own (text, hex, encodings, compressed files,
-  archives, spreadsheets, CSV, DBF) goes through memory-safe Rust parsers. The
+  archives, Markdown, spreadsheets, CSV, JSON Lines, DBF) goes through
+  memory-safe Rust parsers. The
   exception is SQLite databases and Parquet files, read by libraries in C:
   they run only when you open such a file with V, never in Autoview. No
   external program runs on a file unless you ask for it with E, O or X.
@@ -50,8 +51,9 @@ Nevertheless, bugs happen. Here is what Xylem does to keep the risk small:
 - When extracting archives or copying from a remote machine, paths with `..` or
   absolute paths are refused, symbolic links in archives are not extracted,
   setuid bits are dropped and names sent by an SFTP server are checked.
-- The automatic Git status ignores a repository's `core.fsmonitor` and skips
-  repositories that define their own filters.
+- Looking at a Git repository runs nothing it names: no hooks, `core.fsmonitor`,
+  external diffs or text conversions, unless its folder is under `git_trusted`.
+  One with filters of its own gets no markers, Status, Diff or Blame there.
 - The dependencies are checked against the RustSec database in CI.
 
 You can make the attack surface smaller still:
@@ -197,7 +199,7 @@ mkdir -p ~/.local/share/man/man1 && xy --man > ~/.local/share/man/man1/xy.1
 - **Finding things:** Filespec by name, date and size, Treespec to type a path,
   bookmarks, and Ctrl+S to search the tagged files for text.
 - **Looking inside:** a text and hex viewer with search, a line filter with
-  regular expressions and syntax colors, a table mode with a SQL filter for
+  regular expressions and syntax colors, Markdown shown rendered, a table mode with a SQL filter for
   spreadsheets, CSV, JSON Lines, DBF, SQLite and Parquet, and Ctrl+B to turn
   those records or lines into a script, JSON, SQL or anything else,
   Autoview next to the list, ZIP, 7z and TAR archives opened as directories,
@@ -258,13 +260,21 @@ native speakers: if you read one of these languages, [suggestions are welcome](d
 - `src/filetype.rs` — what a file is, for the Type display mode
 - `src/ui.rs` — screen drawing (ratatui)
 - `src/viewer.rs` — text/hex viewer
+- `src/viewer/` — table mode, rendered Markdown, line filter, SQL filter and Batch over records
+- `src/usage.rs` — the Usage view
+- `src/duplicates.rs` — finding duplicates
+- `src/search.rs` — text search, in tagged files and in the viewer
+- `src/decompress.rs` — compressed files, with limits
+- `src/charset.rs` — text encodings
+- `src/bidi.rs` — the guard against hidden text direction characters
 - `src/archive.rs` — ZIP, 7z and TAR reading; ZIP and TAR creation
 - `src/watch.rs` — notifications of changes on disk (inotify)
 - `src/shell.rs` — editor and shell commands (with safe quoting)
 - `src/editors.rs` — which editor E uses for each file (`[editors]`)
 - `src/term.rs` — built-in terminal (pseudo-terminal, key codes, colors)
 - `src/git.rs` — Git menu (Ctrl+G) and status markers, through the `git` program
-- `src/rclone.rs` — which cloud service a folder mounted by rclone is
+- `src/rclone.rs` — folders mounted by rclone: which service, and its listings and hashes
+- `src/remote/` — remote machines: SFTP over the system's `ssh`
 - `src/config.rs` — configuration file, themes and formats
 - `src/settings.rs` — configuration screen (F12)
 - `src/state.rs` — prompt history between runs
@@ -275,7 +285,8 @@ native speakers: if you read one of these languages, [suggestions are welcome](d
 - `tests/e2e.rs` — end-to-end tests: the real `xy` in a pseudo-terminal, driven by keys (Linux); `cargo test` also runs property tests (proptest) on the Filespec and the rename masks
 - `docs/icons/` — the icon, in SVG, PNG (16 to 512) and ICO
 - `build.rs` — embeds the icon in `xy.exe` (Windows)
-- `packaging/linux/` — menu entry (`xylem.desktop`)
+- `packaging/linux/` — menu entry (`xylem.desktop`) and the `.deb` and `.rpm` packages (`packages.sh`)
+- `site/` — the website
 
 ## Roadmap
 
@@ -294,7 +305,11 @@ native speakers: if you read one of these languages, [suggestions are welcome](d
   size limit, soft wrap, line numbers, goto line, a line filter, protection
   against hidden text direction characters, and a [table mode](docs/manual/viewer.md)
   with a SQL filter for spreadsheets (XLSX, ODS), CSV, JSON Lines, DBF with its
-  memo files, SQLite and Parquet.
+  memo files, SQLite and Parquet, and rendered Markdown.
+- Batch (Ctrl+B) over tagged files, the records of a table or the lines of a
+  text, with templates, conditions, totals and output to SQLite.
+- Duplicates (Alt+Y): files and whole folders, on local disks and through the
+  hashes rclone gives.
 
 ### Next
 
@@ -308,8 +323,6 @@ native speakers: if you read one of these languages, [suggestions are welcome](d
   external converters such as `pdftotext` or `exiftool`.
 - **Disk usage:** actions inside the Usage view (tag, delete, prune, view),
   then an optional treemap, grouping by type and export.
-- **Duplicate files:** on this machine (by size, then by content), on Google
-  Drive through the checksums it already keeps, and whole duplicated folders.
 - **From ZTreeWin:** the items in "What Xylem does not have yet" in the
   [comparison with ZTreeWin](docs/manual/ztreewin.md), such as JFC, Global,
   the mouse and saving the log.

@@ -41,6 +41,15 @@ aberto, a próxima letra vale como Ctrl+letra ou Alt+letra (`F9` `M` = Ctrl+M);
 `Esc` cancela. Em terminais com o protocolo de teclado do kitty, basta
 **segurar Ctrl ou Alt** para ver o menu correspondente.
 
+Soltar a tecla traz de volta o menu de sempre, como no ZTree.
+
+O terminal precisa informar Ctrl e Alt apertados e soltos por si sós, e só o
+protocolo de teclado do kitty faz isso: kitty, Ghostty, WezTerm, foot (Wayland)
+e o Alacritty recente o suportam, e no Ubuntu ou no Debian a maioria está a um
+pacote de distância (`sudo apt install kitty`, ou `ghostty`, `alacritty`,
+`foot`). Terminais baseados em VTE (GNOME Terminal, Ptyxis, Terminator, Tilix)
+ainda não o suportam, então neles os menus ficam no F9.
+
 **Ctrl+M:** na maioria dos terminais, Ctrl+M chega igual a Enter. O Xylem ativa
 o protocolo de teclado do kitty quando o terminal o suporta (kitty, WezTerm,
 foot, Ghostty, Alacritty recente, iTerm2), e então Ctrl+M move os arquivos

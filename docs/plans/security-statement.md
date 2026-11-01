@@ -3,7 +3,9 @@
 Origem: conversa de 2026-10-27. O autor gostou da franqueza do texto
 "Defense Against The Dark Arts" do SQLite ("SQLite should never crash... Nevertheless,
 bugs happen...") e pediu algo parecido para o Xylem, no README e no início do manual.
-O texto em inglês abaixo foi **aprovado pelo autor**; falta traduzir e montar o PR.
+O texto em inglês abaixo foi **aprovado pelo autor**. Publicado no PR #50. O item do
+Git mudou depois, com a leitura segura de repositórios (PR #70): o texto em vigor é o
+do README.
 
 ## Texto aprovado (inglês, usar como está)
 
@@ -57,8 +59,7 @@ Found a problem? Please report it privately [CHANNEL], not in a public issue.
 - **Manual:** parágrafo curto no início de `index.md` nas 6 línguas apontando para o README.
 - **Status da implementação:** arquivos modificados (`README.md`, `README.pt-BR.md`,
   `docs/manual/**/index.md`) e testes validados (`cargo test help`,
-  `cargo test default_config_text_means_defaults`). Pronto para commit e PR mediante
-  autorização do autor.
+  `cargo test default_config_text_means_defaults`). Publicado no PR #50.
 
 ## O que fazer (roteiro para o agente que continuar)
 

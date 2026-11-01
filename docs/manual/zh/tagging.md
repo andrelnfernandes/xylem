@@ -35,4 +35,8 @@
 
 与 ZTree 一样，底部状态栏平时只显示单键命令。按 **F9** 会依次切换到 Ctrl 菜单、Alt 菜单，再回到普通菜单。当其中一个菜单打开时，接下来按下的字母将视为 Ctrl+字母 或 Alt+字母（如 `F9` `M` = Ctrl+M）；按 `Esc` 取消。在支持 kitty 键盘协议的终端中，只需 **按住 Ctrl 或 Alt** 即可直接显示对应菜单。
 
+松开按键后会回到平时的菜单，与 ZTree 一样。
+
+终端必须单独报告 Ctrl 和 Alt 的按下与松开，而只有 kitty 键盘协议能做到：kitty、Ghostty、WezTerm、foot（Wayland）和新版 Alacritty 都支持它，在 Ubuntu 或 Debian 上大多只需安装一个软件包（`sudo apt install kitty`，或 `ghostty`、`alacritty`、`foot`）。基于 VTE 的终端（GNOME Terminal、Ptyxis、Terminator、Tilix）尚不支持，因此在这些终端中菜单仍使用 F9。
+
 **Ctrl+M：** 在大多数终端中，Ctrl+M 发送的信号与 Enter 相同。当终端支持 kitty 键盘协议时（如 kitty、WezTerm、foot、Ghostty、新版 Alacritty、iTerm2），Xylem 会启用该协议，此时 Ctrl+M 可像在 ZTree 中一样移动已标记文件。在基于 VTE 的终端（GNOME Terminal、Ptyxis、Terminator、Tilix）中，请使用 **F9 M**（或按 Alt+M 后在提示行中按 F6）。

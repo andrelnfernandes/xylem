@@ -64,7 +64,7 @@ Xylem laisse à d'autres programmes », plus bas.
 | Fonction | Dans ZTreeWin | Dans Xylem |
 |---|---|---|
 | Filespec | nom avec règles propres au nom et à l'extension, date, taille, attribut, filespec inversé (Ctrl+I), étiquettes | glob pour les noms, date et taille comme dans ZTreeWin (avec K/M/G) ; ni attributs, ni inversion, ni étiquettes |
-| Visionneuse | modes Alpha, Dump, Hex, Junk et Wrap ; jeux de caractères ; édition hexadécimale ; signets ; défilement automatique | texte ou hexadécimal, avec la recherche de ZTreeWin (F, B, /, \\, Space, + et -), retour à la ligne (W), numéros de ligne (#), aller à la ligne (g / :) ; jusqu'à la limite de taille (`viewer_max_size`, de 16 Mio à 1 Gio) ; pas d'édition hexadécimale, par choix (voir « Ce que Xylem laisse à d'autres programmes ») |
+| Visionneuse | modes Alpha, Dump, Hex, Junk et Wrap ; jeux de caractères ; édition hexadécimale ; signets ; défilement automatique | texte, hexadécimal, tableaux avec filtre SQL et Markdown rendu, avec la recherche de ZTreeWin (F, B, /, \\, Space, + et -), retour à la ligne (W), numéros de ligne (#), aller à la ligne (g / :), filtre de lignes par regex (&) ; jusqu'à la limite de taille (`viewer_max_size`, de 16 Mio à 1 Gio) ; pas d'édition hexadécimale, par choix (voir « Ce que Xylem laisse à d'autres programmes ») |
 | Ctrl+S | texte, hexadécimal ou Unicode ; ne cherche que dans l'index des ZIP | texte ou hexadécimal |
 | Attributs | attributs Windows (R, A, S, H) | permissions Unix en octal (`644`) ; pas de propriétaire/groupe. Sous Windows, R, H, S et A, comme dans ZTreeWin |
 | Tri | Name, Ext, Date, Time, Length, Alpha, nuMber, Size, Value, Unsorted ; Charset ; same/diff en écran partagé | Name, Ext, Date, Size, croissant/décroissant, Path en premier ; chaque fenêtre a son propre ordre |
@@ -98,16 +98,27 @@ Ce qui n'a pas d'équivalent dans le manuel de ZTreeWin v2.2 :
   ensemble, les plus gros d'abord, jusqu'à ce qui remplit le disque ; Alt+K
   montre dans l'arborescence la part de chaque dossier. Voir
   [occupation du disque](usage.md).
+- **Doublons** (Alt+Y) : fichiers et dossiers entiers au même contenu, comparés
+  par SHA-256 ou, dans un dossier monté par rclone, par les empreintes du service,
+  sans rien télécharger. Une copie de chaque groupe reste toujours. Voir
+  [doublons](duplicates.md).
 - **Une visionneuse qui lit davantage :** coloration syntaxique, encodage du
   texte détecté seul (UTF-8, UTF-16, CP850, Windows-1252, CP437), fichiers
   `.gz`, `.xz`, `.zst` et `.bz2` affichés décompressés, et caractères cachés de
   direction du texte (Trojan Source) affichés au lieu d'être obéis. Voir
   [la visionneuse](viewer.md).
+- **Tableaux et Markdown :** tableurs, CSV, JSON Lines, DBF, SQLite et Parquet
+  s'ouvrent dans une grille avec filtre SQL, et les fichiers Markdown s'ouvrent
+  rendus. Voir [la visionneuse](viewer.md).
 - **Des archives sans archiveur externe :** ZIP, 7z et TAR (brut, gzip, xz,
   bzip2, zstd) s'ouvrent comme des dossiers, et ZIP et TAR se créent, le tout
   par Xylem lui-même. Voir [archives](archives.md).
 - **Renommage par lot** avec rechercher-remplacer (`s/foo/bar/`), compteurs et
   changements de casse. Voir [renommer](rename.md).
+- **Batch sur les enregistrements :** Ctrl+B dans la visionneuse transforme les
+  enregistrements d'un tableau ou les lignes d'un texte en script, JSON, CSV, XML,
+  HTML, SQL ou base SQLite, avec des fichiers modèles si vous le souhaitez. Voir
+  [Batch](execute.md).
 - **Oops :** O (ou Ctrl+Z) remet à sa place ce qui a été envoyé en dernier
   dans la corbeille du système. Voir [supprimer](delete.md).
 - **Le presse-papiers partout :** Y copie le chemin même via SSH ou dans tmux
@@ -166,6 +177,13 @@ Les touches suivent celles de ZTreeWin. Les exceptions :
 | F2 | (rien) | relit le répertoire, comme F3 |
 | F9 | menu d'applications (non implémenté) | menus Ctrl/Alt |
 | F12 | macros (non implémenté) | configuration |
+| Alt+B | Batch du fichier courant (non implémenté) | signets |
+| Alt+H | Hide (non implémenté) | aide |
+| Alt+O | Ouvrir dans une nouvelle fenêtre de terminal (non implémenté) | tape les fichiers marqués dans le terminal intégré |
+| Alt+R | Release (non implémenté ; `-` libère la branche) | renomme les fichiers marqués |
+| Alt+T, Alt+U | marquer et démarquer par attribut (non implémenté) | tout marquer et tout démarquer |
+| Alt+W | Wash (non implémenté) | occupation du disque |
+| Alt+Z | Zlist (non implémenté) | le terminal intégré en plein écran |
 | `/` | identique à `?` (statistiques) | Treespec, comme `\` (`?` affiche toujours les statistiques) |
 | Ctrl+C, Ctrl+M dans l'arborescence | (rien) | Copier/Déplacer les fichiers marqués du répertoire courant |
 | Copier le chemin dans le presse-papiers | Ctrl+Insert | Y ou Ctrl+Insert (Ctrl+Y pour les fichiers marqués ; fonctionne via OSC 52 et le presse-papiers système) |
