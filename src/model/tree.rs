@@ -223,6 +223,9 @@ impl Tree {
         tree.is_virtual = true;
         tree.nodes[ROOT].expanded = true;
         tree.nodes[ROOT].scanned = true;
+        // A map, so that a hostile folder with a million subfolders is not
+        // searched from the start for each one.
+        let mut known: HashMap<NodeId, HashMap<OsString, NodeId>> = HashMap::new();
         for (path, file) in listing {
             let dirs = match file {
                 Some(_) => path.parent().unwrap_or(Path::new("")),
@@ -230,14 +233,15 @@ impl Tree {
             };
             let mut cur = ROOT;
             for name in dirs.iter() {
-                let found = find_child(&tree, cur, name);
-                cur = match found {
-                    Some(c) => c,
+                let children = known.entry(cur).or_default();
+                cur = match children.get(name) {
+                    Some(&c) => c,
                     None => {
                         let hidden = platform::is_hidden(name, 0);
                         let c = tree.add_node(name.to_os_string(), cur, hidden);
                         tree.nodes[c].scanned = true;
                         tree.nodes[cur].children.push(c);
+                        children.insert(name.to_os_string(), c);
                         c
                     }
                 };
@@ -784,14 +788,6 @@ fn read_dir_entries(path: &Path) -> std::io::Result<(Vec<DirName>, Vec<FileEntry
     Ok((dirs, files))
 }
 
-fn find_child(tree: &Tree, parent: NodeId, name: &std::ffi::OsStr) -> Option<NodeId> {
-    tree.nodes[parent]
-        .children
-        .iter()
-        .copied()
-        .find(|&c| tree.nodes[c].name == name)
-}
-
 fn sort_key(name: &OsString) -> String {
     name.to_string_lossy().to_lowercase()
 }
@@ -862,6 +858,18 @@ mod tests {
         tree.expand(b);
         let deep = tree.node(b).children[0];
         assert_eq!(tree.path(deep), tmp.path().join("b/deep"));
+    }
+
+    #[test]
+    fn a_listing_with_a_huge_folder_does_not_search_it_for_each_child() {
+        // Searching the children one by one would take minutes here.
+        let count = 200_000;
+        let listing = (0..count)
+            .map(|i| (PathBuf::from(format!("top/d{i}")), None))
+            .collect();
+        let tree = Tree::from_listing(PathBuf::from("/x.tar"), listing);
+        let top = tree.node(ROOT).children[0];
+        assert_eq!(tree.node(top).children.len(), count);
     }
 
     #[test]

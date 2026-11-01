@@ -14,8 +14,8 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TryRecvError};
 use std::time::{Duration, SystemTime};
 
 use chrono::{Local, NaiveDate, TimeZone};
@@ -87,6 +87,8 @@ pub struct Reader {
     sevenz: Option<sevenz_rust2::ArchiveReader<File>>,
     /// Path → name of the entry in the 7z, and its kind.
     sevenz_index: HashMap<PathBuf, (String, EntryKind)>,
+    /// Whether a [`Listing`] was cancelled, and how far it got.
+    watch: Arc<Watch>,
 }
 
 impl Reader {
@@ -101,6 +103,7 @@ impl Reader {
             zip_index: HashMap::new(),
             sevenz: None,
             sevenz_index: HashMap::new(),
+            watch: Arc::default(),
         };
         match kind {
             Kind::Zip => {
@@ -123,10 +126,12 @@ impl Reader {
     pub fn list(&mut self) -> io::Result<Vec<Entry>> {
         match self.kind {
             Kind::Zip => self.list_zip(),
-            Kind::SevenZ => Ok(self.list_7z()),
+            Kind::SevenZ => self.list_7z(),
             _ => {
                 let mut entries = Vec::new();
+                let mut limit = ListLimit::new(self.watch.clone());
                 self.each_tar_entry(|entry, _| {
+                    limit.count(&entry.path)?;
                     entries.push(entry);
                     Ok(true)
                 })?;
@@ -168,7 +173,7 @@ impl Reader {
             }
             Kind::SevenZ => {
                 if self.sevenz_index.is_empty() {
-                    self.list_7z();
+                    self.list_7z()?;
                 }
                 let (name, kind) = self.sevenz_index.get(entry).ok_or_else(not_found)?.clone();
                 if kind == EntryKind::Symlink {
@@ -212,20 +217,14 @@ impl Reader {
     }
 
     /// Extracts entries in a thread of its own, one after the other.
-    pub fn into_extractor(mut self) -> Extractor {
-        let (requests, queue) = mpsc::channel::<(PathBuf, Pipe)>();
-        std::thread::spawn(move || {
-            for (entry, mut pipe) in queue {
-                let result = self.extract(&entry, &mut pipe, u64::MAX);
-                pipe.finish(result);
-            }
-        });
-        Extractor { requests }
+    pub fn into_extractor(self) -> Extractor {
+        Extractor::spawn(move || Ok(self))
     }
 
     fn list_zip(&mut self) -> io::Result<Vec<Entry>> {
         let zip = self.zip.as_mut().expect("zip archive is open");
         let mut entries = Vec::new();
+        let mut limit = ListLimit::new(self.watch.clone());
         self.zip_index.clear();
         for i in 0..zip.len() {
             let file = zip.by_index_raw(i).map_err(io::Error::other)?;
@@ -233,6 +232,7 @@ impl Reader {
             let Some(path) = file.enclosed_name().filter(|p| is_safe(p)) else {
                 continue;
             };
+            limit.count(&path)?;
             let kind = if file.is_dir() {
                 EntryKind::Dir
             } else if file.is_symlink() {
@@ -262,9 +262,10 @@ impl Reader {
         Ok(entries)
     }
 
-    fn list_7z(&mut self) -> Vec<Entry> {
+    fn list_7z(&mut self) -> io::Result<Vec<Entry>> {
         let sevenz = self.sevenz.as_ref().expect("7z archive is open");
         let mut entries = Vec::new();
+        let mut limit = ListLimit::new(self.watch.clone());
         self.sevenz_index.clear();
         for file in &sevenz.archive().files {
             if file.is_anti_item() {
@@ -278,6 +279,7 @@ impl Reader {
             if path.as_os_str().is_empty() || !is_safe(&path) {
                 continue;
             }
+            limit.count(&path)?;
             // Unix permissions, when the archive keeps them, are in the high
             // 16 bits of the attributes (7-Zip's convention, flag 0x8000).
             let unix = (file.has_windows_attributes && file.windows_attributes & 0x8000 != 0)
@@ -301,7 +303,7 @@ impl Reader {
                 kind,
             });
         }
-        entries
+        Ok(entries)
     }
 
     /// Walks the TAR from the start, calling `f` with each valid entry and its
@@ -319,7 +321,13 @@ impl Reader {
         &self,
         mut f: impl FnMut(Entry, &mut dyn Read) -> io::Result<bool>,
     ) -> io::Result<()> {
-        let file = BufReader::new(File::open(&self.path)?);
+        // Checked on both sides of the decompressor: one that spins on empty
+        // blocks produces nothing, and a bomb reads next to nothing.
+        let file = BufReader::new(Watched {
+            inner: File::open(&self.path)?,
+            watch: self.watch.clone(),
+            output: false,
+        });
         let reader: Box<dyn Read> = match self.kind {
             Kind::TarGz => Box::new(flate2::read::GzDecoder::new(file)),
             Kind::TarXz => Box::new(crate::decompress::xz_reader(
@@ -333,7 +341,11 @@ impl Reader {
             )?),
             _ => Box::new(file),
         };
-        let mut archive = tar::Archive::new(reader);
+        let mut archive = tar::Archive::new(Watched {
+            inner: reader,
+            watch: self.watch.clone(),
+            output: true,
+        });
         for item in archive.entries()? {
             let mut item = item?;
             let header = item.header();
@@ -368,6 +380,127 @@ impl Reader {
             }
         }
         Ok(())
+    }
+}
+
+/// The most entries an archive may list, and the most their paths may add up
+/// to: a few KiB of compressed headers could otherwise fill the memory.
+pub const MAX_ENTRIES: usize = if cfg!(test) { 1000 } else { 1_000_000 };
+const MAX_PATH_BYTES: usize = if cfg!(test) {
+    64 * 1024
+} else {
+    256 * 1024 * 1024
+};
+
+/// Counts the entries of one listing against the limits above.
+struct ListLimit {
+    entries: usize,
+    path_bytes: usize,
+    watch: Arc<Watch>,
+}
+
+impl ListLimit {
+    fn new(watch: Arc<Watch>) -> Self {
+        Self {
+            entries: 0,
+            path_bytes: 0,
+            watch,
+        }
+    }
+
+    fn count(&mut self, path: &Path) -> io::Result<()> {
+        self.entries += 1;
+        self.path_bytes = self.path_bytes.saturating_add(path.as_os_str().len());
+        self.watch.entries.store(self.entries, Ordering::Relaxed);
+        if self.entries > MAX_ENTRIES || self.path_bytes > MAX_PATH_BYTES {
+            return Err(io::Error::other(format!(
+                "too many entries to list (the limit is {MAX_ENTRIES})"
+            )));
+        }
+        Ok(())
+    }
+}
+
+/// What a [`Listing`] shares with its thread.
+#[derive(Default)]
+struct Watch {
+    cancelled: AtomicBool,
+    bytes: AtomicU64,
+    entries: AtomicUsize,
+}
+
+/// A reader that stops once the listing is cancelled.
+struct Watched<R> {
+    inner: R,
+    watch: Arc<Watch>,
+    /// The decompressed side, the one that counts as progress.
+    output: bool,
+}
+
+impl<R: Read> Read for Watched<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.watch.cancelled.load(Ordering::Relaxed) {
+            return Err(io::Error::other("cancelled"));
+        }
+        let n = self.inner.read(buf)?;
+        if self.output {
+            self.watch.bytes.fetch_add(n as u64, Ordering::Relaxed);
+        }
+        Ok(n)
+    }
+}
+
+/// An archive being listed in another thread: entering a compressed TAR means
+/// decompressing all of it, and that must not hold the screen up. Dropping
+/// this cancels it.
+pub struct Listing<T> {
+    rx: Receiver<io::Result<T>>,
+    watch: Arc<Watch>,
+}
+
+impl<T: Send + 'static> Listing<T> {
+    /// Opens and lists `path`, then runs `build` on the entries, all in the
+    /// thread, so a huge listing does not hold the screen up either.
+    pub fn start(path: &Path, build: impl FnOnce(Vec<Entry>) -> T + Send + 'static) -> Self {
+        let (tx, rx) = mpsc::channel();
+        let watch = Arc::new(Watch::default());
+        let shared = watch.clone();
+        let path = path.to_path_buf();
+        std::thread::spawn(move || {
+            let result = crate::panic_guard::catch(|| {
+                let mut reader = Reader::open(&path)?;
+                reader.watch = shared;
+                Ok(build(reader.list()?))
+            })
+            .unwrap_or_else(|| Err(io::Error::other("the archive is corrupt")));
+            let _ = tx.send(result);
+        });
+        Self { rx, watch }
+    }
+}
+
+impl<T> Listing<T> {
+    /// The result, once there is one.
+    pub fn poll(&mut self) -> Option<io::Result<T>> {
+        match self.rx.try_recv() {
+            Ok(result) => Some(result),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => Some(Err(io::Error::other("reading stopped"))),
+        }
+    }
+
+    /// Entries found and bytes decompressed so far.
+    pub fn progress(&self) -> (usize, u64) {
+        (
+            self.watch.entries.load(Ordering::Relaxed),
+            self.watch.bytes.load(Ordering::Relaxed),
+        )
+    }
+}
+
+impl<T> Drop for Listing<T> {
+    fn drop(&mut self) {
+        self.watch.cancelled.store(true, Ordering::Relaxed);
     }
 }
 
@@ -412,6 +545,28 @@ pub struct Extractor {
 }
 
 impl Extractor {
+    /// Opens `archive` in the thread too: a 7z or a ZIP reads its index on
+    /// opening. If that fails, each entry asked for gets the error.
+    pub fn open(archive: &Path) -> Self {
+        let archive = archive.to_path_buf();
+        Self::spawn(move || Reader::open(&archive))
+    }
+
+    fn spawn(open: impl FnOnce() -> io::Result<Reader> + Send + 'static) -> Self {
+        let (requests, queue) = mpsc::channel::<(PathBuf, Pipe)>();
+        std::thread::spawn(move || {
+            let mut reader = open();
+            for (entry, mut pipe) in queue {
+                let result = match &mut reader {
+                    Ok(reader) => reader.extract(&entry, &mut pipe, u64::MAX),
+                    Err(e) => Err(io::Error::new(e.kind(), e.to_string())),
+                };
+                pipe.finish(result);
+            }
+        });
+        Extractor { requests }
+    }
+
     /// The contents of `entry`, as the thread extracts them (after the
     /// entries asked for before).
     pub fn extract(&self, entry: &Path) -> Streamed {
@@ -820,6 +975,130 @@ pub mod tests {
         let mut p: Vec<String> = entries.iter().map(|e| entry_name(&e.path)).collect();
         p.sort();
         p
+    }
+
+    fn tar_header(size: usize) -> tar::Header {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(size as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        header
+    }
+
+    fn wait_result<T>(listing: &mut Listing<T>) -> io::Result<T> {
+        for _ in 0..3000 {
+            if let Some(result) = listing.poll() {
+                return result;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("the listing did not finish");
+    }
+
+    #[test]
+    fn listing_gets_the_entries_in_the_background() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("p.zip");
+        make_zip(&path);
+        let mut listing = Listing::start(&path, |entries| entries.len());
+        assert_eq!(wait_result(&mut listing).unwrap(), 3);
+        assert_eq!(listing.progress().0, 3);
+
+        let mut gone = Listing::start(&tmp.path().join("none.zip"), |entries| entries.len());
+        assert!(wait_result(&mut gone).is_err());
+    }
+
+    #[test]
+    fn a_cancelled_reader_stops_at_once() {
+        let watch = Arc::new(Watch::default());
+        let mut reader = Watched {
+            inner: Cursor::new(vec![0u8; 8]),
+            watch: watch.clone(),
+            output: true,
+        };
+        let mut buf = [0u8; 4];
+        assert_eq!(reader.read(&mut buf).unwrap(), 4);
+        assert_eq!(watch.bytes.load(Ordering::Relaxed), 4);
+        watch.cancelled.store(true, Ordering::Relaxed);
+        assert!(reader.read(&mut buf).is_err());
+    }
+
+    /// A bomb: a few hundred KiB that decompress into 128 MiB of zeros.
+    #[test]
+    fn dropping_a_listing_stops_a_decompression_bomb() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("bomb.tar.gz");
+        let gz = flate2::write::GzEncoder::new(
+            File::create(&path).unwrap(),
+            flate2::Compression::fast(),
+        );
+        let mut tar = tar::Builder::new(gz);
+        let size = 128 * 1024 * 1024;
+        let mut header = tar_header(size);
+        tar.append_data(&mut header, "zeros", io::repeat(0).take(size as u64))
+            .unwrap();
+        tar.into_inner().unwrap().finish().unwrap();
+
+        let built = Arc::new(AtomicBool::new(false));
+        let flag = built.clone();
+        let listing = Listing::start(&path, move |_| flag.store(true, Ordering::Relaxed));
+        let watch = listing.watch.clone();
+        while watch.bytes.load(Ordering::Relaxed) == 0 {
+            std::thread::yield_now();
+        }
+        drop(listing);
+        for _ in 0..3000 {
+            if Arc::strong_count(&watch) == 1 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(Arc::strong_count(&watch), 1, "the thread is still running");
+        assert!(!built.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn refuses_more_entries_than_the_limit() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("many.tar.gz");
+        let gz = flate2::write::GzEncoder::new(
+            File::create(&path).unwrap(),
+            flate2::Compression::fast(),
+        );
+        let mut tar = tar::Builder::new(gz);
+        for i in 0..=MAX_ENTRIES {
+            let mut header = tar_header(0);
+            tar.append_data(&mut header, format!("f{i}"), &[][..])
+                .unwrap();
+        }
+        tar.into_inner().unwrap().finish().unwrap();
+        let err = Reader::open(&path).unwrap().list().unwrap_err();
+        assert!(err.to_string().contains("too many entries"), "{err}");
+    }
+
+    #[test]
+    fn refuses_paths_that_add_up_to_too_much() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("long.tar");
+        let mut tar = tar::Builder::new(File::create(&path).unwrap());
+        for i in 0..200 {
+            let mut header = tar_header(0);
+            let name = format!("{}/{i}", "d".repeat(400));
+            tar.append_data(&mut header, name, &[][..]).unwrap();
+        }
+        tar.finish().unwrap();
+        let err = Reader::open(&path).unwrap().list().unwrap_err();
+        assert!(err.to_string().contains("too many entries"), "{err}");
+    }
+
+    #[test]
+    fn an_extractor_reports_an_archive_it_cannot_open() {
+        let tmp = crate::testing::tempdir();
+        let mut out = Vec::new();
+        let result = Extractor::open(&tmp.path().join("none.zip"))
+            .extract(Path::new("a"))
+            .read_to_end(&mut out);
+        assert!(result.is_err());
     }
 
     /// TAR with a 2 MiB `big` (past `MAX_SKIP` in tests), then `small`.

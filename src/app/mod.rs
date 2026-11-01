@@ -31,7 +31,7 @@ use crate::model::rename_mask::{CaseMode, RenameMask};
 use crate::model::sort::{Sort, SortKey};
 use crate::model::tree::{LogJob, NodeId, ROOT};
 use crate::ops::{self, Answer, OpKind, Operation, Source};
-pub use crate::pane::{FileRef, FileView, Focus, Kbyte, KbyteShow, Pane};
+pub use crate::pane::{ArchiveContents, FileRef, FileView, Focus, Kbyte, KbyteShow, Pane};
 use crate::picker::{Outcome as PickerOutcome, Picker};
 use crate::platform;
 use crate::search::{self, Pattern, SearchJob, SearchSpec};
@@ -114,6 +114,16 @@ pub const LOG_SMALLER: &str = "Log smaller folders: * on each one, or + to open 
 /// and at this point a large Drive is costing minutes.
 pub const REFUSALS_TO_ASK: u64 = 100;
 
+/// An archive being read in the background (Alt+F5).
+pub struct Opening {
+    /// The window that opens it.
+    pane: usize,
+    path: PathBuf,
+    listing: crate::archive::Listing<ArchiveContents>,
+    /// The progress last shown in the footer.
+    shown: String,
+}
+
 pub(crate) enum AfterLog {
     Refresh,
     OpenBranch(NodeId),
@@ -193,6 +203,8 @@ pub struct App {
     pub help: Option<crate::help::Help>,
     /// A remote connection being made, for the window at this index.
     pub connecting: Option<(usize, crate::remote::Connecting)>,
+    /// An archive being read, to open when that is done.
+    pub opening: Option<Opening>,
     /// Connections made so far (each gets a folder of its own).
     connections: usize,
     /// Where to save the history on each new entry (no file in tests).
@@ -309,6 +321,7 @@ impl App {
             bookmarks_view: None,
             help: None,
             connecting: None,
+            opening: None,
             connections: 0,
             history_file: None,
             external: None,

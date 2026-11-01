@@ -55,6 +55,15 @@ impl App {
             return;
         }
 
+        if self.opening.is_some()
+            && self.prompt.is_none()
+            && self.confirm.is_none()
+            && key.code == KeyCode::Esc
+        {
+            self.cancel_opening();
+            return;
+        }
+
         if self.connecting.is_some() && self.prompt.is_none() && key.code == KeyCode::Esc {
             self.cancel_connection();
             return;

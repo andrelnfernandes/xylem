@@ -12,12 +12,10 @@ Leftovers of the security pass that came from an external audit
 ([docs/plans/security.md](docs/plans/security.md); PRs #37 to #40 did the
 rest).
 
-1. **Entering a compressed TAR still freezes the screen.** Listing a
-   `.tar.gz`/`.xz`/`.bz2`/`.zst` decompresses all of it, synchronously, in
-   `pane.rs` (`Reader::list`); a decompression bomb freezes Xylem there.
-   Copying out of it lists it again (`Operation::reading_archive`), a
-   second full pass. Medium: list once, in the background and cancellable
-   (like `archive::Extractor`), and reuse the list for the copy.
+1. **Copying many files out of a compressed TAR is slow.** Opening one no longer
+   holds the screen up ([docs/plans/compressed-tar.md](docs/plans/compressed-tar.md)),
+   and Esc stops a copy, but each file copied decompresses the archive from the
+   start again. One pass over the archive could serve all the files asked for.
 2. **eXecute (`%f`, `%t`) on Windows.** `cmd` expands `%VAR%` even inside
    quotes, so a name with `%PATH%` in it changes. E and O already avoid it
    by passing the file in `XY_FILE`; commands typed with X still put the

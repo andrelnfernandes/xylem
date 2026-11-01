@@ -19,6 +19,11 @@ Aus Sicherheitsgründen werden Einträge mit `..` oder einem absoluten Pfad
 ignoriert, und symbolische Links innerhalb von Archiven werden niemals
 entpackt.
 
+Ein komprimiertes TAR hat keinen Index, deshalb wird beim Öffnen alles entpackt.
+Das geschieht im Hintergrund: Die Fußzeile zeigt den Fortschritt, `Esc` bricht ab,
+und der Rest von Xylem reagiert weiter; das Fenster wechselt, sobald es fertig ist.
+Ein Archiv mit mehr als 1.000.000 Einträgen wird abgelehnt.
+
 ## Ein Archiv erstellen (F5 / Ctrl+F5)
 
 Erstellt eine `.zip`-, `.tar`-, `.tar.gz`- oder `.tgz`-Datei (je nach dem von

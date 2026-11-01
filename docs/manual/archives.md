@@ -17,6 +17,11 @@ files. `Esc` in the tree closes the archive and returns to where you were.
 For safety, entries with `..` or an absolute path are ignored, and symbolic
 links inside archives are never extracted.
 
+A compressed TAR has no index, so opening one decompresses all of it. That
+happens in the background: the footer shows how far it got, `Esc` cancels, and
+the rest of Xylem keeps answering; the window changes when it is done. An
+archive with more than 1,000,000 entries is refused.
+
 ## Creating an archive (F5 / Ctrl+F5)
 
 Creates a `.zip`, `.tar`, `.tar.gz` or `.tgz` (according to the name you type)

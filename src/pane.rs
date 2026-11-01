@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use ratatui::widgets::ListState;
@@ -143,6 +144,8 @@ pub struct Pane {
     pub file_page: usize,
     /// With a ZIP/TAR open: its path (root of the virtual tree)...
     pub archive: Option<PathBuf>,
+    /// ...what it holds, so a copy does not have to decompress it all again...
+    pub archive_entries: ArchiveEntries,
     /// ...and the window as it was before opening it, to go back with Esc.
     pub outer: Option<Box<Pane>>,
     /// A window on a remote machine: its files come through SFTP.
@@ -152,16 +155,19 @@ pub struct Pane {
     pub types: HashMap<PathBuf, (u64, Option<SystemTime>, String)>,
 }
 
-impl Pane {
-    pub fn new(root: PathBuf) -> Self {
-        Self::with_tree(Tree::new(root))
-    }
+/// The entries of an open archive, by their path in it.
+pub type ArchiveEntries = Arc<HashMap<PathBuf, archive::Entry>>;
 
-    /// Window showing the contents of an archive.
-    pub fn from_archive(path: &Path) -> std::io::Result<Self> {
-        let mut reader = archive::Reader::open(path)?;
-        let listing = reader
-            .list()?
+/// What reading an archive gives, made in the thread that reads it.
+pub struct ArchiveContents {
+    tree: Tree,
+    entries: ArchiveEntries,
+}
+
+impl ArchiveContents {
+    fn new(path: PathBuf, entries: Vec<archive::Entry>) -> Self {
+        let mut map = HashMap::with_capacity(entries.len());
+        let listing = entries
             .into_iter()
             .map(|e| {
                 let file = (e.kind != EntryKind::Dir).then(|| FileEntry {
@@ -178,12 +184,35 @@ impl Pane {
                     },
                     tagged: false,
                 });
-                (e.path, file)
+                let item = (e.path.clone(), file);
+                map.insert(e.path.clone(), e);
+                item
             })
             .collect();
-        let mut pane = Self::with_tree(Tree::from_listing(path.to_path_buf(), listing));
+        Self {
+            tree: Tree::from_listing(path, listing),
+            entries: Arc::new(map),
+        }
+    }
+
+    /// Starts reading the archive at `path`.
+    pub fn read(path: &Path) -> archive::Listing<Self> {
+        let root = path.to_path_buf();
+        archive::Listing::start(path, move |entries| Self::new(root, entries))
+    }
+}
+
+impl Pane {
+    pub fn new(root: PathBuf) -> Self {
+        Self::with_tree(Tree::new(root))
+    }
+
+    /// Window showing the contents of an archive, already read.
+    pub fn from_archive(path: &Path, contents: ArchiveContents) -> Self {
+        let mut pane = Self::with_tree(contents.tree);
         pane.archive = Some(path.to_path_buf());
-        Ok(pane)
+        pane.archive_entries = contents.entries;
+        pane
     }
 
     /// Window on a remote machine, starting at its root.
@@ -215,6 +244,7 @@ impl Pane {
             tree_page: 1,
             file_page: 1,
             archive: None,
+            archive_entries: ArchiveEntries::default(),
             outer: None,
             remote: None,
             types: HashMap::new(),
