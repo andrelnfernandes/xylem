@@ -93,3 +93,26 @@ as a link is what `cp -a` and `rsync -l` do).
 - **Batch over files and records** ([docs/plans/batch.md](docs/plans/batch.md)):
   complete. Left for when they are missed: Parquet and XLSX as outputs. Records into
   `.bat`/`.cmd` wait for item 2 of Security.
+
+## Xylem as a programming cockpit
+
+A draft, with no date yet: [docs/plans/cockpit.md](docs/plans/cockpit.md). First come
+searching the project, a list of `file:line` locations, and opening the editor at
+the right line.
+
+## To evaluate
+
+Details from an outside list of suggestions (2026-11-01) that the items above do
+not have. Nothing here is decided. The rest of that list was already planned, or
+postponed by choice (macros, chown).
+
+- **Follow with the line filter:** when logs get follow (subproject 4 of the
+  viewers), new lines could go through the filter in use (`&`), showing only the
+  ones that match. The list suggested F as the key, but F is Find in the viewer.
+- **JFC, side by side:** tag two files, press a key, and see them next to each
+  other with the differences highlighted, for `.conf` and `.env` files or versions
+  of a script. To decide when JFC gets its spec: this layout, or a plain diff in the
+  viewer, as Git's Diff does.
+- **Symbolic permissions:** A and Ctrl+A take octal only (`755`). They could also
+  take `+x` or `u+w`, which change one bit and keep the rest of each tagged file's
+  mode, something octal cannot do across files with different modes.
