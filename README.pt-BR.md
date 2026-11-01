@@ -2,116 +2,79 @@
 
 # Xylem
 
-[Read in English](README.md)
+[Site](https://andrelnfernandes.github.io/xylem/pt-br/) · [Read in English](README.md)
 
-Gerenciador de arquivos em modo texto para Linux, inspirado no XTree e no ZTreeWin.
+Veja o disco inteiro como uma só árvore, reúna arquivos de qualquer pasta e aja sobre
+todos de uma vez, em qualquer terminal, direto do teclado.
 
-O Xylem se chamava **xt** até a versão 0.1; o comando agora é `xy`. Na
-primeira execução, ele move a configuração, o histórico e os bookmarks do xt
-para as pastas novas. O nome: o xilema (*xylem*, em inglês) é o tecido que
-leva a água pela árvore, e começa com X, como o XTree.
+![O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arquivos marcados num Branch e digitados num comando com Alt+O](docs/screenshots/demo-nord.gif)
 
-![O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arquivos marcados num Branch e digitados num comando com Alt+O](docs/demo.gif)
+- **Abra quase tudo ali mesmo:** SQLite com queries completas com `JOIN`, planilhas,
+  CSV, Parquet, JSON, Markdown, logs e arquivos compactados.
+- **Transforme dados em arquivos:** uma tabela vira página, script SQL ou banco de
+  dados, com prévia antes de escrever qualquer coisa.
+- **Libere espaço:** veja o que ocupa mais e ache arquivos e pastas duplicados, até no
+  Google Drive sem baixar nada.
+- **Vá além do seu disco:** navegue e copie de servidores via SSH, e trabalhe com
+  Google Drive, S3 e outras nuvens via rclone.
+- **Fique num lugar só:** um terminal embutido com a árvore acompanhando o seu `cd`, e
+  o status do Git na própria lista de arquivos.
+- **Abra arquivos em que você não confia:** nada neles é executado, e tudo tem limite.
+- **Deixe do seu jeito:** doze temas, teclas configuráveis e ajuda em seis línguas.
 
-## Por que o Xylem?
+## Experimente
 
-Uso alguma variação do XTree desde a década de 1990, e o ZTreeWin continua
-sendo, para mim, o melhor gerenciador de arquivos em modo texto. Desenvolvi o
-Xylem por sentir falta de algo tão bom quanto ele rodando no Linux: as versões
-que existem parecem abandonadas ou se afastaram demais do visual e do jeito
-clássicos.
+```bash
+cargo install xylem-fm
+xy
+```
 
-O Xylem também compila para Windows, porque o Rust torna isso fácil, mas uma
-versão para Windows não é prioridade: no Windows existe o ZTreeWin.
-
-O Xylem segue as teclas e o jeito de trabalhar do ZTreeWin sempre que possível;
-as diferenças estão descritas em [Comparação com o ZTreeWin](docs/manual/pt/ztreewin.md).
-
-## Segurança: arquivos hostis
-
-O Xylem nunca deve travar, congelar, executar código, escrever fora do destino
-ou esgotar a memória devido ao conteúdo ou ao nome de um arquivo, mesmo que ele
-tenha sido criado propositalmente para isso. Arquivos baixados, pacotes abertos,
-nomes enviados por um servidor remoto e repositórios clonados são todos tratados
-como hostis. Qualquer falha desse tipo é um erro grave e será corrigida com
-rapidez assim que relatada.
-
-Ainda assim, erros acontecem. Veja o que o Xylem faz para manter o risco baixo:
-
-- Tudo o que o Xylem lê por conta própria (texto, hex, codificações, arquivos
-  comprimidos, pacotes, Markdown, planilhas, CSV, JSON Lines, DBF) passa por analisadores em Rust com
-  segurança de memória. A exceção são bancos SQLite e arquivos Parquet, lidos
-  por bibliotecas em C: elas só rodam quando você abre esse arquivo com V, nunca
-  no Autoview. Nenhum programa externo é executado em um arquivo a menos que
-  você solicite com E, O ou X.
-- Tudo tem limite: a quantidade lida, a quantidade descomprimida, o tempo gasto
-  e o volume de memória que um descompressor pode usar. Apenas um nível de
-  compressão é desfeito, e nada é gravado em disco para exibir um arquivo.
-- Caracteres de controle e controles bidirecionais (Trojan Source) nunca chegam
-  ao terminal. Nomes com caracteres bidi ocultos são sinalizados, e o O pede
-  confirmação antes de abri-los.
-- Ao extrair pacotes ou copiar de uma máquina remota, caminhos com `..` ou
-  caminhos absolutos são recusados, links simbólicos dentro de pacotes não são
-  extraídos, bits setuid são descartados e nomes enviados por servidores SFTP são
-  verificados.
-- Olhar um repositório Git não executa nada que ele nomeie: nem ganchos,
-  `core.fsmonitor`, diffs externos ou conversões de texto, a não ser que a pasta
-  dele esteja em `git_trusted`. Um repositório com filtros próprios fica sem
-  marcadores, Status, Diff e Blame.
-- As dependências são verificadas contra o banco de dados do RustSec no CI.
-
-Você pode reduzir ainda mais a superfície de ataque:
-
-- Desative a descompressão no visualizador (`viewer_decompress = false`, F12)
-  ao navegar em pastas não confiáveis com o Autoview, ou mantenha o Autoview (F7)
-  fechado nelas.
-- Mantenha a integração com o Git desativada (`git = false`, o padrão) para
-  repositórios que você não criou.
-- Não execute o Xylem como root.
-- Só abra arquivos não confiáveis com O se você confiar no programa que irá
-  abri-los: o Xylem apenas repassa o arquivo para ele.
-
-Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do GitHub](https://github.com/andrelnfernandes/xylem/security/advisories/new), não em uma issue pública.
-
-## Aviso
-
-O Xylem é um projeto independente, escrito do zero. Não tem ligação com a
-Zedtek, Inc. (ZTreeWin) nem com os donos do XTree, nem é endossado por eles.
-Não contém código desses programas; os nomes deles aparecem só para descrever
-o que inspirou o Xylem e como ele se compara. XTree, ZTree e ZTreeWin são marcas
-de seus respectivos donos.
+Isso exige Rust e um compilador C. Sem eles, o Linux (x86_64 e ARM64) tem binários
+estáticos, `.deb` e `.rpm` na página de
+[Releases](https://github.com/andrelnfernandes/xylem/releases), e há uma versão
+experimental para Windows. Os detalhes estão em [Instalação](#instalação).
 
 ## Telas
 
-A árvore de diretórios, a janela de arquivos e as estatísticas, no tema clássico:
+A árvore de diretórios, a janela de arquivos e as estatísticas:
 
-![Xylem: árvore de diretórios, janela de arquivos e estatísticas, no tema clássico](docs/screenshots/tree.png)
+![Xylem: árvore de diretórios, janela de arquivos e estatísticas](docs/screenshots/tree-nord.png)
 
 **Branch** (`B`) lista os arquivos de um ramo inteiro; os arquivos marcados
 (`T`) ficam destacados e são contados à direita:
 
-![Branch com três arquivos marcados](docs/screenshots/branch-tagged.png)
+![Branch com três arquivos marcados](docs/screenshots/branch-tagged-dark.png)
 
 **Janela dividida** (F8), cada lado com seu próprio diretório:
 
-![Janela dividida: fotos à esquerda, código-fonte à direita](docs/screenshots/split.png)
+![Janela dividida: fotos à esquerda, código-fonte à direita](docs/screenshots/split-gruvbox.png)
+
+**Um banco SQLite** no visualizador: a lista de tabelas, um filtro, uma query com
+`JOIN` e um `DELETE` recusado, porque o Xylem só lê:
+
+![Um banco SQLite: a lista de tabelas, um filtro em pedidos, uma query juntando duas tabelas e um DELETE recusado](docs/screenshots/demo-sqlite-nord.gif)
+
+**Batch** (Ctrl+B): uma tabela vira página, script SQL e banco de dados, cada um com
+prévia, e cada valor escapado para aquele tipo de arquivo:
+
+![Uma tabela de clientes gravada pelo Batch como página HTML, script SQL e banco SQLite](docs/screenshots/demo-batch-nord.gif)
 
 **Visualizador** (`V`), com cores de sintaxe:
 
-![Visualizador mostrando código Rust com cores de sintaxe](docs/screenshots/viewer.png)
+![Visualizador mostrando código Rust com cores de sintaxe](docs/screenshots/viewer-nord.png)
 
 **Terminal embutido** (Alt+X): um `cd` no shell leva a árvore junto, e o
 Alt+O digita os arquivos marcados no prompt:
 
-![Três fotos marcadas digitadas num wc -c com Alt+O](docs/screenshots/terminal-tagged.png)
+![Três fotos marcadas digitadas num wc -c com Alt+O](docs/screenshots/terminal-tagged-nord.png)
 
 **Git** (opcional): as letras de status na lista de arquivos e o menu Git
 (Ctrl+G):
 
-![Lista de arquivos com as letras de status do Git e o menu GIT no rodapé](docs/screenshots/git-menu.png)
+![Lista de arquivos com as letras de status do Git e o menu GIT no rodapé](docs/screenshots/git-menu-dark.png)
 
 **Usage** (Alt+W): para onde vai o espaço, pastas e arquivos juntos pelo
-espaço que ocupam (aqui no tema nord):
+espaço que ocupam:
 
 ![A visão Usage de uma pasta pessoal: um arquivo de backup antigo no topo, depois as pastas de projetos, vídeos e downloads](docs/screenshots/usage-nord.png)
 
@@ -122,6 +85,46 @@ nos modos escuro e claro), além do `vivid`, com cores fortes para
 apresentações:
 
 ![O tema gruvbox](docs/screenshots/theme-gruvbox.png)
+
+## O que ele faz
+
+- **Uma árvore, muitos arquivos:** uma árvore de diretórios logada na memória, a janela de
+  arquivos embaixo, Branch e Showall para listar os arquivos de um ramo
+  inteiro ou de tudo o que foi logado, tags sobre as quais agem as operações
+  em grupo, e as teclas do ZTreeWin.
+- **Operações com arquivos:** copiar e mover (com ou sem os caminhos, com
+  progresso e detalhes dos conflitos), apagar para a lixeira com Oops para
+  restaurar, Prune, renomear com máscaras, permissões e datas, Compare entre
+  duas janelas.
+- **Achar coisas:** Filespec por nome, data e tamanho, Treespec para digitar um
+  caminho, bookmarks, e Ctrl+S para buscar texto nos arquivos marcados.
+- **Olhar dentro:** um visualizador de texto e hex com busca, filtro de linhas
+  com expressões regulares e cores de sintaxe, Markdown renderizado, um modo tabela com filtro SQL
+  para planilhas, CSV, JSON Lines, DBF, SQLite e Parquet, Ctrl+B para transformar
+  esses registros ou linhas em um script, JSON, SQL ou o que for, Autoview ao lado da lista,
+  arquivos ZIP, 7z e TAR abertos como diretórios, e modos de exibição que
+  mostram o dono ou o que cada arquivo é.
+- **Duplicados:** Alt+Y acha arquivos e pastas inteiras com o mesmo conteúdo,
+  sem baixar nada de uma pasta montada pelo rclone, e sempre deixa uma cópia.
+- **Para onde vai o espaço:** a visão Usage (Alt+W) lista as pastas e os
+  arquivos de um ramo pelo espaço que ocupam, do maior para o menor, até o
+  que enche o disco; o Alt+K Percent mostra a parte de cada pasta na própria
+  árvore.
+- **Além do XTree:** um terminal embutido cuja árvore acompanha o shell,
+  máquinas remotas via SSH (navegar e copiar delas, com o terminal de lá),
+  Google Drive, S3 e outros armazenamentos na nuvem via rclone, um menu Git
+  opcional, a área de transferência, uma tela de configuração e temas.
+
+## Uso
+
+```bash
+xy [diretório]
+```
+
+Sem argumento, abre o diretório atual. `xy --help` mostra as opções. Para o
+shell ficar no diretório em que você estava ao sair com Alt+Q, acrescente a
+pequena função de shell de
+[Quitting and changing the shell's directory](docs/manual/quit.md).
 
 ## Instalação
 
@@ -193,46 +196,6 @@ arquivos das releases para Linux também trazem o `xy.1`):
 mkdir -p ~/.local/share/man/man1 && xy --man > ~/.local/share/man/man1/xy.1
 ```
 
-## O que ele faz
-
-- **O jeito XTree:** uma árvore de diretórios logada na memória, a janela de
-  arquivos embaixo, Branch e Showall para listar os arquivos de um ramo
-  inteiro ou de tudo o que foi logado, tags sobre as quais agem as operações
-  em grupo, e as teclas do ZTreeWin.
-- **Operações com arquivos:** copiar e mover (com ou sem os caminhos, com
-  progresso e detalhes dos conflitos), apagar para a lixeira com Oops para
-  restaurar, Prune, renomear com máscaras, permissões e datas, Compare entre
-  duas janelas.
-- **Achar coisas:** Filespec por nome, data e tamanho, Treespec para digitar um
-  caminho, bookmarks, e Ctrl+S para buscar texto nos arquivos marcados.
-- **Olhar dentro:** um visualizador de texto e hex com busca, filtro de linhas
-  com expressões regulares e cores de sintaxe, Markdown renderizado, um modo tabela com filtro SQL
-  para planilhas, CSV, JSON Lines, DBF, SQLite e Parquet, Ctrl+B para transformar
-  esses registros ou linhas em um script, JSON, SQL ou o que for, Autoview ao lado da lista,
-  arquivos ZIP, 7z e TAR abertos como diretórios, e modos de exibição que
-  mostram o dono ou o que cada arquivo é.
-- **Duplicados:** Alt+Y acha arquivos e pastas inteiras com o mesmo conteúdo,
-  sem baixar nada de uma pasta montada pelo rclone, e sempre deixa uma cópia.
-- **Para onde vai o espaço:** a visão Usage (Alt+W) lista as pastas e os
-  arquivos de um ramo pelo espaço que ocupam, do maior para o menor, até o
-  que enche o disco; o Alt+K Percent mostra a parte de cada pasta na própria
-  árvore.
-- **Além do XTree:** um terminal embutido cuja árvore acompanha o shell,
-  máquinas remotas via SSH (navegar e copiar delas, com o terminal de lá),
-  Google Drive, S3 e outros armazenamentos na nuvem via rclone, um menu Git
-  opcional, a área de transferência, uma tela de configuração e temas.
-
-## Uso
-
-```bash
-xy [diretório]
-```
-
-Sem argumento, abre o diretório atual. `xy --help` mostra as opções. Para o
-shell ficar no diretório em que você estava ao sair com Alt+Q, acrescente a
-pequena função de shell de
-[Quitting and changing the shell's directory](docs/manual/quit.md).
-
 ## Documentação
 
 **F1** (ou **Alt+H**, nos terminais que guardam o F1 para si, como o GNOME
@@ -256,46 +219,51 @@ A ajuda também existe em português, espanhol, francês, alemão e chinês. As
 traduções em espanhol, francês, alemão e chinês não foram revisadas por falantes
 nativos: se você lê um desses idiomas, [sugestões são bem-vindas](docs/manual/TRANSLATING.md#reviews-wanted).
 
-## Estrutura
+## Segurança: arquivos hostis
 
-- `src/model/` — árvore de diretórios em memória (arena), sem dependência da UI
-- `src/app/` — estado global (prompts, operações) e execução de comandos
-- `src/pane.rs` — uma janela: árvore, lista de arquivos, cursores e filespec
-- `src/input.rs` — comandos e o campo de texto dos prompts
-- `src/keymap.rs` — teclas padrão e trocas da configuração
-- `src/help.rs` — a ajuda (F1): tópicos, links e a página de manual
-- `docs/manual/` — o manual: os tópicos da ajuda, em Markdown (em inglês; as traduções ficam em subpastas)
-- [`demo/`](demo/README.pt-BR.md) — arquivos em todos os formatos e templates de Batch para testar
-- `src/filetype.rs` — o que um arquivo é, para o modo de exibição Tipo
-- `src/ui.rs` — desenho da tela (ratatui)
-- `src/viewer.rs` — visualizador texto/hex
-- `src/viewer/` — modo tabela, Markdown renderizado, filtro de linhas, filtro SQL e Batch sobre registros
-- `src/usage.rs` — a visão Usage
-- `src/duplicates.rs` — a busca de duplicados
-- `src/search.rs` — busca de texto, nos arquivos marcados e no visualizador
-- `src/decompress.rs` — arquivos comprimidos, com limites
-- `src/charset.rs` — codificações de texto
-- `src/bidi.rs` — a proteção contra caracteres ocultos de direção do texto
-- `src/archive.rs` — leitura de ZIP, 7z e TAR; criação de ZIP e TAR
-- `src/watch.rs` — avisos de mudanças no disco (inotify)
-- `src/shell.rs` — editor e comandos do shell (com aspas seguras)
-- `src/editors.rs` — qual editor o E usa para cada arquivo (`[editors]`)
-- `src/term.rs` — terminal embutido (pseudoterminal, códigos de teclas, cores)
-- `src/git.rs` — menu Git (Ctrl+G) e marcadores de estado, pelo programa `git`
-- `src/rclone.rs` — pastas montadas pelo rclone: qual serviço, listagens e hashes
-- `src/remote/` — máquinas remotas: SFTP pelo `ssh` do sistema
-- `src/config.rs` — arquivo de configuração, temas e formatos
-- `src/settings.rs` — tela de configuração (F12)
-- `src/state.rs` — histórico dos prompts entre execuções
-- `src/model/compare.rs` — regras do Compare
-- `src/model/filespec.rs` — filtro de arquivos
-- `src/ops/` — copiar, mover e apagar, em passos (progresso, conflitos, cancelamento)
-- `docs/screenshots/tools/` — refaz as capturas de tela do README (`run.sh`, Linux)
-- `tests/e2e.rs` — testes de ponta a ponta: o `xy` de verdade num pseudo-terminal, dirigido por teclas (Linux); o `cargo test` também roda testes de propriedades (proptest) do Filespec e das máscaras de renomeação
-- `docs/icons/` — o ícone, em SVG, PNG (16 a 512) e ICO
-- `build.rs` — embute o ícone no `xy.exe` (Windows)
-- `packaging/linux/` — atalho para o menu (`xylem.desktop`) e os pacotes `.deb` e `.rpm` (`packages.sh`)
-- `site/` — o site
+O Xylem nunca deve travar, congelar, executar código, escrever fora do destino
+ou esgotar a memória devido ao conteúdo ou ao nome de um arquivo, mesmo que ele
+tenha sido criado propositalmente para isso. Arquivos baixados, pacotes abertos,
+nomes enviados por um servidor remoto e repositórios clonados são todos tratados
+como hostis. Qualquer falha desse tipo é um erro grave e será corrigida com
+rapidez assim que relatada.
+
+Ainda assim, erros acontecem. Veja o que o Xylem faz para manter o risco baixo:
+
+- Tudo o que o Xylem lê por conta própria (texto, hex, codificações, arquivos
+  comprimidos, pacotes, Markdown, planilhas, CSV, JSON Lines, DBF) passa por analisadores em Rust com
+  segurança de memória. A exceção são bancos SQLite e arquivos Parquet, lidos
+  por bibliotecas em C: elas só rodam quando você abre esse arquivo com V, nunca
+  no Autoview. Nenhum programa externo é executado em um arquivo a menos que
+  você solicite com E, O ou X.
+- Tudo tem limite: a quantidade lida, a quantidade descomprimida, o tempo gasto
+  e o volume de memória que um descompressor pode usar. Apenas um nível de
+  compressão é desfeito, e nada é gravado em disco para exibir um arquivo.
+- Caracteres de controle e controles bidirecionais (Trojan Source) nunca chegam
+  ao terminal. Nomes com caracteres bidi ocultos são sinalizados, e o O pede
+  confirmação antes de abri-los.
+- Ao extrair pacotes ou copiar de uma máquina remota, caminhos com `..` ou
+  caminhos absolutos são recusados, links simbólicos dentro de pacotes não são
+  extraídos, bits setuid são descartados e nomes enviados por servidores SFTP são
+  verificados.
+- Olhar um repositório Git não executa nada que ele nomeie: nem ganchos,
+  `core.fsmonitor`, diffs externos ou conversões de texto, a não ser que a pasta
+  dele esteja em `git_trusted`. Um repositório com filtros próprios fica sem
+  marcadores, Status, Diff e Blame.
+- As dependências são verificadas contra o banco de dados do RustSec no CI.
+
+Você pode reduzir ainda mais a superfície de ataque:
+
+- Desative a descompressão no visualizador (`viewer_decompress = false`, F12)
+  ao navegar em pastas não confiáveis com o Autoview, ou mantenha o Autoview (F7)
+  fechado nelas.
+- Mantenha a integração com o Git desativada (`git = false`, o padrão) para
+  repositórios que você não criou.
+- Não execute o Xylem como root.
+- Só abra arquivos não confiáveis com O se você confiar no programa que irá
+  abri-los: o Xylem apenas repassa o arquivo para ele.
+
+Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do GitHub](https://github.com/andrelnfernandes/xylem/security/advisories/new), não em uma issue pública.
 
 ## Roteiro
 
@@ -350,6 +318,64 @@ nativos: se você lê um desses idiomas, [sugestões são bem-vindas](docs/manua
 A lista completa do que falta, com as notas de desenvolvimento, está em
 [BACKLOG.md](BACKLOG.md) (em inglês), e a ordem do trabalho está
 [no roteiro](docs/plans/roadmap.md).
+
+## Estrutura
+
+- `src/model/` — árvore de diretórios em memória (arena), sem dependência da UI
+- `src/app/` — estado global (prompts, operações) e execução de comandos
+- `src/pane.rs` — uma janela: árvore, lista de arquivos, cursores e filespec
+- `src/input.rs` — comandos e o campo de texto dos prompts
+- `src/keymap.rs` — teclas padrão e trocas da configuração
+- `src/help.rs` — a ajuda (F1): tópicos, links e a página de manual
+- `docs/manual/` — o manual: os tópicos da ajuda, em Markdown (em inglês; as traduções ficam em subpastas)
+- [`demo/`](demo/README.pt-BR.md) — arquivos em todos os formatos e templates de Batch para testar
+- `src/filetype.rs` — o que um arquivo é, para o modo de exibição Tipo
+- `src/ui.rs` — desenho da tela (ratatui)
+- `src/viewer.rs` — visualizador texto/hex
+- `src/viewer/` — modo tabela, Markdown renderizado, filtro de linhas, filtro SQL e Batch sobre registros
+- `src/usage.rs` — a visão Usage
+- `src/duplicates.rs` — a busca de duplicados
+- `src/search.rs` — busca de texto, nos arquivos marcados e no visualizador
+- `src/decompress.rs` — arquivos comprimidos, com limites
+- `src/charset.rs` — codificações de texto
+- `src/bidi.rs` — a proteção contra caracteres ocultos de direção do texto
+- `src/archive.rs` — leitura de ZIP, 7z e TAR; criação de ZIP e TAR
+- `src/watch.rs` — avisos de mudanças no disco (inotify)
+- `src/shell.rs` — editor e comandos do shell (com aspas seguras)
+- `src/editors.rs` — qual editor o E usa para cada arquivo (`[editors]`)
+- `src/term.rs` — terminal embutido (pseudoterminal, códigos de teclas, cores)
+- `src/git.rs` — menu Git (Ctrl+G) e marcadores de estado, pelo programa `git`
+- `src/rclone.rs` — pastas montadas pelo rclone: qual serviço, listagens e hashes
+- `src/remote/` — máquinas remotas: SFTP pelo `ssh` do sistema
+- `src/config.rs` — arquivo de configuração, temas e formatos
+- `src/settings.rs` — tela de configuração (F12)
+- `src/state.rs` — histórico dos prompts entre execuções
+- `src/model/compare.rs` — regras do Compare
+- `src/model/filespec.rs` — filtro de arquivos
+- `src/ops/` — copiar, mover e apagar, em passos (progresso, conflitos, cancelamento)
+- `docs/screenshots/tools/` — refaz as capturas de tela do README (`run.sh`, Linux)
+- `tests/e2e.rs` — testes de ponta a ponta: o `xy` de verdade num pseudo-terminal, dirigido por teclas (Linux); o `cargo test` também roda testes de propriedades (proptest) do Filespec e das máscaras de renomeação
+- `docs/icons/` — o ícone, em SVG, PNG (16 a 512) e ICO
+- `build.rs` — embute o ícone no `xy.exe` (Windows)
+- `packaging/linux/` — atalho para o menu (`xylem.desktop`) e os pacotes `.deb` e `.rpm` (`packages.sh`)
+- `site/` — o site
+
+## Sobre
+
+As teclas e o jeito de trabalhar do Xylem seguem o XTree e o ZTreeWin sempre que
+possível; as diferenças estão em [Comparação com o ZTreeWin](docs/manual/pt/ztreewin.md).
+
+Ele se chamava **xt** até a versão 0.1; na primeira execução, move a configuração, o
+histórico e os bookmarks do xt para as pastas novas. O nome: o xilema (*xylem*, em
+inglês) é o tecido que leva a água pela árvore.
+
+## Aviso
+
+O Xylem é um projeto independente, escrito do zero. Não tem ligação com a
+Zedtek, Inc. (ZTreeWin) nem com os donos do XTree, nem é endossado por eles.
+Não contém código desses programas; os nomes deles aparecem só para descrever
+o que inspirou o Xylem e como ele se compara. XTree, ZTree e ZTreeWin são marcas
+de seus respectivos donos.
 
 ## Licença
 

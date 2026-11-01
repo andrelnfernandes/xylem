@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Xylem — gerenciador de arquivos em modo texto inspirado no XTree</title>
-  <meta name="description" content="O Xylem é um gerenciador de arquivos em modo texto para Linux, inspirado no XTree e no ZTreeWin: árvore de diretórios, tags e operações em grupo, além de terminal embutido, SSH, Git e temas.">
+  <title>Xylem — o disco inteiro como uma só árvore, em qualquer terminal</title>
+  <meta name="description" content="Veja o disco inteiro como uma só árvore, reúna arquivos de qualquer pasta e aja sobre todos de uma vez, em qualquer terminal, direto do teclado. SQLite e planilhas no visualizador, duplicados, SSH e nuvem.">
   <meta name="author" content="André Fernandes">
   <link rel="canonical" href="https://andrelnfernandes.github.io/xylem/pt-br/">
   <link rel="alternate" hreflang="en" href="https://andrelnfernandes.github.io/xylem/">
@@ -13,8 +13,8 @@
   <link rel="icon" href="../assets/xylem-32.png" sizes="32x32" type="image/png">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="pt_BR">
-  <meta property="og:title" content="Xylem — gerenciador de arquivos em modo texto inspirado no XTree">
-  <meta property="og:description" content="Árvore de diretórios, tags e as teclas do ZTreeWin, além de terminal embutido, SSH, Git e temas.">
+  <meta property="og:title" content="Xylem — o disco inteiro como uma só árvore, em qualquer terminal">
+  <meta property="og:description" content="Veja o disco inteiro como uma só árvore, reúna arquivos de qualquer pasta e aja sobre todos de uma vez, em qualquer terminal, direto do teclado.">
   <meta property="og:url" content="https://andrelnfernandes.github.io/xylem/pt-br/">
   <meta property="og:image" content="https://andrelnfernandes.github.io/xylem/assets/social-preview.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -25,7 +25,7 @@
     <div class="wrap">
       <a class="brand" href="./"><img src="../assets/xylem.svg" alt="">Xylem</a>
       <nav>
-        <a href="#recursos">Recursos</a>
+        <a href="#beneficios">Recursos</a>
         <a href="#em-acao">Em ação</a>
         <a href="#telas">Telas</a>
         <a href="#instalar">Instalar</a>
@@ -39,12 +39,11 @@
   <main>
     <div class="hero">
       <div class="wrap">
-        <h1>O jeito <em>XTree</em>, num terminal moderno</h1>
-        <p class="lead">O Xylem é um gerenciador de arquivos em modo texto para Linux, inspirado no
-          XTree e no ZTreeWin: árvore de diretórios, tags e operações em grupo, as teclas do
-          ZTreeWin — e ainda terminal embutido, máquinas remotas via SSH, Git e temas.</p>
+        <h1>O disco inteiro, <em>uma só árvore</em></h1>
+        <p class="lead">Veja o disco inteiro como uma só árvore, reúna arquivos de qualquer pasta e aja
+          sobre todos de uma vez, em qualquer terminal, direto do teclado.</p>
         <div class="buttons">
-          <a class="button primary" href="#instalar">Instalar</a>
+          <a class="button primary" href="#instalar">Experimente</a>
           <a class="button" href="https://github.com/andrelnfernandes/xylem">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
             Código no GitHub</a>
@@ -59,16 +58,81 @@
       </div>
     </div>
 
+    <section id="beneficios" class="alt">
+      <div class="wrap">
+        <p class="eyebrow">O que você ganha</p>
+        <h2>Tudo num lugar só</h2>
+        <div class="features">
+          <div class="feature">
+            <h3>Abra quase tudo ali mesmo</h3>
+            <p>SQLite com queries completas com <code>JOIN</code>, planilhas, CSV, Parquet, JSON, Markdown, logs e arquivos compactados.</p>
+          </div>
+          <div class="feature">
+            <h3>Transforme dados em arquivos</h3>
+            <p>Uma tabela vira página, script SQL ou banco de dados, com prévia antes de escrever qualquer coisa.</p>
+          </div>
+          <div class="feature">
+            <h3>Libere espaço</h3>
+            <p>Veja o que ocupa mais e ache arquivos e pastas duplicados, até no Google Drive sem baixar nada.</p>
+          </div>
+          <div class="feature">
+            <h3>Vá além do seu disco</h3>
+            <p>Navegue e copie de servidores via SSH, e trabalhe com Google Drive, S3 e outras nuvens via rclone.</p>
+          </div>
+          <div class="feature">
+            <h3>Fique num lugar só</h3>
+            <p>Um terminal embutido com a árvore acompanhando o seu <code>cd</code>, e o status do Git na própria lista de arquivos.</p>
+          </div>
+          <div class="feature">
+            <h3>Abra arquivos em que você não confia</h3>
+            <p>Nada neles é executado, e tudo tem limite.</p>
+          </div>
+          <div class="feature">
+            <h3>Deixe do seu jeito</h3>
+            <p>Doze temas, teclas configuráveis e ajuda em seis línguas.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="em-acao">
+      <div class="wrap">
+        <p class="eyebrow">Em ação</p>
+        <h2>Veja funcionando</h2>
+        <p class="section-lead">Vídeos curtos, todos com os mesmos clientes fictícios, que vêm com o Xylem na pasta <code>demo</code>. Clique em um para ver maior.</p>
+        <div class="shots">
+          <figure class="shot wide">
+            <a href="../assets/screenshots/demo-batch-nord.gif"><div class="window"><img src="../assets/screenshots/demo-batch-nord.gif" width="1104" height="772" loading="lazy" alt="Uma tabela de clientes gravada pelo Batch como página HTML, script SQL e banco SQLite, com prévia antes de cada um"></div></a>
+            <figcaption><strong>Batch</strong> (<kbd>Ctrl+B</kbd>) grava os registros de uma tabela como você quiser: aqui uma página, um script SQL e um banco SQLite, cada um com prévia antes de escrever qualquer byte. Os templates escolhem o que escrever, e cada valor é escapado para o tipo de arquivo, até os nomes hostis destes dados.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="../assets/screenshots/demo-sqlite-nord.gif"><div class="window"><img src="../assets/screenshots/demo-sqlite-nord.gif" width="1104" height="772" loading="lazy" alt="Um banco SQLite: a lista de tabelas, um filtro em pedidos, uma query juntando duas tabelas e um DELETE recusado"></div></a>
+            <figcaption><strong>SQLite:</strong> <kbd>Tab</kbd> lista tabelas e views, <kbd>&amp;</kbd> filtra, e o mesmo prompt aceita um <code>SELECT</code> inteiro, com <code>JOIN</code>. Ele só lê: um <code>DELETE</code> é recusado.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="../assets/screenshots/demo-formats-gruvbox.gif"><div class="window"><img src="../assets/screenshots/demo-formats-gruvbox.gif" width="1104" height="772" loading="lazy" alt="Os mesmos dados como planilha com duas abas, Parquet, JSON e DBF, e depois um log filtrado por expressão regular"></div></a>
+            <figcaption><strong>Todos os formatos:</strong> planilha e suas abas, Parquet, JSON com cores, DBF e um log filtrado por expressão regular.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="../assets/screenshots/demo-markdown-nord.gif"><div class="window"><img src="../assets/screenshots/demo-markdown-nord.gif" width="1104" height="772" loading="lazy" alt="Um arquivo Markdown renderizado, com tabela e bloco de código, e depois o código-fonte"></div></a>
+            <figcaption><strong>Markdown</strong> abre renderizado, com tabelas, código e o endereço real de cada link. <kbd>T</kbd> mostra o fonte no mesmo ponto.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="../assets/screenshots/demo-duplicates-vivid.gif"><div class="window"><img src="../assets/screenshots/demo-duplicates-vivid.gif" width="1104" height="772" loading="lazy" alt="Grupos de arquivos duplicados, marcando todas as cópias menos uma de cada, e depois duas pastas inteiras iguais"></div></a>
+            <figcaption><strong>Duplicados</strong> (<kbd>Alt+Y</kbd>) acha arquivos iguais e pastas inteiras iguais. <kbd>A</kbd> marca todas as cópias menos uma de cada grupo, e nada é apagado até você mandar.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
     <section id="recursos" class="alt">
       <div class="wrap">
         <p class="eyebrow">O que ele faz</p>
-        <h2>Tudo o que você lembra, e mais</h2>
-        <p class="section-lead">O Xylem segue as teclas e o jeito de trabalhar do ZTreeWin sempre que
-          possível, então seus dedos já o conhecem. E acrescenta o que um gerenciador de arquivos
-          precisa hoje.</p>
+        <h2>Tudo isso, em detalhes</h2>
+        <p class="section-lead">A ajuda (<kbd>F1</kbd>) explica cada um, em seis línguas.</p>
         <div class="features">
           <div class="feature">
-            <h3>O jeito XTree</h3>
+            <h3>Uma árvore, muitos arquivos</h3>
             <p>Uma árvore de diretórios logada na memória com a janela de arquivos embaixo, Branch e
               Showall para listar os arquivos de um ramo inteiro ou de tudo o que foi logado, e tags
               sobre as quais agem as operações em grupo.</p>
@@ -127,40 +191,10 @@
       </div>
     </section>
 
-    <section id="em-acao">
-      <div class="wrap">
-        <p class="eyebrow">Em ação</p>
-        <h2>Veja funcionando</h2>
-        <p class="section-lead">Vídeos curtos, todos com os mesmos clientes fictícios, que vêm com o Xylem na pasta <code>demo</code>. Clique em um para ver maior.</p>
-        <div class="shots">
-          <figure class="shot wide">
-            <a href="../assets/screenshots/demo-batch-nord.gif"><div class="window"><img src="../assets/screenshots/demo-batch-nord.gif" width="1104" height="772" loading="lazy" alt="Uma tabela de clientes gravada pelo Batch como página HTML, script SQL e banco SQLite, com prévia antes de cada um"></div></a>
-            <figcaption><strong>Batch</strong> (<kbd>Ctrl+B</kbd>) grava os registros de uma tabela como você quiser: aqui uma página, um script SQL e um banco SQLite, cada um com prévia antes de escrever qualquer byte. Os templates escolhem o que escrever, e cada valor é escapado para o tipo de arquivo, até os nomes hostis destes dados.</figcaption>
-          </figure>
-          <figure class="shot">
-            <a href="../assets/screenshots/demo-sqlite-nord.gif"><div class="window"><img src="../assets/screenshots/demo-sqlite-nord.gif" width="1104" height="772" loading="lazy" alt="Um banco SQLite: a lista de tabelas, um filtro em pedidos, uma query juntando duas tabelas e um DELETE recusado"></div></a>
-            <figcaption><strong>SQLite:</strong> <kbd>Tab</kbd> lista tabelas e views, <kbd>&amp;</kbd> filtra, e o mesmo prompt aceita um <code>SELECT</code> inteiro, com <code>JOIN</code>. Ele só lê: um <code>DELETE</code> é recusado.</figcaption>
-          </figure>
-          <figure class="shot">
-            <a href="../assets/screenshots/demo-formats-gruvbox.gif"><div class="window"><img src="../assets/screenshots/demo-formats-gruvbox.gif" width="1104" height="772" loading="lazy" alt="Os mesmos dados como planilha com duas abas, Parquet, JSON e DBF, e depois um log filtrado por expressão regular"></div></a>
-            <figcaption><strong>Todos os formatos:</strong> planilha e suas abas, Parquet, JSON com cores, DBF e um log filtrado por expressão regular.</figcaption>
-          </figure>
-          <figure class="shot">
-            <a href="../assets/screenshots/demo-markdown-nord.gif"><div class="window"><img src="../assets/screenshots/demo-markdown-nord.gif" width="1104" height="772" loading="lazy" alt="Um arquivo Markdown renderizado, com tabela e bloco de código, e depois o código-fonte"></div></a>
-            <figcaption><strong>Markdown</strong> abre renderizado, com tabelas, código e o endereço real de cada link. <kbd>T</kbd> mostra o fonte no mesmo ponto.</figcaption>
-          </figure>
-          <figure class="shot">
-            <a href="../assets/screenshots/demo-duplicates-vivid.gif"><div class="window"><img src="../assets/screenshots/demo-duplicates-vivid.gif" width="1104" height="772" loading="lazy" alt="Grupos de arquivos duplicados, marcando todas as cópias menos uma de cada, e depois duas pastas inteiras iguais"></div></a>
-            <figcaption><strong>Duplicados</strong> (<kbd>Alt+Y</kbd>) acha arquivos iguais e pastas inteiras iguais. <kbd>A</kbd> marca todas as cópias menos uma de cada grupo, e nada é apagado até você mandar.</figcaption>
-          </figure>
-        </div>
-      </div>
-    </section>
-
     <section id="temas">
       <div class="wrap">
         <p class="eyebrow">Temas</p>
-        <h2>Não curte o azul clássico?</h2>
+        <h2>Deixe do seu jeito</h2>
         <p class="section-lead">Escolha um tema com <kbd>F4</kbd>, ou defina <code>theme</code> no
           arquivo de configuração. Cada cor também pode ser trocada uma a uma.</p>
         <div class="themes">
@@ -242,33 +276,16 @@
     <section class="alt">
       <div class="wrap why">
         <div>
-          <p class="eyebrow">Por que o Xylem?</p>
-          <h2>Algo tão bom quanto o ZTreeWin, no Linux</h2>
-          <p>Uso alguma variação do XTree desde a década de 1990 e tenho uma licença paga do
-            ZTreeWin desde 2013. O ZTreeWin continua sendo, para mim, o melhor gerenciador de
-            arquivos em modo texto, e Kim Henkel mantém vivo o jeito XTree no Windows há décadas.
-            Desenvolvi o Xylem por sentir falta de algo tão bom quanto ele rodando no Linux: as
-            versões que existem parecem abandonadas ou se afastaram demais do visual e do jeito
-            clássicos.</p>
-          <p>O Xylem não pretende substituir o ZTreeWin. Ele também compila para Windows, porque o
-            Rust torna isso fácil, mas isso não é prioridade: no Windows, o ZTreeWin vale muito a
-            licença.</p>
-          <p>O que o Xylem tem, o que ainda não tem e o que deixa para outros programas está na
+          <p class="eyebrow">Sobre</p>
+          <h2>De onde ele vem</h2>
+          <p>As teclas e o jeito de trabalhar do Xylem seguem o XTree e o ZTreeWin sempre que possível;
+            as diferenças estão na
             <a href="https://github.com/andrelnfernandes/xylem/blob/main/docs/manual/pt/ztreewin.md">comparação com o ZTreeWin</a>.</p>
-          <p>O Xylem é um projeto antigo, que por anos eu mantive num repositório privado por falta
-            de tempo. A primeira versão foi feita em Java, com o framework Lanterna, e ficou bem
-            limitada: nunca sobrava tempo para ela. A chegada dos assistentes de código com IA mudou
-            radicalmente a situação, e resolvi reativar o projeto e refazê-lo do zero, numa
-            linguagem mais adequada para aplicações desktop. Java ainda é minha linguagem favorita,
-            mas o Rust tem subido cada vez mais no meu conceito, à medida que eu o aprendo.</p>
           <p>Mais sobre o XTree (em inglês): <a href="https://www.xtreefanpage.org/">The XTree Fan
-            Page</a>, a história, as versões e as histórias do XTree, mantida pelos fãs há mais de
-            vinte anos; o <a href="https://en.wikipedia.org/wiki/XTree">artigo da Wikipédia</a>; e o
-            <a href="https://www.ztree.com/">ZTreeWin</a>, que continua o jeito XTree no Windows, e o
-            <a href="https://groups.io/g/ZTreeWin">fórum</a> dos usuários dele.</p>
+            Page</a>, mantida pelos fãs há mais de vinte anos; e o
+            <a href="https://www.ztree.com/">ZTreeWin</a>, que continua o XTree no Windows.</p>
         </div>
-        <blockquote>O nome: o xilema (<i>xylem</i>, em inglês) é o tecido que leva a água pela árvore
-          — e começa com X, como o XTree.</blockquote>
+        <blockquote>O nome: o xilema (<i>xylem</i>, em inglês) é o tecido que leva a água pela árvore.</blockquote>
       </div>
     </section>
 
