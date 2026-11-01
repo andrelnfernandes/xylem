@@ -100,6 +100,36 @@ fn leaving_showall_selects_file_dir() {
 }
 
 #[test]
+fn the_folder_being_logged_is_on_screen() {
+    use ratatui::{Terminal, backend::TestBackend};
+    let tmp = crate::testing::tempdir();
+    create_dir_all(tmp.path().join("fatura\u{202E}gpj")).unwrap();
+    let mut app = App::new(tmp.path().to_path_buf());
+    let folder = app.panes[0].tree.node(ROOT).children[0];
+    app.job = Some(Job {
+        log: LogJob::new(folder, true),
+        pane: 0,
+        then: AfterLog::Refresh,
+    });
+    let mut term = Terminal::new(TestBackend::new(120, 24)).unwrap();
+    term.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let text: String = term
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|c| c.symbol())
+        .collect();
+    assert!(text.contains("Logging... 0 dirs, 1 waiting"));
+    assert!(
+        text.contains("fatura\\u{202E}gpj"),
+        "a name cannot fake the line"
+    );
+    press(&mut app, KeyCode::Esc);
+    assert!(app.job.is_none());
+}
+
+#[test]
 fn expand_all_runs_as_job() {
     let (_tmp, mut app) = sample();
     app.apply(Command::ExpandAll);

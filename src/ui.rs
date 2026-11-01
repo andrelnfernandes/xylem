@@ -1478,10 +1478,21 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
     } else if let Some(op) = &app.op {
         op_lines(op)
     } else if let Some(job) = &app.job {
+        let counts = format!(
+            "{} dirs, {} waiting  ",
+            fmt_num(job.log.dirs),
+            fmt_num(job.log.waiting() as u64)
+        );
+        let room = (area.width as usize).saturating_sub("Logging... ".len() + counts.len());
+        let next = job.log.next().map_or(String::new(), |id| {
+            let path = app.panes[job.pane].tree.path(id);
+            fit_tail(&crate::bidi::escape(&path.to_string_lossy()), room)
+        });
         vec![
             Line::from(vec![
                 Span::styled("Logging... ", bold),
-                Span::raw(format!("{} dirs", fmt_num(job.log.dirs))),
+                Span::raw(counts),
+                Span::raw(next),
             ]),
             menu_line("", &[("Esc", "cancel")]),
         ]

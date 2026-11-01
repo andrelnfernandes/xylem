@@ -92,7 +92,7 @@ impl Drop for EditorPty {
 pub struct Job {
     pub log: LogJob,
     /// Window whose tree is being read.
-    pane: usize,
+    pub pane: usize,
     then: AfterLog,
 }
 
