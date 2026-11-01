@@ -20,6 +20,15 @@ pub struct External {
 }
 
 impl External {
+    /// The program the line runs, by its name, to tell who has the screen.
+    pub fn program_name(&self) -> String {
+        let line = self.line.to_string_lossy();
+        let first = line.split_whitespace().next().unwrap_or_default();
+        let first = first.trim_matches(['"', '\'']);
+        let name = first.rsplit(['/', '\\']).next().unwrap_or(first);
+        name.strip_suffix(".exe").unwrap_or(name).to_string()
+    }
+
     /// The process that runs the line, in `cwd`.
     #[cfg(test)]
     pub fn command(&self) -> Command {

@@ -20,6 +20,8 @@
 
 终端十六进制编辑器的运行方式与文本编辑器相同：默认在 **Xylem 的界面框架内** 打开（`editor_in_frame = true`），并使用 **Xylem 的配色主题**（`editor_theme = true`）。对于希望在独立窗口中运行的图形界面十六进制编辑器（Linux 上的 `ImHex`、`GHex`、`Okteta`；Windows 上的 `ImHex`、`HxD`），请在命令末尾加上 `&`（例如 `imhex %f &` 或 `ghex %f &`）：Xylem 会直接后台启动它，而不打开终端框架。
 
+边框会说明这是外部程序，以及如何退出常见的程序。它接收所有按键，**Esc** 可能无法关闭它：在 `hexedit` 中，**Ctrl+X** 保存并退出，**Ctrl+C** 不保存退出。按 **Esc** 后，`hexedit` 会等待下一个按键，并可能显示 `Unknown command`：按 **空格** 后重试。
+
 如果您不希望 `E` 打开任何二进制文件（仅在底部状态栏给出提示并建议按 `O` 调用系统程序打开），只需将 **Edit binary files with E** 设为 `no`（**F12** 第 1 页中的 `edit_binary = false`）。
 
 若要为特定类型的文件指定专用编辑器，请在 `config.toml` 的 `[editors]` 表中列出：

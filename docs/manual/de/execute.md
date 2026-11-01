@@ -39,6 +39,8 @@ Windows), der im eigenen Fenster weiterlaufen soll, hängen Sie `&` ans Ende des
 Befehls an (zum Beispiel `imhex %f &` oder `ghex %f &`): Xylem startet ihn dann
 direkt, ohne den Terminal-Rahmen zu öffnen.
 
+Der Rahmen sagt, dass es ein externes Programm ist und wie man die üblichen verlässt. Es erhält alle Tasten, und **Esc** schließt es vielleicht nicht: In `hexedit` speichert und beendet **Ctrl+X**, und **Ctrl+C** beendet ohne Speichern. Nach **Esc** wartet `hexedit` auf eine weitere Taste und meldet vielleicht `Unknown command`: **Leertaste** drücken und wiederholen.
+
 Wenn Sie möchten, dass `E` überhaupt keine Binärdateien öffnet (und in der
 Fußzeile lediglich `O` zum Öffnen im Systemprogramm vorschlägt), stellen Sie
 **Edit binary files with E** auf `no` (`edit_binary = false` auf Seite 1 von

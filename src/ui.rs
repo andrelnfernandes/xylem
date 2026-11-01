@@ -2868,7 +2868,8 @@ fn draw_editor(frame: &mut Frame, app: &mut App) {
     ];
     frame.render_widget(Line::from(title), header);
 
-    draw_terminal_panel(frame, &mut ed.term, colors, " EDIT ", body);
+    let title = format!(" {} (external program) ", ed.program);
+    draw_terminal_panel(frame, &mut ed.term, colors, title, body);
 
     let first = Line::from(vec![
         Span::styled(
@@ -2876,11 +2877,33 @@ fn draw_editor(frame: &mut Frame, app: &mut App) {
             Style::new().add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            "Quit the editor to return to Xylem",
+            format!(
+                "{} is a separate program, with its own keys: Esc may not close it",
+                ed.program
+            ),
             Style::new().fg(theme().dim),
         ),
     ]);
-    frame.render_widget(Paragraph::new(vec![first]), menu);
+    let second = Line::styled(
+        format!("{:9}To return to Xylem: {}", "", quit_keys(&ed.program)),
+        Style::new().fg(theme().message),
+    );
+    frame.render_widget(Paragraph::new(vec![first, second]), menu);
+}
+
+/// How to leave the usual editors. Xylem cannot close them for you, as a key
+/// could lose what was being edited.
+fn quit_keys(program: &str) -> &'static str {
+    match program {
+        "hexedit" => {
+            "Ctrl+X saves and quits, Ctrl+C quits without saving (on Unknown command, Space first)"
+        }
+        "vi" | "vim" | "nvim" | "view" | "bvi" => "Esc, then :q (:q! quits without saving)",
+        "nano" => "Ctrl+X",
+        "micro" => "Ctrl+Q",
+        "emacs" => "Ctrl+X, then Ctrl+C",
+        _ => "quit this program",
+    }
 }
 
 fn draw_terminal(frame: &mut Frame, term: &mut Terminal, colors: TerminalTheme, area: Rect) {
@@ -2891,7 +2914,7 @@ fn draw_terminal_panel(
     frame: &mut Frame,
     term: &mut Terminal,
     colors: TerminalTheme,
-    title: &'static str,
+    title: impl Into<Line<'static>>,
     area: Rect,
 ) {
     let block = panel(title, true);
@@ -3679,6 +3702,30 @@ mod tests {
             .unwrap();
         let buf = term.backend().buffer();
         (0..width).map(|x| buf[(x, 0)].symbol()).collect()
+    }
+
+    #[test]
+    fn an_editor_in_the_frame_says_it_is_another_program_and_how_to_leave() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let file = tmp.path().join("a.bin");
+        std::fs::write(&file, [0u8, 1]).unwrap();
+        // Waits for a line that never comes, so that it is on screen.
+        let ext = crate::shell::editor_command("cat", &file, tmp.path());
+        app.start_framed_editor(ext).unwrap();
+        app.editor_pty.as_mut().unwrap().program = "hexedit".into();
+        let mut term = Terminal::new(TestBackend::new(120, 20)).unwrap();
+        term.draw(|f| draw(f, &mut app)).unwrap();
+        let buf = term.backend().buffer();
+        let text: String = (0..20)
+            .flat_map(|y| (0..120).map(move |x| (x, y)))
+            .map(|(x, y)| buf[(x, y)].symbol())
+            .collect();
+        assert!(text.contains("hexedit (external program)"), "{text}");
+        assert!(text.contains("Esc may not close it"), "{text}");
+        assert!(text.contains("Ctrl+C quits without saving"), "{text}");
+        assert_eq!(quit_keys("heh"), "quit this program");
     }
 
     #[test]

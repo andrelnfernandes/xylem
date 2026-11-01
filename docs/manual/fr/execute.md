@@ -42,6 +42,8 @@ tourner dans sa propre fenêtre, ajoutez `&` à la fin de la commande (par
 exemple `imhex %f &` ou `ghex %f &`) : Xylem le lance directement sans ouvrir
 le cadre de terminal.
 
+Le cadre indique qu'il s'agit d'un programme externe et comment quitter les plus courants. Il reçoit toutes les touches, et **Échap** peut ne pas le fermer : dans `hexedit`, **Ctrl+X** enregistre et quitte, et **Ctrl+C** quitte sans enregistrer. Après **Échap**, `hexedit` attend une autre touche et peut afficher `Unknown command` : appuyez sur **Espace** et recommencez.
+
 Si vous préférez que `E` n'ouvre pas du tout les fichiers binaires (et se
 contente de suggérer `O` dans le pied de page pour les ouvrir avec le programme
 du système), réglez **Edit binary files with E** sur `no`
