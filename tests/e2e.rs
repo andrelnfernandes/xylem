@@ -587,6 +587,9 @@ fn markdown_opens_rendered_and_the_keys_reach_the_source() {
     xy.press("\x1b[H"); // Home: a.md is the first file
     xy.press("v");
     xy.wait_for("RENDERED");
+    // A frame arrives in pieces, top to bottom, and the title is in the first:
+    // only the document's last line says that the lines above it are there.
+    xy.wait_for("A·[31mB");
     let screen = xy.contents();
     assert!(screen.contains("═══════"), "{screen}");
     assert!(screen.contains("Some bold words"), "{screen}");
