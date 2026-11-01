@@ -1163,6 +1163,73 @@ fn archive_setup() -> (tempfile::TempDir, App) {
 
 fn alt_f5(app: &mut App) {
     app.handle_key(KeyEvent::new(KeyCode::F(5), KeyModifiers::ALT));
+    for _ in 0..3000 {
+        if app.opening.is_none() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+        app.poll_opening();
+    }
+    panic!("the archive did not open");
+}
+
+/// A `.tar.gz` that takes a while to read: 256 MiB of zeros.
+fn big_tar_gz(path: &Path) {
+    let gz =
+        flate2::write::GzEncoder::new(fs::File::create(path).unwrap(), flate2::Compression::fast());
+    let mut tar = tar::Builder::new(gz);
+    let size = 256 * 1024 * 1024u64;
+    let mut header = tar::Header::new_gnu();
+    header.set_size(size);
+    header.set_mode(0o644);
+    header.set_cksum();
+    tar.append_data(
+        &mut header,
+        "zeros",
+        std::io::Read::take(std::io::repeat(0), size),
+    )
+    .unwrap();
+    tar.into_inner().unwrap().finish().unwrap();
+}
+
+#[test]
+fn esc_cancels_an_archive_being_read() {
+    let (tmp, _) = sample();
+    big_tar_gz(&tmp.path().join("big.tar.gz"));
+    let mut app = App::new(tmp.path().to_path_buf());
+    press(&mut app, KeyCode::Enter);
+    let i = names(&app).iter().position(|n| n == "big.tar.gz").unwrap();
+    app.file_state.select(Some(i));
+
+    // The screen is free while it reads: the key returns at once.
+    app.handle_key(KeyEvent::new(KeyCode::F(5), KeyModifiers::ALT));
+    assert!(app.opening.is_some());
+    assert!(app.archive.is_none());
+    assert!(app.message.as_deref().unwrap().contains("Esc cancels"));
+
+    press(&mut app, KeyCode::Esc);
+    assert!(app.opening.is_none());
+    assert!(app.archive.is_none());
+    assert!(app.message.as_deref().unwrap().contains("cancelled"));
+    assert_eq!(app.current_path(), tmp.path());
+}
+
+#[test]
+fn reports_an_archive_it_cannot_read() {
+    let (tmp, _) = sample();
+    fs::write(tmp.path().join("bad.zip"), "not a zip").unwrap();
+    let mut app = App::new(tmp.path().to_path_buf());
+    press(&mut app, KeyCode::Enter);
+    let i = names(&app).iter().position(|n| n == "bad.zip").unwrap();
+    app.file_state.select(Some(i));
+    alt_f5(&mut app);
+    assert!(app.archive.is_none());
+    assert!(
+        app.message
+            .as_deref()
+            .unwrap()
+            .starts_with("Cannot open archive")
+    );
 }
 
 #[test]

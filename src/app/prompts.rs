@@ -816,10 +816,11 @@ impl App {
             return Err("Copying to a remote machine comes in a later version".into());
         }
         let (archive, remote) = (self.archive.clone(), self.remote.clone());
+        let entries = self.archive_entries.clone();
         Operation::transfer(kind, sources, dest, paths_from)
             .and_then(|op| match (&archive, remote) {
                 (_, Some(remote)) => op.reading_remote(remote),
-                (Some(path), None) => op.reading_archive(path),
+                (Some(path), None) => op.reading_archive(path, entries),
                 (None, None) => Ok(op),
             })
             .map(|op| self.start_op(op))

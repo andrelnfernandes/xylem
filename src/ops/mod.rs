@@ -5,7 +5,7 @@
 //! temporary file, which replaces the destination only at the end:
 //! a cancellation or error never leaves a half-written destination.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{self, ErrorKind, Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -116,7 +116,7 @@ struct ArchiveSource {
     extractor: archive::Extractor,
     /// Path of the archive: root of the virtual paths.
     root: PathBuf,
-    entries: HashMap<PathBuf, archive::Entry>,
+    entries: crate::pane::ArchiveEntries,
 }
 
 /// A copy of a file in progress.
@@ -277,21 +277,18 @@ impl Operation {
     }
 
     /// Marks the sources as virtual paths inside `archive`
-    /// (e.g. `/x/p.zip/src/a.rs`). Copy only: archives are
-    /// read-only.
-    pub fn reading_archive(mut self, archive: &Path) -> Result<Self, String> {
+    /// (e.g. `/x/p.zip/src/a.rs`), whose `entries` were read when it was
+    /// opened. Copy only: archives are read-only.
+    pub fn reading_archive(
+        mut self,
+        archive: &Path,
+        entries: crate::pane::ArchiveEntries,
+    ) -> Result<Self, String> {
         if self.kind != OpKind::Copy {
             return Err("Archives are read-only".into());
         }
-        let mut reader = archive::Reader::open(archive).map_err(|e| e.to_string())?;
-        let entries = reader
-            .list()
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .map(|e| (e.path.clone(), e))
-            .collect();
         self.archive = Some(ArchiveSource {
-            extractor: reader.into_extractor(),
+            extractor: archive::Extractor::open(archive),
             root: archive.to_path_buf(),
             entries,
         });
@@ -1104,6 +1101,30 @@ mod tests {
         );
     }
 
+    fn listed(path: &Path) -> crate::pane::ArchiveEntries {
+        let entries = archive::Reader::open(path).unwrap().list().unwrap();
+        std::sync::Arc::new(entries.into_iter().map(|e| (e.path.clone(), e)).collect())
+    }
+
+    #[test]
+    fn copying_out_of_an_archive_uses_the_list_it_was_given() {
+        let (tmp, _a, b) = setup();
+        let zip = tmp.path().join("p.zip");
+        archive::tests::make_zip(&zip);
+        let mut entries = (*listed(&zip)).clone();
+        entries.get_mut(Path::new("README")).unwrap().size = 123_456;
+        let source = Source {
+            path: zip.join("README"),
+            size: 0,
+        };
+        let op = Operation::transfer(OpKind::Copy, vec![source], &b, Some(&zip))
+            .unwrap()
+            .reading_archive(&zip, std::sync::Arc::new(entries))
+            .unwrap();
+        let item = op.items[0].clone();
+        assert_eq!(op.archive_facts(&item).size, 123_456);
+    }
+
     #[cfg(unix)]
     #[test]
     fn extracts_from_archives_with_or_without_paths() {
@@ -1118,7 +1139,7 @@ mod tests {
         let sources = vec![virt("src/a.rs"), virt("README")];
         let mut op = Operation::transfer(OpKind::Copy, sources, &b, Some(&zip))
             .unwrap()
-            .reading_archive(&zip)
+            .reading_archive(&zip, listed(&zip))
             .unwrap();
         run(&mut op);
         assert_eq!(op.done_files, 2, "{:?}", op.errors);
@@ -1129,7 +1150,7 @@ mod tests {
 
         // Archives are read-only.
         let moving = Operation::transfer(OpKind::Move, vec![virt("README")], &b, None).unwrap();
-        assert!(moving.reading_archive(&zip).is_err());
+        assert!(moving.reading_archive(&zip, listed(&zip)).is_err());
     }
 
     #[test]
@@ -1152,7 +1173,7 @@ mod tests {
             };
             Operation::transfer(OpKind::Copy, vec![source], &b, None)
                 .unwrap()
-                .reading_archive(&tar)
+                .reading_archive(&tar, listed(&tar))
                 .unwrap()
         };
 
@@ -1192,7 +1213,7 @@ mod tests {
         };
         let mut op = Operation::transfer(OpKind::Copy, vec![source], &b, None)
             .unwrap()
-            .reading_archive(&tar)
+            .reading_archive(&tar, listed(&tar))
             .unwrap();
         run(&mut op);
         assert_eq!(op.done_files, 1, "{:?}", op.errors);
@@ -1211,7 +1232,7 @@ mod tests {
         };
         let mut op = Operation::transfer(OpKind::Copy, vec![link], &b, None)
             .unwrap()
-            .reading_archive(&tar)
+            .reading_archive(&tar, listed(&tar))
             .unwrap();
         run(&mut op);
         assert_eq!(op.errors.len(), 1);

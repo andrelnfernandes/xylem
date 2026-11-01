@@ -19,6 +19,11 @@ où vous étiez.
 Par sécurité, les entrées contenant `..` ou un chemin absolu sont ignorées, et
 les liens symboliques présents dans les archives ne sont jamais extraits.
 
+Un TAR compressé n'a pas d'index : l'ouvrir décompresse donc tout. Cela se passe
+en arrière-plan : le pied de page montre l'avancement, `Esc` annule et le reste de
+Xylem continue de répondre ; la fenêtre change à la fin. Une archive de plus de
+1 000 000 d'entrées est refusée.
+
 ## Créer une archive (F5 / Ctrl+F5)
 
 Crée une archive `.zip`, `.tar`, `.tar.gz` ou `.tgz` (selon le nom que vous

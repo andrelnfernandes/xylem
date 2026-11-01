@@ -387,6 +387,7 @@ fn run(
         app.refresh_git();
         // A connection being made: ssh's questions and the result.
         app.poll_connection();
+        app.poll_opening();
         redraw |= app.terminal_tick();
         redraw |= app.editor_tick();
         if redraw {
@@ -407,7 +408,7 @@ fn run(
         let in_pty = app.terminal_focus || app.editor_pty.is_some();
         let wait = if in_pty {
             15
-        } else if app.connecting.is_some() {
+        } else if app.connecting.is_some() || app.opening.is_some() {
             100
         } else {
             500

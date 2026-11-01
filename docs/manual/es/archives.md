@@ -18,6 +18,11 @@ adonde estabas.
 Por seguridad, se ignoran las entradas con `..` o con ruta absoluta, y los
 enlaces simbólicos dentro de archivos comprimidos nunca se extraen.
 
+Un TAR comprimido no tiene índice, así que abrirlo descomprime todo. Eso ocurre
+en segundo plano: el pie muestra hasta dónde llegó, `Esc` cancela y el resto de
+Xylem sigue respondiendo; la ventana cambia al terminar. Un archivo comprimido con
+más de 1.000.000 de entradas se rechaza.
+
 ## Crear un archivo comprimido (F5 / Ctrl+F5)
 
 Crea un `.zip`, `.tar`, `.tar.gz` o `.tgz` (según el nombre que escribas) con el

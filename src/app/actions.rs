@@ -100,13 +100,65 @@ impl App {
             self.message =
                 Some("Not an archive (zip, jar, 7z, tar, tar.gz, tar.xz, tar.bz2, tar.zst)".into());
         } else {
-            match Pane::from_archive(&path) {
-                Ok(pane) => {
-                    let outer = std::mem::replace(self.deref_mut(), pane);
-                    self.outer = Some(Box::new(outer));
-                }
-                Err(e) => self.message = Some(format!("Cannot open archive: {e}")),
+            self.opening = Some(Opening {
+                pane: self.active,
+                listing: ArchiveContents::read(&path),
+                path,
+                shown: String::new(),
+            });
+            self.poll_opening();
+        }
+    }
+
+    /// Called on every pass of the main loop while an archive is being read:
+    /// shows how far it got, and opens the window when it is done.
+    pub fn poll_opening(&mut self) {
+        let Some(opening) = &mut self.opening else {
+            return;
+        };
+        let Some(result) = opening.listing.poll() else {
+            let (entries, bytes) = opening.listing.progress();
+            let name = opening
+                .path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy();
+            let text = format!(
+                "Reading {name}: {entries} {}, {} (Esc cancels)",
+                if entries == 1 { "entry" } else { "entries" },
+                crate::usage::size(bytes)
+            );
+            // Not over what something else has to say in the meantime.
+            if self.message.is_none() || self.message.as_deref() == Some(opening.shown.as_str()) {
+                self.message = Some(text.clone());
+                opening.shown = text;
             }
+            return;
+        };
+        let opening = self.opening.take().unwrap();
+        if self.message.as_deref() == Some(opening.shown.as_str()) {
+            self.message = None;
+        }
+        match result {
+            Ok(contents) => {
+                let window = &mut self.panes[opening.pane];
+                let pane = Pane::from_archive(&opening.path, contents);
+                let outer = std::mem::replace(window, pane);
+                window.outer = Some(Box::new(outer));
+            }
+            Err(e) => self.message = Some(format!("Cannot open archive: {e}")),
+        }
+    }
+
+    /// Esc while an archive is being read: lets its thread go.
+    pub(crate) fn cancel_opening(&mut self) {
+        if let Some(opening) = self.opening.take() {
+            let name = opening
+                .path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy();
+            self.message = Some(format!("Reading {name} cancelled"));
         }
     }
 
@@ -409,7 +461,7 @@ impl App {
             let op = Operation::transfer(OpKind::Copy, sources, &dir, None)?;
             let op = match (&self.remote, &self.archive) {
                 (Some(remote), _) => op.reading_remote(remote.clone())?,
-                (None, Some(root)) => op.reading_archive(root)?,
+                (None, Some(root)) => op.reading_archive(root, self.archive_entries.clone())?,
                 (None, None) => op,
             };
             Ok::<_, String>((op, copies))

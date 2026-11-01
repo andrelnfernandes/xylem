@@ -181,6 +181,43 @@ fn names_in(dir: &Path) -> Vec<String> {
     names
 }
 
+/// Enough zeros in a `.tar.gz` to keep it reading while the test looks.
+fn big_tar_gz(path: &Path) {
+    let gz = flate2::write::GzEncoder::new(
+        std::fs::File::create(path).unwrap(),
+        flate2::Compression::fast(),
+    );
+    let mut tar = tar::Builder::new(gz);
+    let size = 256 * 1024 * 1024u64;
+    let mut header = tar::Header::new_gnu();
+    header.set_size(size);
+    header.set_mode(0o644);
+    header.set_cksum();
+    tar.append_data(&mut header, "zeros", std::io::repeat(0).take(size))
+        .unwrap();
+    tar.into_inner().unwrap().finish().unwrap();
+}
+
+#[test]
+fn a_compressed_tar_being_read_leaves_the_screen_free_and_esc_cancels() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path().join("home");
+    let dir = tmp.path().join("files");
+    std::fs::create_dir_all(&home).unwrap();
+    std::fs::create_dir_all(&dir).unwrap();
+    big_tar_gz(&dir.join("big.tar.gz"));
+
+    let mut xy = Xy::start(&home, &[dir.to_str().unwrap()]);
+    xy.wait_for("big.tar.gz");
+    xy.press("\r");
+    xy.press("\x1b[15;3~"); // Alt+F5
+    xy.wait_for("(Esc cancels)");
+    xy.press("\x1b");
+    xy.wait_for("cancelled");
+    assert!(!xy.contents().contains("zeros"));
+    xy.quit();
+}
+
 #[test]
 fn man_redirected_prints_the_roff_source() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_xy"))
