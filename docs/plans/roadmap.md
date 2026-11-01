@@ -75,8 +75,9 @@ Depois da Parte 1, nesta ordem:
 
 Não concorre com as frentes acima, e cada item é pequeno:
 
-- **Um GIF curto por recurso,** a começar por Batch sobre registros e duplicados no
-  Drive sem baixar nada.
+- **Um GIF curto por recurso:** Batch, SQLite, formatos, Markdown e duplicados estão no
+  site, gravados por `docs/screenshots/tools/run.sh`. Falta duplicados no Drive sem
+  baixar nada.
 - **Onde as pessoas instalam:** AUR, Homebrew e nixpkgs depois da 0.6.0; repositório
   apt, COPR ou PPA para atualizar sozinho ([packages.md](packages.md)).
 - **macOS:** reavaliar quando houver uma máquina para testar.
