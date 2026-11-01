@@ -31,6 +31,8 @@ pub struct BatchGuide {
     pub open_template: Option<String>,
     /// What was wrong with the mask just typed.
     pub problem: Option<String>,
+    /// How many records are marked, the only ones it will write.
+    pub marked: usize,
 }
 
 /// A template on the screen, while its mask waits.
@@ -217,6 +219,11 @@ impl App {
             templates,
             template_dir: batch::template_dir(),
             problem,
+            marked: v
+                .table
+                .as_ref()
+                .filter(|_| v.mode == crate::viewer::ViewMode::Table)
+                .map_or(0, |t| t.marked.len()),
         };
         let kind = PromptKind::ViewerBatchMask { file, guide };
         self.open_prompt(kind, MASK_LABEL.to_string(), typed);
@@ -298,6 +305,9 @@ impl App {
                     self.rescan_everywhere(&[dir]);
                 }
                 let mut note = format!("Wrote {} records to {}", done.records, file.display());
+                if done.stopped {
+                    note.push_str(". %%stop ended it");
+                }
                 if done.cut {
                     note.push_str(". Only the part of the file the viewer read was written");
                 }

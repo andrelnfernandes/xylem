@@ -38,6 +38,7 @@ tabela. A prévia mostra as primeiras linhas: **Enter** grava e **Esc** desiste.
 | Máscara | Gravar em | O que sai |
 |---|---|---|
 | `:report` | `report.html` | uma página com uma tabela e o total |
+| `:debtors` | `debtors.txt` | uma lista que escolhe os registros com `%%if` e termina com `%%stop if` |
 | `:table` | `customers.md` | uma tabela em Markdown |
 | `:update` | `update.sql` | um `UPDATE` por registro, em uma transação deixada aberta |
 | `:bulk_fix` | `bulk_fix.sql` | muitas correções em um só `UPDATE`, com uma tabela temporária |
@@ -56,6 +57,8 @@ Esses templates usam nomes de coluna, então não funcionam com `customers.xlsx`
 letras: nele, experimente a máscara `%{B};%{C}` em um `.txt`.
 
 ## Outras coisas para testar
+
+**Para um banco.** Aperte Ctrl+B em qualquer tabela, grave em `out.db`, deixe a máscara vazia e abra `out.db` com `V`.
 
 **Máscaras, sem template.** Em `out.txt`: `%{#} %{name:url}`. Em `out.sh`: `echo %{name}`.
 Em `out.json`, uma máscara vazia grava registros inteiros, e `@id, name` só esses campos.

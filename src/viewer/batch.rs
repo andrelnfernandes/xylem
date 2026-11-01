@@ -7,6 +7,7 @@
 //! for by writing it.
 
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::ops::ControlFlow;
@@ -20,7 +21,7 @@ use chrono::{DateTime, Datelike, Local, Utc};
 use regex::Regex;
 
 use super::records::{self, Budget, Cell, End, RecordSink};
-use super::sql_filter::{self, Expr, RowContext, Value};
+use super::sql_filter::{self, Expr, RowContext, SqlFilter, Value};
 use super::table::TableGrid;
 use crate::bidi;
 use crate::shell;
@@ -360,7 +361,274 @@ fn literal_into(bytes: &[u8], newline: &[u8], out: &mut Vec<u8>) {
 #[derive(Debug, Clone, PartialEq)]
 enum Part {
     Literal(Vec<u8>),
-    Field { name: String, escape: Escape },
+    Field {
+        name: String,
+        escape: Escape,
+    },
+    /// In a footer: a total of a column.
+    Total {
+        kind: TotalKind,
+        column: String,
+        format: NumberFormat,
+        /// The one asked for; with none, a plain number needs no escape.
+        escape: Option<Escape>,
+        default: Escape,
+    },
+}
+
+/// What a footer can ask about a column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TotalKind {
+    Sum,
+    Min,
+    Max,
+    Avg,
+}
+
+/// How numbers are written, in the file read and in the total. Only the user can
+/// say: `1.234` is one thing in a Brazilian CSV and another in an American one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NumberFormat {
+    /// `1234.56`, with no thousands separators.
+    Plain,
+    /// `1.234,56`
+    Br,
+    /// `1,234.56`
+    Us,
+}
+
+impl NumberFormat {
+    /// The thousands and decimal separators.
+    fn separators(self) -> (Option<char>, char) {
+        match self {
+            NumberFormat::Plain => (None, '.'),
+            NumberFormat::Br => (Some('.'), ','),
+            NumberFormat::Us => (Some(','), '.'),
+        }
+    }
+}
+
+/// Digits after the point that a total keeps. Everything is an integer of this
+/// scale: money is never added in floating point.
+const TOTAL_SCALE: u32 = 18;
+const TOTAL_UNIT: i128 = 10_i128.pow(TOTAL_SCALE);
+
+/// A number as `format` writes it, with how many decimals it has.
+fn parse_decimal(text: &str, format: NumberFormat) -> Option<(i128, u32)> {
+    let text = text.trim();
+    let (negative, digits) = match text.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, text.strip_prefix('+').unwrap_or(text)),
+    };
+    let (thousands, point) = format.separators();
+    let (whole, fraction) = digits.split_once(point).unwrap_or((digits, ""));
+    if whole.is_empty() && fraction.is_empty() {
+        return None;
+    }
+    let mut number: i128 = 0;
+    let mut add_digits = |group: &str| -> Option<()> {
+        for b in group.bytes() {
+            if !b.is_ascii_digit() {
+                return None;
+            }
+            number = number.checked_mul(10)?.checked_add(i128::from(b - b'0'))?;
+        }
+        Some(())
+    };
+    match thousands.filter(|t| whole.contains(*t)) {
+        // With separators they have to be right, or this is another format.
+        Some(thousands) => {
+            let mut groups = whole.split(thousands);
+            let first = groups.next()?;
+            if first.is_empty() || first.len() > 3 {
+                return None;
+            }
+            add_digits(first)?;
+            for group in groups {
+                if group.len() != 3 {
+                    return None;
+                }
+                add_digits(group)?;
+            }
+        }
+        None => add_digits(whole)?,
+    }
+    let scale = u32::try_from(fraction.len()).ok()?;
+    if scale > TOTAL_SCALE || !fraction.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let mut scaled = number.checked_mul(TOTAL_UNIT)?;
+    let mut unit = TOTAL_UNIT;
+    for b in fraction.bytes() {
+        unit /= 10;
+        scaled = scaled.checked_add(i128::from(b - b'0') * unit)?;
+    }
+    Some((if negative { -scaled } else { scaled }, scale))
+}
+
+/// A number of `TOTAL_SCALE` written with `scale` decimals, rounded half away
+/// from zero.
+fn write_decimal(value: i128, scale: u32, format: NumberFormat) -> String {
+    let unit = 10_u128.pow(TOTAL_SCALE - scale);
+    let rounded = (value.unsigned_abs() + unit / 2) / unit;
+    let power = 10_u128.pow(scale);
+    let whole = (rounded / power).to_string();
+    let (thousands, point) = format.separators();
+    let mut text = String::new();
+    if value < 0 && rounded > 0 {
+        text.push('-');
+    }
+    for (i, c) in whole.chars().enumerate() {
+        if i > 0
+            && (whole.len() - i).is_multiple_of(3)
+            && let Some(thousands) = thousands
+        {
+            text.push(thousands);
+        }
+        text.push(c);
+    }
+    if scale > 0 {
+        text.push(point);
+        text.push_str(&format!(
+            "{:0width$}",
+            rounded % power,
+            width = scale as usize
+        ));
+    }
+    text
+}
+
+/// What was added of a column.
+#[derive(Debug, Clone, Default)]
+struct Tally {
+    sum: i128,
+    min: Option<i128>,
+    max: Option<i128>,
+    count: i128,
+    /// The most decimals seen: the total shows as many.
+    scale: u32,
+}
+
+impl Tally {
+    /// Adds a value. An empty one is no value, as in SQL; `false` says this one
+    /// could not be added.
+    fn add(&mut self, cell: &Cell<'_>, format: NumberFormat) -> bool {
+        let found = match cell {
+            Cell::Null => return true,
+            Cell::Int(i) => Some((i128::from(*i) * TOTAL_UNIT, 0)),
+            // As the shortest text that reads back as it, so that 0.1 is 0.1.
+            Cell::Float(f) if f.is_finite() => parse_decimal(&f.to_string(), NumberFormat::Plain),
+            Cell::Text(text) if text.trim().is_empty() => return true,
+            Cell::Text(text) => parse_decimal(text, format),
+            _ => None,
+        };
+        let Some((value, scale)) = found else {
+            return false;
+        };
+        let Some(sum) = self.sum.checked_add(value) else {
+            return false;
+        };
+        self.sum = sum;
+        self.min = Some(self.min.map_or(value, |m| m.min(value)));
+        self.max = Some(self.max.map_or(value, |m| m.max(value)));
+        self.count += 1;
+        self.scale = self.scale.max(scale);
+        true
+    }
+
+    /// The answer, if there is one: a minimum of no values is nothing.
+    fn answer(&self, kind: TotalKind, format: NumberFormat) -> Option<String> {
+        let (value, scale) = match kind {
+            TotalKind::Sum => (self.sum, self.scale),
+            TotalKind::Min => (self.min?, self.scale),
+            TotalKind::Max => (self.max?, self.scale),
+            // Two digits more than the values have, or it would look exact.
+            TotalKind::Avg if self.count == 0 => return None,
+            TotalKind::Avg => (self.sum / self.count, (self.scale + 2).min(TOTAL_SCALE)),
+        };
+        Some(write_decimal(value, scale, format))
+    }
+}
+
+/// The totals a footer asks for, being added up.
+#[derive(Debug, Default)]
+struct Totals(Vec<(String, NumberFormat, Tally)>);
+
+impl Totals {
+    fn for_output(output: &Output) -> Self {
+        let mut totals: Vec<(String, NumberFormat, Tally)> = Vec::new();
+        for (column, format) in output.total_columns() {
+            if !totals.iter().any(|(c, f, _)| c == column && *f == format) {
+                totals.push((column.to_string(), format, Tally::default()));
+            }
+        }
+        Totals(totals)
+    }
+
+    fn add(&mut self, row: &Row<'_>, stats: &mut Stats) {
+        for (column, format, tally) in &mut self.0 {
+            if !tally.add(&row.value(column), *format) {
+                stats.not_numbers += 1;
+            }
+        }
+    }
+
+    fn get(&self, column: &str, format: NumberFormat) -> Option<&Tally> {
+        self.0
+            .iter()
+            .find(|(c, f, _)| c == column && *f == format)
+            .map(|(_, _, tally)| tally)
+    }
+}
+
+/// `sum:column`, `sum:column:br` or `sum:column:br:sql`, as a footer asks for a
+/// total. The name of a column can hold a colon, so its ends are read first.
+fn parse_total(field: &str, default: Escape) -> Result<Option<Part>, String> {
+    let Some((kind, rest)) = total_kind(field) else {
+        return Ok(None);
+    };
+    let mut column = rest;
+    let mut format = NumberFormat::Plain;
+    let mut escape = None;
+    if let Some((before, last)) = column.rsplit_once(':')
+        && let Some(wanted) = Escape::named(last)
+    {
+        escape = Some(wanted);
+        column = before;
+    }
+    if let Some((before, last)) = column.rsplit_once(':') {
+        let named = match last {
+            "br" => Some(NumberFormat::Br),
+            "us" => Some(NumberFormat::Us),
+            _ => None,
+        };
+        if let Some(named) = named {
+            format = named;
+            column = before;
+        }
+    }
+    if column.is_empty() {
+        return Err(format!("Mask: %{{{field}}} has no column"));
+    }
+    Ok(Some(Part::Total {
+        kind,
+        column: column.to_string(),
+        format,
+        escape,
+        default,
+    }))
+}
+
+fn total_kind(field: &str) -> Option<(TotalKind, &str)> {
+    let (word, rest) = field.split_once(':')?;
+    let kind = match word {
+        "sum" => TotalKind::Sum,
+        "min" => TotalKind::Min,
+        "max" => TotalKind::Max,
+        "avg" => TotalKind::Avg,
+        _ => return None,
+    };
+    Some((kind, rest))
 }
 
 /// A parsed line mask.
@@ -376,6 +644,16 @@ impl Mask {
     /// %e %s` are the open file's, as in the Batch of tagged files; `%%` is a `%`.
     /// `%{$NAME}` is a variable of the process, and `%{#...}` what `Context` knows.
     fn parse_in(text: &str, default: Escape, context: &Context<'_>) -> Result<Self, String> {
+        Self::parse_section(text, default, context, false)
+    }
+
+    /// `totals`: this is a footer, where `%{sum:column}` and its like are totals.
+    fn parse_section(
+        text: &str,
+        default: Escape,
+        context: &Context<'_>,
+        totals: bool,
+    ) -> Result<Self, String> {
         if text.trim().is_empty() {
             return Err("Mask: empty. Type what to write for each record, or :template".into());
         }
@@ -394,10 +672,26 @@ impl Mask {
                 let Some(close) = inner.find('}') else {
                     return Err("Mask: %{ without its }".into());
                 };
+                if totals && let Some(total) = parse_total(&inner[..close], default)? {
+                    if !literal.is_empty() {
+                        parts.push(Part::Literal(std::mem::take(&mut literal)));
+                    }
+                    parts.push(total);
+                    rest = &inner[close + 1..];
+                    continue;
+                }
                 let (name, escape) = match inner[..close].rsplit_once(':') {
                     Some((name, wanted)) => {
-                        let escape = Escape::named(wanted)
-                            .ok_or_else(|| format!("Mask: unknown escape :{wanted}"))?;
+                        let escape = Escape::named(wanted).ok_or_else(|| {
+                            if total_kind(&inner[..close]).is_some() {
+                                format!(
+                                    "Mask: %{{{}}} is only known in the footer",
+                                    &inner[..close]
+                                )
+                            } else {
+                                format!("Mask: unknown escape :{wanted}")
+                            }
+                        })?;
                         (name, escape)
                     }
                     None => (&inner[..close], default),
@@ -483,13 +777,34 @@ impl Mask {
         })
     }
 
-    /// A header or footer: its text, and how many records there were.
-    fn edge(&self, count: u64, newline: &[u8], out: &mut Vec<u8>) {
+    /// A header or footer: its text, how many records there were and their totals.
+    fn edge(&self, count: u64, totals: &Totals, newline: &[u8], out: &mut Vec<u8>) {
         for part in &self.parts {
             match part {
                 Part::Literal(bytes) => literal_into(bytes, newline, out),
                 Part::Field { escape, .. } => {
                     escape_into(&Cell::Int(count as i64), *escape, out);
+                }
+                Part::Total {
+                    kind,
+                    column,
+                    format,
+                    escape,
+                    default,
+                } => {
+                    let answer = totals
+                        .get(column, *format)
+                        .and_then(|tally| tally.answer(*kind, *format));
+                    match (answer, escape) {
+                        // Only digits, a sign and a point: right in any file as it is.
+                        (Some(number), None) if *format == NumberFormat::Plain => {
+                            out.extend_from_slice(number.as_bytes());
+                        }
+                        (answer, escape) => {
+                            let cell = answer.map_or(Cell::Null, text_cell);
+                            escape_into(&cell, escape.unwrap_or(*default), out);
+                        }
+                    }
                 }
             }
         }
@@ -504,6 +819,8 @@ impl Mask {
                     stats.look_at(&cell, *escape);
                     escape_into(&cell, *escape, out);
                 }
+                // Only a footer has them.
+                Part::Total { .. } => {}
             }
         }
     }
@@ -522,6 +839,8 @@ pub struct Stats {
     /// Whole records only: columns of JSON Lines found after the preview,
     /// and so not written.
     pub late_columns: u64,
+    /// Values a total could not add, and left out of it.
+    pub not_numbers: u64,
 }
 
 impl Stats {
@@ -568,6 +887,13 @@ impl Stats {
                 self.late_columns
             ));
         }
+        if self.not_numbers > 0 {
+            parts.push(format!(
+                "{} values could not be added to the totals and were left out \
+                 (for 1.234,56 use :br, for 1,234.56 use :us)",
+                self.not_numbers
+            ));
+        }
         (!parts.is_empty()).then(|| parts.join(", "))
     }
 }
@@ -583,6 +909,9 @@ pub enum Format {
     Tsv,
     Xml,
     Html,
+    /// A database with a table `records`. It is not text, so it has its own
+    /// writer, and what a mask could do to it is refused.
+    Sqlite,
 }
 
 /// `file`'s format can hold whole records, with no mask.
@@ -599,6 +928,7 @@ impl Format {
             "tsv" => Format::Tsv,
             "xml" => Format::Xml,
             "html" | "htm" => Format::Html,
+            "db" | "sqlite" | "sqlite3" => Format::Sqlite,
             _ => return None,
         })
     }
@@ -608,6 +938,8 @@ impl Format {
             Format::Json | Format::JsonLines => Escape::Json,
             Format::Csv | Format::Tsv => Escape::Csv,
             Format::Xml | Format::Html => Escape::Xml,
+            // Only the preview, which shows values as they are: the file binds them.
+            Format::Sqlite => Escape::Raw,
         }
     }
 }
@@ -758,12 +1090,18 @@ fn template_sections(text: &str) -> Result<[Option<String>; 3], String> {
         if line.starts_with("%%#") {
             continue;
         }
-        let word = line.trim_end().strip_prefix("%%");
+        let word = line
+            .trim_end()
+            .strip_prefix("%%")
+            // These stay in the text: the record's are read with it.
+            .filter(|w| !matches!(*w, "else" | "end"));
         if let Some(word) = word.filter(|w| !w.is_empty() && w.chars().all(char::is_alphabetic)) {
             let i = match word {
                 "header" => 0,
                 "record" => RECORD,
                 "footer" => 2,
+                "if" => return Err("%%if needs a condition".into()),
+                "stop" => return Err("%%stop needs a condition: %%stop if ...".into()),
                 _ => return Err(format!("unknown section %%{word}")),
             };
             if sections[i].is_some() {
@@ -794,6 +1132,227 @@ fn template_sections(text: &str) -> Result<[Option<String>; 3], String> {
     Ok(sections)
 }
 
+/// A line of a record that says what to write, and not what is written.
+enum Directive<'a> {
+    If(&'a str),
+    Else,
+    End,
+    StopIf(&'a str),
+}
+
+fn directive(line: &str) -> Option<Directive<'_>> {
+    let rest = line.trim_end().strip_prefix("%%")?;
+    match rest {
+        "else" => Some(Directive::Else),
+        "end" => Some(Directive::End),
+        _ => rest
+            .strip_prefix("if ")
+            .map(Directive::If)
+            .or_else(|| rest.strip_prefix("stop if ").map(Directive::StopIf)),
+    }
+}
+
+/// How many `%%if` may be open at once: the file is someone else's.
+const MAX_IF_DEPTH: usize = 16;
+
+/// A piece of what a template writes for a record.
+#[derive(Debug, Clone, PartialEq)]
+enum Node {
+    Text(Mask),
+    If {
+        condition: Expr,
+        /// Where each branch is in `RecordBody::branches`.
+        then_branch: usize,
+        else_branch: Option<usize>,
+        then: Vec<Node>,
+        otherwise: Vec<Node>,
+    },
+    /// The file ends here: what the record wrote so far stays.
+    Stop(Expr),
+}
+
+impl Node {
+    fn render(
+        nodes: &[Node],
+        row: &Row<'_>,
+        newline: &[u8],
+        stats: &mut Stats,
+        seen: &mut [bool],
+        out: &mut Vec<u8>,
+    ) -> ControlFlow<()> {
+        for node in nodes {
+            match node {
+                Node::Text(mask) => mask.render(row, newline, stats, out),
+                Node::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    then,
+                    otherwise,
+                } => {
+                    let (branch, nodes) = if row.satisfies(condition) {
+                        (Some(*then_branch), then)
+                    } else {
+                        (*else_branch, otherwise)
+                    };
+                    if let Some(place) = branch.and_then(|b| seen.get_mut(b)) {
+                        *place = true;
+                    }
+                    Node::render(nodes, row, newline, stats, seen, out)?;
+                }
+                Node::Stop(condition) => {
+                    if row.satisfies(condition) {
+                        return ControlFlow::Break(());
+                    }
+                }
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn unknown(nodes: &[Node], row: &Row<'_>) -> Option<String> {
+        let in_condition = |condition: &Expr| {
+            let mut names = Vec::new();
+            sql_filter::columns_in(condition, &mut names);
+            names
+                .into_iter()
+                .find(|name| !row.knows(name))
+                .map(str::to_string)
+        };
+        nodes.iter().find_map(|node| match node {
+            Node::Text(mask) => mask.unknown(row).map(str::to_string),
+            Node::If {
+                condition,
+                then,
+                otherwise,
+                ..
+            } => in_condition(condition)
+                .or_else(|| Node::unknown(then, row))
+                .or_else(|| Node::unknown(otherwise, row)),
+            Node::Stop(condition) => in_condition(condition),
+        })
+    }
+
+    fn environment(nodes: &[Node], names: &mut Vec<String>) {
+        for node in nodes {
+            match node {
+                Node::Text(mask) => names.extend(mask.environment.iter().cloned()),
+                Node::If {
+                    then, otherwise, ..
+                } => {
+                    Node::environment(then, names);
+                    Node::environment(otherwise, names);
+                }
+                Node::Stop(_) => {}
+            }
+        }
+    }
+}
+
+/// What a template writes for each record.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RecordBody {
+    nodes: Vec<Node>,
+    /// How each branch is called, for saying which ones no record took.
+    branches: Vec<String>,
+}
+
+/// An `%%if` whose `%%end` has not come yet.
+struct OpenIf {
+    condition: Expr,
+    label: String,
+    then_branch: usize,
+    else_branch: Option<usize>,
+    /// What the condition writes, once `%%else` was read.
+    then: Option<Vec<Node>>,
+    /// What came before this `%%if`.
+    outer: Vec<Node>,
+}
+
+/// Reads the record of a template, with its `%%if`, `%%else`, `%%end` and
+/// `%%stop if`. A condition is in the language of the SQL filter.
+fn parse_record(text: &str, default: Escape, context: &Context<'_>) -> Result<RecordBody, String> {
+    fn condition(what: &str, text: &str) -> Result<Expr, String> {
+        SqlFilter::parse_with_marks(text).map_err(|e| format!("{what} {text}: {e}"))
+    }
+    let flush = |pending: &mut String, nodes: &mut Vec<Node>| -> Result<(), String> {
+        let text = std::mem::take(pending);
+        if text.is_empty() {
+            return Ok(());
+        }
+        // Blank lines are text too, and a mask refuses to be only that.
+        let mask = if text.trim().is_empty() {
+            Mask {
+                parts: vec![Part::Literal(text.into_bytes())],
+                environment: Vec::new(),
+            }
+        } else {
+            Mask::parse_in(&text, default, context)?
+        };
+        nodes.push(Node::Text(mask));
+        Ok(())
+    };
+    let mut nodes = Vec::new();
+    let mut pending = String::new();
+    let mut open: Vec<OpenIf> = Vec::new();
+    let mut branches = Vec::new();
+    for line in text.lines() {
+        let Some(found) = directive(line) else {
+            pending.push_str(line);
+            pending.push('\n');
+            continue;
+        };
+        flush(&mut pending, &mut nodes)?;
+        match found {
+            Directive::If(text) => {
+                if open.len() >= MAX_IF_DEPTH {
+                    return Err(format!("more than {MAX_IF_DEPTH} %%if inside each other"));
+                }
+                let label = screen_safe(&format!("%%if {text}"));
+                branches.push(label.clone());
+                open.push(OpenIf {
+                    condition: condition("%%if", text)?,
+                    label,
+                    then_branch: branches.len() - 1,
+                    else_branch: None,
+                    then: None,
+                    outer: std::mem::take(&mut nodes),
+                });
+            }
+            Directive::Else => {
+                let current = open.last_mut().ok_or("%%else without %%if")?;
+                if current.then.is_some() {
+                    return Err("two %%else in the same %%if".into());
+                }
+                current.then = Some(std::mem::take(&mut nodes));
+                branches.push(format!("%%else of {}", current.label));
+                current.else_branch = Some(branches.len() - 1);
+            }
+            Directive::End => {
+                let closed = open.pop().ok_or("%%end without %%if")?;
+                let last = std::mem::replace(&mut nodes, closed.outer);
+                let (then, otherwise) = match closed.then {
+                    Some(then) => (then, last),
+                    None => (last, Vec::new()),
+                };
+                nodes.push(Node::If {
+                    condition: closed.condition,
+                    then_branch: closed.then_branch,
+                    else_branch: closed.else_branch,
+                    then,
+                    otherwise,
+                });
+            }
+            Directive::StopIf(text) => nodes.push(Node::Stop(condition("%%stop if", text)?)),
+        }
+    }
+    flush(&mut pending, &mut nodes)?;
+    if !open.is_empty() {
+        return Err("%%if without %%end".into());
+    }
+    Ok(RecordBody { nodes, branches })
+}
+
 /// In a footer, `%{count}` is how many records were written.
 const TOTAL_COUNT: &str = "count";
 
@@ -808,7 +1367,10 @@ fn template_edge(
     let Some(text) = section.filter(|s| !s.trim().is_empty()) else {
         return Ok(None);
     };
-    let mask = Mask::parse_in(&text, default, context)?;
+    if text.lines().any(|line| directive(line).is_some()) {
+        return Err("%%if, %%else, %%end and %%stop work only in the record".into());
+    }
+    let mask = Mask::parse_section(&text, default, context, !is_header)?;
     match mask.record_field(is_header) {
         Some(TOTAL_COUNT) => Err(format!("%{{{TOTAL_COUNT}}} is only known in the footer")),
         Some(field) => Err(format!(
@@ -822,9 +1384,55 @@ fn parse_template(text: &str, default: Escape, context: &Context<'_>) -> Result<
     let [header, record, footer] = template_sections(text)?;
     Ok(Output::Template {
         header: template_edge(header, default, context, true)?,
-        record: Mask::parse_in(&record.unwrap_or_default(), default, context)?,
+        record: parse_record(&record.unwrap_or_default(), default, context)?,
         footer: template_edge(footer, default, context, false)?,
     })
+}
+
+const SQLITE_NO_MASK: &str =
+    "A SQLite file takes whole records: leave the mask empty, or @a,b for those fields";
+
+/// The table a Batch creates in a SQLite file.
+const SQLITE_TABLE: &str = "records";
+
+/// The most columns SQLite takes in a table, by default.
+const SQLITE_MAX_COLUMNS: usize = 2000;
+
+/// The names of a table's columns, from names in a hostile file: nothing that
+/// cannot be typed, none empty, and none twice, which in SQLite ignores case.
+fn sqlite_columns(fields: &[String]) -> Vec<String> {
+    let mut columns: Vec<String> = Vec::with_capacity(fields.len());
+    for (i, field) in fields.iter().enumerate() {
+        let clean: String = key_of(field)
+            .chars()
+            .filter(|c| !c.is_control() && !bidi::is_bidi(*c))
+            .collect();
+        let base = if clean.trim().is_empty() {
+            format!("column_{}", i + 1)
+        } else {
+            clean
+        };
+        let taken =
+            |name: &str, columns: &[String]| columns.iter().any(|c| c.eq_ignore_ascii_case(name));
+        let mut name = base.clone();
+        let mut n = 2;
+        while taken(&name, &columns) {
+            name = format!("{base}_{n}");
+            n += 1;
+        }
+        columns.push(name);
+    }
+    columns
+}
+
+/// `CREATE TABLE`, with no types: a value stays what it is, and a `007` from a
+/// CSV is not made 7 by a column that wants numbers.
+fn sqlite_create(fields: &[String]) -> String {
+    let columns: Vec<String> = sqlite_columns(fields)
+        .iter()
+        .map(|c| format!("\"{}\"", c.replace('"', "\"\"")))
+        .collect();
+    format!("CREATE TABLE {SQLITE_TABLE} ({})", columns.join(", "))
 }
 
 /// How a field is named in the output.
@@ -850,7 +1458,7 @@ pub enum Output {
     /// Text of the user's, from a file, around the masks of the records.
     Template {
         header: Option<Mask>,
-        record: Mask,
+        record: RecordBody,
         footer: Option<Mask>,
     },
 }
@@ -884,6 +1492,9 @@ impl Output {
             now: Local::now(),
         };
         if let Some(name) = template_name(text) {
+            if Format::for_file(out) == Some(Format::Sqlite) {
+                return Err(SQLITE_NO_MASK.into());
+            }
             let body = read_template(name, templates)?;
             context.template = Some(name);
             return parse_template(&body, Escape::for_file(out), &context)
@@ -891,6 +1502,9 @@ impl Output {
         }
         let format = Format::for_file(out);
         let trimmed = text.trim();
+        if format == Some(Format::Sqlite) && !trimmed.is_empty() && !trimmed.starts_with('@') {
+            return Err(SQLITE_NO_MASK.into());
+        }
         if let Some(format) = format
             && (trimmed.is_empty() || trimmed.starts_with('@'))
         {
@@ -924,32 +1538,55 @@ impl Output {
 
     /// The variables of the process it reads, without repeating them.
     fn environment(&self) -> Vec<String> {
-        let masks: Vec<&Mask> = match self {
-            Output::Lines(mask) => vec![mask],
+        let mut names = Vec::new();
+        match self {
+            Output::Lines(mask) => names.extend(mask.environment.iter().cloned()),
             Output::Template {
                 header,
                 record,
                 footer,
-            } => [header.as_ref(), Some(record), footer.as_ref()]
-                .into_iter()
-                .flatten()
-                .collect(),
-            Output::Records { .. } => Vec::new(),
-        };
-        let mut names: Vec<String> = masks
-            .iter()
-            .flat_map(|mask| mask.environment.iter().cloned())
-            .collect();
+            } => {
+                for mask in [header, footer].into_iter().flatten() {
+                    names.extend(mask.environment.iter().cloned());
+                }
+                Node::environment(&record.nodes, &mut names);
+            }
+            Output::Records { .. } => {}
+        }
         names.sort();
         names.dedup();
         names
+    }
+
+    /// The columns that the footer totals, each with how its numbers are written.
+    fn total_columns(&self) -> Vec<(&str, NumberFormat)> {
+        let Output::Template {
+            footer: Some(footer),
+            ..
+        } = self
+        else {
+            return Vec::new();
+        };
+        footer
+            .parts
+            .iter()
+            .filter_map(|part| match part {
+                Part::Total { column, format, .. } => Some((column.as_str(), *format)),
+                _ => None,
+            })
+            .collect()
     }
 
     /// The first field the records do not have.
     fn unknown(&self, row: &Row<'_>) -> Option<String> {
         match self {
             Output::Lines(mask) => mask.unknown(row).map(str::to_string),
-            Output::Template { record, .. } => record.unknown(row).map(str::to_string),
+            Output::Template { record, .. } => Node::unknown(&record.nodes, row).or_else(|| {
+                self.total_columns()
+                    .into_iter()
+                    .find(|(column, _)| !row.knows(column))
+                    .map(|(column, _)| column.to_string())
+            }),
             Output::Records { wanted, .. } => wanted
                 .iter()
                 .flatten()
@@ -971,7 +1608,7 @@ impl Output {
             ..
         } = self
         {
-            header.edge(0, newline, out);
+            header.edge(0, &Totals::default(), newline, out);
         }
         let Output::Records {
             format,
@@ -1011,17 +1648,21 @@ impl Output {
                 }
                 out.extend_from_slice(b"</tr>\n</thead>\n<tbody>\n");
             }
+            Format::Sqlite => {
+                out.extend_from_slice(sqlite_create(fields).as_bytes());
+                out.push(b'\n');
+            }
         }
     }
 
     /// What ends the file, after `count` records.
-    fn end(&self, count: u64, newline: &[u8], out: &mut Vec<u8>) {
+    fn end(&self, count: u64, totals: &Totals, newline: &[u8], out: &mut Vec<u8>) {
         if let Output::Template {
             footer: Some(footer),
             ..
         } = self
         {
-            footer.edge(count, newline, out);
+            footer.edge(count, totals, newline, out);
         }
         let Output::Records { format, .. } = self else {
             return;
@@ -1034,16 +1675,27 @@ impl Output {
         }
     }
 
+    /// The branches of a template, by what `seen` calls them.
+    fn branches(&self) -> &[String] {
+        match self {
+            Output::Template { record, .. } => &record.branches,
+            _ => &[],
+        }
+    }
+
     /// A record, with what ends its line. `first` is whether it is the first
     /// one written, since a JSON array has commas only between its objects.
+    /// `Break` says that a template asked to stop here, and `seen` marks the
+    /// branches taken (an empty one marks nothing).
     fn render(
         &self,
         row: &Row<'_>,
         first: bool,
         newline: &[u8],
         stats: &mut Stats,
+        seen: &mut [bool],
         out: &mut Vec<u8>,
-    ) {
+    ) -> ControlFlow<()> {
         let Output::Records {
             format,
             wanted,
@@ -1057,10 +1709,12 @@ impl Output {
                     out.extend_from_slice(newline);
                 }
                 // Its lines already end in what the file says.
-                Output::Template { record, .. } => record.render(row, newline, stats, out),
+                Output::Template { record, .. } => {
+                    return Node::render(&record.nodes, row, newline, stats, seen, out);
+                }
                 Output::Records { .. } => {}
             }
-            return;
+            return ControlFlow::Continue(());
         };
         if wanted.is_none() && row.positional && row.names.len() > fields.len() {
             stats.late_columns = stats
@@ -1093,6 +1747,15 @@ impl Output {
                     out.push(b'\n');
                 }
             }
+            Format::Sqlite => {
+                for (i, field) in fields.iter().enumerate() {
+                    if i > 0 {
+                        out.extend_from_slice(b" | ");
+                    }
+                    value(field, out);
+                }
+                out.push(b'\n');
+            }
             Format::Csv | Format::Tsv => {
                 let separator = if *format == Format::Tsv { b'\t' } else { b',' };
                 for (i, field) in fields.iter().enumerate() {
@@ -1124,6 +1787,7 @@ impl Output {
                 out.extend_from_slice(b"</tr>\n");
             }
         }
+        ControlFlow::Continue(())
     }
 }
 
@@ -1179,6 +1843,11 @@ impl Row<'_> {
         (0..self.names.len()).find(|&i| records::column_letter(i).eq_ignore_ascii_case(name))
     }
 
+    /// Whether a condition holds, with the rules of the filter on the screen.
+    fn satisfies(&self, condition: &Expr) -> bool {
+        sql_filter::eval_expr(condition, self).is_ok_and(|v| v.is_truthy())
+    }
+
     fn knows(&self, name: &str) -> bool {
         name == "#" || (name == "#line" && self.line.is_some()) || self.index(name).is_some()
     }
@@ -1207,6 +1876,9 @@ pub enum Source {
         filter: Option<Expr>,
         /// The most a spreadsheet may unpack to.
         unpacked: u64,
+        /// When not empty, only the records at these places, as long as the
+        /// filter keeps them.
+        marked: BTreeSet<usize>,
     },
     Text {
         /// The file decoded, with its tabs and control characters.
@@ -1228,6 +1900,9 @@ struct TableSink<'a, F> {
     names: Vec<String>,
     shown_names: Vec<String>,
     filter: Option<&'a Expr>,
+    marked: &'a BTreeSet<usize>,
+    /// Where the next record is in the file.
+    place: usize,
     sequence: u64,
     deliver: F,
 }
@@ -1235,6 +1910,13 @@ struct TableSink<'a, F> {
 struct CellContext<'a> {
     names: &'a [String],
     cells: &'a [Cell<'a>],
+}
+
+impl RowContext for Row<'_> {
+    fn get_value(&self, column: &str) -> Option<Value> {
+        self.knows(column)
+            .then(|| Value::infer(&self.value(column).display()))
+    }
 }
 
 impl RowContext for CellContext<'_> {
@@ -1262,6 +1944,11 @@ impl<F: FnMut(&Row<'_>) -> ControlFlow<()>> RecordSink for TableSink<'_, F> {
     fn columns_cut(&mut self) {}
 
     fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()> {
+        let place = self.place;
+        self.place += 1;
+        if !self.marked.is_empty() && !self.marked.contains(&place) {
+            return ControlFlow::Continue(());
+        }
         if let Some(filter) = self.filter {
             let ctx = CellContext {
                 names: &self.shown_names,
@@ -1359,12 +2046,15 @@ impl Source {
                 sheet,
                 table,
                 filter,
+                marked,
                 ..
             } => {
                 let mut sink = TableSink {
                     names: Vec::new(),
                     shown_names: Vec::new(),
                     filter: filter.as_ref(),
+                    marked,
+                    place: 0,
                     sequence: 0,
                     deliver,
                 };
@@ -1452,6 +2142,10 @@ pub struct Preview {
     /// The variables of the process it reads: a template from someone else
     /// could send a secret away when its script runs.
     pub environment: Vec<String>,
+    /// The record at which a template's `%%stop if` ended it.
+    pub stopped: Option<u64>,
+    /// The branches of a template that no record looked at took.
+    pub unseen: Vec<String>,
     /// What to write, with its fields known.
     pub output: Output,
 }
@@ -1492,11 +2186,25 @@ pub fn preview(source: &Source, output: impl Into<Output>) -> Result<Preview, St
         return Err(format!("Mask: no field named {name}"));
     }
     output.settle(fields);
+    if let Output::Records {
+        format: Format::Sqlite,
+        fields,
+        ..
+    } = &output
+        && fields.len() > SQLITE_MAX_COLUMNS
+    {
+        return Err(format!(
+            "A SQLite table takes {SQLITE_MAX_COLUMNS} columns: use @a,b for those to write"
+        ));
+    }
 
     // Then what those records become.
     let mut stats = Stats::default();
     let mut text = Vec::new();
     let mut count = 0;
+    let mut stopped = None;
+    let mut seen = vec![false; output.branches().len()];
+    let mut totals = Totals::for_output(&output);
     output.begin(b"\n", &mut text);
     if matches!(output, Output::Template { .. }) {
         keep_last_lines(&mut text, PREVIEW_HEADER_LINES);
@@ -1510,11 +2218,17 @@ pub fn preview(source: &Source, output: impl Into<Output>) -> Result<Preview, St
         // Only what the screen can show is kept; the rest is only looked at.
         let shown_enough = text.iter().filter(|&&b| b == b'\n').count() > PREVIEW_LINES;
         let mut line = Vec::new();
-        output.render(row, first, b"\n", &mut stats, &mut line);
+        let flow = output.render(row, first, b"\n", &mut stats, &mut seen, &mut line);
+        if !line.is_empty() {
+            totals.add(row, &mut stats);
+        }
         if !shown_enough {
             text.extend_from_slice(&line);
         }
-        ControlFlow::Continue(())
+        if flow.is_break() {
+            stopped = Some(count);
+        }
+        flow
     })?;
     let mut lines: Vec<String> = text
         .split(|&b| b == b'\n')
@@ -1524,13 +2238,21 @@ pub fn preview(source: &Source, output: impl Into<Output>) -> Result<Preview, St
     if lines.last().is_some_and(String::is_empty) {
         lines.pop();
     }
+    let unseen = seen
+        .iter()
+        .zip(output.branches())
+        .filter(|(seen, _)| !**seen)
+        .map(|(_, label)| label.clone())
+        .collect();
     Ok(Preview {
         lines,
         scanned,
-        complete: end == End::Complete,
+        complete: end == End::Complete || stopped.is_some(),
         cut: source.cut(),
         stats,
         environment: output.environment(),
+        stopped,
+        unseen,
         output,
     })
 }
@@ -1543,6 +2265,8 @@ pub struct Done {
     pub cancelled: bool,
     /// The viewer read only part of the file, so the rest was not written.
     pub cut: bool,
+    /// A template's `%%stop if` ended it.
+    pub stopped: bool,
 }
 
 /// A Batch being written, in a thread of its own: a read can take long, and Esc
@@ -1614,6 +2338,86 @@ impl Job {
 
 const NOT_CREATED: &str = "Cannot create ";
 
+/// Writes the records into a new SQLite file, always through bound values: what
+/// a record holds never becomes SQL. It is all one transaction in a new file, so
+/// there is no journal to leave next to it: a Batch that fails removes the file.
+fn write_sqlite(
+    source: &Source,
+    fields: &[String],
+    all_fields: bool,
+    file: &Path,
+    cancel: Arc<AtomicBool>,
+    written: &AtomicU64,
+) -> Result<Done, String> {
+    use rusqlite::types::{ToSqlOutput, ValueRef};
+    // Never an existing file, nor one a link points to: SQLite alone would open it.
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(file)
+        .map_err(|e| format!("{NOT_CREATED}{}: {e}", file.display()))?;
+    let failed = |e: rusqlite::Error| format!("Cannot write {}: {e}", file.display());
+    let connection = rusqlite::Connection::open(file).map_err(failed)?;
+    connection
+        .execute_batch("PRAGMA journal_mode = MEMORY; PRAGMA synchronous = OFF; BEGIN;")
+        .map_err(failed)?;
+    connection
+        .execute_batch(&sqlite_create(fields))
+        .map_err(failed)?;
+    let places = vec!["?"; fields.len()].join(", ");
+    let mut insert = connection
+        .prepare(&format!("INSERT INTO {SQLITE_TABLE} VALUES ({places})"))
+        .map_err(failed)?;
+
+    let budget = Budget::cancellable(source.unpacked(), cancel);
+    let mut stats = Stats::default();
+    let mut records = 0;
+    let mut failure = None;
+    let end = source.run(budget, &mut |row| {
+        if all_fields && row.positional && row.names.len() > fields.len() {
+            stats.late_columns = stats
+                .late_columns
+                .max((row.names.len() - fields.len()) as u64);
+        }
+        let cells: Vec<Cell<'_>> = fields.iter().map(|field| row.value(field)).collect();
+        for cell in &cells {
+            stats.look_at(cell, Escape::Raw);
+        }
+        let values = cells.iter().map(|cell| {
+            ToSqlOutput::Borrowed(match cell {
+                Cell::Null => ValueRef::Null,
+                Cell::Bool(b) => ValueRef::Integer(i64::from(*b)),
+                Cell::Int(i) => ValueRef::Integer(*i),
+                Cell::Float(f) => ValueRef::Real(*f),
+                Cell::Text(text) => ValueRef::Text(text.as_bytes()),
+                Cell::Bytes(bytes) => ValueRef::Blob(bytes),
+            })
+        });
+        if let Err(e) = insert.execute(rusqlite::params_from_iter(values)) {
+            failure = Some(e);
+            return ControlFlow::Break(());
+        }
+        records += 1;
+        written.store(records, Ordering::Relaxed);
+        ControlFlow::Continue(())
+    })?;
+    if let Some(e) = failure {
+        return Err(failed(e));
+    }
+    drop(insert);
+    if end != End::OutOfTime {
+        connection.execute_batch("COMMIT").map_err(failed)?;
+    }
+    connection.close().map_err(|(_, e)| failed(e))?;
+    Ok(Done {
+        records,
+        stats,
+        cancelled: end == End::OutOfTime,
+        cut: source.cut(),
+        stopped: false,
+    })
+}
+
 fn write_file(
     source: &Source,
     output: &Output,
@@ -1621,6 +2425,15 @@ fn write_file(
     cancel: Arc<AtomicBool>,
     written: &AtomicU64,
 ) -> Result<Done, String> {
+    if let Output::Records {
+        format: Format::Sqlite,
+        fields,
+        wanted,
+        ..
+    } = output
+    {
+        return write_sqlite(source, fields, wanted.is_none(), file, cancel, written);
+    }
     let created = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -1644,22 +2457,29 @@ fn write_file(
     let mut stats = Stats::default();
     let mut records = 0;
     let mut failure = None;
+    let mut stopped = false;
+    let mut totals = Totals::for_output(output);
     let end = source.run(budget, &mut |row| {
         line.clear();
-        output.render(row, records == 0, newline, &mut stats, &mut line);
+        let flow = output.render(row, records == 0, newline, &mut stats, &mut [], &mut line);
         if let Err(e) = out.write_all(&line) {
             failure = Some(e);
             return ControlFlow::Break(());
         }
-        records += 1;
-        written.store(records, Ordering::Relaxed);
-        ControlFlow::Continue(())
+        // A record that an `%%if` left with nothing to say was not written.
+        if !line.is_empty() {
+            records += 1;
+            written.store(records, Ordering::Relaxed);
+            totals.add(row, &mut stats);
+        }
+        stopped = flow.is_break();
+        flow
     })?;
     if let Some(e) = failure {
         return Err(format!("Cannot write {}: {e}", file.display()));
     }
     line.clear();
-    output.end(records, newline, &mut line);
+    output.end(records, &totals, newline, &mut line);
     out.write_all(&line)
         .map_err(|e| format!("Cannot write {}: {e}", file.display()))?;
     let flushed: Result<File, _> = out.into_inner();
@@ -1669,6 +2489,7 @@ fn write_file(
         stats,
         cancelled: end == End::OutOfTime,
         cut: source.cut(),
+        stopped,
     })
 }
 
@@ -1932,6 +2753,7 @@ mod tests {
             table: None,
             filter: filter.map(|f| sql_filter::SqlFilter::parse(f).unwrap()),
             unpacked: u64::MAX,
+            marked: Default::default(),
         }
     }
 
@@ -2047,6 +2869,7 @@ mod tests {
                 formulas: 1,
                 backslashes: 0,
                 late_columns: 0,
+                not_numbers: 0,
             }
         );
         assert!(p.stats.warning().unwrap().contains(":csvsafe"));
@@ -2576,6 +3399,485 @@ mod tests {
                 .unwrap_err()
                 .contains("no configuration folder")
         );
+    }
+
+    /// What a template writes for a CSV of `n` rows with columns `id` and `v`.
+    fn template_output(template: &str, rows: &str) -> (Preview, String, Done) {
+        let tmp = crate::testing::tempdir();
+        fs::write(tmp.path().join("t.tpl"), template).unwrap();
+        let data = tmp.path().join("in.csv");
+        fs::write(&data, format!("id,v\n{rows}")).unwrap();
+        let out = tmp.path().join("out.txt");
+        let output = Output::parse_in(":t", &out, &data, 1, Some(tmp.path())).unwrap();
+        let source = table_source(&data, None);
+        let found = preview(&source, output).unwrap();
+        let done = run_to_file(source, found.output.clone(), &out);
+        let written = fs::read_to_string(&out).unwrap();
+        (found, written, done)
+    }
+
+    #[test]
+    fn a_template_chooses_what_to_write_for_each_record() {
+        let template = "%%record\n%%if v > 10\nbig %{id}\n%%else\nsmall %{id}\n%%end\n";
+        let (found, written, done) = template_output(template, "1,5\n2,50\n");
+        assert_eq!(written.replace("\r\n", "\n"), "small 1\nbig 2\n");
+        assert_eq!(done.records, 2);
+        assert_eq!(found.lines, ["small 1", "big 2"]);
+        assert!(found.unseen.is_empty());
+    }
+
+    #[test]
+    fn a_record_with_nothing_to_write_does_not_count() {
+        let template = "%%record\n%%if v = 1\n%{#} %{id}\n%%end\n%%footer\n%{count}\n";
+        let (_, written, done) = template_output(template, "a,1\nb,2\nc,1\n");
+        // `#` is the record's place in what was read, and `count` what was written.
+        assert_eq!(written.replace("\r\n", "\n"), "1 a\n3 c\n2\n");
+        assert_eq!(done.records, 2);
+    }
+
+    #[test]
+    fn stop_ends_the_file_and_keeps_its_footer() {
+        let template =
+            "%%record\nbefore %{id}\n%%stop if v = 2\nafter %{id}\n%%footer\nend %{count}\n";
+        let (found, written, done) = template_output(template, "a,1\nb,2\nc,3\n");
+        assert_eq!(
+            written.replace("\r\n", "\n"),
+            "before a\nafter a\nbefore b\nend 2\n"
+        );
+        assert!(done.stopped);
+        assert!(!done.cancelled);
+        assert_eq!(found.stopped, Some(2));
+        assert!(found.complete);
+    }
+
+    #[test]
+    fn a_condition_can_count_the_records() {
+        let (_, written, done) =
+            template_output("%%stop if # > 2\n%{id}\n", "a,1\nb,2\nc,3\nd,4\n");
+        assert_eq!(written.replace("\r\n", "\n"), "a\nb\n");
+        assert_eq!(done.records, 2);
+    }
+
+    #[test]
+    fn the_preview_says_which_branches_no_record_took() {
+        let template = "%%if v = 9\nx\n%%else\ny\n%%if v = 1\nz\n%%end\n%%end\n";
+        let (found, _, _) = template_output(template, "a,2\n");
+        assert_eq!(found.unseen, ["%%if v = 9", "%%if v = 1"]);
+        let (found, _, _) = template_output(template, "a,9\n");
+        assert_eq!(found.unseen, ["%%else of %%if v = 9", "%%if v = 1"]);
+    }
+
+    #[test]
+    fn a_condition_on_a_field_that_does_not_exist_is_an_error() {
+        let tmp = crate::testing::tempdir();
+        fs::write(tmp.path().join("t.tpl"), "%%if nope = 1\nx\n%%end\n").unwrap();
+        let data = tmp.path().join("in.csv");
+        fs::write(&data, "id\n1\n").unwrap();
+        let out = tmp.path().join("out.txt");
+        let output = Output::parse_in(":t", &out, &data, 1, Some(tmp.path())).unwrap();
+        let error = preview(&table_source(&data, None), output).unwrap_err();
+        assert_eq!(error, "Mask: no field named nope");
+    }
+
+    #[test]
+    fn a_template_with_badly_built_conditions_says_what_is_wrong() {
+        let parse = |text: &str| {
+            let context = test_context(Path::new("f"), 1);
+            parse_template(text, Escape::Raw, &context).unwrap_err()
+        };
+        assert_eq!(parse("%%end\n"), "%%end without %%if");
+        assert_eq!(parse("%%else\n"), "%%else without %%if");
+        assert_eq!(parse("%%if a\nx\n"), "%%if without %%end");
+        assert_eq!(parse("%%if\nx\n%%end\n"), "%%if needs a condition");
+        assert!(parse("%%stop\n").contains("%%stop if"));
+        assert_eq!(
+            parse("%%if a\n%%else\n%%else\n%%end\n"),
+            "two %%else in the same %%if"
+        );
+        assert!(parse("%%if a = \nx\n%%end\n").starts_with("%%if a ="));
+        assert!(parse("%%header\n%%if a\n%%end\n%%record\nx\n").contains("only in the record"));
+        let deep = "%%if a\n".repeat(MAX_IF_DEPTH + 1);
+        assert!(parse(&deep).contains("inside each other"));
+    }
+
+    #[test]
+    fn a_blank_line_between_conditions_stays() {
+        let (_, written, _) =
+            template_output("%%if v = 1\nx\n%%end\n\n%%if v = 1\ny\n%%end\n", "a,1\n");
+        assert_eq!(written.replace("\r\n", "\n"), "x\n\ny\n");
+    }
+
+    #[test]
+    fn a_decimal_is_read_only_as_its_format_writes_it() {
+        let read =
+            |text, format| parse_decimal(text, format).map(|(v, s)| (v / (TOTAL_UNIT / 100), s));
+        use NumberFormat::{Br, Plain, Us};
+        assert_eq!(read("1234.56", Plain), Some((123_456, 2)));
+        assert_eq!(read("-1234.5", Plain), Some((-123_450, 1)));
+        assert_eq!(read("+7", Plain), Some((700, 0)));
+        assert_eq!(read(".5", Plain), Some((50, 1)));
+        assert_eq!(read("1.234,56", Br), Some((123_456, 2)));
+        assert_eq!(read("1234,56", Br), Some((123_456, 2)));
+        assert_eq!(read("1,234.56", Us), Some((123_456, 2)));
+        // Each of these is another format, or nothing.
+        for (text, format) in [
+            ("1,234.56", Plain),
+            ("1,5", Plain),
+            ("1.5", Br),
+            ("1.23.456", Br),
+            ("1234,567.8", Us),
+            ("", Plain),
+            ("-", Plain),
+            (".", Plain),
+            ("1e5", Plain),
+            ("abc", Plain),
+            ("٣", Plain),
+            ("1.2.3", Plain),
+        ] {
+            assert_eq!(parse_decimal(text, format), None, "{text}");
+        }
+        // Past what it can hold exactly: refused, never rounded.
+        assert_eq!(parse_decimal(&"9".repeat(60), Plain), None);
+        assert_eq!(parse_decimal(&format!("0.{}", "1".repeat(19)), Plain), None);
+    }
+
+    #[test]
+    fn a_decimal_is_written_in_its_format() {
+        use NumberFormat::{Br, Plain, Us};
+        let value = |text| parse_decimal(text, Plain).unwrap().0;
+        assert_eq!(write_decimal(value("1234567.5"), 2, Br), "1.234.567,50");
+        assert_eq!(write_decimal(value("1234567.5"), 2, Us), "1,234,567.50");
+        assert_eq!(write_decimal(value("1234567.5"), 1, Plain), "1234567.5");
+        assert_eq!(write_decimal(value("-999"), 0, Br), "-999");
+        assert_eq!(write_decimal(value("-1000"), 0, Br), "-1.000");
+        assert_eq!(write_decimal(value("0.125"), 2, Plain), "0.13");
+        assert_eq!(write_decimal(value("-0.001"), 2, Plain), "0.00");
+    }
+
+    fn footer_of(footer: &str, rows: &str) -> (String, Done) {
+        let template = format!("%%record\n%{{id}}\n%%footer\n{footer}\n");
+        let (_, written, done) = template_output(&template, rows);
+        let written = written.replace("\r\n", "\n");
+        let last = written.lines().last().unwrap_or("").to_string();
+        (last, done)
+    }
+
+    #[test]
+    fn a_total_is_exact() {
+        let (total, _) = footer_of("%{sum:v}", "a,0.1\nb,0.2\n");
+        assert_eq!(total, "0.3");
+        let (total, _) = footer_of(
+            "%{sum:v} %{min:v} %{max:v} %{avg:v}",
+            "a,1.50\nb,-3\nc,10\n",
+        );
+        assert_eq!(total, "8.50 -3.00 10.00 2.8333");
+    }
+
+    #[test]
+    fn a_total_reads_and_writes_the_format_asked_for() {
+        let (total, _) = footer_of("%{sum:v:br}", "a,\"1.000,50\"\nb,\"2.000,25\"\n");
+        assert_eq!(total, "3.000,75");
+    }
+
+    #[test]
+    fn a_value_that_is_not_a_number_is_counted_not_hidden() {
+        let (total, done) = footer_of("%{sum:v}", "a,1\nb,oops\nc,\nd,\"1,5\"\ne,2\n");
+        assert_eq!(total, "3");
+        // An empty one is no value, as in SQL.
+        assert_eq!(done.stats.not_numbers, 2);
+        assert!(done.stats.warning().unwrap().contains("left out"));
+    }
+
+    #[test]
+    fn a_total_with_no_values_is_zero_or_nothing() {
+        let (total, _) = footer_of("[%{sum:v}][%{min:v}][%{avg:v}]", "a,\n");
+        assert_eq!(total, "[0][][]");
+    }
+
+    #[test]
+    fn a_total_sees_only_the_records_written() {
+        let template = "%%record\n%%if v > 1\n%{id}\n%%end\n%%stop if v = 3\n%%footer\n%{sum:v}\n";
+        let (_, written, _) = template_output(template, "a,1\nb,2\nc,3\nd,4\n");
+        assert_eq!(written.replace("\r\n", "\n"), "b\nc\n5\n");
+    }
+
+    #[test]
+    fn a_total_goes_through_the_escape_of_the_file() {
+        let total = |out: &str, footer: &str| {
+            let tmp = crate::testing::tempdir();
+            let body = format!("%%record\n%{{id}}\n%%footer\n{footer}\n");
+            fs::write(tmp.path().join("t.tpl"), body).unwrap();
+            let data = tmp.path().join("in.csv");
+            fs::write(&data, "id,v\na,\"1.234,50\"\n").unwrap();
+            let out = tmp.path().join(out);
+            let output = Output::parse_in(":t", &out, &data, 1, Some(tmp.path())).unwrap();
+            run_to_file(table_source(&data, None), output, &out);
+            let text = fs::read_to_string(&out).unwrap().replace("\r\n", "\n");
+            text.lines().last().unwrap().to_string()
+        };
+        // In a CSV, a comma in the number has to be inside quotes.
+        assert_eq!(total("o.csv", "%{sum:v:br}"), "\"1.234,50\"");
+        assert_eq!(total("o.sql", "%{sum:v:br}"), "'1.234,50'");
+        assert_eq!(total("o.sql", "%{sum:v:br:raw}"), "1.234,50");
+    }
+
+    #[test]
+    fn a_plain_total_is_a_number_in_any_file() {
+        let tmp = crate::testing::tempdir();
+        fs::write(
+            tmp.path().join("t.tpl"),
+            "%%record\n%{id}\n%%footer\nSELECT %{sum:v}\n",
+        )
+        .unwrap();
+        let data = tmp.path().join("in.csv");
+        fs::write(&data, "id,v\na,1.5\n").unwrap();
+        let out = tmp.path().join("o.sql");
+        let output = Output::parse_in(":t", &out, &data, 1, Some(tmp.path())).unwrap();
+        run_to_file(table_source(&data, None), output, &out);
+        let text = fs::read_to_string(&out).unwrap().replace("\r\n", "\n");
+        assert_eq!(text.lines().last().unwrap(), "SELECT 1.5");
+    }
+
+    #[test]
+    fn a_total_of_a_column_that_does_not_exist_is_an_error() {
+        let tmp = crate::testing::tempdir();
+        fs::write(
+            tmp.path().join("t.tpl"),
+            "%%record\n%{id}\n%%footer\n%{sum:nope}\n",
+        )
+        .unwrap();
+        let data = tmp.path().join("in.csv");
+        fs::write(&data, "id\n1\n").unwrap();
+        let out = tmp.path().join("o.txt");
+        let output = Output::parse_in(":t", &out, &data, 1, Some(tmp.path())).unwrap();
+        let error = preview(&table_source(&data, None), output).unwrap_err();
+        assert_eq!(error, "Mask: no field named nope");
+    }
+
+    #[test]
+    fn a_total_is_known_only_in_the_footer() {
+        let parse = |text: &str| {
+            let context = test_context(Path::new("f"), 1);
+            parse_template(text, Escape::Raw, &context).unwrap_err()
+        };
+        assert!(parse("%%record\n%{sum:v}\n").contains("only known in the footer"));
+        assert!(parse("%%header\n%{sum:v}\n%%record\nx\n").contains("only known in the footer"));
+        assert!(parse("%%record\nx\n%%footer\n%{sum:}\n").contains("no column"));
+    }
+
+    #[test]
+    fn a_column_called_sum_is_still_a_field_of_the_record() {
+        let m = mask("%{sum:sql}", Escape::Raw);
+        assert!(matches!(&m.parts[0], Part::Field { name, .. } if name == "sum"));
+    }
+
+    /// A CSV through a Batch into a new SQLite file.
+    fn into_sqlite(csv: &str, mask: &str) -> (tempfile::TempDir, PathBuf, Done) {
+        let tmp = crate::testing::tempdir();
+        let data = tmp.path().join("in.csv");
+        fs::write(&data, csv).unwrap();
+        let out = tmp.path().join("out.db");
+        let output = Output::parse_in(mask, &out, &data, 1, None).unwrap();
+        let source = table_source(&data, None);
+        let found = preview(&source, output).unwrap();
+        let done = run_to_file(source, found.output, &out);
+        (tmp, out, done)
+    }
+
+    fn rows_of(db: &Path, query: &str) -> Vec<String> {
+        let db = rusqlite::Connection::open(db).unwrap();
+        let mut query = db.prepare(query).unwrap();
+        query
+            .query_map([], |row| row.get::<_, rusqlite::types::Value>(0))
+            .unwrap()
+            .map(|v| format!("{:?}", v.unwrap()))
+            .collect()
+    }
+
+    #[test]
+    fn a_sqlite_file_keeps_each_value_as_it_was() {
+        let (_tmp, out, done) = into_sqlite("id,zip\n1,007\n2,010\n", "");
+        assert_eq!(done.records, 2);
+        assert_eq!(
+            rows_of(&out, "SELECT zip FROM records ORDER BY rowid"),
+            ["Text(\"007\")", "Text(\"010\")"]
+        );
+        let names = out.with_file_name("out.db-journal");
+        assert!(!names.exists(), "no journal stays next to it");
+    }
+
+    #[test]
+    fn a_sqlite_file_keeps_the_types_of_the_source() {
+        let tmp = crate::testing::tempdir();
+        let source_db = tmp.path().join("in.db");
+        let db = rusqlite::Connection::open(&source_db).unwrap();
+        db.execute_batch(
+            "CREATE TABLE t (i INTEGER, r REAL, s TEXT, b BLOB, n TEXT);
+             INSERT INTO t VALUES (7, 1.5, 'x', x'00ff', NULL);",
+        )
+        .unwrap();
+        drop(db);
+        let source = Source::Table {
+            path: source_db.clone(),
+            sheet: 0,
+            table: Some("t".to_string()),
+            filter: None,
+            unpacked: u64::MAX,
+            marked: Default::default(),
+        };
+        let out = tmp.path().join("out.sqlite3");
+        let output = Output::parse_in("", &out, &source_db, 1, None).unwrap();
+        let found = preview(&source, output).unwrap();
+        run_to_file(source, found.output, &out);
+        let row = |column: &str| rows_of(&out, &format!("SELECT {column} FROM records"));
+        assert_eq!(row("i"), ["Integer(7)"]);
+        assert_eq!(row("r"), ["Real(1.5)"]);
+        assert_eq!(row("s"), ["Text(\"x\")"]);
+        assert_eq!(row("b"), ["Blob([0, 255])"]);
+        assert_eq!(row("n"), ["Null"]);
+    }
+
+    #[test]
+    fn a_hostile_value_or_column_name_is_only_data_in_a_sqlite_file() {
+        let attack = "x'); DROP TABLE records; --";
+        let csv = format!("\"a\"\"); DROP TABLE records; --\",ID,id,\n\"{attack}\",1,2,3\n");
+        let (_tmp, out, done) = into_sqlite(&csv, "");
+        assert_eq!(done.records, 1);
+        let db = rusqlite::Connection::open(&out).unwrap();
+        let mut names = db
+            .prepare("SELECT name FROM pragma_table_info('records')")
+            .unwrap();
+        let names: Vec<String> = names
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(
+            names,
+            ["a\"); DROP TABLE records; --", "ID", "id_2", "column_4"]
+        );
+        let value: String = db
+            .query_row(
+                "SELECT \"a\"\"); DROP TABLE records; --\" FROM records",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(value, attack);
+    }
+
+    #[test]
+    fn a_sqlite_file_can_take_only_the_fields_named_and_the_filter() {
+        let tmp = crate::testing::tempdir();
+        let data = tmp.path().join("in.csv");
+        fs::write(&data, "id,name,other\n1,ana,x\n2,bob,y\n").unwrap();
+        let out = tmp.path().join("out.db");
+        let output = Output::parse_in("@name", &out, &data, 1, None).unwrap();
+        let source = table_source(&data, Some("id = 2"));
+        let found = preview(&source, output).unwrap();
+        assert_eq!(found.lines, ["CREATE TABLE records (\"name\")", "bob"]);
+        let done = run_to_file(source, found.output, &out);
+        assert_eq!(done.records, 1);
+        assert_eq!(rows_of(&out, "SELECT name FROM records"), ["Text(\"bob\")"]);
+    }
+
+    #[test]
+    fn a_text_file_goes_into_sqlite_with_its_line_numbers() {
+        let tmp = crate::testing::tempdir();
+        let out = tmp.path().join("out.db");
+        let source = text_source("first\nsecond\n", Some(vec![1]), None);
+        let output = Output::parse_in("", &out, Path::new("a.txt"), 1, None).unwrap();
+        let found = preview(&source, output).unwrap();
+        run_to_file(source, found.output, &out);
+        assert_eq!(
+            rows_of(&out, "SELECT line_number FROM records"),
+            ["Integer(2)"]
+        );
+        assert_eq!(
+            rows_of(&out, "SELECT line FROM records"),
+            ["Text(\"second\")"]
+        );
+    }
+
+    #[test]
+    fn a_sqlite_file_takes_no_mask_or_template() {
+        let out = Path::new("out.sqlite");
+        for mask in ["%{id}", "INSERT", ":report"] {
+            let error = Output::parse_in(mask, out, Path::new("a"), 1, None).unwrap_err();
+            assert!(error.contains("whole records"), "{mask}: {error}");
+        }
+    }
+
+    #[test]
+    fn a_sqlite_file_does_not_touch_what_exists() {
+        let tmp = crate::testing::tempdir();
+        let data = tmp.path().join("in.csv");
+        fs::write(&data, "id\n1\n").unwrap();
+        let out = tmp.path().join("out.db");
+        fs::write(&out, "mine").unwrap();
+        let output = Output::parse_in("", &out, &data, 1, None).unwrap();
+        let source = table_source(&data, None);
+        let found = preview(&source, output).unwrap();
+        let job = Job::start(source, found.output, out.clone());
+        while !job.is_done() {
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(job.finish().unwrap_err().starts_with(NOT_CREATED));
+        assert_eq!(fs::read_to_string(&out).unwrap(), "mine");
+    }
+
+    #[test]
+    fn a_cancelled_sqlite_file_is_not_kept() {
+        let tmp = csv_rows(50_000);
+        let data = tmp.path().join("in.csv");
+        let out = tmp.path().join("out.db");
+        let output = Output::parse_in("", &out, &data, 1, None).unwrap();
+        let source = table_source(&data, None);
+        let found = preview(&source, output).unwrap();
+        let job = Job::start(source, found.output, out.clone());
+        job.cancel();
+        while !job.is_done() {
+            thread::sleep(Duration::from_millis(2));
+        }
+        // It may have ended before seeing the cancel: then the file is whole.
+        match job.finish().unwrap() {
+            done if done.cancelled => assert!(!out.exists()),
+            _ => assert!(out.exists()),
+        }
+    }
+
+    #[test]
+    fn marked_records_are_the_only_ones_written_past_the_limit_of_the_screen() {
+        let tmp = csv_rows(60_000);
+        let data = tmp.path().join("in.csv");
+        let Source::Table {
+            path,
+            sheet,
+            table,
+            filter,
+            unpacked,
+            ..
+        } = table_source(&data, Some("id != 3"))
+        else {
+            panic!("a table");
+        };
+        let source = Source::Table {
+            path,
+            sheet,
+            table,
+            filter,
+            unpacked,
+            // Places, from 0; the third record is hidden by the filter.
+            marked: BTreeSet::from([0, 2, 59_999]),
+        };
+        let out = tmp.path().join("out.txt");
+        let mask = Mask::parse("%{#} %{id}", Escape::Raw, &data, 1).unwrap();
+        let found = preview(&source, mask).unwrap();
+        assert_eq!(found.lines, ["1 1", "2 60000"]);
+        let done = run_to_file(source, found.output, &out);
+        assert_eq!(done.records, 2);
+        let text = fs::read_to_string(&out).unwrap().replace("\r\n", "\n");
+        assert_eq!(text, "1 1\n2 60000\n");
     }
 
     #[test]

@@ -160,6 +160,8 @@ Die Werte stammen aus einer möglicherweise feindlichen Datei und können in etw
 
 Lassen Sie bei einer Datei `.json`, `.jsonl`, `.ndjson`, `.csv`, `.tsv`, `.xml`, `.html` oder `.htm` die Maske **leer**, um ganze Datensätze nach den Regeln des Formats zu schreiben: ein JSON-Array von Objekten, ein Objekt pro Zeile, eine Tabelle mit Kopfzeile, ein `<record>` pro Datensatz oder eine Seite mit einer Tabelle. Um nur einige Felder zu schreiben, beginnen Sie die Maske mit `@`: `@id, name, #`. Text liefert `line_number`, `line` und die Gruppen des Filters. Die Felder werden in den ersten 1.000 Datensätzen ermittelt: Ein JSON-Lines-Schlüssel, der erst später auftaucht, bleibt außen vor, und die Abschlussmeldung weist darauf hin.
 
+Eine `.db`-, `.sqlite`- oder `.sqlite3`-Datei nimmt ebenfalls ganze Datensätze auf, in einer Tabelle `records`, und lehnt Masken und Vorlagen ab. Jeder Wert behält seinen Typ: Die Spalten haben keinen, daher bleibt eine `007` aus einer CSV `007`. Werte aus einer CSV sind deshalb Text; zum Vergleich als Zahlen verwenden Sie `CAST(balance AS REAL)`.
+
 ### Vorlagen
 
 Dateien zum Ausprobieren liegen im Repository unter [demo/](https://github.com/andrelnfernandes/xylem/tree/main/demo): dieselben Kunden in jedem Format und fertige Vorlagen.
@@ -178,6 +180,22 @@ Für Text um die Datensätze herum speichern Sie eine Vorlage als `~/.config/xyl
 ```
 
 `%%header` und `%%footer` sind optional und erlauben nur den Text der Vorlage und die Felder der geöffneten Datei. `%%record` wird einmal pro Datensatz geschrieben und darf mehrere Zeilen haben; ohne Abschnitte ist die ganze Datei der Datensatz. Die Escapes richten sich wie bei einer Maske nach der Ausgabedatei, eine Vorlage für eine Seite sollte also in eine `.html` geschrieben werden. Ein unbekannter oder doppelter Abschnitt oder ein Datensatzfeld in Kopf oder Fuß ist ein Fehler in der Vorschau. Die Vorschau zeigt die letzten 3 Zeilen des Kopfes. Ohne Datensätze wird nichts geschrieben.
+
+Im Datensatz wählen `%%if Bedingung`, `%%else` und `%%end` aus, was geschrieben wird, und `%%stop if Bedingung` beendet die Datei an dieser Stelle, wobei die Fußzeile erhalten bleibt. Eine Bedingung wird wie im [SQL-Filter](viewer.md) geschrieben und sieht die Felder des Datensatzes sowie `#` und `#line`:
+
+```
+%%record
+%%stop if # > 100
+%%if balance < 0
+%{name} schuldet %{balance}
+%%else
+%{name} ist in Ordnung
+%%end
+```
+
+`%{#}` ist die Position des Datensatzes im Gelesenen; `%{count}` und die Abschlussmeldung zählen die Datensätze, die etwas geschrieben haben. Die Vorschau nennt die Zweige, die kein betrachteter Datensatz genommen hat, da sie nur die ersten 1.000 liest. Eine Zeile, die mit `%%if ` oder `%%stop if ` beginnt, ist immer einer dieser Befehle.
+
+In der Fußzeile summieren `%{sum:Spalte}`, `%{min:Spalte}`, `%{max:Spalte}` und `%{avg:Spalte}` die geschriebenen Datensätze, in exakter Dezimalrechnung. Eine Zahl wird als `1234.56` gelesen; bei anderen Dateien geben Sie die Schreibweise an, `%{sum:Wert:br}` für `1.234,56` oder `%{sum:Wert:us}` für `1,234.56`, und die Summe erscheint genauso. Ein leerer Wert zählt nicht, und ein Wert, der keine Zahl ist, wird ausgelassen und in der Abschlussmeldung gezählt.
 
 Im Fuß ist `%{count}` die Anzahl der geschriebenen Datensätze. Der Kopf kann das nicht enthalten, weil er vor dem Lesen geschrieben wird.
 

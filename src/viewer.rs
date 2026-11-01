@@ -230,6 +230,12 @@ impl std::ops::Deref for StyledRow {
     }
 }
 
+/// What tells that a file is still the one that was read.
+fn file_stamp(path: &Path) -> Option<(u64, std::time::SystemTime)> {
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.len(), meta.modified().ok()?))
+}
+
 impl Viewer {
     /// Reads up to `load.limits.output` bytes of the file on disk.
     pub fn open(path: PathBuf, load: LoadOptions) -> io::Result<Self> {
@@ -306,12 +312,20 @@ impl Viewer {
                 let Some(t) = &self.table else {
                     return Err("No table to read".into());
                 };
+                // A mark is a place in the file, and the table is read again.
+                if !t.marked.is_empty() && t.marked_stamp != file_stamp(&self.path) {
+                    return Err(
+                        "The file changed after its records were marked: mark them again (M clears)"
+                            .into(),
+                    );
+                }
                 Ok(batch::Source::Table {
                     path: self.path.clone(),
                     sheet: t.current_sheet,
                     table: t.sheets.get(t.current_sheet).cloned(),
                     filter: t.filter_expr.clone(),
                     unpacked: self.load.limits.output as u64,
+                    marked: t.marked.clone(),
                 })
             }
             ViewMode::Text => Ok(batch::Source::Text {
@@ -334,6 +348,23 @@ impl Viewer {
             }),
             ViewMode::Hex => Err("Batch works on text and tables (H)".into()),
         }
+    }
+
+    /// `m` and Insert: marks or unmarks the record under the cursor, and goes
+    /// to the next one.
+    fn toggle_mark(&mut self) {
+        let stamp = file_stamp(&self.path);
+        let Some(t) = &mut self.table else { return };
+        let Some(&row) = t.filtered_indices.get(t.cursor_row) else {
+            return;
+        };
+        if t.marked.is_empty() {
+            t.marked_stamp = stamp;
+        }
+        if !t.marked.remove(&row) {
+            t.marked.insert(row);
+        }
+        t.handle_key(KeyCode::Down, self.page);
     }
 
     /// `[` and `]`: another sheet of a spreadsheet or table of a database.
@@ -1173,6 +1204,18 @@ impl Viewer {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let action = match key.code {
             KeyCode::Char('b' | 'B') if ctrl => Action::Batch,
+            KeyCode::Char('m') | KeyCode::Insert
+                if self.mode == ViewMode::Table && !ctrl && !alt =>
+            {
+                self.toggle_mark();
+                Action::None
+            }
+            KeyCode::Char('M') if self.mode == ViewMode::Table && !ctrl && !alt => {
+                if let Some(t) = &mut self.table {
+                    t.marked.clear();
+                }
+                Action::None
+            }
             KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'Q' | 'v' | 'V') => Action::Close,
             KeyCode::Home if alt => Action::First,
             KeyCode::End if alt => Action::Last,

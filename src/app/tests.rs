@@ -3170,6 +3170,63 @@ fn batch_refuses_what_it_cannot_do_safely() {
 }
 
 #[test]
+fn batch_writes_only_the_marked_records_of_a_table() {
+    let (tmp, mut app) = sample();
+    let path = tmp.path().join("in.csv");
+    std::fs::write(&path, "id,name\n1,ana\n2,bob\n3,cid\n4,dan\n").unwrap();
+    app.viewer = Some(Viewer::open(path.clone(), viewer::LoadOptions::view(1 << 20)).unwrap());
+    let marked = |app: &App| {
+        let table = app.viewer.as_ref().unwrap().table.as_ref().unwrap();
+        table.marked.iter().copied().collect::<Vec<_>>()
+    };
+    press(&mut app, KeyCode::Char('m')); // ana, and down to bob
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Insert); // cid, and down to dan
+    press(&mut app, KeyCode::Up);
+    press(&mut app, KeyCode::Char('m')); // cid again: unmarked
+    assert_eq!(marked(&app), [0]);
+    press(&mut app, KeyCode::Char('m')); // dan
+    assert_eq!(marked(&app), [0, 3]);
+
+    // A filter hides the rows, and the marks stay in the file's places.
+    press(&mut app, KeyCode::Char('&'));
+    answer_prompt(&mut app, "id >= 2");
+    assert_eq!(marked(&app), [0, 3]);
+
+    let out = tmp.path().join("out.txt");
+    ctrl_b(&mut app);
+    answer_prompt(&mut app, out.to_str().unwrap());
+    let guide = app.prompt.as_ref().unwrap().batch_guide().unwrap();
+    assert_eq!(guide.marked, 2);
+    answer_prompt(&mut app, "%{name}");
+    let preview = app.batch_preview.as_ref().expect("preview");
+    assert_eq!(
+        preview.preview.lines,
+        ["dan"],
+        "marked, and kept by the filter"
+    );
+    press(&mut app, KeyCode::Esc);
+
+    press(&mut app, KeyCode::Char('M'));
+    assert!(marked(&app).is_empty());
+}
+
+#[test]
+fn batch_refuses_marks_when_the_file_changed() {
+    let (tmp, mut app) = sample();
+    let path = tmp.path().join("in.csv");
+    std::fs::write(&path, "id\n1\n2\n").unwrap();
+    app.viewer = Some(Viewer::open(path.clone(), viewer::LoadOptions::view(1 << 20)).unwrap());
+    press(&mut app, KeyCode::Char('m'));
+    // Other records may be at those places now.
+    std::fs::write(&path, "id\n9\n1\n2\n").unwrap();
+    ctrl_b(&mut app);
+    assert!(app.prompt.is_none());
+    let note = app.viewer.as_ref().unwrap().note.clone().unwrap();
+    assert!(note.contains("mark them again"), "{note}");
+}
+
+#[test]
 fn batch_says_what_works_on_the_open_file() {
     let (tmp, mut app) = sample();
     let path = tmp.path().join("log.txt");

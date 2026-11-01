@@ -5,6 +5,8 @@
 
 use ratatui::crossterm::event::KeyCode;
 use ratatui::text::Span;
+use std::collections::BTreeSet;
+use std::time::SystemTime;
 
 use super::sql_filter::{self, Expr, RowContext, SqlFilter, Value};
 use crate::bidi;
@@ -47,6 +49,12 @@ pub struct TableGrid {
 
     /// What of the file is not here, for the header.
     pub cut: Option<String>,
+
+    /// The places of the rows marked for a Batch, in `rows`: the same as in
+    /// the file, and whatever the filter hides.
+    pub marked: BTreeSet<usize>,
+    /// How the file was when the first of them was marked.
+    pub marked_stamp: Option<(u64, SystemTime)>,
 }
 
 struct GridRowContext<'a> {
@@ -97,6 +105,8 @@ impl TableGrid {
             filter_expr: None,
             col_widths: Vec::new(),
             cut: None,
+            marked: BTreeSet::new(),
+            marked_stamp: None,
         };
         grid.recalculate_widths();
         grid
