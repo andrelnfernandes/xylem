@@ -40,6 +40,7 @@ The preview shows the first lines: **Enter** writes and **Esc** gives up.
 | Mask | Write to | What you get |
 |---|---|---|
 | `:report` | `report.html` | a page with a table and the total |
+| `:debtors` | `debtors.txt` | a list that chooses its records with `%%if` and ends with `%%stop if` |
 | `:table` | `customers.md` | a Markdown table |
 | `:update` | `update.sql` | one `UPDATE` per record, in a transaction left open |
 | `:bulk_fix` | `bulk_fix.sql` | many fixes as a single `UPDATE`, through a temporary table |
@@ -58,6 +59,8 @@ These templates use column names, so they do not work with `customers.xlsx`, whi
 letters: there, try the mask `%{B};%{C}` in a `.txt`.
 
 ## Other things to try
+
+**Into a database.** Press Ctrl+B on any table, write to `out.db`, leave the mask empty and open `out.db` with `V`.
 
 **Masks, with no template.** In `out.txt`: `%{#} %{name:url}`. In `out.sh`:
 `echo %{name}`. In `out.json`, an empty mask writes whole records, and `@id, name` only

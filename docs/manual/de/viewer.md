@@ -126,10 +126,14 @@ Das CSV-Trennzeichen (Komma, Semikolon, Tabulator oder senkrechter Strich) wird 
 | `[` `]` | vorheriges oder nächstes Blatt einer Tabellenkalkulation oder vorherige oder nächste Tabelle einer SQLite-Datenbank, im Kreis; das löscht den Filter |
 | `g` oder `:` | zu einer Zeile springen, gezählt werden nur die vom Filter behaltenen |
 | `\` oder `&` | der SQL-Filter |
+| `m` oder Insert | markiert den Datensatz unter dem Cursor oder hebt die Markierung auf und geht zum nächsten; **Ctrl+B** schreibt dann nur die markierten |
+| `M` | löscht die Markierungen |
 | `T` | zum Text der Datei und zurück |
 | `H` | von der Tabelle zum Text, dann Hex, dann zurück zur Tabelle |
 
 Der Rahmen zeigt `TABLE [2/5: Name]`, wenn es mehrere Blätter oder Tabellen gibt, und die untere Zeile die Position des Cursors: `Cell B7 (Row 7 of 120)`. Die letzte Zeile des Rasters enthält den ganzen Zellinhalt und den aktiven Filter. Die Suche (`F`, `B`, `/`) schaut nicht in das Raster und findet dort nichts; sie funktioniert im Textmodus.
+
+Markierungen bleiben unter einem Filter erhalten, und Batch schreibt, was markiert ist und vom Filter behalten wird. Sie gehören zum geöffneten Blatt oder zur Tabelle und gehen beim Wechsel verloren. Ändert sich die Datei nach dem Markieren, verweigert Batch, da an diesen Stellen andere Datensätze stehen können.
 
 ### Der SQL-Filter
 

@@ -157,6 +157,8 @@ Los valores vienen de un archivo que puede ser hostil y pueden ir a algo que vas
 
 En un archivo `.json`, `.jsonl`, `.ndjson`, `.csv`, `.tsv`, `.xml`, `.html` o `.htm`, deja la máscara **vacía** para escribir registros enteros, con las reglas del formato: un array JSON de objetos, un objeto por línea, una tabla con fila de cabecera, un `<record>` por registro o una página con una tabla. Para escribir solo algunos campos, empieza la máscara con `@`: `@id, nombre, #`. El texto da `line_number`, `line` y los grupos del filtro. Los campos se descubren en los primeros 1000 registros: una clave de JSON Lines que solo aparezca después queda fuera, y el mensaje final lo avisa.
 
+Un archivo `.db`, `.sqlite` o `.sqlite3` también recibe registros enteros, en una tabla `records`, y rechaza máscaras y plantillas. Cada valor conserva su tipo: las columnas no tienen tipo, así que un `007` de un CSV sigue siendo `007`. Por eso los valores de un CSV son texto; para compararlos como números, use `CAST(balance AS REAL)`.
+
 ### Plantillas
 
 Los archivos para probar todo esto están en [demo/](https://github.com/andrelnfernandes/xylem/tree/main/demo) en el repositorio: los mismos clientes en todos los formatos, y plantillas listas.
@@ -175,6 +177,22 @@ Para tener texto alrededor de los registros, guarda una plantilla en `~/.config/
 ```
 
 `%%header` y `%%footer` son opcionales y solo admiten el texto de la plantilla y los campos del archivo abierto. `%%record` se escribe una vez por registro y puede tener varias líneas; sin secciones, todo el archivo es el registro. Los escapes siguen al archivo de salida, como en una máscara, así que una plantilla de página debe escribirse en un `.html`. Una sección que no existe, una repetida o un campo de registro en la cabecera o el pie es un error en la vista previa. La vista previa muestra las últimas 3 líneas de la cabecera. Sin registros, no se escribe nada.
+
+En el registro, `%%if condición`, `%%else` y `%%end` eligen qué escribir, y `%%stop if condición` termina el archivo ahí, conservando el pie. La condición se escribe como en el [filtro SQL](viewer.md) y ve los campos del registro, además de `#` y `#line`:
+
+```
+%%record
+%%stop if # > 100
+%%if balance < 0
+%{name} debe %{balance}
+%%else
+%{name} está al día
+%%end
+```
+
+`%{#}` es la posición del registro en lo leído, y `%{count}` y el mensaje final cuentan los registros que escribieron algo. La vista previa indica qué ramas no siguió ningún registro examinado, pues solo lee los primeros 1000. Una línea que empieza por `%%if ` o `%%stop if ` es siempre uno de estos comandos.
+
+En el pie, `%{sum:columna}`, `%{min:columna}`, `%{max:columna}` y `%{avg:columna}` totalizan los registros escritos, en decimal exacto. Un número se lee como `1234.56`; para otros archivos, indique cómo lo escriben, `%{sum:valor:br}` para `1.234,56` o `%{sum:valor:us}` para `1,234.56`, y el total sale igual. Un valor vacío no cuenta, y uno que no es número queda fuera y se cuenta en el mensaje final.
 
 En el pie, `%{count}` es cuántos registros se escribieron. La cabecera no puede tenerlo, porque se escribe antes de leerlos.
 

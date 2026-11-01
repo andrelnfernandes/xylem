@@ -2504,8 +2504,13 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         ViewMode::Table => {
             if let Some(t) = &v.table {
                 let cell_col_letter = crate::viewer::tabular_loader::column_letter(t.cursor_col);
+                let marked = if t.marked.is_empty() {
+                    String::new()
+                } else {
+                    format!(", {} marked", fmt_num(t.marked.len() as u64))
+                };
                 format!(
-                    "Cell {}{} (Row {} of {})",
+                    "Cell {}{} (Row {} of {}{marked})",
                     cell_col_letter,
                     t.cursor_row + 1,
                     t.cursor_row + 1,
@@ -2546,12 +2551,21 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         first.spans.extend(
             menu_line(
                 "",
-                &[
-                    ("&", "filter"),
-                    ("/ \\", "find here"),
-                    ("Space", "next hit"),
-                    ("Esc", "close"),
-                ],
+                &if v.mode == ViewMode::Table {
+                    vec![
+                        ("&", "filter"),
+                        ("m", "mark"),
+                        ("Ctrl+B", "batch"),
+                        ("Esc", "close"),
+                    ]
+                } else {
+                    vec![
+                        ("&", "filter"),
+                        ("/ \\", "find here"),
+                        ("Space", "next hit"),
+                        ("Esc", "close"),
+                    ]
+                },
             )
             .spans
             .into_iter()
@@ -2640,6 +2654,16 @@ fn draw_batch_guide(frame: &mut Frame, guide: &app::BatchGuide, area: Rect) {
     let mut lines = Vec::new();
     for warning in [&guide.problem, &guide.open_template].into_iter().flatten() {
         lines.push(Line::styled(warning.clone(), error));
+        lines.push(Line::raw(""));
+    }
+    if guide.marked > 0 {
+        lines.push(Line::styled(
+            format!(
+                "Only the {} marked records are written (M in the table clears the marks).",
+                fmt_num(guide.marked as u64)
+            ),
+            code,
+        ));
         lines.push(Line::raw(""));
     }
     lines.push(Line::raw(
@@ -2779,7 +2803,9 @@ fn draw_batch_preview(frame: &mut Frame, preview: &app::BatchPreview, area: Rect
     let t = theme();
     let found = &preview.preview;
     let scanned = fmt_num(found.scanned);
-    let count = if found.complete {
+    let count = if let Some(record) = found.stopped {
+        format!("%%stop ends it at record {}", fmt_num(record))
+    } else if found.complete {
         format!("{scanned} records")
     } else {
         format!("{scanned} records looked at; the rest are read when writing")
@@ -2800,6 +2826,12 @@ fn draw_batch_preview(frame: &mut Frame, preview: &app::BatchPreview, area: Rect
                 "Reads from the environment: {}",
                 found.environment.join(", ")
             ),
+            Style::new().fg(t.error),
+        ));
+    }
+    if !found.unseen.is_empty() {
+        lines.push(Line::styled(
+            format!("No record looked at took: {}", found.unseen.join(", ")),
             Style::new().fg(t.error),
         ));
     }
@@ -2995,14 +3027,22 @@ fn draw_table_grid(
         let is_cursor_row = display_row_idx == grid.cursor_row;
 
         let mut row_spans = Vec::new();
-        let num_style = if is_cursor_row {
+        let is_marked = grid.marked.contains(&real_row_idx);
+        let num_style = if is_marked {
+            Style::new().fg(t.key).add_modifier(Modifier::BOLD)
+        } else if is_cursor_row {
             Style::new().fg(t.key)
         } else {
             Style::new().fg(t.dim)
         };
 
         row_spans.push(Span::styled(
-            format!("{:>width$} │ ", display_row_idx + 1, width = row_num_width),
+            format!(
+                "{:>width$}{}│ ",
+                display_row_idx + 1,
+                if is_marked { "*" } else { " " },
+                width = row_num_width
+            ),
             num_style,
         ));
 

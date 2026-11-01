@@ -2,7 +2,7 @@
 
 Origem: conversa de 2026-10-30, depois dos visualizadores tabulares
 ([viewer-tables.md](viewer-tables.md), [viewer-parquet.md](viewer-parquet.md)).
-Estado: etapas 1 a 5 implementadas; o restante é proposta.
+Estado: todas as etapas implementadas. Parquet e XLSX como saída ficam para quando fizerem falta.
 
 ## 1. Objetivo
 
@@ -154,7 +154,7 @@ condicionais só pagam o custo quando máscara, cabeçalho e rodapé não bastar
    nos dois casos há o que escrever no lugar: `%%` ou `%{#name}`.
 
    **5b. Templates com ambiente, macros, totais e condições:** em três passos, nesta
-   ordem. O primeiro está feito; o resto é proposta.
+   ordem, todos feitos.
 
    1. **`count`, ambiente e macros (feito):**
       - `%{count}` no rodapé. Totais só no rodapé, pois o cabeçalho é gravado antes
@@ -169,22 +169,46 @@ condicionais só pagam o custo quando máscara, cabeçalho e rodapé não bastar
         `#day`, `#epoch`, `#user`, `#host`, `#template` e `#output`. A hora é fixa, a
         de quando o template é lido, igual em todos os registros; é local, com o fuso
         em `#datetime`. O `chrono` já é dependência.
-   2. **`if` e `stop`:** `%%if`, `%%else` e `%%end` dentro do registro, com a linguagem
+   2. **`if` e `stop` (feito):** `%%if`, `%%else` e `%%end` dentro do registro, com a linguagem
       do filtro SQL, que já tem parser e avaliador. `%%stop if expressão` para a
       leitura e cobre o `until`. Como a prévia olha só 1.000 registros, ela avisa
-      quais ramos não foram vistos.
-   3. **`sum`, depois `min`, `max` e `avg`:** em decimal exato, nunca ponto flutuante,
+      quais ramos não foram vistos. Decisões de implementação: `%%if` pode ficar dentro
+      de outro, até 16 níveis; só vale na seção do registro; a condição também enxerga
+      `#` e `#line`, então `%%stop if # > 100` limita a saída; o que o registro escreveu
+      antes do `%%stop` fica, e o rodapé é gravado; `%{#}` segue a posição no que foi
+      lido, enquanto `%{count}` e a mensagem final contam só os registros que escreveram
+      algo.
+   3. **`sum`, depois `min`, `max` e `avg` (feito):** em decimal exato, nunca ponto flutuante,
       pois pode ser dinheiro. O formato do número é explícito (`%{sum:valor:br}`), já
       que `1.234,56` e `1,234.56` são ambíguos em um CSV. Valor inválido não é ignorado
-      em silêncio: a mensagem final diz quantos ficaram de fora.
+      em silêncio: a mensagem final diz quantos ficaram de fora. Decisões de implementação:
+      só no rodapé; inteiro de 128 bits com 18 decimais, e o que não couber é recusado e
+      contado, nunca arredondado; `:br` e `:us` valem para ler e para escrever, e um
+      separador de milhar mal colocado conta como inválido; valor vazio não é valor, como
+      em SQL; o total vê só os registros que escreveram algo, como o `%{count}`; a média
+      mostra dois decimais a mais que os valores. Um número sem formato sai sem escape, para
+      ser número em SQL e JSON; com `:br` ou `:us`, passa pelo escape do arquivo.
 
    Fora de escopo: `while` genérico, que exigiria variáveis que mudam e limites contra
    laços infinitos com dados hostis; atribuição de variáveis; laços aninhados; totais
    por grupo; `%{#date:formato}` e `%{#uuid}` até fazerem falta. Se um dia pedir `each`
    e grupos, trocar pelo `minijinja` em vez de crescer uma linguagem própria.
-6. **Saídas binárias:** SQLite primeiro.
-7. **Registros marcados na grade:** o equivalente ao Tag para registros. O `T`
-   já alterna entre tabela e texto, então precisa de outra tecla.
+6. **Saída SQLite (feito):** em `.db`, `.sqlite` ou `.sqlite3`, máscara vazia grava os
+   registros inteiros em uma tabela `records`, e `@a,b` só esses campos; máscara e template
+   são recusados, pois o binário sai só por codificador. Os valores vão sempre por bind,
+   nunca pelo texto do SQL. As colunas não têm tipo, para `007` continuar `007`; por isso um
+   CSV grava texto, e a comparação numérica precisa de `CAST`. Nomes de coluna vêm de arquivo
+   hostil: sem controle nem bidi, sem vazios, sem repetição (SQLite ignora maiúsculas) e entre
+   aspas. `create_new` antes de abrir, pois o SQLite abriria um arquivo existente ou seguiria
+   um link. Uma única transação, sem diário em disco; o arquivo some se falhar ou for cancelado.
+   Parquet e XLSX ficam para quando fizerem falta: o primeiro pede os tipos de cada coluna antes
+   de ler tudo, e o segundo uma dependência nova.
+7. **Registros marcados na grade (feito):** `m` ou Insert marcam ou desmarcam o registro sob o
+   cursor e descem; `M` limpa tudo. Marcas são posições no arquivo, guardadas fora do filtro:
+   sobrevivem a ele, e o Batch grava o que está marcado e o filtro mantém. Como a tabela é relida
+   e só a posição identifica o registro, o Batch recusa se o arquivo mudou (tamanho ou data) depois
+   da primeira marca. Só tabelas, pois em texto o filtro de linhas já escolhe; cada aba ou tabela
+   tem as suas marcas, e trocar de aba as descarta.
 
 ## 8. Decisões
 

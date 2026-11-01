@@ -245,6 +245,33 @@ fn batch_rename_with_a_mask() {
 }
 
 #[test]
+fn marked_records_show_in_the_table_and_are_what_a_batch_writes() {
+    let (home, project) = sample();
+    std::fs::write(project.join("0.csv"), "id,name\n1,ana\n2,bob\n").unwrap();
+    let out = project.join("out.txt");
+    let xy = Xy::start(home.path(), &[project.to_str().unwrap()]);
+    xy.wait_for("b.txt");
+    xy.press("\r"); // file window, on 0.csv
+    xy.press("v");
+    xy.wait_for("ana");
+    xy.press("\x1b[B"); // Down, to bob
+    xy.press("m");
+    xy.wait_for("1 marked");
+    xy.wait_for("2*│");
+    xy.press("\x02"); // Ctrl+B
+    xy.wait_for("BATCH: write to file");
+    xy.press("\x15");
+    xy.press(&format!("{}\r", out.display()));
+    xy.wait_for("Only the 1 marked records");
+    xy.press("%{name}\r");
+    xy.wait_for("Enter");
+    xy.press("\r");
+    xy.wait_for("Wrote 1 records");
+    let text = std::fs::read_to_string(&out).unwrap();
+    assert_eq!(text.trim_end(), "bob");
+}
+
+#[test]
 fn batch_in_the_viewer_chooses_and_reads_a_template_on_the_screen() {
     let (home, project) = sample();
     std::fs::write(project.join("0.txt"), "<x>\n").unwrap();

@@ -140,13 +140,16 @@ enum Token {
 struct Lexer<'a> {
     input: &'a str,
     chars: std::iter::Peekable<std::str::CharIndices<'a>>,
+    /// `#` and `#line` are names, as a Batch template has them.
+    marks: bool,
 }
 
 impl<'a> Lexer<'a> {
-    fn new(input: &'a str) -> Self {
+    fn new(input: &'a str, marks: bool) -> Self {
         Self {
             input,
             chars: input.char_indices().peekable(),
+            marks,
         }
     }
 
@@ -251,7 +254,7 @@ impl<'a> Lexer<'a> {
                             .unwrap_or(self.input.len())];
                     tokens.push(Token::NumberLit(s.to_string()));
                 }
-                _ if ch.is_alphabetic() || ch == '_' => {
+                _ if ch.is_alphabetic() || ch == '_' || (ch == '#' && self.marks) => {
                     let start = i;
                     self.chars.next();
                     while let Some(&(_j, c)) = self.chars.peek() {
@@ -302,10 +305,20 @@ pub struct SqlFilter {
 impl SqlFilter {
     /// Parse a query string like `WHERE age > 30 AND status = 'active'` or `age > 30`.
     pub fn parse(input: &str) -> Result<Expr, String> {
+        Self::parse_in(input, false)
+    }
+
+    /// The same language, for a condition of a Batch template, where `#` and
+    /// `#line` are fields too. The filter on the screen has no such columns.
+    pub fn parse_with_marks(input: &str) -> Result<Expr, String> {
+        Self::parse_in(input, true)
+    }
+
+    fn parse_in(input: &str, marks: bool) -> Result<Expr, String> {
         if input.len() > 1024 {
             return Err("Query string too long (maximum 1024 bytes)".to_string());
         }
-        let tokens = Lexer::new(input).tokenize()?;
+        let tokens = Lexer::new(input, marks).tokenize()?;
         if tokens.is_empty() {
             return Err("Empty query".to_string());
         }
@@ -585,6 +598,27 @@ pub fn sql_like(pattern: &str, text: &str, case_insensitive: bool) -> bool {
     pi == p.len()
 }
 
+/// The columns an expression reads.
+pub fn columns_in<'a>(expr: &'a Expr, found: &mut Vec<&'a str>) {
+    match expr {
+        Expr::Literal(_) => {}
+        Expr::Column(name) => found.push(name),
+        Expr::Binary { left, right, .. } => {
+            columns_in(left, found);
+            columns_in(right, found);
+        }
+        Expr::Not(inner) | Expr::IsNull(inner) | Expr::IsNotNull(inner) => {
+            columns_in(inner, found);
+        }
+        Expr::InList { expr, list, .. } => {
+            columns_in(expr, found);
+            for item in list {
+                columns_in(item, found);
+            }
+        }
+    }
+}
+
 /// Context providing access to row values by column name or 0-indexed column letter.
 pub trait RowContext {
     fn get_value(&self, column: &str) -> Option<Value>;
@@ -698,6 +732,15 @@ fn values_cmp(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mark_is_a_name_only_where_it_was_asked_for() {
+        assert!(SqlFilter::parse("# > 1").is_err());
+        let expr = SqlFilter::parse_with_marks("# > 1 and #line < 9").unwrap();
+        let mut found = Vec::new();
+        columns_in(&expr, &mut found);
+        assert_eq!(found, ["#", "#line"]);
+    }
     use proptest::prelude::*;
     use std::collections::HashMap;
 

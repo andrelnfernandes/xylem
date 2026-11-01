@@ -160,6 +160,8 @@ Les valeurs viennent d'un fichier qui peut être hostile et peuvent aller dans c
 
 Dans un fichier `.json`, `.jsonl`, `.ndjson`, `.csv`, `.tsv`, `.xml`, `.html` ou `.htm`, laissez le masque **vide** pour écrire des enregistrements entiers, selon les règles du format : un tableau JSON d'objets, un objet par ligne, un tableau avec une ligne d'en-tête, un `<record>` par enregistrement ou une page avec un tableau. Pour n'écrire que certains champs, commencez le masque par `@` : `@id, nom, #`. Le texte donne `line_number`, `line` et les groupes du filtre. Les champs sont découverts dans les 1 000 premiers enregistrements : une clé JSON Lines qui n'apparaît qu'ensuite est laissée de côté, et le message final le signale.
 
+Un fichier `.db`, `.sqlite` ou `.sqlite3` reçoit aussi des enregistrements entiers, dans une table `records`, et refuse masques et modèles. Chaque valeur garde son type : les colonnes n'en ont pas, donc un `007` d'un CSV reste `007`. Les valeurs d'un CSV sont donc du texte ; pour les comparer comme des nombres, utilisez `CAST(balance AS REAL)`.
+
 ### Modèles
 
 Les fichiers pour essayer tout cela sont dans [demo/](https://github.com/andrelnfernandes/xylem/tree/main/demo) dans le dépôt : les mêmes clients dans tous les formats, et des modèles prêts à l'emploi.
@@ -178,6 +180,22 @@ Pour avoir du texte autour des enregistrements, enregistrez un modèle sous `~/.
 ```
 
 `%%header` et `%%footer` sont facultatifs et n'acceptent que le texte du modèle et les champs du fichier ouvert. `%%record` est écrit une fois par enregistrement et peut avoir plusieurs lignes ; sans sections, tout le fichier est l'enregistrement. Les échappements suivent le fichier de sortie, comme pour un masque : un modèle de page doit donc être écrit dans un `.html`. Une section inexistante ou répétée, ou un champ d'enregistrement dans l'en-tête ou le pied, est une erreur dans l'aperçu. L'aperçu montre les 3 dernières lignes de l'en-tête. Sans enregistrements, rien n'est écrit.
+
+Dans l'enregistrement, `%%if condition`, `%%else` et `%%end` choisissent quoi écrire, et `%%stop if condition` termine le fichier à cet endroit, en gardant le pied. La condition s'écrit comme dans le [filtre SQL](viewer.md) et voit les champs de l'enregistrement, ainsi que `#` et `#line` :
+
+```
+%%record
+%%stop if # > 100
+%%if balance < 0
+%{name} doit %{balance}
+%%else
+%{name} est à jour
+%%end
+```
+
+`%{#}` est la place de l'enregistrement dans ce qui a été lu ; `%{count}` et le message final comptent les enregistrements qui ont écrit quelque chose. L'aperçu indique les branches qu'aucun enregistrement examiné n'a suivies, car il ne lit que les 1 000 premiers. Une ligne commençant par `%%if ` ou `%%stop if ` est toujours l'une de ces commandes.
+
+Dans le pied, `%{sum:colonne}`, `%{min:colonne}`, `%{max:colonne}` et `%{avg:colonne}` totalisent les enregistrements écrits, en décimal exact. Un nombre se lit comme `1234.56` ; pour d'autres fichiers, indiquez comment ils l'écrivent, `%{sum:valeur:br}` pour `1.234,56` ou `%{sum:valeur:us}` pour `1,234.56`, et le total sort de la même façon. Une valeur vide ne compte pas, et celle qui n'est pas un nombre est laissée de côté et comptée dans le message final.
 
 Dans le pied, `%{count}` est le nombre d'enregistrements écrits. L'en-tête ne peut pas l'avoir, car il est écrit avant de les lire.
 

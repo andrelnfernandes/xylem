@@ -123,10 +123,14 @@ The CSV separator (comma, semicolon, tab or vertical bar) is detected from the s
 | `[` `]` | previous or next sheet of a spreadsheet, or table of a SQLite database, going around; this clears the filter |
 | `g` or `:` | jump to a row, counting only the rows the filter kept |
 | `\` or `&` | the SQL filter |
+| `m` or Insert | mark or unmark the record under the cursor, and go to the next; **Ctrl+B** then writes only the marked ones |
+| `M` | clear the marks |
 | `T` | to the file's text and back |
 | `H` | from the table to text, then hex, then back to the table |
 
 The frame shows `TABLE [2/5: name]` when there is more than one sheet or table, and the bottom line where the cursor is: `Cell B7 (Row 7 of 120)`. The last line of the grid has the whole contents of the cell and the filter in use. Searching (`F`, `B`, `/`) does not look inside the grid and finds nothing there; it works in text mode.
+
+Marks stay under a filter, and a Batch writes what is marked and kept by the filter. They belong to the sheet or table open, and are lost when changing it. If the file changes after marking, the Batch refuses, since other records may be at those places.
 
 ### The SQL filter
 

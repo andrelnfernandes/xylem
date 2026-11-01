@@ -155,6 +155,8 @@ Os valores vêm de um arquivo que pode ser hostil e podem ir para algo que você
 
 Em um arquivo `.json`, `.jsonl`, `.ndjson`, `.csv`, `.tsv`, `.xml`, `.html` ou `.htm`, deixe a máscara **vazia** para gravar registros inteiros, com as regras do formato: um array JSON de objetos, um objeto por linha, uma tabela com linha de cabeçalho, um `<record>` por registro ou uma página com uma tabela. Para gravar só alguns campos, comece a máscara com `@`: `@id, nome, #`. O texto dá `line_number`, `line` e os grupos do filtro. Os campos são descobertos nos primeiros 1.000 registros: uma chave de JSON Lines que só apareça depois fica de fora, e a mensagem final avisa.
 
+Um arquivo `.db`, `.sqlite` ou `.sqlite3` também recebe registros inteiros, em uma tabela `records`, e recusa máscaras e templates. Cada valor mantém seu tipo: as colunas não têm tipo, então um `007` de um CSV continua `007`. Por isso os valores de um CSV são texto; para compará-los como números, use `CAST(balance AS REAL)`.
+
 ### Templates
 
 Arquivos para testar tudo isso estão em [demo/](https://github.com/andrelnfernandes/xylem/tree/main/demo) no repositório: os mesmos clientes em todos os formatos, e templates prontos.
@@ -173,6 +175,22 @@ Para ter texto em volta dos registros, salve um template em `~/.config/xylem/bat
 ```
 
 `%%header` e `%%footer` são opcionais e aceitam só o texto do template e os campos do arquivo aberto. `%%record` é gravado uma vez por registro e pode ter várias linhas; sem seções, o arquivo inteiro é o registro. Os escapes seguem o arquivo de saída, como em uma máscara, então um template de página deve ser gravado em um `.html`. Uma seção que não existe, uma repetida ou um campo de registro no cabeçalho ou no rodapé é erro na prévia. A prévia mostra as últimas 3 linhas do cabeçalho. Sem registros, nada é gravado.
+
+No registro, `%%if condição`, `%%else` e `%%end` escolhem o que escrever, e `%%stop if condição` encerra o arquivo ali, mantendo o rodapé. A condição se escreve como no [filtro SQL](viewer.md) e enxerga os campos do registro, além de `#` e `#line`:
+
+```
+%%record
+%%stop if # > 100
+%%if balance < 0
+%{name} deve %{balance}
+%%else
+%{name} está em dia
+%%end
+```
+
+`%{#}` é a posição do registro no que foi lido, e `%{count}` e a mensagem final contam os registros que escreveram algo. A prévia diz quais ramos nenhum registro olhado seguiu, pois lê só os 1.000 primeiros. Uma linha que começa com `%%if ` ou `%%stop if ` é sempre um desses comandos.
+
+No rodapé, `%{sum:coluna}`, `%{min:coluna}`, `%{max:coluna}` e `%{avg:coluna}` totalizam os registros escritos, em decimal exato. Um número é lido como `1234.56`; para outros arquivos, diga como eles escrevem, `%{sum:valor:br}` para `1.234,56` ou `%{sum:valor:us}` para `1,234.56`, e o total sai do mesmo jeito. Um valor vazio não conta, e um que não é número fica de fora e é contado na mensagem final.
 
 No rodapé, `%{count}` é quantos registros foram gravados. O cabeçalho não pode ter isso, pois é gravado antes de lê-los.
 

@@ -508,6 +508,7 @@ fn table(name: &str) -> Source {
         table: name.ends_with(".db").then(|| "customers".to_string()),
         filter: None,
         unpacked: u64::MAX,
+        marked: Default::default(),
     }
 }
 
@@ -556,6 +557,30 @@ fn every_table_holds_the_same_customers() {
             .map(|c| format!("{}|{}|{}|{}", c.id, c.code, c.name, c.city))
             .collect();
         assert_eq!(found.lines, wanted, "{name}");
+    }
+}
+
+#[test]
+fn a_template_that_chooses_its_records_chooses_the_same_in_every_table() {
+    let owing: Vec<&Customer> = CUSTOMERS
+        .iter()
+        .take(5)
+        .filter(|c| c.balance < 0.0)
+        .collect();
+    assert!(!owing.is_empty(), "the demo has someone to show");
+    for name in NAMED_TABLES {
+        let open = demo().join("data").join(name);
+        let (found, done, text) = through(table(name), &open, "debtors", "debtors.txt");
+        assert_eq!(done.records, owing.len() as u64, "{name}");
+        assert!(done.stopped, "{name}");
+        assert_eq!(found.stopped, Some(5), "{name}");
+        for customer in &owing {
+            assert!(text.contains(customer.name), "{name}: {text}");
+        }
+        assert!(
+            text.contains(&format!("{} of the first 5", owing.len())),
+            "{name}: {text}"
+        );
     }
 }
 
@@ -723,6 +748,7 @@ fn a_spreadsheet_has_a_sheet_for_each_kind_of_data_and_goes_by_letters() {
         table: None,
         filter: None,
         unpacked: u64::MAX,
+        marked: Default::default(),
     };
     let (scanned, lines) = first_lines(&sheet(0), "%{B}|%{C}");
     assert_eq!(scanned, CUSTOMERS.len() as u64 + 1, "its header is a row");
@@ -743,6 +769,7 @@ fn a_database_has_a_table_for_each_kind_of_data() {
         table: Some(table.to_string()),
         filter: None,
         unpacked: u64::MAX,
+        marked: Default::default(),
     };
     let (scanned, lines) = first_lines(&table("customers"), "%{code}");
     assert_eq!(scanned, CUSTOMERS.len() as u64);

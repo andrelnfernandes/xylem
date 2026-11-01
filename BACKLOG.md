@@ -87,13 +87,8 @@ as a link is what `cp -a` and `rsync -l` do).
   parser one day (it also feeds the man page); icons with Nerd Fonts were left
   out on purpose, because they add nothing to the rendering itself.
 - **Batch over files and records** ([docs/plans/batch.md](docs/plans/batch.md)):
-  Ctrl+B also on what the viewer read (tables with or without a filter, text
-  lines), with escaping by context and structured and binary outputs. Done: the
-  line filter, the record stream, and Ctrl+B in the viewer with masks and with
-  JSON, CSV, XML and HTML of whole records, and template files (steps 1 to 5).
-  Next: conditions and sums in templates (5b, steps 2 and 3),
-  binary outputs (6) and tagging records (7). Records into `.bat`/`.cmd` wait for item 2
-  of Security; the filter on screen sees 50,000 rows, while Ctrl+B sees them all.
+  complete. Left for when they are missed: Parquet and XLSX as outputs. Records into
+  `.bat`/`.cmd` wait for item 2 of Security.
 - **HTML rendered in the viewer**, after the Markdown mode: study a way to show
   `.html` acceptably, not perfectly: whoever wants a faithful page opens it in the
   browser. `pulldown-cmark` does not read HTML. First candidates: `html2text`, or

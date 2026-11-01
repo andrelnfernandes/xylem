@@ -150,6 +150,8 @@ The values come from a file that may be hostile and may go into something you ru
 
 In a `.json`, `.jsonl`, `.ndjson`, `.csv`, `.tsv`, `.xml`, `.html` or `.htm` file, leave the mask **empty** to write whole records, with the rules of the format: a JSON array of objects, an object per line, a table with a header row, a `<record>` per record, or a page with a table. To write only some fields, start the mask with `@`: `@id, name, #`. Text gives `line_number`, `line` and the groups of the filter. Fields are found in the first 1,000 records: a JSON Lines key that appears only later is left out, and the final message says so.
 
+A `.db`, `.sqlite` or `.sqlite3` file takes whole records too, in a table `records`, and refuses masks and templates. Each value keeps its type: columns have none, so a `007` from a CSV stays `007`. Values from a CSV are therefore text, so compare them as numbers with `CAST(balance AS REAL)`.
+
 ### Templates
 
 Files to try all of this are in [demo/](https://github.com/andrelnfernandes/xylem/tree/main/demo) in the repository: the same customers in every format, and ready templates.
@@ -168,6 +170,22 @@ For text around the records, save a template as `~/.config/xylem/batch/name.tpl`
 ```
 
 `%%header` and `%%footer` are optional and take only the template's text and the open file's fields. `%%record` is written once per record and may have several lines; with no sections, the whole file is the record. Escapes follow the output file, as in a mask, so a template for a page should be written to a `.html`. A section that does not exist, a repeated one, or a field of a record in the header or footer is an error in the preview. The preview shows the last 3 lines of the header. With no records, nothing is written.
+
+In the record, `%%if condition`, `%%else` and `%%end` choose what to write, and `%%stop if condition` ends the file there, keeping the footer. A condition is written as in the [SQL filter](viewer.md) and sees the record's fields, plus `#` and `#line`:
+
+```
+%%record
+%%stop if # > 100
+%%if balance < 0
+%{name} owes %{balance}
+%%else
+%{name} is fine
+%%end
+```
+
+`%{#}` is the record's place in what was read, and `%{count}` and the final message count the records that wrote something. The preview says which branches no record looked at took, since it reads only the first 1,000. A line starting with `%%if ` or `%%stop if ` is always one of these.
+
+In the footer, `%{sum:column}`, `%{min:column}`, `%{max:column}` and `%{avg:column}` total the records written, in exact decimal. A number is read as `1234.56`; for other files say how they write it, `%{sum:value:br}` for `1.234,56` or `%{sum:value:us}` for `1,234.56`, and the total comes out the same way. An empty value is no value, and one that is not a number is left out and counted in the final message.
 
 Inside a footer, `%{count}` is how many records were written. A header cannot have it, since it is written before they are read.
 
