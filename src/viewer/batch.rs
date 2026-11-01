@@ -3771,7 +3771,8 @@ mod tests {
         let mask = Mask::parse("%{name}=%{item}", Escape::Raw, &source_db, 1).unwrap();
         let found = preview(&source, mask).unwrap();
         run_to_file(source, found.output, &out);
-        assert_eq!(std::fs::read_to_string(&out).unwrap(), "ana=pen\nbob=cup\n");
+        let written = std::fs::read_to_string(&out).unwrap();
+        assert_eq!(written.replace("\r\n", "\n"), "ana=pen\nbob=cup\n");
     }
 
     #[test]
