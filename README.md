@@ -126,8 +126,8 @@ x86_64 or ARM64 (static, runs on any distribution) or Windows x86_64.
 Extract it and put `xy` (`xy.exe`) somewhere on your `PATH`, e.g.:
 
 ```bash
-tar xzf xy-v0.5.0-x86_64-unknown-linux-musl.tar.gz
-install -m 755 xy-v0.5.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
+tar xzf xy-v0.6.0-x86_64-unknown-linux-musl.tar.gz
+install -m 755 xy-v0.6.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
 ```
 
 Each archive has a `.sha256` next to it, to check with `sha256sum -c`.
@@ -304,8 +304,9 @@ native speakers: if you read one of these languages, [suggestions are welcome](d
 - The viewer: encodings found by itself, compressed files, a configurable
   size limit, soft wrap, line numbers, goto line, a line filter, protection
   against hidden text direction characters, and a [table mode](docs/manual/viewer.md)
-  with a SQL filter for spreadsheets (XLSX, ODS), CSV, JSON Lines, DBF with its
-  memo files, SQLite and Parquet, and rendered Markdown.
+  with a SQL filter, and whole queries on SQLite, for spreadsheets (XLSX, ODS),
+  CSV, JSON Lines, DBF with its memo files, SQLite and Parquet, and rendered
+  Markdown.
 - Batch (Ctrl+B) over tagged files, the records of a table or the lines of a
   text, with templates, conditions, totals and output to SQLite.
 - Duplicates (Alt+Y): files and whole folders, on local disks and through the
@@ -317,15 +318,13 @@ native speakers: if you read one of these languages, [suggestions are welcome](d
   writing to it (copy to it, move, delete, rename, make directories,
   permissions, dates), then Edit and Open (through a temporary copy that
   goes back when saved), eXecute and Git over ssh, and periodic refresh.
-- **Viewer:** SDF in the table mode, as an extra; a viewer that reads in
-  windows, like `less`, with no size limit for uncompressed files; logs
-  (follow, jump to the end, colors by level); and, optional and isolated,
-  external converters such as `pdftotext` or `exiftool`.
-- **Disk usage:** actions inside the Usage view (tag, delete, prune, view),
-  then an optional treemap, grouping by type and export.
-- **From ZTreeWin:** the items in "What Xylem does not have yet" in the
-  [comparison with ZTreeWin](docs/manual/ztreewin.md), such as JFC, Global,
-  the mouse and saving the log.
+- **Viewer:** a viewer that reads in windows, like `less`, with no size limit
+  for uncompressed files, and logs (follow, jump to the end, colors by level).
+- **Disk usage:** actions inside the Usage view (tag, delete, prune, view).
+- **Cloud:** the root of a large Drive without a blank screen, and Branch, Usage
+  and Compare asking rclone for the whole branch at once.
+- **From ZTreeWin:** comparing the contents of two files (JFC), and saving the
+  log to open a disk's tree at once next time.
 - **Hardening:** the leftovers of the security pass, listed in
   [BACKLOG.md](BACKLOG.md).
 
@@ -335,19 +334,10 @@ native speakers: if you read one of these languages, [suggestions are welcome](d
   [Windows](docs/manual/windows.md)), but it is not a priority while
   ZTreeWin exists. Maybe macOS.
 - Postponed by choice: macros, chown and Graft.
-- **Xylem in its own window**, further ahead: the same screen drawn in a
-  window of its own instead of a terminal (a ratatui backend that renders
-  to a window, e.g. on wgpu), with its own font and icon. It would need no
-  terminal, which matters most on Windows and macOS; it would always see
-  Ctrl and Alt pressed and released, so the menus would follow them in any
-  system; and it would make room for the mouse. The work: a new event loop
-  and key mapping (the rest of Xylem only receives keys and draws on a
-  ratatui frame), E and eXecute running in the built-in terminal, and the
-  packaging. A full graphical interface (egui, GTK...) is not the plan: it
-  would be another program, without the XTree look.
 
 The full list of what is left, including the developers' notes, is in
-[BACKLOG.md](BACKLOG.md).
+[BACKLOG.md](BACKLOG.md), and the order of the work is in
+[the roadmap](docs/plans/roadmap.md) (in Portuguese).
 
 ## License
 

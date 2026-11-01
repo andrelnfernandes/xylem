@@ -127,6 +127,8 @@ pub enum End {
 pub trait RecordSink {
     /// The file's sheets or tables, and which one is being read.
     fn sheets(&mut self, names: &[String], current: usize);
+    /// In a database, from which of the names on they are views.
+    fn first_view(&mut self, _index: usize) {}
     fn columns(&mut self, names: &[String]);
     /// The file has more than [`MAX_COLS`] columns.
     fn columns_cut(&mut self);
@@ -526,14 +528,27 @@ fn is_interrupted(error: &rusqlite::Error) -> bool {
     )
 }
 
+/// Why a statement that changes something does not run.
+pub const READS_ONLY: &str =
+    "Xylem only reads here: to change data use another program (Esc, then O opens one)";
+
+/// What to read from a database. Only what the user typed is ever a query.
+#[derive(Debug, Clone, Copy)]
+pub enum SqlitePart<'a> {
+    First,
+    Table(&'a str),
+    Query(&'a str),
+}
+
 /// A table or query result from an SQLite database in strictly defensive
 /// read-only mode.
 pub fn read_sqlite(
     path: &Path,
-    table_or_query: Option<&str>,
+    part: SqlitePart<'_>,
     budget: Budget,
     sink: &mut dyn RecordSink,
 ) -> Result<End, String> {
+    use rusqlite::fallible_iterator::FallibleIterator;
     use rusqlite::{Connection, OpenFlags, ffi};
 
     // Open connection strictly READONLY (no URI scheme expansion)
@@ -566,7 +581,8 @@ pub fn read_sqlite(
         );
     }
 
-    let _ = conn.execute_batch("PRAGMA query_only = ON;");
+    // Opening a view runs what the file wrote in it: nothing it names may be unsafe.
+    let _ = conn.execute_batch("PRAGMA query_only = ON; PRAGMA trusted_schema = OFF;");
 
     // A query can take forever without giving a single row.
     if budget.deadline.is_some() || budget.cancel.is_some() {
@@ -574,29 +590,51 @@ pub fn read_sqlite(
         conn.progress_handler(SQLITE_STEPS, Some(move || budget.over()));
     }
 
-    // List user tables (bounded to prevent DoS from DB with millions of tables)
+    // List user tables, then views (bounded to prevent DoS from DB with millions of tables)
     let mut table_stmt = conn
         .prepare(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name LIMIT 1000",
+            "SELECT name, type = 'view' FROM sqlite_master WHERE type IN ('table', 'view') \
+             AND name NOT LIKE 'sqlite_%' ORDER BY type = 'view', name LIMIT 1000",
         )
         .map_err(|e| format!("Failed to query tables: {e}"))?;
-    let tables: Vec<String> = table_stmt
-        .query_map([], |row| row.get::<_, String>(0))
+    let listed: Vec<(String, bool)> = table_stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
         .map_err(|e| format!("Query error: {e}"))?
         .flatten()
         .collect();
+    let first_view = listed.iter().filter(|(_, view)| !view).count();
+    let tables: Vec<String> = listed.into_iter().map(|(name, _)| name).collect();
 
-    if tables.is_empty() {
+    if tables.is_empty() && !matches!(part, SqlitePart::Query(_)) {
         sink.columns(&["Status".to_string()]);
         let _ = sink.record(&[Cell::Text(Cow::Borrowed("(Database has no tables)"))]);
         return Ok(End::Complete);
     }
 
-    // Determine query: user SQL query, specific table, or first available table
+    // A table's name comes from the file: it is only ever a name, never SQL.
     let select = |idx: usize| format!("SELECT * FROM \"{}\"", tables[idx].replace('"', "\"\""));
-    let (query, active) = match table_or_query {
-        Some(q) if q.trim().to_ascii_uppercase().starts_with("SELECT ") => (q.to_string(), 0),
-        Some(tbl) => {
+    let (query, active) = match part {
+        SqlitePart::Query(q) => {
+            // SQLite calls PRAGMA and ATTACH read-only too, so the word comes first.
+            let reads = q.split_whitespace().next().is_some_and(|w| {
+                w.eq_ignore_ascii_case("select") || w.eq_ignore_ascii_case("with")
+            });
+            if !reads {
+                return Err(READS_ONLY.to_string());
+            }
+            let mut statements = rusqlite::Batch::new(&conn, q);
+            let first = statements
+                .next()
+                .map_err(|e| format!("SQL statement error: {e}"))?;
+            if !first.is_some_and(|s| s.readonly()) {
+                return Err(READS_ONLY.to_string());
+            }
+            if !matches!(statements.next(), Ok(None)) {
+                return Err("Only one statement can run at a time".to_string());
+            }
+            (q.to_string(), 0)
+        }
+        SqlitePart::Table(tbl) => {
             let idx = tables
                 .iter()
                 .position(|t| t == tbl)
@@ -608,9 +646,10 @@ pub fn read_sqlite(
                 .unwrap_or(0);
             (select(idx), idx)
         }
-        None => (select(0), 0),
+        SqlitePart::First => (select(0), 0),
     };
     sink.sheets(&tables, active);
+    sink.first_view(first_view);
 
     let mut stmt = conn
         .prepare(&query)
@@ -700,7 +739,7 @@ fn parquet_cell(col: &dyn Array, r: usize) -> Cell<'_> {
 pub fn read_table(
     path: &Path,
     sheet: usize,
-    table: Option<&str>,
+    part: SqlitePart<'_>,
     budget: Budget,
     sink: &mut dyn RecordSink,
 ) -> Result<End, String> {
@@ -714,7 +753,7 @@ pub fn read_table(
         "jsonl" | "ndjson" => read_jsonl(path, budget, sink),
         "xlsx" | "ods" | "xls" | "xlsb" => read_spreadsheet(path, sheet, budget, sink),
         "dbf" => read_dbf(path, budget, sink),
-        "sqlite" | "sqlite3" | "db" => read_sqlite(path, table, budget, sink),
+        "sqlite" | "sqlite3" | "db" => read_sqlite(path, part, budget, sink),
         "parquet" => read_parquet(path, budget, sink),
         _ => Err("Not supported".to_string()),
     }
@@ -994,7 +1033,13 @@ mod tests {
              INSERT INTO t VALUES (1, 2.5, '{long}', x'00FF', NULL);"
         ));
         let mut sink = Collect::default();
-        read_sqlite(file.path(), None, Budget::unlimited(), &mut sink).unwrap();
+        read_sqlite(
+            file.path(),
+            SqlitePart::First,
+            Budget::unlimited(),
+            &mut sink,
+        )
+        .unwrap();
         assert_eq!(sink.columns, ["a", "b", "c", "d", "e"]);
         assert_eq!(
             sink.rows[0],
@@ -1009,13 +1054,65 @@ mod tests {
     }
 
     #[test]
+    fn a_table_name_is_only_a_name_never_sql() {
+        let file = database(
+            r#"CREATE TABLE "SELECT 1 AS hacked" (real_column);
+               INSERT INTO "SELECT 1 AS hacked" VALUES ('from the table');"#,
+        );
+        let mut sink = Collect::default();
+        read_sqlite(
+            file.path(),
+            SqlitePart::Table("SELECT 1 AS hacked"),
+            Budget::unlimited(),
+            &mut sink,
+        )
+        .unwrap();
+        assert_eq!(sink.columns, ["real_column"]);
+    }
+
+    #[test]
+    fn only_one_query_that_reads_can_run() {
+        let file = database("CREATE TABLE t (a); INSERT INTO t VALUES (1);");
+        let run = |query: &str| {
+            read_sqlite(
+                file.path(),
+                SqlitePart::Query(query),
+                Budget::unlimited(),
+                &mut Collect::default(),
+            )
+        };
+        assert!(run("SELECT a FROM t;").is_ok());
+        assert!(run("WITH c AS (SELECT a FROM t) SELECT * FROM c").is_ok());
+        for query in [
+            "DELETE FROM t",
+            "WITH c AS (SELECT 1) DELETE FROM t",
+            "SELECT 1; DELETE FROM t",
+            "SELECT 1; SELECT 2",
+            "DROP TABLE t",
+            "PRAGMA writable_schema = ON",
+            "ATTACH DATABASE 'other.db' AS other",
+            "/* hidden */ ATTACH DATABASE 'other.db' AS other",
+            "SELECT 1; ATTACH DATABASE 'other.db' AS other",
+            "SELECT nothing FROM nowhere",
+            "   ",
+        ] {
+            assert!(run(query).is_err(), "{query}");
+        }
+        let db = rusqlite::Connection::open(file.path()).unwrap();
+        let rows: i64 = db
+            .query_row("SELECT count(*) FROM t", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 1);
+    }
+
+    #[test]
     fn a_query_that_never_gives_a_row_is_stopped() {
         let file = database("CREATE TABLE t (a);");
         let query = "SELECT x FROM (WITH RECURSIVE c(x) AS \
                      (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT x FROM c) WHERE x < 0";
         let budget = Budget::new(Duration::from_millis(100), u64::MAX);
         let mut sink = Collect::default();
-        let end = read_sqlite(file.path(), Some(query), budget, &mut sink).unwrap();
+        let end = read_sqlite(file.path(), SqlitePart::Query(query), budget, &mut sink).unwrap();
         assert_eq!(end, End::OutOfTime);
         assert!(sink.rows.is_empty());
     }
@@ -1094,7 +1191,7 @@ mod tests {
             let _ = read_dbf(path, budget(), &mut Collect::default());
             let _ = read_spreadsheet(path, 0, budget(), &mut Collect::default());
             let _ = read_parquet(path, budget(), &mut Collect::default());
-            let _ = read_sqlite(path, None, budget(), &mut Collect::default());
+            let _ = read_sqlite(path, SqlitePart::First, budget(), &mut Collect::default());
         }
     }
 

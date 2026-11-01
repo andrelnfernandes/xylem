@@ -33,7 +33,7 @@ real="$1"; TOOLS="$2"; REPO="$3"; WORK="$4"; PYTHON="$5"; shift 5
 inside() { case "$1" in "$real"/*) echo "/mnt/real${1#$real}";; *) echo "$1";; esac; }
 mount -t tmpfs none /mnt
 mkdir /mnt/real /mnt/tmp
-mount --bind "$real" /mnt/real
+mount --rbind "$real" /mnt/real
 mount --bind "$WORK/root/home" /home
 T=$(inside "$TOOLS"); X=$(inside "$REPO"); W=$(inside "$WORK"); PY=$(inside "$PYTHON")
 # The remote shots reach deploy@webserver through fake_ssh.py, not ssh.
@@ -84,6 +84,29 @@ run demo-nord nord hold:1.5 "*" hold:1 "\033x" hold:1 "type:cd xylem/src" hold:.
   "\033x" hold:1 "$(up 9)" hold:.8 b hold:1.2 "$D" hold:.4 t hold:.5 "$D" hold:.3 "$D" hold:.4 \
   t hold:.5 t hold:1.5 "send:\033x" "\014" hold:.6 "type:wc -c " hold:.4 "\033o" hold:1 \
   "\r" hold:2.5 "\033x" hold:3
+# The short videos on the website, with the demo files.
+root=/home/user/showcase
+# A database: the list of tables, a filter, a query with a join, and what it refuses.
+run demo-sqlite-nord nord hold:.8 "\r" hold:.5 "$D$D" hold:.6 v hold:2.5 "\t" hold:2 "type:ord" hold:.8 "\r" hold:2 \
+  "&" hold:.5 "send:\025" "type:price > 100" hold:.5 "\r" hold:2.5 \
+  "&" hold:.5 "send:\025" "type:SELECT c.name, count(*) AS orders, sum(o.price) AS total FROM customers c JOIN orders o ON o.customer = c.id GROUP BY c.name ORDER BY total DESC" hold:.8 "\r" hold:4.5 \
+  "&" hold:.3 "send:\025" "type:DELETE FROM orders" hold:.4 "\r" hold:4
+# A tour of the formats, all with the same data, and a log filtered by a regular expression.
+run demo-formats-gruvbox gruvbox hold:.8 "\r" hold:.5 "$(down 8)" hold:.6 v hold:2.5 "]" hold:2.5 "\033" hold:.4 \
+  "$(up 2)" hold:.3 v hold:2.5 "\033" hold:.4 "$(up 2)" hold:.3 v hold:3 "\033" hold:.4 "$(up 1)" hold:.3 v hold:2.5 "\033" hold:.4 \
+  "$(up 3)" hold:.4 v hold:2 "&" hold:.4 "\033OS" hold:.6 "type:\" [45][0-9][0-9] " hold:.6 "\r" hold:4
+# Markdown shown rendered, and its source.
+run demo-markdown-nord nord hold:.8 "\r" hold:.5 "$(down 10)" hold:.6 v hold:3.5 "\033[6~" hold:3 "t" hold:3 "t" hold:2.5
+# Duplicates: the copies found, and choosing which go, without deleting anything.
+run demo-duplicates-vivid vivid hold:.8 "*" hold:1 "\033y" sleep:1 hold:3.5 "a" hold:3.5 "a" hold:3 "g" hold:4
+# Last, since it writes files into the list: a table becomes a page, then a script with
+# its values escaped, then a database.
+run demo-batch-nord nord hold:1 "\r" hold:.6 "$D" hold:.8 v hold:2.5 \
+  "\002" hold:.6 "send:\025" "type:report.html" hold:.4 "\r" hold:2.5 "type::report" hold:.8 "\r" hold:4 "\r" hold:2 \
+  "\002" hold:.6 "send:\025" "type:update.sql" hold:.4 "\r" hold:1 "type::update" hold:.8 "\r" hold:5 "\r" hold:2 \
+  "\002" hold:.6 "send:\025" "type:out.db" hold:.4 "\r" hold:1 "\r" hold:3 "\r" hold:2 \
+  "\033" hold:1 "$(down 9)" hold:1 v hold:4
+root=
 # A remote machine: xy deploy@webserver:
 root=deploy@webserver:
 # Three backups copied here (Ctrl+C), into the folder picked on the right.

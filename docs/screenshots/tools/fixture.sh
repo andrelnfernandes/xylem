@@ -129,3 +129,20 @@ PROMPT_COMMAND='printf "\033]7;file://webserver%s\007" "$PWD"'
 alias ls='ls --color=auto'
 RC
 find "$R" -type d -exec chmod 755 {} +
+# What the website's short videos open: the demo files, a folder with copies, and the
+# templates where Xylem looks for them.
+S="$out/home/user/showcase"
+mkdir -p "$S/photos" "$S/photos copy" "$S/old backup"
+cp "$src"/../demo/data/* "$S/"
+cp "$src"/../demo/README.md "$S/README.md"
+for n in 1 2 3; do
+  head -c $((n * 180000)) /dev/urandom > "$S/photos/trip-$n.jpg"
+  cp "$S/photos/trip-$n.jpg" "$S/photos copy/trip-$n.jpg"
+done
+cp "$S/customers.csv" "$S/old backup/clients-2024.csv"
+cp "$S/photos/trip-2.jpg" "$S/old backup/beach.jpg"
+find "$S" -type f -exec touch -d "2026-10-30 10:20" {} + -exec chmod 644 {} +
+for dir in "$out"/config/*/xylem; do
+  mkdir -p "$dir/batch"
+  cp "$src"/../demo/templates/*.tpl "$dir/batch/"
+done

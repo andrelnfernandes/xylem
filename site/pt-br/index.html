@@ -26,6 +26,7 @@
       <a class="brand" href="./"><img src="../assets/xylem.svg" alt="">Xylem</a>
       <nav>
         <a href="#recursos">Recursos</a>
+        <a href="#em-acao">Em ação</a>
         <a href="#telas">Telas</a>
         <a href="#instalar">Instalar</a>
         <a href="#manual">Manual</a>
@@ -122,6 +123,36 @@
             <p>Um menu Git opcional com letras de status na lista de arquivos, a área de
               transferência, uma tela de configuração (<kbd>F12</kbd>) e doze temas.</p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="em-acao">
+      <div class="wrap">
+        <p class="eyebrow">Em ação</p>
+        <h2>Veja funcionando</h2>
+        <p class="section-lead">Vídeos curtos, todos com os mesmos clientes fictícios, que vêm com o Xylem na pasta <code>demo</code>. Clique em um para ver maior.</p>
+        <div class="shots">
+          <figure class="shot wide">
+            <a href="../assets/screenshots/demo-batch-nord.gif"><div class="window"><img src="../assets/screenshots/demo-batch-nord.gif" width="1104" height="772" loading="lazy" alt="Uma tabela de clientes gravada pelo Batch como página HTML, script SQL e banco SQLite, com prévia antes de cada um"></div></a>
+            <figcaption><strong>Batch</strong> (<kbd>Ctrl+B</kbd>) grava os registros de uma tabela como você quiser: aqui uma página, um script SQL e um banco SQLite, cada um com prévia antes de escrever qualquer byte. Os templates escolhem o que escrever, e cada valor é escapado para o tipo de arquivo, até os nomes hostis destes dados.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="../assets/screenshots/demo-sqlite-nord.gif"><div class="window"><img src="../assets/screenshots/demo-sqlite-nord.gif" width="1104" height="772" loading="lazy" alt="Um banco SQLite: a lista de tabelas, um filtro em pedidos, uma query juntando duas tabelas e um DELETE recusado"></div></a>
+            <figcaption><strong>SQLite:</strong> <kbd>Tab</kbd> lista tabelas e views, <kbd>&amp;</kbd> filtra, e o mesmo prompt aceita um <code>SELECT</code> inteiro, com <code>JOIN</code>. Ele só lê: um <code>DELETE</code> é recusado.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="../assets/screenshots/demo-formats-gruvbox.gif"><div class="window"><img src="../assets/screenshots/demo-formats-gruvbox.gif" width="1104" height="772" loading="lazy" alt="Os mesmos dados como planilha com duas abas, Parquet, JSON e DBF, e depois um log filtrado por expressão regular"></div></a>
+            <figcaption><strong>Todos os formatos:</strong> planilha e suas abas, Parquet, JSON com cores, DBF e um log filtrado por expressão regular.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="../assets/screenshots/demo-markdown-nord.gif"><div class="window"><img src="../assets/screenshots/demo-markdown-nord.gif" width="1104" height="772" loading="lazy" alt="Um arquivo Markdown renderizado, com tabela e bloco de código, e depois o código-fonte"></div></a>
+            <figcaption><strong>Markdown</strong> abre renderizado, com tabelas, código e o endereço real de cada link. <kbd>T</kbd> mostra o fonte no mesmo ponto.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="../assets/screenshots/demo-duplicates-vivid.gif"><div class="window"><img src="../assets/screenshots/demo-duplicates-vivid.gif" width="1104" height="772" loading="lazy" alt="Grupos de arquivos duplicados, marcando todas as cópias menos uma de cada, e depois duas pastas inteiras iguais"></div></a>
+            <figcaption><strong>Duplicados</strong> (<kbd>Alt+Y</kbd>) acha arquivos iguais e pastas inteiras iguais. <kbd>A</kbd> marca todas as cópias menos uma de cada grupo, e nada é apagado até você mandar.</figcaption>
+          </figure>
         </div>
       </div>
     </section>
@@ -277,17 +308,22 @@
           <div class="feature">
             <p class="badge">Planejado</p>
             <h3>Um visualizador que lê mais</h3>
-            <p>Um visualizador que lê em janelas, como o <code>less</code>, sem limite de tamanho; logs que acompanham e colorem por nível; SDF no modo tabela; e, opcionais e isolados, conversores externos como o <code>pdftotext</code>.</p>
+            <p>Um visualizador que lê em janelas, como o <code>less</code>, sem limite de tamanho, e logs que acompanham e colorem por nível.</p>
           </div>
           <div class="feature">
             <p class="badge">Planejado</p>
             <h3>Agir sobre o uso do disco</h3>
-            <p>Marcar, excluir, fazer Prune e visualizar direto da visão Usage; depois um treemap opcional, agrupamento por tipo e exportação.</p>
+            <p>Marcar, excluir, fazer Prune e visualizar direto da visão Usage.</p>
+          </div>
+          <div class="feature">
+            <p class="badge">Planejado</p>
+            <h3>Mais rápido em nuvens grandes</h3>
+            <p>A raiz de um Drive grande sem tela em branco, e Branch, Usage e Compare pedindo ao rclone o ramo inteiro de uma vez.</p>
           </div>
           <div class="feature">
             <p class="badge">Planejado</p>
             <h3>Mais do ZTreeWin</h3>
-            <p>O que o Xylem ainda não tem, como comparar o conteúdo de dois arquivos (JFC), o Global, o mouse e salvar o log: veja a <a href="https://github.com/andrelnfernandes/xylem/blob/main/docs/manual/pt/ztreewin.md">comparação com o ZTreeWin</a>.</p>
+            <p>Comparar o conteúdo de dois arquivos (JFC), e salvar o log para abrir a árvore de um disco na hora da próxima vez.</p>
           </div>
           <div class="feature">
             <p class="badge">Contínuo</p>

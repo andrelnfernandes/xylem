@@ -302,7 +302,7 @@ impl App {
                         format!("GOTO offset (0-{max:X}): ")
                     }
                     ViewMode::Table => {
-                        let total = v.table.as_ref().map(|t| t.visible_row_count()).unwrap_or(1);
+                        let total = v.table.as_ref().map_or(1, |t| t.rows.len().max(1));
                         format!("GOTO row (1-{total}): ")
                     }
                 };
@@ -313,13 +313,14 @@ impl App {
                 let current = v
                     .table
                     .as_ref()
-                    .and_then(|t| t.active_filter.clone())
+                    .and_then(|t| t.active_filter.clone().or_else(|| t.query.clone()))
                     .unwrap_or_default();
-                self.open_prompt(
-                    PromptKind::ViewerSqlFilter,
-                    "SQL Filter (WHERE ...): ".to_string(),
-                    &current,
-                );
+                let label = if crate::viewer::tabular_loader::is_sqlite(&v.path) {
+                    "SQL (WHERE ... or SELECT ...): "
+                } else {
+                    "SQL Filter (WHERE ...): "
+                };
+                self.open_prompt(PromptKind::ViewerSqlFilter, label.to_string(), &current);
             }
             ViewerAction::Batch => self.viewer_batch(),
             ViewerAction::FilterLines => {

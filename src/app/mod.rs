@@ -74,6 +74,8 @@ pub struct BookmarksView {
 /// An editor running inside Xylem's frame (`editor_in_frame = true`).
 pub struct EditorPty {
     pub path: PathBuf,
+    /// The program on screen: it has all the keys, Esc included.
+    pub program: String,
     pub term: Terminal,
     pub theme_dir: Option<PathBuf>,
 }

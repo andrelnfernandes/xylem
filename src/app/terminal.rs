@@ -251,6 +251,7 @@ impl App {
     /// Starts the editor inside Xylem's frame (`editor_in_frame = true`).
     pub fn start_framed_editor(&mut self, ext: External) -> anyhow::Result<()> {
         let path = ext.file.clone().unwrap_or_default();
+        let program = ext.program_name();
         let theme = self
             .options
             .editor_theme
@@ -261,6 +262,7 @@ impl App {
             Ok(term) => {
                 self.editor_pty = Some(EditorPty {
                     path,
+                    program,
                     term,
                     theme_dir: theme.map(|(d, _)| d),
                 });
@@ -372,7 +374,7 @@ mod tests {
 
         let ext = shell::editor_command("printf 'after\\n' > %f", &file, tmp.path());
         app.start_framed_editor(ext).unwrap();
-        assert!(app.editor_pty.is_some());
+        assert_eq!(app.editor_pty.as_ref().unwrap().program, "printf");
 
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while app.editor_pty.is_some() && std::time::Instant::now() < deadline {

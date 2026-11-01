@@ -3237,6 +3237,55 @@ fn batch_refuses_what_it_cannot_do_safely() {
 }
 
 #[test]
+fn table_rows_keep_the_file_numbers_under_a_filter() {
+    use ratatui::{Terminal, backend::TestBackend};
+    let (tmp, mut app) = sample();
+    let path = tmp.path().join("in.csv");
+    std::fs::write(&path, "id,name\n1,ana\n2,bob\n3,cid\n4,dan\n5,eva\n").unwrap();
+    app.viewer = Some(Viewer::open(path, viewer::LoadOptions::view(1 << 20)).unwrap());
+    press(&mut app, KeyCode::Char('&'));
+    answer_prompt(&mut app, "id >= 3");
+
+    let screen = |app: &mut App| {
+        let mut term = Terminal::new(TestBackend::new(120, 24)).unwrap();
+        term.draw(|f| crate::ui::draw(f, app)).unwrap();
+        let buf = term.backend().buffer();
+        (0..24)
+            .map(|y| (0..120).map(|x| buf[(x, y)].symbol()).collect::<String>())
+            .collect::<Vec<_>>()
+    };
+    let lines = screen(&mut app);
+    let row_of = |name: &str| {
+        let line = lines.iter().find(|l| l.contains(name)).unwrap();
+        line.split('│').nth(1).unwrap().trim().to_string()
+    };
+    assert_eq!(row_of("cid"), "3");
+    assert_eq!(row_of("eva"), "5");
+    assert!(lines.iter().any(|l| l.contains("Cell: A3")), "{lines:?}");
+
+    let goto = |app: &mut App, row: &str| {
+        press(app, KeyCode::Char('g'));
+        answer_prompt(app, row);
+        let v = app.viewer.as_ref().unwrap();
+        (
+            v.table.as_ref().unwrap().cursor_file_row(),
+            v.note.clone().unwrap(),
+        )
+    };
+    assert_eq!(goto(&mut app, "4"), (4, "Row 4 of 5".to_string()));
+    assert_eq!(
+        goto(&mut app, "2"),
+        (3, "Row 2 is filtered out: showing row 3".to_string())
+    );
+    assert_eq!(goto(&mut app, "99"), (5, "Row 5 of 5".to_string()));
+
+    press(&mut app, KeyCode::Char('&'));
+    answer_prompt(&mut app, "id > 9");
+    assert_eq!(goto(&mut app, "2").1, "No rows to go to");
+    assert_eq!(goto(&mut app, "x").1, "Invalid row number: x");
+}
+
+#[test]
 fn batch_writes_only_the_marked_records_of_a_table() {
     let (tmp, mut app) = sample();
     let path = tmp.path().join("in.csv");

@@ -632,13 +632,11 @@ impl App {
                 let clean = text.trim().trim_start_matches(':').trim();
                 if let Some(v) = &mut self.viewer {
                     if v.mode == ViewMode::Table {
-                        if let Some(t) = &mut v.table
-                            && let Ok(row) = clean.parse::<usize>()
-                            && row > 0
-                            && row <= t.visible_row_count()
-                        {
-                            t.cursor_row = row - 1;
-                            t.scroll_row = (row - 1).saturating_sub(v.page / 2);
+                        if let Some(t) = &mut v.table {
+                            match clean.parse::<usize>() {
+                                Ok(row) if row > 0 => v.note = Some(t.goto_row(row, v.page)),
+                                _ => v.note = Some(format!("Invalid row number: {text}")),
+                            }
                         }
                     } else if matches!(v.mode, ViewMode::Text | ViewMode::Rendered) {
                         match clean.parse::<usize>() {
@@ -660,22 +658,8 @@ impl App {
                 Ok(())
             }
             PromptKind::ViewerSqlFilter => {
-                if let Some(v) = &mut self.viewer
-                    && let Some(t) = &mut v.table
-                {
-                    let query = if text.trim().is_empty() {
-                        None
-                    } else {
-                        Some(text.as_str())
-                    };
-                    match t.apply_filter(query) {
-                        Ok(count) => {
-                            v.note = Some(format!("Filter matched {count} rows"));
-                        }
-                        Err(e) => {
-                            v.note = Some(format!("SQL error: {e}"));
-                        }
-                    }
+                if let Some(v) = &mut self.viewer {
+                    v.sql_prompt(&text);
                 }
                 Ok(())
             }

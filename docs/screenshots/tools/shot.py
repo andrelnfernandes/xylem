@@ -123,6 +123,12 @@ def frame(ms):
 
 
 pump(1.5)
+# The first frame of a loop must not be an empty screen.
+for _ in range(50):
+    if any(line.strip() for line in screen.display):
+        break
+    pump(0.1)
+pump(0.3)
 frame(1000)
 for step in steps:
     if step.startswith("sleep:"):

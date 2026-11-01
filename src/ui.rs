@@ -2481,6 +2481,14 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         Some(preview) => draw_batch_preview(frame, preview, body),
         None => draw_viewer_body(frame, v, mode, body),
     }
+    if let (Some(list), Some(grid)) = (&mut v.sheet_list, &v.table) {
+        let word = if sheet_word(&v.path) == "table" {
+            "Table"
+        } else {
+            "Sheet"
+        };
+        draw_sheet_list(frame, list, grid, word, body);
+    }
     if let Some(guide) = app.prompt.as_ref().and_then(app::Prompt::batch_guide) {
         match &guide.reading {
             Some(reading) => draw_template_reading(frame, reading, body),
@@ -2509,13 +2517,18 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 } else {
                     format!(", {} marked", fmt_num(t.marked.len() as u64))
                 };
-                format!(
-                    "Cell {}{} (Row {} of {}{marked})",
-                    cell_col_letter,
-                    t.cursor_row + 1,
-                    t.cursor_row + 1,
-                    t.visible_row_count()
-                )
+                let row = t.cursor_file_row();
+                let total = t.rows.len();
+                let matched = if t.active_filter.is_some() {
+                    format!(
+                        ", match {} of {}",
+                        (t.cursor_row + 1).min(t.visible_row_count()),
+                        t.visible_row_count()
+                    )
+                } else {
+                    String::new()
+                };
+                format!("Cell {cell_col_letter}{row} (Row {row} of {total}{matched}{marked})")
             } else {
                 "Table".to_string()
             }
@@ -2525,6 +2538,17 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     let note = v.note.clone();
     let lines = if let Some(prompt) = &app.prompt {
         prompt_lines(frame, prompt, menu)
+    } else if v.sheet_list.is_some() {
+        let title = format!("{}S", sheet_word(&v.path).to_uppercase());
+        vec![menu_line(
+            &title,
+            &[
+                ("↑↓", "move"),
+                ("letters", "narrow the list"),
+                ("Enter", "open"),
+                ("Esc", "back"),
+            ],
+        )]
     } else if app.batch_preview.is_some() {
         vec![menu_line(
             "BATCH",
@@ -2606,6 +2630,10 @@ const SHEET_NAME_CHARS: usize = 40;
 /// The frame of a table: with more than one sheet, which one this is. The names
 /// come from the file, and were made safe for the screen when it was read.
 fn table_frame_title(t: &TableGrid) -> String {
+    if let Some(query) = &t.query {
+        let query = TableGrid::sanitize_cell(query);
+        return format!(" QUERY: {} ", fit(&query, SHEET_NAME_CHARS));
+    }
     if t.sheets.len() < 2 {
         return " TABLE ".to_string();
     }
@@ -2615,9 +2643,10 @@ fn table_frame_title(t: &TableGrid) -> String {
         shown.push('…');
     }
     format!(
-        " TABLE [{}/{}: {shown}] ",
+        " TABLE [{}/{}: {shown}{}] ",
         t.current_sheet + 1,
-        t.sheets.len()
+        t.sheets.len(),
+        t.view_mark(t.current_sheet)
     )
 }
 
@@ -2626,17 +2655,93 @@ fn sheet_keys(t: &TableGrid, path: &Path) -> String {
     if t.sheets.len() < 2 {
         return String::new();
     }
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(str::to_ascii_lowercase)
-        .unwrap_or_default();
-    let what = if matches!(ext.as_str(), "sqlite" | "sqlite3" | "db") {
+    format!("  ·  Tab list  ·  [ ] other {}", sheet_word(path))
+}
+
+/// What this file calls its parts.
+fn sheet_word(path: &Path) -> &'static str {
+    if viewer::tabular_loader::is_sqlite(path) {
         "table"
     } else {
         "sheet"
+    }
+}
+
+/// The list of sheets or tables, over the grid. Only the rows on screen are built:
+/// a hostile file can have any number of names. They were made safe when read.
+fn draw_sheet_list(
+    frame: &mut Frame,
+    list: &mut crate::viewer::table::SheetList,
+    grid: &TableGrid,
+    word: &str,
+    area: Rect,
+) {
+    let t = theme();
+    let width = 60.min(area.width.saturating_sub(4));
+    let wanted = list
+        .shown
+        .len()
+        .saturating_add(3)
+        .min(usize::from(u16::MAX)) as u16;
+    let height = wanted.max(4).min(area.height.saturating_sub(2));
+    if width < 12 || height < 4 {
+        return;
+    }
+    let rect = Rect {
+        x: area.x + (area.width - width) / 2,
+        y: area.y + (area.height - height) / 2,
+        width,
+        height,
     };
-    format!("  ·  [ ] other {what}")
+    let block = panel(
+        format!(
+            " {word}s: {} of {} ",
+            fmt_num(list.shown.len() as u64),
+            fmt_num(grid.sheets.len() as u64)
+        ),
+        true,
+    );
+    let inner = block.inner(rect);
+    let rows = usize::from(inner.height.saturating_sub(1)).max(1);
+    if list.cursor < list.scroll {
+        list.scroll = list.cursor;
+    } else if list.cursor >= list.scroll + rows {
+        list.scroll = list.cursor + 1 - rows;
+    }
+    let name_width = usize::from(inner.width).saturating_sub(2);
+    let mut lines = vec![Line::styled(
+        fit(&format!("Find: {}_", list.query), usize::from(inner.width)),
+        Style::new().fg(t.key),
+    )];
+    if list.shown.is_empty() {
+        lines.push(Line::styled(
+            format!(" No {} has this name", word.to_lowercase()),
+            Style::new().fg(t.dim),
+        ));
+    }
+    for (row, &sheet) in list.shown.iter().enumerate().skip(list.scroll).take(rows) {
+        let name = grid.sheets.get(sheet).map_or("", String::as_str);
+        let open = if sheet == grid.current_sheet {
+            '*'
+        } else {
+            ' '
+        };
+        let mark = grid.view_mark(sheet);
+        let name = fit(name, name_width.saturating_sub(mark.len()));
+        let text = format!("{open} {}{mark}", name.trim_end());
+        lines.push(if row == list.cursor {
+            Line::styled(text, highlight(true))
+        } else {
+            Line::raw(text)
+        });
+    }
+    frame.render_widget(Clear, rect);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .style(Style::new().fg(t.text).bg(t.background)),
+        rect,
+    );
 }
 
 /// The most templates the guide of a Batch shows at a time.
@@ -2863,7 +2968,8 @@ fn draw_editor(frame: &mut Frame, app: &mut App) {
     ];
     frame.render_widget(Line::from(title), header);
 
-    draw_terminal_panel(frame, &mut ed.term, colors, " EDIT ", body);
+    let title = format!(" {} (external program) ", ed.program);
+    draw_terminal_panel(frame, &mut ed.term, colors, title, body);
 
     let first = Line::from(vec![
         Span::styled(
@@ -2871,11 +2977,33 @@ fn draw_editor(frame: &mut Frame, app: &mut App) {
             Style::new().add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            "Quit the editor to return to Xylem",
+            format!(
+                "{} is a separate program, with its own keys: Esc may not close it",
+                ed.program
+            ),
             Style::new().fg(theme().dim),
         ),
     ]);
-    frame.render_widget(Paragraph::new(vec![first]), menu);
+    let second = Line::styled(
+        format!("{:9}To return to Xylem: {}", "", quit_keys(&ed.program)),
+        Style::new().fg(theme().message),
+    );
+    frame.render_widget(Paragraph::new(vec![first, second]), menu);
+}
+
+/// How to leave the usual editors. Xylem cannot close them for you, as a key
+/// could lose what was being edited.
+fn quit_keys(program: &str) -> &'static str {
+    match program {
+        "hexedit" => {
+            "Ctrl+X saves and quits, Ctrl+C quits without saving (on Unknown command, Space first)"
+        }
+        "vi" | "vim" | "nvim" | "view" | "bvi" => "Esc, then :q (:q! quits without saving)",
+        "nano" => "Ctrl+X",
+        "micro" => "Ctrl+Q",
+        "emacs" => "Ctrl+X, then Ctrl+C",
+        _ => "quit this program",
+    }
 }
 
 fn draw_terminal(frame: &mut Frame, term: &mut Terminal, colors: TerminalTheme, area: Rect) {
@@ -2886,7 +3014,7 @@ fn draw_terminal_panel(
     frame: &mut Frame,
     term: &mut Terminal,
     colors: TerminalTheme,
-    title: &'static str,
+    title: impl Into<Line<'static>>,
     area: Rect,
 ) {
     let block = panel(title, true);
@@ -3039,7 +3167,7 @@ fn draw_table_grid(
         row_spans.push(Span::styled(
             format!(
                 "{:>width$}{}│ ",
-                display_row_idx + 1,
+                real_row_idx + 1,
                 if is_marked { "*" } else { " " },
                 width = row_num_width
             ),
@@ -3084,8 +3212,9 @@ fn draw_table_grid(
     };
 
     let bottom_text = format!(
-        "Cell: {} │ Content: {}{}",
+        "Cell: {}{} │ Content: {}{}",
         crate::viewer::tabular_loader::column_letter(grid.cursor_col),
+        grid.cursor_file_row(),
         active_content,
         filter_notice
     );
@@ -3676,6 +3805,68 @@ mod tests {
     }
 
     #[test]
+    fn an_editor_in_the_frame_says_it_is_another_program_and_how_to_leave() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let file = tmp.path().join("a.bin");
+        std::fs::write(&file, [0u8, 1]).unwrap();
+        // Waits for a line that never comes, so that it is on screen.
+        let ext = crate::shell::editor_command("cat", &file, tmp.path());
+        app.start_framed_editor(ext).unwrap();
+        app.editor_pty.as_mut().unwrap().program = "hexedit".into();
+        let mut term = Terminal::new(TestBackend::new(120, 20)).unwrap();
+        term.draw(|f| draw(f, &mut app)).unwrap();
+        let buf = term.backend().buffer();
+        let text: String = (0..20)
+            .flat_map(|y| (0..120).map(move |x| (x, y)))
+            .map(|(x, y)| buf[(x, y)].symbol())
+            .collect();
+        assert!(text.contains("hexedit (external program)"), "{text}");
+        assert!(text.contains("Esc may not close it"), "{text}");
+        assert!(text.contains("Ctrl+C quits without saving"), "{text}");
+        assert_eq!(quit_keys("heh"), "quit this program");
+    }
+
+    #[test]
+    fn the_list_of_sheets_scrolls_through_hundreds_of_them() {
+        use crate::viewer::{LoadOptions, Viewer};
+        use ratatui::crossterm::event::{KeyCode, KeyEvent};
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("many.csv");
+        std::fs::write(&path, "id\n1\n").unwrap();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let mut v = Viewer::open(path, LoadOptions::view(1 << 20)).unwrap();
+        v.table.as_mut().unwrap().sheets = (0..300).map(|i| format!("part{i:03}")).collect();
+        v.handle_key(KeyEvent::from(KeyCode::Tab));
+        app.viewer = Some(v);
+
+        let text = draw_text(&mut app);
+        assert!(text.contains("Sheets: 300 of 300"), "{text}");
+        assert!(text.contains("* part000"), "{text}");
+        assert!(text.contains("SHEETS"), "{text}");
+
+        let v = app.viewer.as_mut().unwrap();
+        v.handle_key(KeyEvent::from(KeyCode::End));
+        let text = draw_text(&mut app);
+        assert!(text.contains("part299"), "{text}");
+        assert!(!text.contains("* part000"), "{text}");
+
+        // Typing narrows, and the list says when nothing is left.
+        let v = app.viewer.as_mut().unwrap();
+        for c in "t29".chars() {
+            v.handle_key(KeyEvent::from(KeyCode::Char(c)));
+        }
+        let text = draw_text(&mut app);
+        assert!(text.contains("Find: t29_"), "{text}");
+        assert!(text.contains("Sheets: 10 of 300"), "{text}");
+        let v = app.viewer.as_mut().unwrap();
+        v.handle_key(KeyEvent::from(KeyCode::Char('x')));
+        let text = draw_text(&mut app);
+        assert!(text.contains("No sheet has this name"), "{text}");
+    }
+
+    #[test]
     fn a_table_with_sheets_says_which_one_and_how_to_change_it() {
         let mut t = TableGrid::new(String::new(), Vec::new(), Vec::new());
         t.sheets = vec!["only".into()];
@@ -3685,8 +3876,18 @@ mod tests {
         t.sheets = vec!["customers".into(), "clients".into()];
         t.current_sheet = 1;
         assert_eq!(table_frame_title(&t), " TABLE [2/2: clients] ");
-        assert_eq!(sheet_keys(&t, Path::new("a.xlsx")), "  ·  [ ] other sheet");
-        assert_eq!(sheet_keys(&t, Path::new("a.DB")), "  ·  [ ] other table");
+        assert_eq!(
+            sheet_keys(&t, Path::new("a.xlsx")),
+            "  ·  Tab list  ·  [ ] other sheet"
+        );
+        assert_eq!(
+            sheet_keys(&t, Path::new("a.DB")),
+            "  ·  Tab list  ·  [ ] other table"
+        );
+
+        t.first_view = 1;
+        assert_eq!(table_frame_title(&t), " TABLE [2/2: clients (view)] ");
+        t.first_view = usize::MAX;
 
         // A long name does not take the frame.
         t.sheets[1] = "é".repeat(50);

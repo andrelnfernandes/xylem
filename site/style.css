@@ -242,6 +242,8 @@ h2 {
 
 .shot { margin: 0; }
 
+.shot.wide { grid-column: 1 / -1; }
+
 .shot a { display: block; border-radius: var(--radius); }
 
 .shot .window { transition: transform 0.2s; }

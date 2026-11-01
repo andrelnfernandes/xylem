@@ -36,6 +36,8 @@ on Linux; `ImHex`, `HxD` on Windows) that you want to leave running in its own
 window, add `&` at the end of the command (for example, `imhex %f &` or
 `ghex %f &`): Xylem launches it directly without opening the terminal frame.
 
+The frame says it is an external program and how to leave the usual ones. It has all the keys, and **Esc** may not close it: in `hexedit`, **Ctrl+X** saves and quits, and **Ctrl+C** quits without saving. After **Esc**, `hexedit` waits for another key and may say `Unknown command`: press **Space** and repeat.
+
 If you prefer `E` not to open binary files at all (and only suggest `O` to open
 them in the system's program), set **Edit binary files with E** to `no`
 (`edit_binary = false` on page 1 of **F12**).

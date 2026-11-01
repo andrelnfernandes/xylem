@@ -39,6 +39,8 @@ queira deixar aberto na própria janela dele, adicione `&` ao final do comando
 (por exemplo, `imhex %f &` ou `ghex %f &`): o Xylem o inicia diretamente sem
 abrir a moldura de terminal.
 
+A moldura avisa que é um programa externo e como sair dos mais comuns. Ele recebe todas as teclas, e **Esc** pode não fechá-lo: no `hexedit`, **Ctrl+X** salva e sai, e **Ctrl+C** sai sem salvar. Depois de **Esc**, o `hexedit` espera outra tecla e pode dizer `Unknown command`: aperte **Espaço** e repita.
+
 Se preferir que o `E` não abra arquivos binários (e apenas avise no rodapé
 sugerindo `O` para abrir no programa do sistema), mude **Edit binary files with
 E** para `no` (`edit_binary = false` na página 1 do **F12**).

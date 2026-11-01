@@ -124,14 +124,15 @@ El separador del CSV (coma, punto y coma, tabulación o barra vertical) se detec
 | PgUp PgDn | una página de filas hacia arriba o hacia abajo |
 | Home End | primera o última columna |
 | `[` `]` | hoja anterior o siguiente de una hoja de cálculo, o tabla de una base SQLite, dando la vuelta; esto borra el filtro |
-| `g` o `:` | saltar a una fila, contando solo las que el filtro dejó |
+| `Tab` | la lista de hojas o tablas: escribe parte de un nombre para reducirla, Enter abre una y Esc vuelve; abrir otra borra el filtro. En una base, las vistas van después de las tablas, marcadas con `(view)` |
+| `g` o `:` | saltar a una fila por su número en el archivo; si el filtro la ocultó, a la siguiente que dejó |
 | `\` o `&` | el filtro SQL |
 | `m` o Insert | marca o desmarca el registro bajo el cursor y pasa al siguiente; **Ctrl+B** escribe entonces solo los marcados |
 | `M` | borra las marcas |
 | `T` | ir al texto del archivo y volver |
 | `H` | de la tabla al texto, luego hexadecimal, luego de vuelta a la tabla |
 
-El marco muestra `TABLE [2/5: nombre]` cuando hay más de una hoja o tabla, y la línea inferior dónde está el cursor: `Cell B7 (Row 7 of 120)`. La última línea de la cuadrícula trae el contenido completo de la celda y el filtro en uso. La búsqueda (`F`, `B`, `/`) no mira dentro de la cuadrícula y no encuentra nada ahí; funciona en modo texto.
+El marco muestra `TABLE [2/5: nombre]` cuando hay más de una hoja o tabla, y la línea inferior dónde está el cursor: `Cell B7 (Row 7 of 120)`. Con filtro, las filas conservan el número que tienen en el archivo, y esta línea añade qué coincidencia es: `Cell A13 (Row 13 of 31, match 2 of 8)`. La última línea de la cuadrícula trae el contenido completo de la celda y el filtro en uso. La búsqueda (`F`, `B`, `/`) no mira dentro de la cuadrícula y no encuentra nada ahí; funciona en modo texto.
 
 Las marcas se mantienen bajo un filtro, y Batch escribe lo marcado que el filtro conserva. Pertenecen a la hoja o tabla abierta y se pierden al cambiarla. Si el archivo cambia después de marcar, Batch se niega, pues puede haber otros registros en esas posiciones.
 
@@ -160,6 +161,16 @@ Las palabras clave pueden ir en mayúsculas o minúsculas.
 - **Valores:** texto entre comillas simples o dobles (`\'` para una comilla dentro de él), números, `TRUE`, `FALSE` y `NULL`. Lo que va entre comillas es siempre texto, nunca una columna.
 - **Celdas:** el tipo viene del aspecto de la celda. Vacía es `NULL`, `true` y `false` son booleanos, los números son números y el resto es texto. Por eso escriba `code = 7`, no `code = '7'`: un texto y un número nunca son iguales, y una celda con `007` es el número 7. Las comparaciones de texto distinguen mayúsculas de minúsculas.
 - **Tamaño:** un filtro tiene como máximo 1024 bytes y 128 términos.
+
+### Una consulta completa en una base
+
+En una base SQLite, el mismo prompt acepta una consulta completa, que empiece por `SELECT` o `WITH`, con todo lo que SQLite puede hacer: `JOIN`, `GROUP BY`, `ORDER BY`, funciones.
+
+```
+SELECT c.name, sum(o.price) FROM customers c JOIN orders o ON o.code = c.code GROUP BY c.name
+```
+
+El marco dice `QUERY:`, y la cuadrícula muestra el resultado. Una condición filtra entonces esas filas, y **Ctrl+B** escribe todo lo que da la consulta. Dejar el prompt vacío borra el filtro y luego vuelve a la tabla; `Tab`, `[` y `]` también van a una tabla. La consulta solo lee, una cada vez: cualquier otra cosa se rechaza, y un error deja la pantalla como estaba. Los límites de abajo se aplican, así que una consulta lenta se detiene a los 3 s y muestra las filas obtenidas; un Batch no tiene ese límite. Xylem no modifica bases: `UPDATE`, `DELETE` y similares reciben un mensaje que lo dice. Para modificar una, use otro programa: `O` en la ventana de archivos la abre en el definido en `opener`, y `'*.db' = 'sqlite3 %f'` en `[editors]` hace que `E` la abra en `sqlite3`.
 
 ### Límites
 
