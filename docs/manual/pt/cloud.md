@@ -76,10 +76,13 @@ criptografado, o painel diz apenas rclone.
 
 ## O que muda lá
 
-- **Tudo passa pela rede.** Cada leitura de diretório é uma requisição: em um
-  Drive ou bucket grande, `*` (ler todo o ramo) e Branch (`B`) podem demorar.
-  Abrir apenas os diretórios de que você precisa (→ ou `+`) é rápido, pois eles
-  são lidos conforme você os abre.
+- **Tudo passa pela rede.** Cada leitura de diretório é uma requisição, e um
+  serviço como o Google Drive as recusa quando são muitas. Por isso, numa pasta
+  montada, `*` pede ao rclone o ramo inteiro numa só listagem, bem mais rápida,
+  e preenche a árvore ao terminar; Esc deixa a árvore como estava. Se o rclone
+  falhar ou mostrar pastas diferentes das da montagem, `*` lê pasta por pasta.
+  Branch (`B`) sempre lê assim e pode demorar. Abrir apenas os diretórios de que
+  você precisa (→ ou `+`) é rápido, pois eles são lidos conforme você os abre.
 - **Alterações feitas em outro lugar** (no navegador, no celular) só aparecem
   após F3 e depois que o cache de diretórios expira (`--dir-cache-time`).
 - **Excluir:** responda `P` (permanentemente) em vez de `T`: no Linux, a
@@ -97,6 +100,33 @@ criptografado, o painel diz apenas rclone.
 - **O S3 não tem diretórios reais**, apenas nomes com `/` neles: um diretório
   vazio pode desaparecer quando desmontado, e renomear ou mover um diretório
   copia e exclui cada arquivo dentro dele.
+
+## Quando o serviço recusa: erro 403
+
+O Google Drive limita quantos pedidos aceita por minuto. Em um Drive
+congestionado de pequenos arquivos e pastas (backups de projetos, `node_modules`,
+extensões de editor), **erros 403 são comuns**: `Quota exceeded`,
+`rateLimitExceeded`. O rclone espera e tenta de novo, então tudo fica lento, e no
+fim ele pode desistir. Qualquer gerenciador de arquivos que leia pasta por pasta
+pela montagem esbarra no mesmo limite.
+
+O que o Xylem faz: o `*` mostra quantos pedidos foram recusados e, depois de 100,
+pergunta se você quer continuar tentando ou parar; parar deixa a árvore como
+estava. Se o rclone desistir, o Xylem avisa e não passa a ler pasta por pasta
+sozinho, porque isso só seria mais recusado.
+
+O que ajuda, começando pelo primeiro:
+
+- **Logar por pastas.** Em vez de `*` na raiz, use `*` em pastas menores, ou abra-as
+  com → ou `+`. Em um Drive congestionado, costuma ser o melhor caminho.
+- **Seu próprio `client_id`.** Se você não criou um, o rclone usa um cliente
+  dividido com os outros usuários dele, e a cota também. Criar o seu é grátis: o
+  [guia do rclone](https://rclone.org/drive/#making-your-own-client-id) explica
+  como. Depois, autorize de novo com `rclone config`. Os limites da sua conta
+  continuam, mas o uso dos outros deixa de contar contra você.
+- **Guardar as listagens por mais tempo:** `--dir-cache-time 1h` no `rclone mount`.
+- **Remover o que pode ser recriado.** Menos pastas significam menos pedidos, em
+  qualquer programa.
 
 ## Descobrir o que está enchendo o seu Google Drive
 

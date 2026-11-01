@@ -309,6 +309,8 @@ pub(crate) enum ConfirmKind {
     },
     /// Duplicates: the branch is on a network, and reading it costs.
     ReadThroughNetwork(NodeId),
+    /// `*` in the cloud: the service keeps refusing requests.
+    KeepListing,
     DeleteDir {
         id: NodeId,
         to_trash: bool,
@@ -888,10 +890,21 @@ impl App {
                 };
                 self.set_sort(sort);
             }
+            ConfirmKind::KeepListing => {
+                if choice == 's' {
+                    self.cloud_log = None;
+                    self.message = Some(format!("Stopped. {LOG_SMALLER}"));
+                } else if let Some(log) = &mut self.cloud_log {
+                    let refused = log.job.progress.refused.load(Ordering::Relaxed);
+                    log.ask_at = refused + REFUSALS_TO_ASK;
+                }
+            }
             _ if !yes
                 && !matches!(
                     kind,
-                    ConfirmKind::DeleteFiles { .. } | ConfirmKind::DeleteDir { .. }
+                    ConfirmKind::DeleteFiles { .. }
+                        | ConfirmKind::DeleteDir { .. }
+                        | ConfirmKind::DeleteFolders { .. }
                 ) => {}
             ConfirmKind::Quit => self.should_quit = true,
             ConfirmKind::OpenHidden { sources } => self.open_sources(sources),

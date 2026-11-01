@@ -326,7 +326,7 @@ impl Tree {
         }
         self.version += 1;
         let path = self.path(id);
-        let (dirs, mut files) = match self.read(&path) {
+        let (dirs, files) = match self.read(&path) {
             Ok(r) => r,
             Err(e) => {
                 let node = &mut self.nodes[id];
@@ -336,7 +336,11 @@ impl Tree {
                 return;
             }
         };
+        self.apply(id, dirs, files);
+    }
 
+    /// Puts what was read in a directory that has been read before.
+    fn apply(&mut self, id: NodeId, dirs: Vec<DirName>, mut files: Vec<FileEntry>) {
         let tagged: HashSet<&OsString> = self.nodes[id]
             .files
             .iter()
@@ -368,6 +372,61 @@ impl Tree {
         node.children = children;
         node.files = files;
         node.error = None;
+    }
+
+    /// Fills the branch of `id` from a listing of all that is below it, as
+    /// if each directory had been read and expanded: paths relative to `id`,
+    /// with the file (`Some`) or a directory (`None`). Directories already
+    /// read keep what is tagged. A name repeated in a directory counts once,
+    /// a directory first, as a mount shows it.
+    pub fn fill(&mut self, id: NodeId, listing: Vec<(PathBuf, Option<FileEntry>)>) {
+        let mut found: HashMap<PathBuf, (Vec<DirName>, Vec<FileEntry>)> = HashMap::new();
+        found.insert(PathBuf::new(), Default::default());
+        for (path, file) in &listing {
+            let mut cur = if file.is_some() {
+                path.parent().unwrap_or(Path::new(""))
+            } else {
+                path.as_path()
+            };
+            let mut missing = Vec::new();
+            while !found.contains_key(cur) {
+                missing.push(cur);
+                cur = cur.parent().unwrap_or(Path::new(""));
+            }
+            // From the top: each one goes in the folder above it.
+            for dir in missing.into_iter().rev() {
+                found.insert(dir.to_path_buf(), Default::default());
+                let (Some(parent), Some(name)) = (dir.parent(), dir.file_name()) else {
+                    continue;
+                };
+                let entry = (name.to_os_string(), platform::is_hidden(name, 0));
+                found.entry(parent.to_path_buf()).or_default().0.push(entry);
+            }
+        }
+        let mut seen = HashSet::new();
+        for (path, file) in listing {
+            let Some(file) = file else { continue };
+            if found.contains_key(&path) || !seen.insert(path.clone()) {
+                continue;
+            }
+            let parent = path.parent().unwrap_or(Path::new(""));
+            found.entry(parent.to_path_buf()).or_default().1.push(file);
+        }
+        let mut stack = vec![(id, PathBuf::new())];
+        while let Some((n, rel)) = stack.pop() {
+            let (mut dirs, mut files) = found.remove(&rel).unwrap_or_default();
+            dirs.sort_by_key(|(name, _)| sort_key(name));
+            files.sort_by_key(|f| sort_key(&f.name));
+            self.version += 1;
+            self.apply(n, dirs, files);
+            let node = &mut self.nodes[n];
+            node.scanned = true;
+            node.expanded = true;
+            for i in 0..self.nodes[n].children.len() {
+                let child = self.nodes[n].children[i];
+                stack.push((child, rel.join(&self.nodes[child].name)));
+            }
+        }
     }
 
     /// Node of directory `path`, if it is in the tree.
@@ -834,6 +893,51 @@ mod tests {
         );
         tree.expand_all(ROOT);
         assert_eq!(tree.logged_totals().dirs, 5);
+    }
+
+    #[test]
+    fn a_listing_fills_a_branch_as_reading_it_would() {
+        let (_tmp, mut tree) = sample();
+        let sub = tree.find(&tree.path(ROOT).join("b")).unwrap();
+        tree.nodes[sub].files[0].tagged = true;
+        let tagged = tree.nodes[sub].files[0].name.clone();
+        let file = |name: &str| FileEntry {
+            name: name.into(),
+            size: 7,
+            disk: 7,
+            link: None,
+            modified: None,
+            mode: 0o100664,
+            kind: FileKind::File,
+            tagged: false,
+        };
+        let listing = vec![
+            (PathBuf::from(&tagged), Some(file(tagged.to_str().unwrap()))),
+            (PathBuf::from("zeta/deep/z.txt"), Some(file("z.txt"))),
+            (PathBuf::from("zeta/deep/z.txt"), Some(file("z.txt"))),
+            (PathBuf::from("Alpha"), None),
+            (PathBuf::from("Alpha"), Some(file("Alpha"))),
+        ];
+        tree.fill(sub, listing);
+        let names = |tree: &Tree, id: NodeId| -> Vec<String> {
+            tree.nodes[id]
+                .children
+                .iter()
+                .map(|&c| tree.nodes[c].name.to_string_lossy().into_owned())
+                .collect()
+        };
+        assert_eq!(names(&tree, sub), ["Alpha", "zeta"]);
+        let node = &tree.nodes[sub];
+        assert!(node.scanned && node.expanded);
+        assert_eq!(node.files.len(), 1, "a folder's name is not a file too");
+        assert!(node.files[0].tagged, "what was tagged stays tagged");
+        let deep = tree.find(&tree.path(sub).join("zeta/deep")).unwrap();
+        assert!(tree.nodes[deep].expanded);
+        assert_eq!(
+            tree.nodes[deep].files.len(),
+            1,
+            "a repeated name counts once"
+        );
     }
 
     #[test]

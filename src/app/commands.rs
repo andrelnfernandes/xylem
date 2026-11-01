@@ -133,6 +133,13 @@ impl App {
             }
             return;
         }
+        if self.cloud_log.is_some() {
+            if key.code == KeyCode::Esc {
+                self.cloud_log = None;
+                self.message = Some("Logging cancelled".into());
+            }
+            return;
+        }
         if self.archive_job.is_some() {
             if key.code == KeyCode::Esc
                 && let Some(job) = self.archive_job.take()
@@ -572,9 +579,7 @@ impl App {
                 let id = self.view_root();
                 self.start_job(LogJob::new(id, false), AfterLog::OpenBranch(id));
             }
-            Command::ExpandAll => {
-                self.start_job(LogJob::new(self.current(), true), AfterLog::Refresh);
-            }
+            Command::ExpandAll => self.expand_all(),
             Command::View => self.open_viewer(),
             Command::Git => self.open_git_menu(),
             Command::Relog => {

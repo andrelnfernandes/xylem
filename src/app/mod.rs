@@ -10,6 +10,7 @@ use std::fs;
 use std::io::BufRead;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, ModifierKeyCode};
@@ -96,6 +97,23 @@ pub struct Job {
     then: AfterLog,
 }
 
+/// `*` on a folder of a cloud mount: its whole listing being asked for.
+pub struct CloudLog {
+    pub job: crate::rclone::TreeJob,
+    pub pane: usize,
+    pub id: NodeId,
+    /// What to call the remote when it refuses requests.
+    pub service: String,
+    /// How many refusals make it ask whether to go on.
+    pub ask_at: u64,
+}
+
+pub const LOG_SMALLER: &str = "Log smaller folders: * on each one, or + to open them.";
+
+/// Refusals until `*` asks, and again each time after that: a few are normal,
+/// and at this point a large Drive is costing minutes.
+pub const REFUSALS_TO_ASK: u64 = 100;
+
 pub(crate) enum AfterLog {
     Refresh,
     OpenBranch(NodeId),
@@ -129,6 +147,7 @@ pub struct App {
     /// Message shown until the next key.
     pub message: Option<String>,
     pub job: Option<Job>,
+    pub cloud_log: Option<CloudLog>,
     /// Ongoing Ctrl+S.
     pub search_job: Option<SearchJob<FileRef>>,
     /// Last search term (Ctrl+S and the viewer share it, so that
@@ -267,6 +286,7 @@ impl App {
             confirm: None,
             message: None,
             job: None,
+            cloud_log: None,
             search_job: None,
             search: None,
             batch_preview: None,
@@ -421,6 +441,7 @@ impl App {
     /// There is ongoing work that does not depend on the user.
     pub fn busy(&self) -> bool {
         self.job.is_some()
+            || self.cloud_log.is_some()
             || self.batch_job.is_some()
             || self.search_job.is_some()
             || self.archive_job.is_some()
@@ -441,6 +462,10 @@ impl App {
         }
         if self.duplicates_job.is_some() {
             self.duplicates_tick(budget);
+            return;
+        }
+        if self.cloud_log.is_some() {
+            self.cloud_log_tick(budget);
             return;
         }
         if let Some(job) = &mut self.archive_job {
@@ -514,6 +539,89 @@ impl App {
             }
         }
         self.job = None;
+    }
+
+    /// `*`: logs and expands the branch. On a cloud mount, asks for it all at
+    /// once instead of folder by folder.
+    pub(crate) fn expand_all(&mut self) {
+        let id = self.current();
+        let path = self.tree.path(id);
+        if self.archive.is_none()
+            && self.remote.is_none()
+            && let Some(mount) = crate::info::mount_of(&path)
+            && let Some(remote) = crate::rclone::of(&mount)
+            && let Some(spec) = crate::rclone::spec_of(&remote.spec, &mount.point, &path)
+        {
+            let service = remote
+                .service
+                .clone()
+                .unwrap_or_else(|| "The service".to_string());
+            self.cloud_log = Some(CloudLog {
+                service,
+                ask_at: REFUSALS_TO_ASK,
+                job: crate::rclone::TreeJob::start(
+                    "rclone",
+                    remote.service.as_deref() == Some("Google Drive"),
+                    spec,
+                    path,
+                ),
+                pane: self.active,
+                id,
+            });
+            return;
+        }
+        self.start_job(LogJob::new(id, true), AfterLog::Refresh);
+    }
+
+    fn cloud_log_tick(&mut self, budget: Duration) {
+        let Some(log) = &self.cloud_log else { return };
+        // Nothing to do here but wait: the thread does the reading.
+        let refused = log.job.progress.refused.load(Ordering::Relaxed);
+        let Some(result) = log.job.poll() else {
+            if refused >= log.ask_at && self.confirm.is_none() {
+                let q = format!(
+                    "{} refused {refused} requests. Keep trying, or stop and log smaller folders?",
+                    log.service
+                );
+                self.ask_options(ConfirmKind::KeepListing, q, &["Keep trying", "Stop"]);
+            }
+            std::thread::sleep(budget.min(Duration::from_millis(20)));
+            return;
+        };
+        let (pane, id, service) = (log.pane, log.id, log.service.clone());
+        self.cloud_log = None;
+        // Whatever was being asked no longer matters.
+        if self
+            .confirm
+            .as_ref()
+            .is_some_and(|c| matches!(c.kind, ConfirmKind::KeepListing))
+        {
+            self.confirm = None;
+        }
+        match result {
+            Ok(listing) => {
+                let pane = &mut self.panes[pane];
+                pane.tree.fill(id, listing);
+                pane.refresh_rows(pane.current());
+                pane.refresh_files();
+            }
+            // Reading each folder would only be refused more.
+            Err(why) if refused > 0 || why.contains("Error 403") => {
+                self.message = Some(format!("{service} refused the listing. {LOG_SMALLER}"));
+            }
+            // Slower, but it reads what the mount shows.
+            Err(why) => {
+                self.message = Some(format!(
+                    "Reading folder by folder: {}",
+                    crate::bidi::escape(&why)
+                ));
+                self.job = Some(Job {
+                    log: LogJob::new(id, true),
+                    pane,
+                    then: AfterLog::Refresh,
+                });
+            }
+        }
     }
 
     pub(crate) fn start_job(&mut self, log: LogJob, then: AfterLog) {

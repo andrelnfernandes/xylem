@@ -1323,6 +1323,22 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                 None => menu_line("", &[("", about)]),
             },
         ]
+    } else if let Some(log) = &app.cloud_log {
+        use std::sync::atomic::Ordering;
+        let entries = log.job.progress.entries.load(Ordering::Relaxed);
+        let refused = log.job.progress.refused.load(Ordering::Relaxed);
+        let refused = if refused > 0 {
+            format!(", {} requests refused", fmt_num(refused))
+        } else {
+            String::new()
+        };
+        vec![
+            Line::from(vec![
+                Span::styled("Asking rclone for the whole tree... ", bold),
+                Span::raw(format!("{} files and folders{refused}", fmt_num(entries))),
+            ]),
+            menu_line("", &[("Esc", "cancel")]),
+        ]
     } else if let Some(job) = &app.duplicates_job {
         use std::sync::atomic::Ordering;
         let listing = job.progress.listing.load(Ordering::Relaxed);
@@ -1494,7 +1510,15 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                 Span::raw(counts),
                 Span::raw(next),
             ]),
-            menu_line("", &[("Esc", "cancel")]),
+            // Why it is reading folder by folder, when it was not asked to.
+            match &app.message {
+                Some(msg) => {
+                    let mut line = menu_line("", &[("Esc", "cancel")]);
+                    line.spans.push(Span::raw(format!("  {msg}")));
+                    line
+                }
+                None => menu_line("", &[("Esc", "cancel")]),
+            },
         ]
     } else {
         let (first, mut second) = idle_menu(app);

@@ -75,10 +75,14 @@ panel indica simplemente rclone.
 
 ## Qué cambia allí
 
-- **Todo va por la red.** Cada lectura de directorio es una petición: en un
-  Drive o bucket grande, `*` (registrar toda la rama) y Branch (`B`) pueden
-  tardar un rato. Abrir solo los directorios que necesitas (→ o `+`) es rápido,
-  ya que se leen a medida que los abres.
+- **Todo va por la red.** Cada lectura de directorio es una petición, y un
+  servicio como Google Drive las rechaza cuando son demasiadas. Por eso, en una
+  carpeta montada, `*` pide a rclone toda la rama en un solo listado, mucho más
+  rápido, y llena el árbol al terminar; Esc deja el árbol como estaba. Si rclone
+  falla o muestra carpetas distintas de las del montaje, `*` lee carpeta por
+  carpeta. Branch (`B`) siempre lee así y puede tardar un rato. Abrir solo los
+  directorios que necesitas (→ o `+`) es rápido, ya que se leen a medida que los
+  abres.
 - **Los cambios hechos en otro lugar** (en el navegador, en el teléfono) solo
   aparecen después de pulsar F3 y una vez que expira la caché de directorios
   (`--dir-cache-time`).
@@ -97,6 +101,33 @@ panel indica simplemente rclone.
 - **S3 no tiene directorios reales**, solo nombres con `/` en ellos: un
   directorio vacío puede desaparecer al desmontar, y renombrar o mover un
   directorio copia y elimina cada archivo que contiene.
+
+## Cuando el servicio rechaza: error 403
+
+Google Drive limita cuántas peticiones acepta por minuto. En un Drive saturado de
+archivos y carpetas pequeños (copias de proyectos, `node_modules`, extensiones de
+editor), **los errores 403 son comunes**: `Quota exceeded`, `rateLimitExceeded`.
+rclone espera y vuelve a intentarlo, así que todo se vuelve lento, y al final
+puede rendirse. Cualquier gestor de archivos que lea carpeta por carpeta a través
+del montaje choca con el mismo límite.
+
+Lo que hace Xylem: `*` muestra cuántas peticiones se rechazaron y, tras 100,
+pregunta si seguir intentándolo o parar; parar deja el árbol como estaba. Si
+rclone se rinde, Xylem lo avisa y no pasa a leer carpeta por carpeta por su
+cuenta, porque eso solo se rechazaría más.
+
+Lo que ayuda, empezando por lo primero:
+
+- **Registrar por carpetas.** En vez de `*` en la raíz, usa `*` en carpetas más
+  pequeñas, o ábrelas con → o `+`. En un Drive saturado suele ser el mejor camino.
+- **Tu propio `client_id`.** Si no creaste uno, rclone usa un cliente compartido
+  con sus demás usuarios, y la cuota también. Crear el tuyo es gratis: la
+  [guía de rclone](https://rclone.org/drive/#making-your-own-client-id) lo explica.
+  Después, vuelve a autorizar con `rclone config`. Los límites de tu cuenta siguen,
+  pero el uso de los demás deja de contar contra ti.
+- **Guardar los listados más tiempo:** `--dir-cache-time 1h` en `rclone mount`.
+- **Quitar lo que se puede recrear.** Menos carpetas son menos peticiones, en
+  cualquier programa.
 
 ## Encontrar qué llena tu Google Drive
 
