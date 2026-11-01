@@ -83,6 +83,9 @@ Não concorre com as frentes acima, e cada item é pequeno:
 
 ## Sem data
 
+- **Cockpit de programação** ([cockpit.md](cockpit.md)): rascunho. Primeiro busca no
+  projeto, lista de locais e editor na linha certa. Fica para um release depois da 0.6.0;
+  a ordem em relação às frentes acima ainda será decidida.
 - **Sobras de segurança que dependem do Windows:** eXecute (item 2, que também libera
   registros em `.bat`/`.cmd`) e senha do ssh (item 3). Windows não é prioridade.
 - **SQLite e zstd em Rust (item 6):** acompanhar; depende de terceiros.
