@@ -98,6 +98,3 @@ Não concorre com as frentes acima, e cada item é pequeno:
 Conversores externos (o mais arriscado, e `O` e `X` já cobrem o uso), Xylem em janela
 própria, HTML no viewer, treemap, mouse e o resto da lista do ZTreeWin que serve mais à
 paridade do que ao uso (Wash, Volume, Hide, comandos de vídeo).
-
-Isso muda o que os READMEs e o site anunciam: quando este plano entrar, tirar de "Next"
-e de "Coming next" o que saiu daqui.

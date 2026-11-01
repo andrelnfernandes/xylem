@@ -131,8 +131,8 @@ ARM64 (estático, roda em qualquer distribuição) ou Windows x86_64. Extraia e
 coloque o `xy` (`xy.exe`) numa pasta do `PATH`, por exemplo:
 
 ```bash
-tar xzf xy-v0.5.0-x86_64-unknown-linux-musl.tar.gz
-install -m 755 xy-v0.5.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
+tar xzf xy-v0.6.0-x86_64-unknown-linux-musl.tar.gz
+install -m 755 xy-v0.6.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
 ```
 
 Cada arquivo tem um `.sha256` ao lado, para conferir com `sha256sum -c`.
@@ -314,9 +314,9 @@ nativos: se você lê um desses idiomas, [sugestões são bem-vindas](docs/manua
 - O visualizador: codificações detectadas sozinhas, arquivos comprimidos,
   limite de tamanho configurável, quebra de linha, números de linha, ir para
   a linha, filtro de linhas, proteção contra caracteres ocultos de direção do
-  texto e um [modo tabela](docs/manual/pt/viewer.md) com filtro SQL para
-  planilhas (XLSX, ODS), CSV, JSON Lines, DBF com seus arquivos memo, SQLite e
-  Parquet, e Markdown renderizado.
+  texto e um [modo tabela](docs/manual/pt/viewer.md) com filtro SQL, e queries
+  inteiras no SQLite, para planilhas (XLSX, ODS), CSV, JSON Lines, DBF com seus
+  arquivos memo, SQLite e Parquet, e Markdown renderizado.
 - Batch (Ctrl+B) sobre arquivos marcados, os registros de uma tabela ou as linhas
   de um texto, com templates, condições, totais e saída em SQLite.
 - Duplicados (Alt+Y): arquivos e pastas inteiras, em discos locais e pelos hashes
@@ -328,15 +328,15 @@ nativos: se você lê um desses idiomas, [sugestões são bem-vindas](docs/manua
   vem a escrita (copiar para ela, mover, excluir, renomear, criar diretórios,
   permissões, datas), depois Edit e Abrir (por uma cópia temporária que volta
   ao salvar), eXecute e Git via ssh, e atualização periódica.
-- **Visualizador:** SDF no modo tabela, como extra; um visualizador que lê em
-  janelas, como o `less`, sem limite de tamanho para arquivos não comprimidos;
-  logs (acompanhar, ir para o fim, cores por nível); e, opcionais e isolados,
-  conversores externos como o `pdftotext` ou o `exiftool`.
+- **Visualizador:** um visualizador que lê em janelas, como o `less`, sem limite
+  de tamanho para arquivos não comprimidos, e logs (acompanhar, ir para o fim,
+  cores por nível).
 - **Uso do disco:** ações dentro da visão Usage (marcar, excluir, Prune,
-  visualizar), depois um treemap opcional, agrupamento por tipo e exportação.
-- **Do ZTreeWin:** os itens de "O que o Xylem ainda não tem" na
-  [comparação com o ZTreeWin](docs/manual/pt/ztreewin.md), como o JFC, o
-  Global, o mouse e salvar o log.
+  visualizar).
+- **Nuvem:** a raiz de um Drive grande sem tela em branco, e Branch, Usage e
+  Compare pedindo ao rclone o ramo inteiro de uma vez.
+- **Do ZTreeWin:** comparar o conteúdo de dois arquivos (JFC), e salvar o log para
+  abrir a árvore de um disco na hora da próxima vez.
 - **Endurecimento:** as sobras da revisão de segurança, listadas no
   [BACKLOG.md](BACKLOG.md) (em inglês).
 
@@ -346,19 +346,10 @@ nativos: se você lê um desses idiomas, [sugestões são bem-vindas](docs/manua
   [Windows](docs/manual/windows.md)), mas não é prioridade enquanto existir o
   ZTreeWin. Talvez macOS.
 - Adiados por opção: macros, chown e Graft.
-- **O Xylem numa janela própria**, mais para frente: a mesma tela desenhada
-  numa janela própria em vez de um terminal (um backend do ratatui que
-  desenha numa janela, por exemplo com wgpu), com fonte e ícone próprios.
-  Dispensaria o terminal, o que pesa mais no Windows e no macOS; veria
-  sempre Ctrl e Alt apertados e soltos, e os menus os acompanhariam em
-  qualquer sistema; e abriria espaço para o mouse. O trabalho: um laço de
-  eventos e um mapeamento de teclas novos (o resto do Xylem só recebe teclas
-  e desenha num frame do ratatui), o E e o eXecute rodando no terminal
-  embutido, e o empacotamento. Uma interface gráfica completa (egui,
-  GTK...) não é o plano: seria outro programa, sem o visual do XTree.
 
 A lista completa do que falta, com as notas de desenvolvimento, está em
-[BACKLOG.md](BACKLOG.md) (em inglês).
+[BACKLOG.md](BACKLOG.md) (em inglês), e a ordem do trabalho está
+[no roteiro](docs/plans/roadmap.md).
 
 ## Licença
 
