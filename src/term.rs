@@ -207,13 +207,16 @@ impl Terminal {
         let (p, d) = (parser.clone(), dirty.clone());
         std::thread::spawn(move || {
             let mut buf = [0u8; 8192];
+            let mut repeats = Repeats::default();
+            let mut expanded = Vec::new();
             while let Ok(n) = reader.read(&mut buf) {
                 if n == 0 {
                     break;
                 }
+                repeats.expand(&buf[..n], &mut expanded);
                 p.lock()
                     .unwrap_or_else(|e| e.into_inner())
-                    .process(&buf[..n]);
+                    .process(&expanded);
                 d.store(true, Ordering::Relaxed);
             }
             d.store(true, Ordering::Relaxed);
@@ -268,6 +271,8 @@ impl Terminal {
         std::thread::spawn(move || {
             let mut buf = [0u8; 8192];
             let mut osc7 = Osc7::default();
+            let mut repeats = Repeats::default();
+            let mut expanded = Vec::new();
             while let Ok(n) = reader.read(&mut buf) {
                 if n == 0 {
                     break;
@@ -275,9 +280,10 @@ impl Terminal {
                 if let Some(dir) = osc7.feed(&buf[..n]) {
                     *r.lock().unwrap_or_else(|e| e.into_inner()) = Some(dir);
                 }
+                repeats.expand(&buf[..n], &mut expanded);
                 p.lock()
                     .unwrap_or_else(|e| e.into_inner())
-                    .process(&buf[..n]);
+                    .process(&expanded);
                 d.store(true, Ordering::Relaxed);
             }
             d.store(true, Ordering::Relaxed);
@@ -726,9 +732,247 @@ pub fn encode_key(key: KeyEvent, app_cursor: bool) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// The most one repeat sequence writes: wider than a line, which is what programs
+/// use it for, and small enough that hostile output cannot grow much.
+const MAX_REPEAT: usize = 1024;
+/// A longer control sequence is not a repeat, and is not held any more.
+const MAX_HELD: usize = 32;
+
+/// Where [`Repeats`] is in the stream, which arrives cut at any byte.
+#[derive(Default, Clone, Copy, PartialEq)]
+enum RepeatState {
+    #[default]
+    Text,
+    /// After ESC.
+    Escape,
+    /// In the rest of a two-byte escape sequence with intermediates.
+    EscapeRest,
+    /// In a control sequence, held until it is known whether it is a repeat.
+    Control,
+    /// In a control sequence that is not a repeat.
+    ControlRest,
+    /// In a string (OSC, DCS...): its bytes are not text.
+    StringBody,
+}
+
+/// Writes out REP (`CSI n b`), which `xterm-256color` promises and `vt100` ignores.
+/// `hexedit` writes a row of dots or zeros with it, and without this they would
+/// be missing from the screen. All the other bytes pass as they came.
+#[derive(Default)]
+struct Repeats {
+    state: RepeatState,
+    /// The control sequence not yet known.
+    held: Vec<u8>,
+    /// The character just written, if nothing else came after it.
+    last: Vec<u8>,
+    /// A UTF-8 character still incomplete, and the bytes it lacks.
+    partial: Vec<u8>,
+    lacking: usize,
+}
+
+impl Repeats {
+    fn expand(&mut self, input: &[u8], out: &mut Vec<u8>) {
+        out.clear();
+        for &byte in input {
+            match self.state {
+                RepeatState::Text => self.text(byte, out),
+                RepeatState::Escape => self.escape(byte, out),
+                RepeatState::EscapeRest => {
+                    if !self.starts_escape(byte) {
+                        out.push(byte);
+                        if (0x30..=0x7e).contains(&byte) {
+                            self.state = RepeatState::Text;
+                        }
+                    }
+                }
+                RepeatState::Control => self.control(byte, out),
+                RepeatState::ControlRest => {
+                    if !self.starts_escape(byte) {
+                        out.push(byte);
+                        if (0x40..=0x7e).contains(&byte) || matches!(byte, 0x18 | 0x1a) {
+                            self.state = RepeatState::Text;
+                        }
+                    }
+                }
+                RepeatState::StringBody => {
+                    if !self.starts_escape(byte) {
+                        out.push(byte);
+                        if matches!(byte, 0x07 | 0x18 | 0x1a) {
+                            self.state = RepeatState::Text;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn starts_escape(&mut self, byte: u8) -> bool {
+        if byte != 0x1b {
+            return false;
+        }
+        self.held.clear();
+        self.held.push(byte);
+        self.state = RepeatState::Escape;
+        true
+    }
+
+    fn text(&mut self, byte: u8, out: &mut Vec<u8>) {
+        if self.lacking > 0 {
+            if byte & 0xc0 == 0x80 {
+                out.push(byte);
+                self.partial.push(byte);
+                self.lacking -= 1;
+                if self.lacking == 0 {
+                    std::mem::swap(&mut self.last, &mut self.partial);
+                    self.partial.clear();
+                }
+                return;
+            }
+            self.lacking = 0;
+            self.partial.clear();
+        }
+        if self.starts_escape(byte) {
+            return;
+        }
+        self.last.clear();
+        out.push(byte);
+        match byte {
+            0x20..=0x7e => self.last.push(byte),
+            0xc2..=0xf4 => {
+                self.partial.push(byte);
+                self.lacking = match byte {
+                    0xc2..=0xdf => 1,
+                    0xe0..=0xef => 2,
+                    _ => 3,
+                };
+            }
+            _ => {}
+        }
+    }
+
+    fn escape(&mut self, byte: u8, out: &mut Vec<u8>) {
+        if byte == b'[' {
+            self.held.push(byte);
+            self.state = RepeatState::Control;
+            return;
+        }
+        self.last.clear();
+        out.append(&mut self.held);
+        if self.starts_escape(byte) {
+            return;
+        }
+        out.push(byte);
+        self.state = match byte {
+            b']' | b'P' | b'X' | b'^' | b'_' => RepeatState::StringBody,
+            0x20..=0x2f => RepeatState::EscapeRest,
+            _ => RepeatState::Text,
+        };
+    }
+
+    fn control(&mut self, byte: u8, out: &mut Vec<u8>) {
+        if (0x20..=0x3f).contains(&byte) && self.held.len() < MAX_HELD {
+            self.held.push(byte);
+            return;
+        }
+        if byte == b'b'
+            && let Some(count) = repeat_count(&self.held[2..])
+        {
+            self.held.clear();
+            self.state = RepeatState::Text;
+            for _ in 0..count {
+                out.extend_from_slice(&self.last);
+            }
+            return;
+        }
+        self.last.clear();
+        out.append(&mut self.held);
+        if self.starts_escape(byte) {
+            return;
+        }
+        out.push(byte);
+        self.state = if (0x40..=0x7e).contains(&byte) || matches!(byte, 0x18 | 0x1a) {
+            RepeatState::Text
+        } else {
+            RepeatState::ControlRest
+        };
+    }
+}
+
+/// How many times `params` of a control sequence ask for, if only a number.
+fn repeat_count(params: &[u8]) -> Option<usize> {
+    if !params.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    let count = params.iter().fold(0usize, |n, d| {
+        n.saturating_mul(10).saturating_add(usize::from(d - b'0'))
+    });
+    Some(count.clamp(1, MAX_REPEAT))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What a stream of output leaves on a screen, cut every `step` bytes.
+    fn screen_of(output: &[u8], step: usize) -> String {
+        let mut parser = vt100::Parser::new(4, 80, 0);
+        let mut repeats = Repeats::default();
+        let mut out = Vec::new();
+        for piece in output.chunks(step) {
+            repeats.expand(piece, &mut out);
+            parser.process(&out);
+        }
+        parser.screen().contents()
+    }
+
+    #[test]
+    fn a_repeat_writes_the_character_however_the_output_is_cut() {
+        let output = "0\x1b[7b   é\x1b[2bx.\x1b[3b|\x1b[b;\x1b[0b".as_bytes();
+        for step in 1..=output.len() {
+            assert_eq!(screen_of(output, step), "00000000   éééx....||;;", "{step}");
+        }
+    }
+
+    #[test]
+    fn only_a_repeat_right_after_a_character_writes_anything() {
+        // Nothing before it, a line, a color, a string, or another repeat's end.
+        assert_eq!(screen_of(b"\x1b[5bA", 1), "A");
+        assert_eq!(screen_of(b"a\n\x1b[5b", 1), "a");
+        assert_eq!(screen_of(b"a\x1b[31m\x1b[5b", 1), "a");
+        assert_eq!(screen_of(b"a\x1b]0;title\x07\x1b[5b", 1), "a");
+        // Other sequences that end in b are not repeats.
+        assert_eq!(screen_of(b"a\x1b[?5b", 1), "a");
+        assert_eq!(screen_of(b"a\x1b[1;5b", 1), "a");
+        assert_eq!(screen_of(b"a\x1b[ 5b", 1), "a");
+        // A broken character repeats nothing.
+        assert_eq!(screen_of(b"\xc3\x1b[5b", 1), "");
+    }
+
+    #[test]
+    fn a_hostile_repeat_stays_small() {
+        let mut repeats = Repeats::default();
+        let mut out = Vec::new();
+        repeats.expand(b"\xf0\x9f\x98\x80\x1b[99999999999999999999999b", &mut out);
+        assert_eq!(out.len(), 4 + 4 * MAX_REPEAT);
+    }
+
+    #[test]
+    fn all_but_repeats_passes_as_it_came() {
+        let output: &[u8] = b"plain \xc3\xa9 \x1b[1;31mred\x1b[0m \x1b]0;a b z\x07 \x1bP1\x1b\\ \
+              \x1b(B \x1b\x1b[2J \x1b[\x18x \x1b[1\n2m \x1b[?25l \xff";
+        let long = [b"\x1b[".as_slice(), &[b'1'; 200], b"m tail"].concat();
+        for sample in [output, &long] {
+            for step in 1..=sample.len() {
+                let mut repeats = Repeats::default();
+                let (mut all, mut out) = (Vec::new(), Vec::new());
+                for piece in sample.chunks(step) {
+                    repeats.expand(piece, &mut out);
+                    all.extend_from_slice(&out);
+                }
+                assert_eq!(all, sample, "cut every {step}");
+            }
+        }
+    }
 
     fn key(code: KeyCode, mods: KeyModifiers) -> Vec<u8> {
         encode_key(KeyEvent::new(code, mods), false).unwrap()
