@@ -17,13 +17,13 @@ use chrono::{DateTime, Local};
 use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Paragraph};
 
 use crate::app::{self, App, BookmarksView, FileView, Focus, KbyteShow, MenuMode, Pane};
 use crate::charset::Charset;
-use crate::config::{self, IconStyle, TerminalTheme, formats, theme};
+use crate::config::{self, IconStyle, TerminalTheme, Theme, formats, theme};
 use crate::filetype;
 use crate::git::StatusCache;
 use crate::help::{self, Help};
@@ -499,9 +499,18 @@ fn panel(title: impl Into<Line<'static>>, active: bool) -> Block<'static> {
         theme().border
     };
     Block::bordered()
-        .border_type(BorderType::Plain)
+        .border_type(border_type(&theme()))
         .border_style(Style::new().fg(border))
         .title(title)
+}
+
+/// Rounded in the modern themes (or by the option `borders`).
+fn border_type(t: &Theme) -> BorderType {
+    if t.rounded {
+        BorderType::Rounded
+    } else {
+        BorderType::Plain
+    }
 }
 
 fn highlight(active: bool) -> Style {
@@ -522,14 +531,59 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     let [left, right] =
         Layout::horizontal([Constraint::Min(1), Constraint::Length(clock.len() as u16)])
             .areas(area);
-    frame.render_widget(
-        Line::from(vec![
-            Span::styled("Path: ", Style::new().fg(theme().key)),
-            Span::raw(path.to_string_lossy().into_owned()),
-        ]),
-        left,
-    );
+    let mut spans = vec![Span::styled("Path: ", Style::new().fg(theme().key))];
+    // On a remote machine or a container: its name stands out first, so that
+    // where a change goes is never in doubt; then the path there.
+    let (text, separator) = match &app.remote {
+        Some(remote) => {
+            let badge = format!(" {} ", remote.address.destination());
+            spans.push(Span::styled(
+                badge,
+                Style::new()
+                    .fg(theme().background)
+                    .bg(theme().key)
+                    .add_modifier(Modifier::BOLD),
+            ));
+            spans.push(Span::raw(" "));
+            let there = String::from_utf8_lossy(&remote.remote_path(&path)).into_owned();
+            (there, '/')
+        }
+        None => (home_short(&path), std::path::MAIN_SEPARATOR),
+    };
+    let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+    let room = (left.width as usize).saturating_sub(used + 1);
+    spans.extend(path_spans(&fit_tail(&text, room), separator));
+    frame.render_widget(Line::from(spans), left);
     frame.render_widget(Line::from(clock), right);
+}
+
+/// `path` with the home directory as `~`.
+fn home_short(path: &Path) -> String {
+    let text = path.to_string_lossy().into_owned();
+    let Some(home) = platform::home_dir().filter(|h| h.parent().is_some()) else {
+        return text;
+    };
+    match path.strip_prefix(&home) {
+        Ok(rest) if rest.as_os_str().is_empty() => "~".into(),
+        Ok(rest) => format!("~{}{}", std::path::MAIN_SEPARATOR, rest.display()),
+        Err(_) => text,
+    }
+}
+
+/// A path with the folders before the last one dim and the last one bold.
+fn path_spans(text: &str, separator: char) -> Vec<Span<'static>> {
+    let dim = Style::new().fg(theme().dim);
+    let last = Style::new().fg(theme().text).add_modifier(Modifier::BOLD);
+    match text.rfind(separator) {
+        Some(i) if i + separator.len_utf8() < text.len() => {
+            let cut = i + separator.len_utf8();
+            vec![
+                Span::styled(text[..cut].to_string(), dim),
+                Span::styled(text[cut..].to_string(), last),
+            ]
+        }
+        _ => vec![Span::styled(text.to_string(), last)],
+    }
 }
 
 /// What the directory of a tree row is, for its icon.
@@ -578,9 +632,15 @@ fn draw_tree(
             .unwrap_or(0)
     };
     let width = area.width.saturating_sub(2) as usize;
+    let guides = if active {
+        path_guides(pane, range.clone())
+    } else {
+        vec![Vec::new(); range.len()]
+    };
     let items: Vec<ListItem> = pane.rows[range]
         .iter()
-        .map(|row| {
+        .zip(guides)
+        .map(|(row, guides)| {
             let node = pane.tree.node(row.id);
             let name = node.name.to_string_lossy().into_owned();
             let name_style = if node.error.is_some() {
@@ -594,10 +654,7 @@ fn draw_tree(
                 IconStyle::None => None,
                 _ => crate::icons::dir_icon(dir_kind(pane, row.id), icons),
             };
-            let mut spans = vec![Span::styled(
-                row.prefix.clone(),
-                Style::new().fg(theme().dim),
-            )];
+            let mut spans = prefix_spans(&theme(), &row.prefix, &guides);
             if let Some(ic) = icon {
                 let ic_style = if node.error.is_some() {
                     Style::new().fg(theme().error)
@@ -651,10 +708,140 @@ fn draw_tree(
         .block(panel(title, active).title_top(position))
         .highlight_style(highlight(active));
     frame.render_stateful_widget(list, area, &mut state);
+    let offset = pane.tree_state.offset();
+    draw_scroll_thumb(frame, area, pane.rows.len(), pane.tree_page, offset, active);
+}
+
+/// Where a long list is: a thumb on the right border, as long as the share
+/// of the list on screen, at its place. Nothing when it all fits.
+fn draw_scroll_thumb(
+    frame: &mut Frame,
+    area: Rect,
+    len: usize,
+    page: usize,
+    offset: usize,
+    active: bool,
+) {
+    let track = area.height.saturating_sub(2) as usize;
+    if len <= page || page == 0 || track < 3 || area.width < 2 {
+        return;
+    }
+    let size = (track * page / len).clamp(1, track - 1);
+    let last = len - page;
+    let start = (track - size) * offset.min(last) / last;
+    let color = if active {
+        theme().active_border
+    } else {
+        theme().border
+    };
+    let x = area.right() - 1;
+    let buf = frame.buffer_mut();
+    for i in start..start + size {
+        let y = area.y + 1 + i as u16;
+        buf[(x, y)].set_symbol("┃").set_fg(color);
+    }
+}
+
+/// The lines from the root to the cursor, for the rows in `range`: for each
+/// row, the levels of its prefix that are on that way (each level is 3
+/// characters), and whether the whole connector is (the row of a folder on the
+/// way) or only its vertical stroke (a row between two folders on the way).
+fn path_guides(pane: &Pane, range: Range<usize>) -> Vec<Vec<(usize, bool)>> {
+    let mut out = vec![Vec::new(); range.len()];
+    let Some(sel) = pane.tree_state.selected().filter(|&s| s < pane.rows.len()) else {
+        return out;
+    };
+    // The folders on the way, root first, and the row of each one: they are
+    // all above the cursor, in that order.
+    let mut way = vec![pane.rows[sel].id];
+    while let Some(parent) = pane.tree.node(*way.last().unwrap()).parent {
+        way.push(parent);
+    }
+    way.reverse();
+    let mut at = Vec::with_capacity(way.len());
+    let mut next = 0;
+    for (i, row) in pane.rows[..=sel].iter().enumerate() {
+        if way.get(next) == Some(&row.id) {
+            at.push(i);
+            next += 1;
+        }
+    }
+    if at.len() != way.len() {
+        return out; // a folder on the way is not shown: nothing to draw
+    }
+    for level in 0..at.len() - 1 {
+        let (parent, child) = (at[level], at[level + 1]);
+        for r in (parent + 1)..=child {
+            if range.contains(&r) {
+                out[r - range.start].push((level, r == child));
+            }
+        }
+    }
+    out
+}
+
+/// The prefix of a tree row (`│  ├──`), dim, with the strokes on the way to the
+/// cursor in the color of the active border.
+fn prefix_spans(t: &Theme, prefix: &str, guides: &[(usize, bool)]) -> Vec<Span<'static>> {
+    let dim = Style::new().fg(t.dim);
+    let lit = Style::new().fg(t.active_border);
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut run = String::new();
+    let mut run_style = dim;
+    for (i, c) in prefix.chars().enumerate() {
+        let (level, offset) = (i / 3, i % 3);
+        let on_way = guides
+            .iter()
+            .any(|&(l, whole)| l == level && (whole || offset == 0));
+        let style = if on_way { lit } else { dim };
+        if style != run_style && !run.is_empty() {
+            spans.push(Span::styled(std::mem::take(&mut run), run_style));
+        }
+        run_style = style;
+        run.push(c);
+    }
+    if !run.is_empty() {
+        spans.push(Span::styled(run, run_style));
+    }
+    spans
 }
 
 /// Width of the Alt+K Percent bars.
 const SHARE_BAR: usize = 8;
+
+/// `part` as a whole percentage of `whole` (0 for an empty whole).
+fn percent_of(part: u64, whole: u64) -> u64 {
+    if whole == 0 {
+        0
+    } else {
+        (part as u128 * 100 / whole as u128) as u64
+    }
+}
+
+/// A bar of `part` of `whole` across `width`, with the percentage after it
+/// (and `what`, if it fits): `████████░░░ 73% used`. `None` if too narrow.
+fn ratio_line(
+    part: u64,
+    whole: u64,
+    width: usize,
+    weight: crate::usage::Weight,
+    what: &str,
+) -> Option<Line<'static>> {
+    let pct = percent_of(part, whole).min(100);
+    let mut text = format!(" {pct}%");
+    if !what.is_empty() && width >= text.len() + what.len() + 9 {
+        text.push(' ');
+        text.push_str(what);
+    }
+    let bar_width = width.checked_sub(text.len())?;
+    if bar_width < 4 || whole == 0 {
+        return None;
+    }
+    let filled = crate::usage::bar(part.min(whole), whole, bar_width);
+    let mut spans = bar_spans(filled, bar_width, weight);
+    spans.push(Span::styled(text, Style::new().fg(theme().dim)));
+    Some(Line::from(spans))
+}
 
 /// Alt+K Percent: `bytes` as a share of `whole` ("41%", "5.8%", "<0.1%"), and a bar
 /// of `bytes` against `largest` (the biggest sibling fills it), in eighths
@@ -830,6 +1017,15 @@ fn draw_files(
         .block(panel(title, active).title_bottom(position))
         .highlight_style(highlight(active));
     frame.render_stateful_widget(list, area, &mut state);
+    let offset = pane.file_state.offset();
+    draw_scroll_thumb(
+        frame,
+        area,
+        pane.files.len(),
+        pane.file_page,
+        offset,
+        active,
+    );
 }
 
 /// Adjusts the scroll of `state` so the selected item stays visible.
@@ -950,7 +1146,7 @@ fn draw_file_columns(
                 let style = if i == sel {
                     highlight(active)
                 } else {
-                    file_style(f)
+                    file_style(&theme(), f)
                 };
                 spans.push(Span::styled(cell, style));
             }
@@ -958,18 +1154,36 @@ fn draw_file_columns(
         })
         .collect();
     frame.render_widget(Paragraph::new(lines), inner);
+    draw_scroll_thumb(frame, area, rows, height, top, active);
 }
 
-/// Name color by file type (and whether it is tagged).
-fn file_style(f: &FileEntry) -> Style {
+/// Name color by file type (and whether it is tagged): tagged, link,
+/// special and executable first, then the kind of file its name says.
+fn file_style(t: &Theme, f: &FileEntry) -> Style {
     match f.kind {
-        _ if f.tagged => Style::new().fg(theme().tagged).add_modifier(Modifier::BOLD),
-        FileKind::Symlink => Style::new().fg(theme().symlink),
-        FileKind::Other => Style::new().fg(theme().special),
+        _ if f.tagged => Style::new().fg(t.tagged).add_modifier(Modifier::BOLD),
+        FileKind::Symlink => Style::new().fg(t.symlink),
+        FileKind::Other => Style::new().fg(t.special),
         FileKind::File if crate::platform::is_executable(&f.name, f.mode) => {
-            Style::new().fg(theme().executable)
+            Style::new().fg(t.executable)
         }
+        FileKind::File if t.type_colors => match crate::filetype::category(&f.name) {
+            Some(category) => Style::new().fg(category_color(t, category)),
+            None => Style::new(),
+        },
         FileKind::File => Style::new(),
+    }
+}
+
+fn category_color(t: &Theme, category: crate::filetype::Category) -> Color {
+    use crate::filetype::Category;
+    match category {
+        Category::Archive => t.archive,
+        Category::Image => t.image,
+        Category::Media => t.media,
+        Category::Document => t.document,
+        Category::Code => t.code,
+        Category::Data => t.data,
     }
 }
 
@@ -1042,32 +1256,53 @@ fn file_line(
 ) -> ListItem<'static> {
     let size = fmt_num(f.size);
     let mode = fmt_mode(f.mode, f.kind);
+    let dim = Style::new().fg(theme().dim);
+    let t = theme();
+    let size_style = size_style(&t, f.size);
+    let date_style = date_style(&t, f.modified, SystemTime::now());
     // In narrow windows (split screen), the least useful columns are dropped.
-    let details = match detail {
-        Detail::NamesOnly => String::new(),
+    let details: Vec<Span<'static>> = match detail {
+        Detail::NamesOnly => Vec::new(),
         Detail::Standard => {
             let date = f.modified.map(fmt_time).unwrap_or_default();
             if width >= 72 {
-                format!(" {size:>15} {date:16} {mode}")
+                vec![
+                    Span::styled(format!(" {size:>15}"), size_style),
+                    Span::styled(format!(" {date:16}"), date_style),
+                    Span::styled(format!(" {mode}"), dim),
+                ]
             } else if width >= 50 {
-                format!(" {size:>13} {date:16}")
+                vec![
+                    Span::styled(format!(" {size:>13}"), size_style),
+                    Span::styled(format!(" {date:16}"), date_style),
+                ]
             } else {
-                format!(" {size:>13}")
+                vec![Span::styled(format!(" {size:>13}"), size_style)]
             }
         }
         Detail::Owner(owner) => {
             let owner = fit(&owner, 17);
             if width >= 72 {
-                format!(" {size:>15} {owner} {mode}")
+                vec![
+                    Span::styled(format!(" {size:>15}"), size_style),
+                    Span::styled(format!(" {owner} {mode}"), dim),
+                ]
             } else if width >= 50 {
-                format!(" {size:>13} {owner}")
+                vec![
+                    Span::styled(format!(" {size:>13}"), size_style),
+                    Span::styled(format!(" {owner}"), dim),
+                ]
             } else {
-                format!(" {owner}")
+                vec![Span::styled(format!(" {owner}"), dim)]
             }
         }
         // Up to almost half of the line, the rest for the name.
-        Detail::Type(what) => format!(" {}", fit(&what, (width * 45 / 100).clamp(12, 50))),
+        Detail::Type(what) => vec![Span::styled(
+            format!(" {}", fit(&what, (width * 45 / 100).clamp(12, 50))),
+            dim,
+        )],
     };
+    let details_len: usize = details.iter().map(|s| s.content.chars().count()).sum();
 
     // 2 columns for the tag mark, 3 for the Git status, then the icon.
     let git = git.map(|xy| git_text(&xy));
@@ -1079,14 +1314,14 @@ fn file_line(
     );
     let icon_len = if icon.is_some() { SLOT_WIDTH } else { 0 };
     let marks = 2 + git.as_ref().map_or(0, String::len) + icon_len;
-    let name_width = width.saturating_sub(details.chars().count() + marks).max(8);
+    let name_width = width.saturating_sub(details_len + marks).max(8);
     let mut name: String = f.name.to_string_lossy().into_owned();
     if f.kind == FileKind::Symlink {
         name.push('@');
     }
     let name = fit(&name, name_width);
 
-    let style = file_style(f);
+    let style = file_style(&t, f);
     let mark = if f.tagged { "■ " } else { "  " };
     let mut spans = vec![Span::styled(mark, Style::new().fg(theme().tagged))];
     if let Some(git) = git {
@@ -1098,11 +1333,31 @@ fn file_line(
     if let Some(ic) = icon {
         spans.push(Span::styled(ic, style));
     }
-    spans.extend([
-        Span::styled(name, style),
-        Span::styled(details, Style::new().fg(theme().dim)),
-    ]);
+    spans.push(Span::styled(name, style));
+    spans.extend(details);
     ListItem::new(Line::from(spans))
+}
+
+/// A size by how much it is: under a MiB as dim as the other details, up to
+/// a GiB in the color of the text, more in bold. A big file stands out without
+/// reading the numbers.
+fn size_style(t: &Theme, size: u64) -> Style {
+    const MIB: u64 = 1 << 20;
+    const GIB: u64 = 1 << 30;
+    match size {
+        s if s < MIB => Style::new().fg(t.dim),
+        s if s < GIB => Style::new().fg(t.text),
+        _ => Style::new().fg(t.text).add_modifier(Modifier::BOLD),
+    }
+}
+
+/// A date changed in the last 24 hours in the color of the text, any other
+/// as dim as the other details.
+fn date_style(t: &Theme, modified: Option<SystemTime>, now: SystemTime) -> Style {
+    let recent = modified
+        .and_then(|m| now.duration_since(m).ok())
+        .is_some_and(|age| age.as_secs() < 24 * 60 * 60);
+    Style::new().fg(if recent { t.text } else { t.dim })
 }
 
 /// The panel on the right, as in ZTreeWin: three boxes (FILE, DISK, DISK
@@ -1167,6 +1422,17 @@ fn draw_stats(frame: &mut Frame, app: &App, area: Rect) {
         let total = value("Total", space.total);
         total_lines = total.len();
         disk.extend(total);
+        // How full the disk is: green, then yellow from 75%, red from 90%.
+        let used = space.total.saturating_sub(space.available);
+        let weight = match percent_of(used, space.total) {
+            p if p < 75 => crate::usage::Weight::Light,
+            p if p < 90 => crate::usage::Weight::Medium,
+            _ => crate::usage::Weight::Heavy,
+        };
+        if let Some(line) = ratio_line(used, space.total, width, weight, "used") {
+            disk.push(line);
+            total_lines += 1;
+        }
     }
 
     let stats = app.disk_stats();
@@ -1194,6 +1460,18 @@ fn draw_stats(frame: &mut Frame, app: &App, area: Rect) {
     statistics.extend(count(stats.matching));
     statistics.push(heading("Tagged"));
     statistics.extend(count(stats.tagged));
+    // The tagged part of what matches, once something is tagged.
+    if stats.tagged.bytes > 0
+        && let Some(line) = ratio_line(
+            stats.tagged.bytes,
+            stats.matching.bytes,
+            width,
+            crate::usage::Weight::Light,
+            "",
+        )
+    {
+        statistics.push(line);
+    }
     statistics.push(heading("Current Directory"));
     statistics.push(Line::from(bold(fit(&name, width))));
     statistics.extend(count(here));
@@ -4021,5 +4299,192 @@ mod tests {
         assert!(screen.contains("\u{e5fb} proj"), "{screen}");
         assert!(screen.contains("\u{e5fb} wt"), "{screen}");
         assert!(!screen.contains("\u{e5fb} plain"), "{screen}");
+    }
+
+    fn file_entry(name: &str, size: u64, mode: u32) -> FileEntry {
+        FileEntry {
+            name: name.into(),
+            size,
+            disk: size,
+            link: None,
+            modified: None,
+            mode,
+            kind: FileKind::File,
+            tagged: false,
+        }
+    }
+
+    #[test]
+    fn file_names_take_the_color_of_their_type() {
+        let t = Theme::classic();
+        let fg = |f: &FileEntry| file_style(&t, f).fg;
+        assert_eq!(fg(&file_entry("backup.tar.gz", 1, 0o644)), Some(t.archive));
+        assert_eq!(fg(&file_entry("photo.jpg", 1, 0o644)), Some(t.image));
+        assert_eq!(fg(&file_entry("main.rs", 1, 0o644)), Some(t.code));
+        assert_eq!(fg(&file_entry("README", 1, 0o644)), None);
+        // Tagged, then executable, come before the type.
+        let mut tagged = file_entry("photo.jpg", 1, 0o644);
+        tagged.tagged = true;
+        assert_eq!(fg(&tagged), Some(t.tagged));
+        #[cfg(unix)]
+        assert_eq!(fg(&file_entry("build.sh", 1, 0o755)), Some(t.executable));
+        // The classic look, by the option.
+        let plain = Theme {
+            type_colors: false,
+            ..Theme::classic()
+        };
+        assert_eq!(
+            file_style(&plain, &file_entry("photo.jpg", 1, 0o644)).fg,
+            None
+        );
+    }
+
+    #[test]
+    fn big_sizes_and_recent_dates_stand_out() {
+        let t = Theme::classic();
+        assert_eq!(size_style(&t, 1000).fg, Some(t.dim));
+        assert_eq!(size_style(&t, 5 << 20).fg, Some(t.text));
+        let gib = size_style(&t, 3 << 30);
+        assert!(gib.add_modifier.contains(Modifier::BOLD));
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000);
+        let ago = |s: u64| Some(now - std::time::Duration::from_secs(s));
+        assert_eq!(date_style(&t, ago(3600), now).fg, Some(t.text));
+        assert_eq!(date_style(&t, ago(3 * 86_400), now).fg, Some(t.dim));
+        assert_eq!(date_style(&t, None, now).fg, Some(t.dim));
+    }
+
+    #[test]
+    fn the_way_to_the_cursor_is_lit_in_the_tree() {
+        let tmp = crate::testing::tempdir();
+        for dir in ["a/b", "m", "z/y"] {
+            std::fs::create_dir_all(tmp.path().join(dir)).unwrap();
+        }
+        let mut pane = Pane::new(tmp.path().to_path_buf());
+        pane.tree.expand_all(crate::model::tree::ROOT);
+        pane.rows = pane.tree.visible_rows();
+        let names: Vec<String> = pane
+            .rows
+            .iter()
+            .map(|r| pane.tree.node(r.id).name.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(&names[1..], ["a", "b", "m", "z", "y"]);
+        pane.tree_state.select(Some(5)); // y, inside z
+        let guides = path_guides(&pane, 0..6);
+        // From the root to z: the stroke of level 0 on the rows between,
+        // the whole connector on z's row; then z's connector to y.
+        assert_eq!(guides[1], [(0, false)]);
+        assert_eq!(guides[2], [(0, false)]);
+        assert_eq!(guides[3], [(0, false)]);
+        assert_eq!(guides[4], [(0, true)]);
+        assert_eq!(guides[5], [(1, true)]);
+        // Only the rows asked for.
+        assert_eq!(path_guides(&pane, 4..6), [vec![(0, true)], vec![(1, true)]]);
+
+        let t = Theme::classic();
+        let spans = prefix_spans(&t, &pane.rows[2].prefix, &guides[2]);
+        let parts: Vec<(&str, Option<Color>)> = spans
+            .iter()
+            .map(|s| (s.content.as_ref(), s.style.fg))
+            .collect();
+        assert_eq!(
+            parts,
+            [("│", Some(t.active_border)), ("  └──", Some(t.dim))]
+        );
+    }
+
+    #[test]
+    fn ratio_bars_fit_their_width() {
+        use crate::usage::Weight;
+        let line = ratio_line(50, 100, 20, Weight::Light, "used").unwrap();
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(text.chars().count(), 20, "{text}");
+        assert!(text.ends_with(" 50% used"), "{text}");
+        assert!(text.starts_with("█████"), "{text}");
+        // Narrow: the word goes first, then the bar.
+        let line = ratio_line(1, 4, 10, Weight::Light, "used").unwrap();
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(
+            text.ends_with(" 25%") && text.chars().count() == 10,
+            "{text}"
+        );
+        assert!(ratio_line(1, 4, 6, Weight::Light, "").is_none());
+        assert!(ratio_line(1, 0, 20, Weight::Light, "").is_none());
+    }
+
+    #[test]
+    fn a_scroll_thumb_only_when_the_list_does_not_fit() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut term = Terminal::new(TestBackend::new(10, 12)).unwrap();
+        let thumbs = |term: &mut Terminal<TestBackend>, len, offset| {
+            term.draw(|f| {
+                let area = f.area();
+                f.render_widget(Block::bordered(), area);
+                draw_scroll_thumb(f, area, len, 10, offset, true);
+            })
+            .unwrap();
+            let buf = term.backend().buffer();
+            (0..12)
+                .filter(|&y| buf[(9, y)].symbol() == "┃")
+                .collect::<Vec<u16>>()
+        };
+        assert!(thumbs(&mut term, 10, 0).is_empty(), "it all fits");
+        assert_eq!(thumbs(&mut term, 100, 0), [1]);
+        assert_eq!(thumbs(&mut term, 100, 90), [10], "the end of the list");
+        // Half the list on screen: half the track.
+        assert_eq!(thumbs(&mut term, 20, 10), [6, 7, 8, 9, 10]);
+    }
+
+    #[test]
+    fn the_header_shortens_home_and_stresses_the_last_folder() {
+        if let Some(home) = platform::home_dir().filter(|h| h.parent().is_some()) {
+            let sep = std::path::MAIN_SEPARATOR;
+            assert_eq!(home_short(&home), "~");
+            assert_eq!(home_short(&home.join("x")), format!("~{sep}x"));
+        }
+        let parts = |text: &str| -> Vec<String> {
+            path_spans(text, '/')
+                .into_iter()
+                .map(|s| s.content.into_owned())
+                .collect()
+        };
+        assert_eq!(parts("~/projects/xylem"), ["~/projects/", "xylem"]);
+        assert_eq!(parts("/"), ["/"]);
+        assert_eq!(parts("~"), ["~"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_header_names_the_remote_machine() {
+        let tmp = crate::testing::tempdir();
+        std::fs::create_dir(tmp.path().join("srv")).unwrap();
+        let Some(remote) = crate::remote::for_tests(tmp.path()) else {
+            return;
+        };
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.panes[0] = Pane::from_remote(remote);
+        let row = draw_row0(&mut app);
+        let real = tmp.path().canonicalize().unwrap();
+        assert!(row.starts_with("Path:  test@testhost "), "{row}");
+        assert!(row.contains(&real.display().to_string()), "{row}");
+    }
+
+    #[test]
+    fn borders_follow_the_theme_and_the_option() {
+        assert_eq!(border_type(&Theme::nord()), BorderType::Rounded);
+        assert_eq!(border_type(&Theme::classic()), BorderType::Plain);
+        let with = |theme: &str, borders: &str| {
+            let text = format!(
+                "theme = \"{theme}\"\n[options]\nborders = \"{borders}\"\ntype_colors = false"
+            );
+            let config = crate::config::Config::parse(&text).unwrap();
+            Theme::from_config(&config).unwrap()
+        };
+        assert_eq!(border_type(&with("nord", "plain")), BorderType::Plain);
+        assert_eq!(
+            border_type(&with("classic", "rounded")),
+            BorderType::Rounded
+        );
+        assert_eq!(border_type(&with("gruvbox", "theme")), BorderType::Rounded);
+        assert!(!with("classic", "theme").type_colors);
     }
 }

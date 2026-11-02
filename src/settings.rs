@@ -28,6 +28,8 @@ pub enum Opt {
     LegacyCharset,
     ViewerMaxSize,
     Icons,
+    TypeColors,
+    Borders,
     Sort,
     SortDescending,
     EnterViews,
@@ -129,6 +131,8 @@ pub const PAGES: &[Page] = &[
                 Opt::ViewerMaxSize,
             ),
             ('M', "Icons and glyphs (Nerd Fonts)", Opt::Icons),
+            ('N', "Color file names by type", Opt::TypeColors),
+            ('O', "Window borders", Opt::Borders),
         ],
     ),
     (
@@ -232,6 +236,8 @@ impl Opt {
                 }
             }
             Opt::Icons => o.icons.as_str().into(),
+            Opt::TypeColors => yes_no(o.type_colors),
+            Opt::Borders => o.borders.as_str().into(),
             Opt::FileDisplay => match o.file_display.as_str() {
                 "names" => "Names in columns".into(),
                 "names_size" => "Names and sizes in columns".into(),
@@ -323,6 +329,8 @@ impl Opt {
             Opt::LegacyCharset => o.legacy_charset = o.legacy_charset.next(),
             Opt::ViewerMaxSize => o.viewer_max_size = o.viewer_max_size.next(),
             Opt::Icons => o.icons = o.icons.next(),
+            Opt::TypeColors => o.type_colors = !o.type_colors,
+            Opt::Borders => o.borders = o.borders.next(),
             Opt::FileDisplay => o.file_display = o.file_display.next(),
             Opt::Sort => o.sort = o.sort.next(),
             Opt::SortDescending => o.sort_descending = !o.sort_descending,
