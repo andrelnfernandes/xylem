@@ -68,7 +68,11 @@ through a symbolic link: a link is removed as itself. Prune leaves out other
 disks mounted inside the branch, told apart with the `statvfs` extension of
 OpenSSH; on a server without it, Prune is refused.
 
-The rest of writing is not there yet: Attributes, dates, Edit and eXecute. F3 rereads a directory; there is
+**Attributes** take octal permissions (`644`), as a Unix machine does, even
+from Windows; **New date** sets the date, to the second. Neither goes through
+a symbolic link. [Duplicates](duplicates.md) works there too.
+
+Edit and eXecute are not there yet. F3 rereads a directory; there is
 no automatic refresh.
 
 **F8** in a remote window opens a window on this machine (the folder Xylem

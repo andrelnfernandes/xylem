@@ -7,6 +7,9 @@
 //! by the result, so a group of any size takes one open file at a time and 32
 //! bytes per file. Files are hostile input like any other: a file swapped for
 //! a link or a pipe after the tree read it is left out, not followed.
+//!
+//! On a remote machine the same is done through SFTP: the files are read
+//! there, and looked at (lstat) before reading and before deleting.
 
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
@@ -18,8 +21,25 @@ use std::time::SystemTime;
 
 use sha2::{Digest, Sha256};
 
-use crate::model::tree::{FileKind, NodeId, Tree};
+use crate::model::tree::{FileKind, Lister, NodeId, Tree};
 use crate::platform;
+use crate::remote::Remote;
+
+/// The remote machine the files are on, or none: this one.
+#[derive(Clone, Default)]
+pub struct Machine(pub Option<Arc<Remote>>);
+
+impl std::fmt::Debug for Machine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.is_some() { "remote" } else { "here" })
+    }
+}
+
+/// Seconds of a remote date, as SFTP gives it.
+fn remote_date(a: &crate::remote::sftp::Attrs) -> Option<SystemTime> {
+    a.mtime
+        .map(|s| SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(s.into()))
+}
 
 /// Read from each end of a file first: most files of the same size already
 /// differ there (headers, trailers).
@@ -65,18 +85,33 @@ pub struct Scan {
     files: Vec<FileInfo>,
     folders: Vec<Folder>,
     min_size: u64,
+    machine: Machine,
 }
 
 impl Scan {
     /// The branch of `root`, on one disk. Folders named in `ignore` are left
     /// out (and whatever holds them cannot be called equal to anything).
     pub fn of(tree: &Tree, root: NodeId, min_size: u64, ignore: &[String]) -> Scan {
+        let device = tree.device(root);
+        let other_disk = |c| device.is_some() && tree.device(c) != device;
+        Scan::of_disks(tree, root, min_size, ignore, &other_disk)
+    }
+
+    /// The same, with `other_disk` telling which folders are on another disk
+    /// (on a remote machine, where the tree has no devices).
+    pub fn of_disks(
+        tree: &Tree,
+        root: NodeId,
+        min_size: u64,
+        ignore: &[String],
+        other_disk: &dyn Fn(NodeId) -> bool,
+    ) -> Scan {
         let mut scan = Scan {
             files: Vec::new(),
             folders: Vec::new(),
             min_size,
+            machine: Machine::default(),
         };
-        let device = tree.device(root);
         let mut stack: Vec<(NodeId, Option<(usize, OsString)>)> = vec![(root, None)];
         while let Some((id, parent)) = stack.pop() {
             let node = tree.node(id);
@@ -111,8 +146,7 @@ impl Scan {
             for &c in node.children.iter().rev() {
                 let child = tree.node(c);
                 let name = child.name.to_string_lossy();
-                let other_disk = device.is_some() && tree.device(c) != device;
-                if other_disk || ignore.iter().any(|i| *i == name) {
+                if other_disk(c) || ignore.iter().any(|i| *i == name) {
                     folder.comparable = false;
                 } else {
                     stack.push((c, Some((at, child.name.clone()))));
@@ -126,6 +160,12 @@ impl Scan {
             folder.children.sort_by(|a, b| a.0.cmp(&b.0));
         }
         scan
+    }
+
+    /// The files are on this remote machine: read and checked through it.
+    pub fn on_remote(mut self, remote: Arc<Remote>) -> Scan {
+        self.machine = Machine(Some(remote));
+        self
     }
 
     /// For each file, the first file found with the same inode (itself when
@@ -291,6 +331,24 @@ impl Snapshot {
         }
         Some(snap)
     }
+
+    /// The same walk on a remote machine (its listing never follows links).
+    fn read_remote(remote: &Remote, path: &Path) -> Option<Snapshot> {
+        let mut snap = Snapshot::default();
+        let mut stack = vec![path.to_path_buf()];
+        while let Some(dir) = stack.pop() {
+            let (dirs, files) = remote.list(&dir).ok()?;
+            stack.extend(dirs.into_iter().map(|(name, _)| dir.join(name)));
+            for f in files {
+                snap.files += 1;
+                if f.kind == FileKind::File {
+                    snap.bytes += f.size;
+                    snap.newest = snap.newest.max(f.modified);
+                }
+            }
+        }
+        Some(snap)
+    }
 }
 
 /// One file or folder of a group of equals.
@@ -309,11 +367,22 @@ pub struct Item {
     /// The date on the disk can be compared with `modified` (not through a
     /// mount, which may round it).
     pub check_date: bool,
+    pub machine: Machine,
 }
 
 impl Item {
     /// It is still as it was analyzed.
     fn unchanged(&self) -> bool {
+        if let Some(remote) = &self.machine.0 {
+            return match &self.snapshot {
+                Some(snap) => Snapshot::read_remote(remote, &self.path).as_ref() == Some(snap),
+                None => remote.attrs(&self.path).is_ok_and(|a| {
+                    a.is_file()
+                        && a.size == Some(self.size)
+                        && (!self.check_date || remote_date(&a) == self.modified)
+                }),
+            };
+        }
         match &self.snapshot {
             Some(snap) => Snapshot::read(&self.path).as_ref() == Some(snap),
             None => std::fs::symlink_metadata(&self.path).is_ok_and(|m| {
@@ -433,6 +502,7 @@ impl Finder {
                 cancel: cancel.clone(),
                 buffer: vec![0; BUFFER],
                 notes: Notes::default(),
+                machine: scan.machine.clone(),
             }
             .find(scan)
         })
@@ -495,6 +565,7 @@ struct Worker {
     cancel: Arc<AtomicBool>,
     buffer: Vec<u8>,
     notes: Notes,
+    machine: Machine,
 }
 
 impl Worker {
@@ -542,6 +613,7 @@ impl Worker {
                                 snapshot: None,
                                 shared: false,
                                 check_date: true,
+                                machine: scan.machine.clone(),
                             }
                         })
                         .collect(),
@@ -580,7 +652,11 @@ impl Worker {
         for &at in &inside {
             let folder = &mut scan.folders[at];
             for (name, target) in &mut folder.links {
-                *target = std::fs::read_link(folder.path.join(name.as_os_str())).ok();
+                let path = folder.path.join(name.as_os_str());
+                *target = match &self.machine.0 {
+                    Some(remote) => remote.read_link(&path).ok().map(PathBuf::from),
+                    None => std::fs::read_link(path).ok(),
+                };
             }
             if folder.links.iter().any(|(_, target)| target.is_none()) {
                 folder.comparable = false;
@@ -709,13 +785,28 @@ impl Worker {
         if let Ok(mut current) = self.progress.current.lock() {
             current.clone_from(&f.path.to_string_lossy().into_owned());
         }
-        let mut file = platform::open_no_follow(&f.path).map_err(|_| Left::Unreadable)?;
-        let meta = file.metadata().map_err(|_| Left::Unreadable)?;
-        if !meta.is_file() || meta.len() != f.size || meta.modified().ok() != f.modified {
-            return Err(Left::Changed);
-        }
-        file.seek(SeekFrom::Start(start))
-            .map_err(|_| Left::Unreadable)?;
+        let mut file: Box<dyn Read> = match &self.machine.0 {
+            // Looked at first: a link, a folder or another size is not read.
+            Some(remote) => {
+                let a = remote.attrs(&f.path).map_err(|_| Left::Unreadable)?;
+                if !a.is_file() || a.size != Some(f.size) || remote_date(&a) != f.modified {
+                    return Err(Left::Changed);
+                }
+                let mut file = remote.open(&f.path).map_err(|_| Left::Unreadable)?;
+                file.skip_to(start);
+                Box::new(file)
+            }
+            None => {
+                let mut file = platform::open_no_follow(&f.path).map_err(|_| Left::Unreadable)?;
+                let meta = file.metadata().map_err(|_| Left::Unreadable)?;
+                if !meta.is_file() || meta.len() != f.size || meta.modified().ok() != f.modified {
+                    return Err(Left::Changed);
+                }
+                file.seek(SeekFrom::Start(start))
+                    .map_err(|_| Left::Unreadable)?;
+                Box::new(file)
+            }
+        };
         let mut hash = Sha256::new();
         hash.update(before);
         let mut left = len;
@@ -785,6 +876,7 @@ fn folder_group(scan: &Scan, members: &[usize]) -> Option<Group> {
             snapshot: Some(scan.snapshot(m)),
             shared: false,
             check_date: true,
+            machine: scan.machine.clone(),
         });
     }
     let mut group = Group::new(items);
@@ -836,6 +928,7 @@ pub fn cloud_groups(
                 snapshot: None,
                 shared: file.id.as_ref().is_some_and(|id| shared.contains(id)),
                 check_date: false,
+                machine: Machine::default(),
             });
         }
         if items.len() > 1 {
@@ -1119,9 +1212,10 @@ impl DuplicatesView {
         for groups in [&mut self.files, &mut self.folders] {
             groups.retain_mut(|group| {
                 let before = group.items.len();
-                group
-                    .items
-                    .retain(|i| std::fs::symlink_metadata(&i.path).is_ok());
+                group.items.retain(|i| match &i.machine.0 {
+                    Some(remote) => remote.attrs(&i.path).is_ok(),
+                    None => std::fs::symlink_metadata(&i.path).is_ok(),
+                });
                 if group.items.len() != before {
                     let items = std::mem::take(&mut group.items);
                     *group = Group::new(items);
@@ -1423,6 +1517,7 @@ mod tests {
             cancel: Arc::new(AtomicBool::new(true)),
             buffer: vec![0; BUFFER],
             notes: Notes::default(),
+            machine: Machine::default(),
         };
         let scan = Scan::of(&logged(p), ROOT, 1024, &[]);
         assert_eq!(worker.find(scan).unwrap_err(), Fail::Cancelled);
@@ -1565,6 +1660,7 @@ mod tests {
             snapshot: Snapshot::read(&p.join(name)),
             shared: false,
             check_date: true,
+            machine: Machine::default(),
         };
         // Two groups: A = B, and A/sub = C. With A and C tagged, what is meant
         // to stay of the second group goes with A.
@@ -1619,6 +1715,7 @@ mod tests {
             snapshot: None,
             shared: false,
             check_date: true,
+            machine: Machine::default(),
         };
         v.files = vec![Group::new(vec![item("/x/a\nb"), item("/x/c")])];
         let text = v.export();

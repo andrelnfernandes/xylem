@@ -76,8 +76,13 @@ ist, wird nicht verglichen; die untere Zeile sagt, wie viele es sind. F3 liest
 alles neu.
 
 In einem Netzwerkordner (NFS, SMB, sshfs...) wird zuerst nach der zu lesenden
-Menge gefragt. Auf einem entfernten Rechner oder in einem Archiv ist Duplikate noch
-nicht verfügbar.
+Menge gefragt. Auf einem [entfernten Rechner](remote.md) ebenso: Die Dateien
+werden dort über SSH gelesen und vor dem Löschen erneut geprüft, wie hier. Zwei
+Dinge sind dort anders: SFTP liefert keine Inode, daher erscheinen zwei harte
+Links auf eine Datei als Paar (eines zu löschen gibt nichts frei und verliert
+nichts); und andere darin eingehängte Datenträger werden über ihr Dateisystem
+ausgelassen, wofür die `statvfs`-Erweiterung von OpenSSH nötig ist. In einem
+Archiv ist Duplikate nicht verfügbar.
 
 ## In der Cloud (rclone)
 

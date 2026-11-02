@@ -380,21 +380,35 @@ impl App {
             .ok_or_else(|| format!("Invalid date: {text}"))?;
         let mut errors = Vec::new();
         let mut changed = 0;
+        let remote = self.remote.clone();
         for path in paths {
             let result = (|| -> Result<(), String> {
-                let meta = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
-                if meta.is_symlink() {
-                    return Err("symbolic link skipped (the date would change its target)".into());
-                }
+                let modified = match &remote {
+                    // The symlink check is the remote machine's own, below.
+                    Some(r) => r.lstat(path).map_err(|e| e.to_string())?.modified,
+                    None => {
+                        let meta = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
+                        if meta.is_symlink() {
+                            return Err(
+                                "symbolic link skipped (the date would change its target)".into()
+                            );
+                        }
+                        meta.modified().ok()
+                    }
+                };
                 let old = chrono::DateTime::<chrono::Local>::from(
-                    meta.modified().map_err(|e| e.to_string())?,
+                    modified.ok_or("the file has no date")?,
                 );
                 let when = date
                     .and_time(time.unwrap_or(old.time()))
                     .and_local_timezone(chrono::Local)
                     .earliest()
                     .ok_or("time does not exist (daylight saving change)")?;
-                platform::set_modified(path, when.into()).map_err(|e| e.to_string())
+                match &remote {
+                    Some(r) => r.set_modified(path, when.into()),
+                    None => platform::set_modified(path, when.into()),
+                }
+                .map_err(|e| e.to_string())
             })();
             match result {
                 Ok(()) => changed += 1,
@@ -804,6 +818,9 @@ impl App {
     /// Permissions (Linux) or attributes (Windows, where `+R -A` changes
     /// each file's own attributes).
     pub(crate) fn chmod(&mut self, paths: &[PathBuf], text: &str) -> Result<(), String> {
+        if let Some(remote) = self.remote.clone() {
+            return self.chmod_remote(&remote, paths, text);
+        }
         platform::parse_mode(text, 0)?;
         let mut errors = Vec::new();
         let mut changed = 0;
@@ -828,6 +845,34 @@ impl App {
         self.rescan_everywhere(&dirs);
         let what = platform::describe_mode(0).0;
         let mut msg = format!("{what} set to {} on {changed} files", text.trim());
+        if let Some(e) = errors.first() {
+            msg.push_str(&format!(". {} errors, first: {e}", errors.len()));
+        }
+        self.message = Some(msg);
+        Ok(())
+    }
+
+    /// Attributes on a remote machine: octal, as Unix takes them, whatever
+    /// this machine is. Symlinks are left out, as here.
+    fn chmod_remote(
+        &mut self,
+        remote: &crate::remote::Remote,
+        paths: &[PathBuf],
+        text: &str,
+    ) -> Result<(), String> {
+        let mode = platform::parse_octal_mode(text)?;
+        let mut errors = Vec::new();
+        let mut changed = 0;
+        for path in paths {
+            match remote.set_mode(path, mode) {
+                Ok(()) => changed += 1,
+                Err(e) => errors.push(format!("{}: {e}", path.display())),
+            }
+        }
+        let mut dirs: Vec<&Path> = paths.iter().filter_map(|p| p.parent()).collect();
+        dirs.dedup();
+        self.rescan_everywhere(&dirs);
+        let mut msg = format!("Permissions set to {} on {changed} files", text.trim());
         if let Some(e) = errors.first() {
             msg.push_str(&format!(". {} errors, first: {e}", errors.len()));
         }

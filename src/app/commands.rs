@@ -398,19 +398,16 @@ impl App {
         let remote_writes = matches!(
             cmd,
             Command::Oops
-                | Command::Attributes { .. }
                 | Command::Edit
                 | Command::Execute
                 | Command::TerminalTagged
-                | Command::NewDate { .. }
                 | Command::CreateArchive { .. }
                 | Command::Batch
         );
         if remote_writes && self.remote.is_some() {
             self.message = Some(match cmd {
                 Command::Oops => "There is no trash on a remote machine to restore from".into(),
-                _ => "Not yet on a remote machine: Attributes, dates, Edit, eXecute, archives \
-                      and Batch come later"
+                _ => "Not yet on a remote machine: Edit, eXecute, archives and Batch come later"
                     .into(),
             });
             return;

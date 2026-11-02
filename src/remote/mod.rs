@@ -569,6 +569,36 @@ impl Remote {
         sftp.rmdir(&path)
     }
 
+    /// Sets the permission bits of `path`. A symlink has none of its own:
+    /// setting them would change what it points to, so it is refused.
+    pub fn set_mode(&self, path: &Path, mode: u32) -> io::Result<()> {
+        let path = self.remote_path(path);
+        let mut sftp = self.sftp();
+        if sftp.lstat(&path)?.is_symlink() {
+            return Err(io::Error::other("symbolic link skipped"));
+        }
+        sftp.set_mode(&path, mode)
+    }
+
+    /// Sets the modification time of `path`, keeping its access time; a
+    /// symlink is refused, as with [`Remote::set_mode`].
+    pub fn set_modified(&self, path: &Path, when: SystemTime) -> io::Result<()> {
+        let mtime = when
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .ok()
+            .and_then(|d| u32::try_from(d.as_secs()).ok())
+            .ok_or_else(|| io::Error::other("SFTP keeps dates from 1970 to 2106 only"))?;
+        let path = self.remote_path(path);
+        let mut sftp = self.sftp();
+        let attrs = sftp.lstat(&path)?;
+        if attrs.is_symlink() {
+            return Err(io::Error::other(
+                "symbolic link skipped (the date would change its target)",
+            ));
+        }
+        sftp.set_times(&path, attrs.atime.unwrap_or(mtime), mtime)
+    }
+
     /// The filesystem `path` is on, to tell mounted disks apart.
     pub fn filesystem(&self, path: &Path) -> io::Result<sftp::Filesystem> {
         self.sftp().filesystem(&self.remote_path(path))
@@ -662,6 +692,13 @@ pub struct RemoteFile {
     remote: Arc<Remote>,
     handle: Option<Handle>,
     offset: u64,
+}
+
+impl RemoteFile {
+    /// Reads from `offset` on.
+    pub fn skip_to(&mut self, offset: u64) {
+        self.offset = offset;
+    }
 }
 
 impl Read for RemoteFile {
@@ -822,6 +859,42 @@ mod tests {
         );
         remote.remove_dir(&at("dir")).unwrap();
         assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn permissions_and_dates_never_go_through_a_symlink() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = crate::testing::tempdir();
+        let outside = crate::testing::tempdir();
+        let target = outside.path().join("t");
+        std::fs::write(&target, "t").unwrap();
+        std::fs::write(tmp.path().join("f"), "f").unwrap();
+        std::os::unix::fs::symlink(&target, tmp.path().join("l")).unwrap();
+        let Some(remote) = for_tests(tmp.path()) else {
+            return;
+        };
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o7777;
+        let before = mode(&target);
+        remote.set_mode(&remote.root.join("f"), 0o640).unwrap();
+        assert_eq!(mode(&tmp.path().join("f")), 0o640);
+        assert!(remote.set_mode(&remote.root.join("l"), 0o777).is_err());
+        assert_eq!(mode(&target), before);
+
+        let when = SystemTime::UNIX_EPOCH + Duration::from_secs(1_234_567_890);
+        let atime = remote.attrs(&remote.root.join("f")).unwrap().atime;
+        remote.set_modified(&remote.root.join("f"), when).unwrap();
+        let a = remote.attrs(&remote.root.join("f")).unwrap();
+        assert_eq!((a.mtime, a.atime), (Some(1_234_567_890), atime));
+        let target_time = std::fs::metadata(&target).unwrap().modified().unwrap();
+        assert!(remote.set_modified(&remote.root.join("l"), when).is_err());
+        assert_eq!(
+            std::fs::metadata(&target).unwrap().modified().unwrap(),
+            target_time
+        );
+        // SFTP v3 cannot say a date before 1970.
+        let old = SystemTime::UNIX_EPOCH - Duration::from_secs(1);
+        assert!(remote.set_modified(&remote.root.join("f"), old).is_err());
     }
 
     #[test]

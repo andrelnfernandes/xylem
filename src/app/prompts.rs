@@ -502,7 +502,10 @@ impl App {
                 None => return,
             }
         };
-        let modified = fs::metadata(&paths[0]).and_then(|m| m.modified()).ok();
+        let modified = match &self.remote {
+            Some(r) => r.lstat(&paths[0]).ok().and_then(|f| f.modified),
+            None => fs::metadata(&paths[0]).and_then(|m| m.modified()).ok(),
+        };
         let pattern = self.options.date_format.pattern();
         let current = modified
             .map(|t| {
@@ -1087,6 +1090,21 @@ impl App {
         let Some(sources) = self.sources_or_warn(tagged) else {
             return;
         };
+        if let Some(remote) = &self.remote {
+            if remote.is_windows() {
+                self.message = Some("Permissions do not apply on a Windows machine".into());
+                return;
+            }
+            let mode = remote
+                .attrs(&sources[0].path)
+                .ok()
+                .and_then(|a| a.permissions)
+                .map(platform::octal_mode_text)
+                .unwrap_or_default();
+            let label = format!("PERMISSIONS for {} (octal): ", describe(&sources));
+            let paths = sources.into_iter().map(|s| s.path).collect();
+            return self.open_prompt(PromptKind::Chmod(paths), label, &mode);
+        }
         let mode = fs::metadata(&sources[0].path)
             .map(|m| platform::mode_text(platform::mode(&m)))
             .unwrap_or_default();

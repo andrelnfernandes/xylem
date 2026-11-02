@@ -73,7 +73,12 @@ um link simbólico: um link é apagado como ele mesmo. O Prune deixa de fora
 outros discos montados dentro do ramo, distinguidos pela extensão `statvfs` do
 OpenSSH; num servidor sem ela, o Prune é recusado.
 
-O resto da escrita ainda não está disponível: Atributos, datas, Edit e eXecute. F3 relê um diretório; não há
+**Atributos** recebe permissões em octal (`644`), como uma máquina Unix, mesmo
+a partir do Windows; **Nova data** acerta a data, ao segundo. Nenhum dos dois
+passa por um link simbólico. Os [Duplicados](duplicates.md) também funcionam
+lá.
+
+Edit e eXecute ainda não estão disponíveis. F3 relê um diretório; não há
 atualização automática.
 
 **F8** em uma janela remota abre uma janela nesta máquina (na pasta em que o
