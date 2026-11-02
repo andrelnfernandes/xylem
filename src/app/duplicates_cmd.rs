@@ -314,11 +314,14 @@ impl App {
     }
 
     pub(crate) fn ask_delete_folders(&mut self, dirs: Vec<PathBuf>, to_trash: bool) {
-        let count = dirs.len();
+        let what = match dirs.as_slice() {
+            [dir] => format!("folder {} and all it holds", fit_name(dir)),
+            _ => format!("{} folders and all they hold", dirs.len()),
+        };
         let q = if to_trash {
-            format!("MOVE {count} folders and all they hold to trash?")
+            format!("MOVE {what} to trash?")
         } else {
-            format!("DELETE {count} folders and all they hold? This cannot be undone.")
+            format!("DELETE {what}? This cannot be undone.")
         };
         let options: &'static [&'static str] = if to_trash {
             &["Yes", "No", "Permanent"]
@@ -340,8 +343,24 @@ impl App {
         // The same steps as a Prune: the files, then the empty folders.
         let mut files = Vec::new();
         let mut folders = Vec::new();
-        let mut stack = dirs;
-        while let Some(dir) = stack.pop() {
+        let mut stack = Vec::new();
+        for dir in dirs {
+            match fs::symlink_metadata(&dir) {
+                Ok(m) if m.is_dir() => {
+                    let device = platform::device(&dir, &m);
+                    stack.push((dir, device));
+                }
+                Ok(_) => {
+                    self.message = Some(format!("Not a folder: {}", dir.display()));
+                    return;
+                }
+                Err(e) => {
+                    self.message = Some(format!("Cannot read {}: {e}", dir.display()));
+                    return;
+                }
+            }
+        }
+        while let Some((dir, device)) = stack.pop() {
             let entries = match fs::read_dir(&dir) {
                 Ok(entries) => entries,
                 Err(e) => {
@@ -352,7 +371,13 @@ impl App {
             for entry in entries.flatten() {
                 let path = entry.path();
                 match fs::symlink_metadata(&path) {
-                    Ok(m) if m.is_dir() => stack.push(path),
+                    // Another disk mounted since: it stays, and so do the
+                    // folders above it, which the summary reports.
+                    Ok(m) if m.is_dir() => {
+                        if platform::device(&path, &m) == device {
+                            stack.push((path, device));
+                        }
+                    }
                     Ok(m) => files.push(Source {
                         path,
                         size: m.len(),

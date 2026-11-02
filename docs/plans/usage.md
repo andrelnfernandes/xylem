@@ -174,6 +174,32 @@ USAGE  /home/andre
   arquivos. Depois de apagar, a soma se refaz sozinha.
 - Testes: apagar um arquivo e ver a porcentagem mudar; Prune pela visão.
 
+Spec aprovado para esta fase (2026-11-01):
+
+| Tecla | Na linha sob o cursor |
+|---|---|
+| `T` / `U` | marca ou desmarca o arquivo, ou todos os arquivos da pasta, ocultos inclusive, e desce |
+| Ctrl+T / Ctrl+U | o mesmo para tudo na pasta listada |
+| Del, Shift+Del | apaga o arquivo ou a pasta (lixeira conforme a opção; Shift: permanente) |
+| Ctrl+D, Ctrl+Shift+Del | apaga os marcados da pasta listada, com o rodapé dizendo quantos são |
+| Alt+P | Prune da pasta, com a confirmação digitada de sempre |
+| `V`, ou Enter num arquivo | viewer |
+
+- **Del numa pasta com conteúdo apaga a pasta**, em vez do "Directory is not empty" da
+  árvore. A razão de abrir esta visão é tirar a pasta grande, e a lixeira é a forma
+  segura de fazer isso; o Prune, que é permanente, continua no Alt+P.
+- **Outro disco nunca é alvo.** Linha `>` recusa marcar, apagar e Prune; marcar ou
+  apagar um ramo para no ponto de montagem; Del recusa pasta com outro disco montado
+  dentro e aponta o Alt+P, que pula o que está montado. Apagar pasta de forma permanente
+  também confere o dispositivo na hora, porque algo pode ter sido montado depois da
+  análise.
+- **Archive e máquina remota:** marcar e ver funcionam; apagar e Prune são recusados,
+  com a mesma mensagem da janela de arquivos.
+- **Marcas:** `■` arquivo ou pasta inteira marcada, `□` pasta com parte marcada. O rodapé
+  mostra quantos marcados há na pasta listada e o espaço deles, na medida em uso.
+- **A soma se refaz sozinha,** pela versão da árvore. Se a pasta listada sumir (apagada
+  pela outra janela ou fora do Xylem), a visão volta à pasta mais próxima que ainda existe.
+
 ### Fase 4 (opcional)
 - Treemap em caracteres de bloco, alternado com a lista.
 - Agrupar por tipo ("vídeos: 40%"), usando o modo Type.

@@ -10,6 +10,7 @@ use std::time::SystemTime;
 use ratatui::widgets::ListState;
 
 use crate::model::tree::{FileKind, NodeId, Tree, Usage, UsageMap};
+use crate::pane::FileRef;
 
 /// How the rows are sorted (`S` cycles them).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -59,6 +60,8 @@ pub struct Row {
     pub disk: u64,
     pub apparent: u64,
     pub files: u64,
+    /// How many of `files` are tagged.
+    pub tagged: u64,
     pub modified: Option<SystemTime>,
     /// One letter, as in other disk usage tools: `>` another disk, `!`
     /// unreadable, `.` something below unreadable, `e` empty, `@` a link or
@@ -109,20 +112,40 @@ impl UsageView {
     pub fn map(&mut self, tree: &Tree) -> &UsageMap {
         let version = tree.version();
         if self.cached.as_ref().is_none_or(|(v, _)| *v != version) {
+            self.settle(tree);
             let map = tree.usage(self.root, &mut self.devices);
             self.cached = Some((version, map));
         }
         &self.cached.as_ref().expect("just computed").1
     }
 
+    /// A folder deleted while listed: back to the nearest one still there.
+    fn settle(&mut self, tree: &Tree) {
+        let (mut at, mut node) = (self.dir, self.dir);
+        while node != self.root {
+            let Some(parent) = tree.node(node).parent else {
+                break;
+            };
+            if !tree.node(parent).children.contains(&node) {
+                at = parent;
+            }
+            node = parent;
+        }
+        if at != self.dir {
+            self.enter(at);
+        }
+    }
+
     /// What the directory listed takes.
     pub fn total(&mut self, tree: &Tree) -> Usage {
+        self.map(tree);
         let dir = self.dir;
         self.map(tree).dirs.get(&dir).copied().unwrap_or_default()
     }
 
     /// Rows of the directory listed: its folders and files mixed, sorted.
     pub fn rows(&mut self, tree: &Tree) -> Vec<Row> {
+        self.map(tree);
         let (dir, apparent, order) = (self.dir, self.apparent, self.order);
         let map = self.map(tree);
         let node = tree.node(dir);
@@ -148,6 +171,7 @@ impl UsageView {
                 disk: u.disk,
                 apparent: u.apparent,
                 files: u.files,
+                tagged: u.tagged,
                 modified: None,
                 mark,
             });
@@ -169,6 +193,7 @@ impl UsageView {
                 disk,
                 apparent: size,
                 files: 1,
+                tagged: u64::from(f.tagged),
                 modified: f.modified,
                 mark,
             });
@@ -215,6 +240,39 @@ impl UsageView {
             .unwrap_or(0);
         self.list.select(Some(at));
         true
+    }
+
+    /// The folders of the branch of `id` on this disk, and whether another
+    /// disk is mounted somewhere inside it.
+    fn on_this_disk(&mut self, tree: &Tree, id: NodeId) -> (Vec<NodeId>, bool) {
+        let map = self.map(tree);
+        let (mut dirs, mut other) = (Vec::new(), false);
+        let mut stack = vec![id];
+        while let Some(n) = stack.pop() {
+            dirs.push(n);
+            for &c in &tree.node(n).children {
+                if map.dirs.get(&c).is_some_and(|u| u.other_disk) {
+                    other = true;
+                } else {
+                    stack.push(c);
+                }
+            }
+        }
+        (dirs, other)
+    }
+
+    /// All the files of the branch of `id`, hidden ones too, without going
+    /// into other disks.
+    pub fn files_below(&mut self, tree: &Tree, id: NodeId) -> Vec<FileRef> {
+        let (dirs, _) = self.on_this_disk(tree, id);
+        dirs.into_iter()
+            .flat_map(|dir| (0..tree.node(dir).files.len()).map(move |idx| FileRef { dir, idx }))
+            .collect()
+    }
+
+    /// Another disk is mounted somewhere inside the branch of `id`.
+    pub fn holds_other_disk(&mut self, tree: &Tree, id: NodeId) -> bool {
+        self.on_this_disk(tree, id).1
     }
 
     /// The row under the cursor.
@@ -416,6 +474,63 @@ mod tests {
         let rows = view.rows(&tree);
         assert_eq!(rows.last().unwrap().mark, '>');
         assert_eq!(view.total(&tree).apparent, 100);
+    }
+
+    #[test]
+    fn tags_add_up_and_stop_at_other_disks() {
+        let tmp = crate::testing::tempdir();
+        let p = tmp.path();
+        fs::create_dir_all(p.join("a/b")).unwrap();
+        fs::create_dir_all(p.join("mnt")).unwrap();
+        fs::write(p.join("a/b/f"), vec![1u8; 1000]).unwrap();
+        fs::write(p.join("a/g"), vec![1u8; 500]).unwrap();
+        fs::write(p.join("mnt/m"), vec![1u8; 700]).unwrap();
+        let mut tree = logged(p);
+        let root = crate::model::tree::ROOT;
+        let mut view = UsageView::new(root);
+        view.apparent = true;
+        view.order = Order::Name;
+        let (a, mnt) = {
+            let rows = view.rows(&tree);
+            let (Item::Dir(a), Item::Dir(mnt)) = (rows[0].item, rows[1].item) else {
+                panic!("folders first")
+            };
+            (a, mnt)
+        };
+        view.devices.insert(root, Some(1));
+        view.devices.insert(a, Some(1));
+        view.devices.insert(tree.node(a).children[0], Some(1));
+        view.devices.insert(mnt, Some(2));
+        view.cached = None;
+        assert!(view.holds_other_disk(&tree, root));
+        assert!(!view.holds_other_disk(&tree, a));
+        let everything = view.files_below(&tree, root);
+        assert_eq!(everything.len(), 2, "not what is on the other disk");
+
+        let only_g = FileRef { dir: a, idx: 0 };
+        tree.file_mut(only_g.dir, only_g.idx).tagged = true;
+        let rows = view.rows(&tree);
+        assert_eq!((rows[0].tagged, rows[0].files), (1, 2));
+        let total = view.total(&tree);
+        assert_eq!((total.tagged, total.tagged_apparent), (1, 500));
+    }
+
+    #[test]
+    fn a_listed_folder_that_vanished_goes_back_to_one_still_there() {
+        let tmp = crate::testing::tempdir();
+        let p = tmp.path();
+        fs::create_dir_all(p.join("a/b/c")).unwrap();
+        let mut tree = logged(p);
+        let root = crate::model::tree::ROOT;
+        let a = tree.node(root).children[0];
+        let b = tree.node(a).children[0];
+        let c = tree.node(b).children[0];
+        let mut view = UsageView::new(root);
+        view.enter(c);
+        fs::remove_dir_all(p.join("a/b")).unwrap();
+        tree.rescan(a);
+        assert!(view.rows(&tree).is_empty());
+        assert_eq!(view.dir, a);
     }
 
     #[cfg(unix)]
