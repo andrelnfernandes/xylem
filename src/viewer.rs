@@ -232,6 +232,10 @@ const READING_TABLE: &str = "Reading the table... Esc stops";
 const TABLE_STOPPED: &str = "Table reading stopped";
 const TABLE_BUSY: &str = "A table left behind is still being read: try again soon";
 
+/// The lines of the table's frame that are not rows: the column names on top,
+/// the cell's contents at the bottom.
+pub const TABLE_CHROME: usize = 2;
+
 pub struct Viewer {
     /// The table being read in another thread.
     table_task: Option<TableTask>,
@@ -291,6 +295,8 @@ pub struct Viewer {
     pub table: Option<table::TableGrid>,
     /// The list of the table's sheets, while it is open (Tab).
     pub sheet_list: Option<table::SheetList>,
+    /// The structure of the table, while it is open (`i`).
+    pub structure_view: Option<table::StructureView>,
     /// Text mode shows only the lines this filter kept. `lines` stays whole:
     /// the margin keeps each line's number, and the colors their context.
     filter: Option<LineFilter>,
@@ -493,6 +499,8 @@ impl Viewer {
         stopped: bool,
     ) {
         let result = result.unwrap_or_else(|| Err("the file could not be read".into()));
+        // It was of the table being replaced.
+        self.structure_view = None;
         if self.note.as_deref() == Some(READING_TABLE) {
             self.note = None;
         }
@@ -598,6 +606,7 @@ impl Viewer {
     /// to the next one.
     fn toggle_mark(&mut self) {
         let stamp = file_stamp(&self.path);
+        let rows = self.grid_rows();
         let Some(t) = &mut self.table else { return };
         let Some(&row) = t.filtered_indices.get(t.cursor_row) else {
             return;
@@ -608,7 +617,7 @@ impl Viewer {
         if !t.marked.remove(&row) {
             t.marked.insert(row);
         }
-        t.handle_key(KeyCode::Down, self.page);
+        t.handle_key(KeyCode::Down, rows);
     }
 
     /// `[` and `]`: another sheet of a spreadsheet or table of a database.
@@ -996,6 +1005,7 @@ impl Viewer {
             problem: None,
             table: None,
             sheet_list: None,
+            structure_view: None,
             filter: None,
             md: None,
             md_file: false,
@@ -1524,6 +1534,43 @@ impl Viewer {
         }
     }
 
+    /// The rows of the grid on screen: the frame's lines but the column names
+    /// and the cell's contents.
+    pub fn grid_rows(&self) -> usize {
+        self.page.saturating_sub(TABLE_CHROME)
+    }
+
+    /// `i` in a table: what the file says of its columns.
+    fn open_structure(&mut self) {
+        if let Some(t) = &self.table {
+            self.structure_view = Some(table::StructureView {
+                structure: t.structure(),
+                scroll: 0,
+            });
+        }
+    }
+
+    /// A key in the structure: it scrolls, and closes it.
+    fn structure_key(&mut self, key: KeyEvent) {
+        let Some(view) = &mut self.structure_view else {
+            return;
+        };
+        let last = view.structure.columns.len().saturating_sub(1);
+        let page = self.page.max(1);
+        match key.code {
+            KeyCode::Up => view.scroll = view.scroll.saturating_sub(1),
+            KeyCode::Down => view.scroll = (view.scroll + 1).min(last),
+            KeyCode::PageUp => view.scroll = view.scroll.saturating_sub(page),
+            KeyCode::PageDown => view.scroll = (view.scroll + page).min(last),
+            KeyCode::Home => view.scroll = 0,
+            KeyCode::End => view.scroll = last,
+            KeyCode::Esc | KeyCode::Enter | KeyCode::Char('i' | 'I' | 'q' | 'Q') => {
+                self.structure_view = None;
+            }
+            _ => {}
+        }
+    }
+
     /// Handles a key; what does not belong to the viewer itself (close, switch
     /// file, search) comes back as an `Action`.
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
@@ -1531,14 +1578,26 @@ impl Viewer {
             self.stop_reading_table();
             return Action::None;
         }
+        if self.structure_view.is_some() {
+            self.structure_key(key);
+            return Action::None;
+        }
         if self.sheet_list.is_some() {
             self.sheet_list_key(key);
             return Action::None;
         }
-        // Route movement keys to table when in Table mode
+        // Route movement keys to table when in Table mode; with Alt, Home and
+        // End are the first and last tagged file.
+        let edge = matches!(key.code, KeyCode::Home | KeyCode::End);
+        let rows = self.grid_rows();
         if self.mode == ViewMode::Table
+            && !(edge && key.modifiers.contains(KeyModifiers::ALT))
             && let Some(t) = &mut self.table
         {
+            if edge && key.modifiers.contains(KeyModifiers::CONTROL) {
+                t.go_to_end(key.code == KeyCode::End, rows);
+                return Action::None;
+            }
             match key.code {
                 KeyCode::Up
                 | KeyCode::Down
@@ -1548,7 +1607,7 @@ impl Viewer {
                 | KeyCode::PageDown
                 | KeyCode::Home
                 | KeyCode::End => {
-                    t.handle_key(key.code, self.page);
+                    t.handle_key(key.code, rows);
                     return Action::None;
                 }
                 _ => {}
@@ -1676,6 +1735,10 @@ impl Viewer {
             }
             KeyCode::Char('[') => {
                 self.switch_sheet(false);
+                Action::None
+            }
+            KeyCode::Char('i' | 'I') if self.mode == ViewMode::Table => {
+                self.open_structure();
                 Action::None
             }
             KeyCode::Char(c) => match c.to_ascii_lowercase() {
@@ -2697,6 +2760,120 @@ mod tests {
         assert_eq!(t.current_sheet, 0);
         assert_eq!(t.active_cell(), Some("one"));
         assert!(v.note.as_deref().unwrap().starts_with("Table mode: "));
+    }
+
+    fn numbers_table(rows: usize) -> Viewer {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("n.csv");
+        let body: String = (1..=rows).map(|i| format!("{i},{}\n", i % 2)).collect();
+        std::fs::write(&path, format!("n,odd\n{body}")).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Table);
+        v.page = 10;
+        v
+    }
+
+    #[test]
+    fn ctrl_end_and_ctrl_home_go_to_the_last_and_first_rows() {
+        let mut v = numbers_table(100);
+        let ctrl = |v: &mut Viewer, code| v.handle_key(KeyEvent::new(code, KeyModifiers::CONTROL));
+        press(&mut v, KeyCode::Right);
+        ctrl(&mut v, KeyCode::End);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.cursor_file_row(), 100);
+        assert_eq!(t.cursor_col, 1, "in the same column");
+        assert_eq!(
+            t.scroll_row, 92,
+            "the last rows show, under the column names"
+        );
+        ctrl(&mut v, KeyCode::Home);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!((t.cursor_file_row(), t.cursor_col, t.scroll_row), (1, 1, 0));
+        // Plain Home and End stay the columns'.
+        press(&mut v, KeyCode::Home);
+        assert_eq!(v.table.as_ref().unwrap().cursor_col, 0);
+        assert_eq!(v.table.as_ref().unwrap().cursor_file_row(), 1);
+
+        // Under a filter, the ends of the rows it kept.
+        v.table
+            .as_mut()
+            .unwrap()
+            .apply_filter(Some("odd = 0"))
+            .unwrap();
+        ctrl(&mut v, KeyCode::End);
+        assert_eq!(v.table.as_ref().unwrap().cursor_file_row(), 100);
+        ctrl(&mut v, KeyCode::Home);
+        assert_eq!(v.table.as_ref().unwrap().cursor_file_row(), 2);
+        v.table
+            .as_mut()
+            .unwrap()
+            .apply_filter(Some("odd = 7"))
+            .unwrap();
+        ctrl(&mut v, KeyCode::End);
+        assert_eq!(v.table.as_ref().unwrap().cursor_row, 0, "nothing kept");
+    }
+
+    #[test]
+    fn ctrl_end_reaches_the_last_record_of_a_database_table_and_query() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("data.db");
+        let rows: String = (1..=50)
+            .map(|i| format!("INSERT INTO t VALUES ({i}, 'n{i}');"))
+            .collect();
+        rusqlite::Connection::open(&path)
+            .unwrap()
+            .execute_batch(&format!("CREATE TABLE t (id INTEGER, name TEXT); {rows}"))
+            .unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 10;
+        let ctrl = |v: &mut Viewer, code| v.handle_key(KeyEvent::new(code, KeyModifiers::CONTROL));
+        let cell = |v: &Viewer| v.table.as_ref().unwrap().active_cell().unwrap().to_string();
+        ctrl(&mut v, KeyCode::End);
+        assert_eq!(cell(&v), "50");
+        ctrl(&mut v, KeyCode::Home);
+        assert_eq!(cell(&v), "1");
+
+        v.sql_prompt("SELECT name FROM t WHERE id % 7 = 0 ORDER BY id DESC");
+        assert!(v.table.as_ref().unwrap().query.is_some());
+        ctrl(&mut v, KeyCode::End);
+        assert_eq!(cell(&v), "n7", "the last row of the query");
+        press(&mut v, KeyCode::Char('i'));
+        let view = v.structure_view.as_ref().unwrap();
+        assert_eq!(view.structure.columns, [["name", "TEXT"]]);
+    }
+
+    #[test]
+    fn alt_home_and_end_in_a_table_still_go_to_the_tagged_files() {
+        let mut v = numbers_table(5);
+        let alt = |v: &mut Viewer, code| v.handle_key(KeyEvent::new(code, KeyModifiers::ALT));
+        assert_eq!(alt(&mut v, KeyCode::Home), Action::First);
+        assert_eq!(alt(&mut v, KeyCode::End), Action::Last);
+    }
+
+    #[test]
+    fn i_shows_the_structure_and_takes_the_keys_until_closed() {
+        let mut v = numbers_table(30);
+        press(&mut v, KeyCode::Char('i'));
+        let view = v.structure_view.as_ref().expect("open");
+        assert_eq!(view.structure.columns[0], ["n", "integer", "2"]);
+        // The keys scroll it, not the grid.
+        press(&mut v, KeyCode::Down);
+        press(&mut v, KeyCode::End);
+        assert_eq!(v.structure_view.as_ref().unwrap().scroll, 1);
+        assert_eq!(v.table.as_ref().unwrap().cursor_file_row(), 1);
+        assert_eq!(
+            press(&mut v, KeyCode::Esc),
+            Action::None,
+            "Esc closes it only"
+        );
+        assert!(v.structure_view.is_none());
+        press(&mut v, KeyCode::Char('I'));
+        press(&mut v, KeyCode::Char('i'));
+        assert!(v.structure_view.is_none(), "i closes it too");
+        // Only in the table.
+        press(&mut v, KeyCode::Char('t'));
+        press(&mut v, KeyCode::Char('i'));
+        assert!(v.structure_view.is_none());
     }
 
     #[test]
