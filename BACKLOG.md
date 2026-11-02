@@ -106,6 +106,12 @@ as a link is what `cp -a` and `rsync -l` do).
   complete. Left for when they are missed: Parquet and XLSX as outputs. Records into
   `.bat`/`.cmd` wait for item 2 of Security.
 
+- **The manual on the website, and a start screen**
+  ([docs/plans/site.md](docs/plans/site.md)): the manual built with mdBook (side
+  menu, search, one book per language), titled Xylem File Manager, next to the
+  current home page; and the name in block letters for two seconds at start (any
+  key closes it; `splash = false` turns it off). The command stays `xy`.
+
 ## Xylem as a programming cockpit
 
 A draft, with no date yet: [docs/plans/cockpit.md](docs/plans/cockpit.md). First come

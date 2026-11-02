@@ -82,6 +82,9 @@ Não concorre com as frentes acima, e cada item é pequeno:
 - **Onde as pessoas instalam:** AUR, Homebrew e nixpkgs depois da 0.6.0; repositório
   apt, COPR ou PPA para atualizar sozinho ([packages.md](packages.md)).
 - **macOS:** reavaliar quando houver uma máquina para testar.
+- **Manual no site e tela de abertura** ([site.md](site.md)): o manual em mdBook
+  com menu lateral, nas 6 línguas, com o título Xylem File Manager; e uma abertura
+  de 2 segundos com o nome em arte de blocos. O executável continua `xy`.
 
 ## Sem data
 

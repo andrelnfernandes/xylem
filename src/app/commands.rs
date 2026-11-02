@@ -21,6 +21,10 @@ impl App {
         if key.kind == KeyEventKind::Release {
             return;
         }
+        // The first key only closes the start screen.
+        if self.splash.take().is_some() {
+            return;
+        }
         if let Some(ed) = &mut self.editor_pty {
             ed.term.send_key(key);
             return;

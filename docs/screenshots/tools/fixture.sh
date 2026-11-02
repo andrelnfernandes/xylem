@@ -50,7 +50,7 @@ for theme in classic dark light mono norton solarized gruvbox nord slate graphit
     name=$theme
     [ $git = false ] || { [ $theme = classic ] && name=git || name=git-$theme; }
     mkdir -p "$out/config/$name/xylem"
-    printf 'theme = "%s"\n[options]\nconfirm_quit = false\nshow_hidden = false\ngit = %s\n' \
+    printf 'theme = "%s"\n[options]\nconfirm_quit = false\nshow_hidden = false\nsplash = false\ngit = %s\n' \
       $theme $git > "$out/config/$name/xylem/config.toml"
   done
 done
