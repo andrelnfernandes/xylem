@@ -77,6 +77,13 @@ le panneau indique simplement rclone.
 
 ## Ce qui change
 
+**Attendez-vous à des lenteurs par moments.** Tout passe par rclone et par le réseau du service :
+cela peut donc être bien plus lent qu'un disque local, de par la nature même de cette intégration.
+Afficher un fichier, ouvrir une archive ou lire un grand dossier peut prendre du temps, et l'écran
+peut ne pas répondre tant que le service n'a pas répondu : c'est en général de l'attente, pas un
+plantage. Sur Google Drive, il vaut la peine de créer votre propre `client_id` : voir la section
+sur l'erreur 403 plus bas.
+
 - **Tout passe par le réseau.** Chaque lecture de répertoire est une requête, et
   un service comme Google Drive les refuse quand elles sont trop nombreuses.
   Aussi, sur un dossier monté, `*`, Branch (`B`), la vue Usage et Compare sur une branche demandent à rclone
@@ -100,6 +107,8 @@ le panneau indique simplement rclone.
 - **Permissions et propriétaires** ne sont pas conservés : le montage affiche
   les mêmes pour tous les fichiers, et Attributs ne peut pas les modifier. Les
   dates sont conservées.
+- **Git :** la liste de fichiers n'affiche pas les lettres d'état sur un dossier monté, car
+  `git status` lit tout le dépôt par le réseau. Ctrl+G y fonctionne toujours.
 - **Google Docs, Sheets et Slides** ne sont pas de vrais fichiers : rclone les
   présente exportés (`.docx`, `.xlsx`, `.pptx`), avec une taille de 0.
   `--drive-skip-gdocs` les masque.

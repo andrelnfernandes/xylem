@@ -80,6 +80,13 @@ verschlüsselt, steht im Feld lediglich rclone.
 
 ## Was dort anders ist
 
+**Rechnen Sie zeitweise mit Langsamkeit.** Alles läuft über rclone und das Netzwerk des
+Dienstes und kann daher, bedingt durch die Art dieser Integration, deutlich langsamer sein als
+eine lokale Platte. Eine Datei anzeigen, ein Archiv öffnen oder einen großen Ordner einlesen
+kann dauern, und der Bildschirm reagiert womöglich erst, wenn der Dienst antwortet: Meist ist
+das Warten, kein Absturz. Bei Google Drive lohnt sich eine eigene `client_id`: siehe den Abschnitt zu
+Fehler 403 weiter unten.
+
 - **Alles läuft über das Netzwerk.** Jedes gelesene Verzeichnis ist eine
   Netzwerkanfrage, und ein Dienst wie Google Drive lehnt sie ab, wenn es zu viele
   werden. Daher fragen `*`, Branch (`B`), die Usage-Ansicht und Compare auf einem Zweig in einem
@@ -104,6 +111,8 @@ verschlüsselt, steht im Feld lediglich rclone.
 - **Berechtigungen und Eigentümer** werden nicht gespeichert: Das eingehängte
   Dateisystem zeigt für jede Datei dieselben Werte an, und `A` kann sie nicht
   ändern. Zeitstempel bleiben erhalten.
+- **Git:** Die Dateiliste zeigt in einem eingehängten Ordner keine Statusbuchstaben, weil
+  `git status` das ganze Repository über das Netzwerk liest. Strg+G funktioniert dort weiterhin.
 - **Google Docs, Sheets und Slides** sind keine normalen Dateien: rclone zeigt
   sie als exportierte Dokumente (`.docx`, `.xlsx`, `.pptx`) mit der Größe 0 an.
   `--drive-skip-gdocs` blendet sie aus.

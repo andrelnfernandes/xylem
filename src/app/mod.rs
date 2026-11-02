@@ -440,6 +440,9 @@ impl App {
         self.panes
             .iter()
             .filter(|p| p.archive.is_none() && p.remote.is_none())
+            // Adding a watch on a cloud mount waits for the network, and what
+            // changes elsewhere would not be seen anyway.
+            .filter(|p| !p.tree.reads_slowly(&p.current_path()))
             .map(Pane::current_path)
             .collect()
     }

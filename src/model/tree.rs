@@ -305,7 +305,7 @@ impl Tree {
     }
 
     /// Each read here is a request to a service: a folder mounted by rclone.
-    fn reads_slowly(&self, path: &Path) -> bool {
+    pub fn reads_slowly(&self, path: &Path) -> bool {
         self.always_slow
             || (self.lister.is_none()
                 && !self.is_virtual

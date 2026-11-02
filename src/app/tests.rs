@@ -3941,3 +3941,34 @@ fn usage_draws_the_tags() {
     assert!(text.contains('■'), "{text}");
     assert!(text.contains("Alt+P"), "{text}");
 }
+
+#[test]
+fn git_status_is_not_automatic_on_a_cloud_mount() {
+    let tmp = crate::testing::tempdir();
+    create_dir_all(tmp.path().join(".git")).unwrap();
+    write(tmp.path().join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+    let mut app = App::new(tmp.path().to_path_buf());
+    app.options.git = true;
+    app.panes[0] = Pane::slow(tmp.path().to_path_buf());
+    app.refresh_git();
+    assert!(!app.git_status.in_repo(tmp.path()), "not read yet");
+    while app.reading() {
+        app.apply_reads();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    app.refresh_git();
+    assert!(!app.git_status.in_repo(tmp.path()), "not even once read");
+    // The same folder, off the mount.
+    app.panes[0] = Pane::new(tmp.path().to_path_buf());
+    app.refresh_git();
+    assert!(app.git_status.in_repo(tmp.path()));
+}
+
+#[test]
+fn a_cloud_mount_is_not_watched() {
+    let tmp = crate::testing::tempdir();
+    let mut app = App::new(tmp.path().to_path_buf());
+    assert_eq!(app.watched_dirs().len(), 1);
+    app.panes[0] = Pane::slow(tmp.path().to_path_buf());
+    assert!(app.watched_dirs().is_empty());
+}

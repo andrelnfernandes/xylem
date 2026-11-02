@@ -71,6 +71,13 @@ comes from rclone's configuration file (`~/.config/rclone/rclone.conf`, or
 
 ## What is different there
 
+**Expect it to be slow at times.** Everything goes through rclone and the service's
+network, so it can be much slower than a local disk, by the very nature of this
+integration. Viewing a file, opening an archive or logging a large folder may take a
+while, and the screen may not respond until the service answers: that is usually waiting,
+not a crash. On Google Drive, it is worth making your own `client_id`: see the section on
+error 403 below.
+
 - **Everything goes over the network.** Each directory read is a request, and
   a service like Google Drive refuses them when they are too many. So, on a
   mounted folder, `*`, Branch (`B`), the Usage view and Compare on a branch ask
@@ -91,6 +98,8 @@ comes from rclone's configuration file (`~/.config/rclone/rclone.conf`, or
   file is gone, unless the bucket has versioning.
 - **Permissions and owners** are not kept: the mount shows the same ones for
   every file, and Attributes cannot change them. Dates are kept.
+- **Git:** the file list shows no status letters on a mounted folder, because `git status`
+  reads the whole repository through the network. Ctrl+G still works there.
 - **Google Docs, Sheets and Slides** are not files: rclone shows them exported
   (`.docx`, `.xlsx`, `.pptx`), with size 0. `--drive-skip-gdocs` hides them.
 - **S3 has no real directories**, only names with `/` in them: an empty
