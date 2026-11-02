@@ -967,7 +967,7 @@ fn remote_info(remote: &crate::remote::Remote, path: &Path) -> String {
                     "  {:<14}{}
 ",
                     "Modified",
-                    t.format("%Y-%m-%d %H:%M:%S %z")
+                    t.format(&crate::config::full_time_pattern())
                 ));
             }
         }

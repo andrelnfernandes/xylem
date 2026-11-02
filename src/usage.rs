@@ -301,7 +301,7 @@ pub fn size(n: u64) -> String {
         v /= 1024.0;
         unit += 1;
     }
-    format!("{v:.1} {}", UNITS[unit])
+    format!("{} {}", crate::config::one_decimal(v), UNITS[unit])
 }
 
 /// `part` as a share of `whole`: "41%", "5.8%", "<0.1%", or "-" when there
@@ -316,7 +316,7 @@ pub fn percent(part: u64, whole: u64) -> String {
     } else if pct == 0.0 || pct >= 9.95 {
         format!("{pct:.0}%")
     } else {
-        format!("{pct:.1}%")
+        format!("{}%", crate::config::one_decimal(pct))
     }
 }
 

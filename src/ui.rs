@@ -9,8 +9,9 @@
 //!  command menu (2 lines)
 //! ```
 
+use std::collections::HashSet;
 use std::ops::Range;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use chrono::{DateTime, Local};
@@ -23,7 +24,9 @@ use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Para
 
 use crate::app::{self, App, BookmarksView, FileView, Focus, KbyteShow, MenuMode, Pane};
 use crate::charset::Charset;
-use crate::config::{self, IconStyle, TerminalTheme, Theme, formats, theme};
+use crate::config::{
+    self, IconStyle, TerminalTheme, Theme, formats, group_digits, one_decimal, theme,
+};
 use crate::filetype;
 use crate::git::StatusCache;
 use crate::help::{self, Help};
@@ -857,7 +860,7 @@ fn share(bytes: u64, whole: u64, largest: u64, room: usize) -> (Option<String>, 
     } else if pct == 0.0 || pct >= 9.95 {
         format!("{pct:.0}%")
     } else {
-        format!("{pct:.1}%")
+        format!("{}%", one_decimal(pct))
     };
     let text = format!("{text:>5}");
     if room < SHARE_BAR + 1 + text.len() {
@@ -1422,20 +1425,34 @@ fn draw_stats(frame: &mut Frame, app: &App, area: Rect) {
         let total = value("Total", space.total);
         total_lines = total.len();
         disk.extend(total);
-        // How full the disk is: green, then yellow from 75%, red from 90%.
-        let used = space.total.saturating_sub(space.available);
-        let weight = match percent_of(used, space.total) {
+        // How full the disk is, as df says it (the blocks kept for root are
+        // neither used nor available): green, yellow from 75%, red from 90%.
+        let used = space.total.saturating_sub(space.free);
+        let whole = used + space.available;
+        let weight = match percent_of(used, whole) {
             p if p < 75 => crate::usage::Weight::Light,
             p if p < 90 => crate::usage::Weight::Medium,
             _ => crate::usage::Weight::Heavy,
         };
-        if let Some(line) = ratio_line(used, space.total, width, weight, "used") {
+        if let Some(line) = ratio_line(used, whole, width, weight, "used") {
             disk.push(line);
             total_lines += 1;
         }
     }
 
-    let stats = app.disk_stats();
+    // The statistics of the disk shown above: on this machine, only what is
+    // on it (other file systems mounted inside are out); in an archive or on
+    // a remote machine, everything logged.
+    let points: HashSet<PathBuf> = crate::platform::mounts()
+        .into_iter()
+        .map(|m| m.point)
+        .collect();
+    let point = crate::info::mount_of(&path).map(|m| m.point);
+    let on_disk = match (&app.remote, &app.archive, &point) {
+        (None, None, Some(point)) => Some((point.as_path(), &points)),
+        _ => None,
+    };
+    let stats = app.disk_stats(on_disk);
     let node = app.tree.node(id);
     let here = node
         .files
@@ -3604,21 +3621,6 @@ fn fmt_num(n: u64) -> String {
 }
 
 /// 1234567 -> "1,234,567" (with `,`).
-fn group_digits(n: u64, separator: Option<char>) -> String {
-    let digits = n.to_string();
-    let Some(sep) = separator else {
-        return digits;
-    };
-    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(sep);
-        }
-        out.push(c);
-    }
-    out
-}
-
 fn fmt_time(t: SystemTime) -> String {
     DateTime::<Local>::from(t)
         .format(formats().date.pattern())

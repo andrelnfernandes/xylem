@@ -305,27 +305,19 @@ fn human(n: u64) -> String {
         v /= 1024.0;
         unit += 1;
     }
-    format!("{v:.1} {}", UNITS[unit])
+    format!("{} {}", crate::config::one_decimal(v), UNITS[unit])
 }
 
-/// "1234567" → "1,234,567" (the information screens always use the comma,
-/// like `df`, to align).
+/// "1234567" → "1,234,567", in the configured number format (as the rest of
+/// Xylem: any separator takes the same room, so the columns still align).
 pub fn group(n: u64) -> String {
-    let digits = n.to_string();
-    let mut out = String::new();
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(',');
-        }
-        out.push(c);
-    }
-    out
+    crate::config::group_digits(n, crate::config::formats().number.separator())
 }
 
 fn time(t: Option<SystemTime>) -> String {
     t.map(|t| {
         DateTime::<Local>::from(t)
-            .format("%Y-%m-%d %H:%M:%S %z")
+            .format(&crate::config::full_time_pattern())
             .to_string()
     })
     .unwrap_or_else(|| "-".into())
@@ -430,7 +422,7 @@ mod tests {
 
     #[test]
     fn helpers() {
-        assert_eq!(group(1234567), "1,234,567");
+        assert_eq!(crate::config::group_digits(1234567, Some(',')), "1,234,567");
         assert_eq!(human(512), "512 bytes");
         assert_eq!(human(1536), "1.5 KiB");
         assert_eq!(human(16 * 1024 * 1024 * 1024), "16.0 GiB");

@@ -3,7 +3,7 @@
 //! The normal screen has one; with the window split (F8) there are two, each with
 //! its own tree.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -676,34 +676,62 @@ impl Pane {
     /// matches the filespec and what of it is tagged. Matching and Tagged
     /// count what Showall would list: not inside hidden directories (unless
     /// they are displayed), nor hidden files.
-    pub fn disk_stats(&self) -> DiskStats {
+    ///
+    /// With `disk` (its mount point, and every mount point there is), only
+    /// what is on that disk: a folder where another file system is mounted
+    /// takes its branch out, as does what is above the disk. So `/proc`
+    /// (whose `kcore` "has" 128 TiB) never adds to the disk of `/`.
+    pub fn disk_stats(&self, disk: Option<(&Path, &HashSet<PathBuf>)>) -> DiskStats {
         let mut stats = DiskStats::default();
         let add = |t: &mut Count, f: &FileEntry| {
             t.files += 1;
             t.bytes += f.size;
         };
-        let scanned = |id: &NodeId| self.tree.node(*id).scanned;
-        for id in self.tree.subtree(ROOT).iter().filter(|id| scanned(id)) {
-            for f in &self.tree.node(*id).files {
-                add(&mut stats.logged, f);
+        let root_path = self.tree.path(ROOT);
+        let on_root = match disk {
+            None => true,
+            Some((point, points)) => {
+                let mount = points
+                    .iter()
+                    .filter(|p| root_path.starts_with(p))
+                    .max_by_key(|p| p.as_os_str().len());
+                mount.is_some_and(|m| m == point)
             }
-        }
-        for id in self
-            .tree
-            .visible_subtree(ROOT)
-            .iter()
-            .filter(|id| scanned(id))
-        {
-            for f in &self.tree.node(*id).files {
-                if !self.tree.show_hidden && f.is_hidden() {
-                    continue;
+        };
+        // (folder, its path when the disk is checked, on the disk, visible)
+        let mut stack = vec![(ROOT, disk.map(|_| root_path), on_root, true)];
+        while let Some((id, path, on_disk, visible)) = stack.pop() {
+            let node = self.tree.node(id);
+            if node.scanned && on_disk {
+                for f in &node.files {
+                    add(&mut stats.logged, f);
+                    if !visible || (!self.tree.show_hidden && f.is_hidden()) {
+                        continue;
+                    }
+                    if self.filespec.matches_entry(f) {
+                        add(&mut stats.matching, f);
+                    }
+                    if f.tagged {
+                        add(&mut stats.tagged, f);
+                    }
                 }
-                if self.filespec.matches_entry(f) {
-                    add(&mut stats.matching, f);
-                }
-                if f.tagged {
-                    add(&mut stats.tagged, f);
-                }
+            }
+            for &c in &node.children {
+                let child = self.tree.node(c);
+                let shown = visible && (self.tree.show_hidden || !child.hidden);
+                let (child_path, child_on) = match (disk, &path) {
+                    (Some((point, points)), Some(path)) => {
+                        let child_path = path.join(&child.name);
+                        let on = if points.contains(&child_path) {
+                            child_path == point
+                        } else {
+                            on_disk
+                        };
+                        (Some(child_path), on)
+                    }
+                    _ => (None, on_disk),
+                };
+                stack.push((c, child_path, child_on, shown));
             }
         }
         stats
@@ -839,10 +867,25 @@ mod tests {
             .position(|f| f.name == "b.txt");
         pane.tree.file_mut(ROOT, b.unwrap()).tagged = true;
 
-        let stats = pane.disk_stats();
+        let stats = pane.disk_stats(None);
         assert_eq!(stats.logged, count(3, 18));
         assert_eq!(stats.matching, count(2, 13), "a.rs and sub/c.rs");
         assert_eq!(stats.tagged, count(1, 5), "tagged, even if not matching");
+
+        // Another disk mounted at sub: out of the statistics of this one...
+        pane.tree
+            .scan(pane.tree.find(&tmp.path().join("sub")).unwrap());
+        let root = pane.tree.path(ROOT);
+        let sub = root.join("sub");
+        let points: HashSet<PathBuf> = [root.clone(), sub.clone()].into();
+        let stats = pane.disk_stats(Some((&root, &points)));
+        assert_eq!(stats.logged, count(2, 15), "a.rs and b.txt");
+        assert_eq!(stats.matching, count(1, 10));
+        assert_eq!(stats.tagged, count(1, 5));
+        // ...and the only thing in the statistics of that disk.
+        let stats = pane.disk_stats(Some((&sub, &points)));
+        assert_eq!(stats.logged, count(1, 3), "sub/c.rs");
+        assert_eq!(stats.tagged, count(0, 0));
 
         // A hidden directory counts as logged, but not as matching.
         create_dir_all(tmp.path().join(".git")).unwrap();
@@ -852,7 +895,7 @@ mod tests {
         pane.tree.rescan(ROOT);
         let git = pane.tree.find(&tmp.path().join(".git")).unwrap();
         pane.tree.scan(git);
-        let stats = pane.disk_stats();
+        let stats = pane.disk_stats(None);
         assert_eq!(stats.logged, count(4, 22));
         assert_eq!(stats.matching, count(2, 13));
     }
