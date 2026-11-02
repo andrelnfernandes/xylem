@@ -75,6 +75,12 @@ viewer_max_size = "auto"
 # plain text) or "nerd-fonts" (requires a Nerd Font terminal font from
 # https://www.nerdfonts.com, e.g. FiraCode or JetBrainsMono Nerd Font).
 icons = "none"
+# Color file names by type: archives, images, audio and video, documents,
+# code and data, each in a color of the theme. false: the classic look.
+type_colors = true
+# Window borders: "theme" (rounded in nord, gruvbox, slate, graphite,
+# daylight and vivid, straight in the others), "plain" or "rounded".
+borders = "theme"
 # Initial mode of the files window (Alt+F changes it while running): "names"
 # (several columns), "names_size" (columns with size), "details" (one
 # column with size, date and permissions), "owner" (size, owner and group,
@@ -136,7 +142,8 @@ terminal_history = true
 # Names: background, text, border, active_border, key, dim, highlight,
 # highlight_text, inactive_highlight, error, message, tagged, executable,
 # symlink, special, bar_low, bar_mid, bar_high (the bars of Alt+K Percent
-# and Alt+W, by share: up to 10%, up to 40%, more).
+# and Alt+W, by share: up to 10%, up to 40%, more), and the colors of file
+# types: archive, image, media, document, code, data.
 [colors]
 # key = "yellow"
 # background = "#1e1e2e"
@@ -233,6 +240,10 @@ pub struct Options {
     pub viewer_max_size: ViewerMaxSize,
     /// Icons and glyphs (Nerd Fonts).
     pub icons: IconStyle,
+    /// File names colored by type.
+    pub type_colors: bool,
+    /// Window borders: as the theme says, straight or rounded.
+    pub borders: Borders,
     /// Initial mode of the files window (Alt+F changes it while running).
     pub file_display: FileDisplay,
     /// Initial file sort order.
@@ -284,6 +295,8 @@ impl Default for Options {
             legacy_charset: LegacyCharset::Auto,
             viewer_max_size: ViewerMaxSize::Auto,
             icons: IconStyle::None,
+            type_colors: true,
+            borders: Borders::Theme,
             file_display: FileDisplay::Details,
             sort: SortKey::Name,
             sort_descending: false,
@@ -337,6 +350,8 @@ impl Options {
             ("legacy_charset", s(self.legacy_charset.as_str())),
             ("viewer_max_size", s(self.viewer_max_size.as_str())),
             ("icons", s(self.icons.as_str())),
+            ("type_colors", Value::from(self.type_colors)),
+            ("borders", s(self.borders.as_str())),
             ("file_display", s(self.file_display.as_str())),
             ("sort", s(self.sort.as_str())),
             ("sort_descending", Value::from(self.sort_descending)),
@@ -671,6 +686,29 @@ impl Choice for IconStyle {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+pub enum Borders {
+    /// Rounded in the modern themes, straight in the classic ones.
+    #[default]
+    #[serde(rename = "theme")]
+    Theme,
+    #[serde(rename = "plain")]
+    Plain,
+    #[serde(rename = "rounded")]
+    Rounded,
+}
+
+impl Choice for Borders {
+    const ALL: &'static [Self] = &[Borders::Theme, Borders::Plain, Borders::Rounded];
+    fn as_str(self) -> &'static str {
+        match self {
+            Borders::Theme => "theme",
+            Borders::Plain => "plain",
+            Borders::Rounded => "rounded",
+        }
+    }
+}
+
 impl Choice for FileDisplay {
     const ALL: &'static [Self] = &[
         FileDisplay::Names,
@@ -816,6 +854,17 @@ pub struct Theme {
     pub bar_low: Color,
     pub bar_mid: Color,
     pub bar_high: Color,
+    /// File names by type (with `type_colors`).
+    pub archive: Color,
+    pub image: Color,
+    pub media: Color,
+    pub document: Color,
+    pub code: Color,
+    pub data: Color,
+    /// Rounded window borders.
+    pub rounded: bool,
+    /// File names colored by type (the option `type_colors`).
+    pub type_colors: bool,
 }
 
 /// A ready-made theme: name and how to build it.
@@ -862,6 +911,14 @@ impl Theme {
             bar_low: Color::LightGreen,
             bar_mid: Color::Yellow,
             bar_high: Color::LightRed,
+            archive: Color::LightRed,
+            image: Color::LightMagenta,
+            media: Color::Magenta,
+            document: Color::Gray,
+            code: Color::Cyan,
+            data: Color::LightCyan,
+            rounded: false,
+            type_colors: true,
         }
     }
 
@@ -875,6 +932,8 @@ impl Theme {
             highlight: Color::Blue,
             highlight_text: Color::White,
             inactive_highlight: Color::DarkGray,
+            document: Color::White,
+            code: Color::LightBlue,
             ..Self::classic()
         }
     }
@@ -899,6 +958,14 @@ impl Theme {
             bar_low: Color::Green,
             bar_mid: rgb(0xb36b00),
             bar_high: Color::Red,
+            archive: Color::Red,
+            image: Color::Magenta,
+            media: rgb(0x7b3fbf),
+            document: rgb(0x555555),
+            code: Color::Blue,
+            data: rgb(0x00787a),
+            rounded: false,
+            type_colors: true,
         }
     }
 
@@ -923,6 +990,14 @@ impl Theme {
             bar_low: Color::Reset,
             bar_mid: Color::Reset,
             bar_high: Color::Reset,
+            archive: Color::Reset,
+            image: Color::Reset,
+            media: Color::Reset,
+            document: Color::Reset,
+            code: Color::Reset,
+            data: Color::Reset,
+            rounded: false,
+            type_colors: true,
         }
     }
 
@@ -933,6 +1008,9 @@ impl Theme {
             border: Color::LightCyan,
             active_border: Color::White,
             dim: Color::Cyan,
+            document: Color::White,
+            code: Color::Gray,
+            data: Color::LightYellow,
             ..Self::classic()
         }
     }
@@ -957,6 +1035,14 @@ impl Theme {
             bar_low: rgb(0x859900),
             bar_mid: rgb(0xb58900),
             bar_high: rgb(0xdc322f),
+            archive: rgb(0xcb4b16),
+            image: rgb(0x6c71c4),
+            media: rgb(0xd33682),
+            document: rgb(0x93a1a1),
+            code: rgb(0x268bd2),
+            data: rgb(0x2aa198),
+            rounded: false,
+            type_colors: true,
         }
     }
 
@@ -980,6 +1066,14 @@ impl Theme {
             bar_low: rgb(0xb8bb26),
             bar_mid: rgb(0xfabd2f),
             bar_high: rgb(0xfb4934),
+            archive: rgb(0xfe8019),
+            image: rgb(0xd3869b),
+            media: rgb(0xb16286),
+            document: rgb(0xd5c4a1),
+            code: rgb(0x83a598),
+            data: rgb(0x8ec07c),
+            rounded: true,
+            type_colors: true,
         }
     }
 
@@ -1003,6 +1097,14 @@ impl Theme {
             bar_low: rgb(0xa3be8c),
             bar_mid: rgb(0xebcb8b),
             bar_high: rgb(0xbf616a),
+            archive: rgb(0xd08770),
+            image: rgb(0xb48ead),
+            media: rgb(0x9a86c9),
+            document: rgb(0xe5e9f0),
+            code: rgb(0x81a1c1),
+            data: rgb(0x88c0d0),
+            rounded: true,
+            type_colors: true,
         }
     }
 
@@ -1028,6 +1130,14 @@ impl Theme {
             bar_low: rgb(0x16c60c),
             bar_mid: rgb(0xc19c00),
             bar_high: rgb(0xe74856),
+            archive: rgb(0xf9a03f),
+            image: rgb(0xd670d6),
+            media: rgb(0xb4009e),
+            document: rgb(0xf2f2f2),
+            code: rgb(0x3b78ff),
+            data: rgb(0x61d6d6),
+            rounded: true,
+            type_colors: true,
         }
     }
 
@@ -1053,6 +1163,14 @@ impl Theme {
             bar_low: rgb(0x30d158),
             bar_mid: rgb(0xffd60a),
             bar_high: rgb(0xff453a),
+            archive: rgb(0xff9f0a),
+            image: rgb(0xff375f),
+            media: rgb(0xbf5af2),
+            document: rgb(0xf5f5f7),
+            code: rgb(0x0a84ff),
+            data: rgb(0x66d4cf),
+            rounded: true,
+            type_colors: true,
         }
     }
 
@@ -1077,6 +1195,14 @@ impl Theme {
             bar_low: rgb(0x248a3d),
             bar_mid: rgb(0xb36b00),
             bar_high: rgb(0xd70015),
+            archive: rgb(0xc93400),
+            image: rgb(0xd30f45),
+            media: rgb(0x8944ab),
+            document: rgb(0x3a3a3c),
+            code: rgb(0x3634a3),
+            data: rgb(0x007d76),
+            rounded: true,
+            type_colors: true,
         }
     }
 
@@ -1103,6 +1229,14 @@ impl Theme {
             bar_low: rgb(0x7cff6b),
             bar_mid: rgb(0xffd400),
             bar_high: rgb(0xff5e5b),
+            archive: rgb(0xff9f1c),
+            image: rgb(0xff2e93),
+            media: rgb(0xc77dff),
+            document: rgb(0xd9d2ff),
+            code: rgb(0x4dd0e1),
+            data: rgb(0x9be7ff),
+            rounded: true,
+            type_colors: true,
         }
     }
 
@@ -1139,9 +1273,21 @@ impl Theme {
                 "bar_low" => &mut theme.bar_low,
                 "bar_mid" => &mut theme.bar_mid,
                 "bar_high" => &mut theme.bar_high,
+                "archive" => &mut theme.archive,
+                "image" => &mut theme.image,
+                "media" => &mut theme.media,
+                "document" => &mut theme.document,
+                "code" => &mut theme.code,
+                "data" => &mut theme.data,
                 other => return Err(format!("unknown color name '{other}'")),
             };
             *slot = color;
+        }
+        theme.type_colors = config.options.type_colors;
+        match config.options.borders {
+            Borders::Theme => {}
+            Borders::Plain => theme.rounded = false,
+            Borders::Rounded => theme.rounded = true,
         }
         Ok(theme)
     }
