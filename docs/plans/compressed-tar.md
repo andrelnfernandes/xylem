@@ -48,8 +48,8 @@ janela muda quando a leitura termina.
 
 - **Copiar N arquivos de um TAR comprimido** ainda descomprime desde o começo para cada
   um. Agora dá para cancelar, mas é lento; vai para o BACKLOG.
-- **Busca (Ctrl+S) e viewer dentro do archive:** têm limites próprios; o item 4 de
-  Security trata a busca.
+- **Busca (Ctrl+S) e viewer dentro do archive:** têm limites próprios; a busca foi
+  tratada em [search-and-table-limits.md](search-and-table-limits.md).
 
 ## Testes
 

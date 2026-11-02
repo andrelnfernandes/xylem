@@ -443,6 +443,36 @@ fn a_database_says_which_table_is_open_and_how_to_change_it() {
 }
 
 #[test]
+fn esc_stops_a_query_with_the_screen_free_and_the_next_closes() {
+    let (home, project) = sample();
+    let db = project.join("0.db");
+    rusqlite::Connection::open(&db)
+        .unwrap()
+        .execute_batch("CREATE TABLE first (a); CREATE TABLE second (b);")
+        .unwrap();
+    let mut xy = Xy::start(home.path(), &[project.to_str().unwrap()]);
+    xy.wait_for("b.txt");
+    xy.press("\r"); // file window, on 0.db
+    xy.press("v");
+    xy.wait_for("TABLE [1/2: first]");
+    xy.press("&");
+    xy.wait_for("SQL (WHERE");
+    // Never gives a row: only a limit or the user ends it.
+    xy.press(
+        "SELECT x FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) \
+         SELECT x FROM c) WHERE x < 0\r",
+    );
+    xy.wait_for("Esc stops");
+    xy.press("\x1b");
+    xy.wait_for("Table reading stopped");
+    // It stays on the table it had.
+    assert!(xy.contents().contains("TABLE [1/2: first]"));
+    xy.press("\x1b");
+    xy.wait_for("b.txt");
+    xy.quit();
+}
+
+#[test]
 fn alt_q_leaves_the_directory_for_the_shell() {
     let (home, project) = sample();
     let cwd_file = home.path().join("cwd");

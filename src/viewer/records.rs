@@ -22,15 +22,25 @@ use arrow_array::types::{
     UInt32Type, UInt64Type,
 };
 use arrow_schema::DataType;
-use calamine::{Data, Reader, open_workbook_auto};
+use calamine::{
+    Cell as SheetCell, Data, DataRef, Dimensions, Ods, Reader, Xls, Xlsb, Xlsx, XlsxError,
+};
 use parquet::arrow::ProjectionMask;
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use parquet::arrow::arrow_reader::{
+    ArrowReaderMetadata, ArrowReaderOptions, ParquetRecordBatchReaderBuilder,
+};
 use serde_json::Value as JsonValue;
 
+use super::parquet_pages;
 use super::table::TableGrid;
 
 /// Columns read per record, in any format: a hostile file could have millions.
 pub const MAX_COLS: usize = 256;
+/// Rows of a spreadsheet, by its format: a cell past them is not real.
+const MAX_SHEET_ROWS: u32 = 1 << 20;
+/// What the pages of a Parquet row group may hold in memory at once. Not the viewer's
+/// limit: 256 columns with the usual 1 MiB pages are a normal file.
+const MAX_PARQUET_PAGES: u64 = 1 << 30;
 /// A line of JSON Lines longer than this is not read as a record.
 const MAX_LINE_BYTES: u64 = 512 * 1024;
 /// How many steps of SQLite's virtual machine between looks at the clock.
@@ -69,9 +79,36 @@ pub struct Budget {
     deadline: Option<Instant>,
     /// Set by someone else to stop it, looked at along with the deadline.
     cancel: Option<Arc<AtomicBool>>,
-    /// The most a spreadsheet may unpack to: its reader has no way to stop
-    /// midway, so this is checked before it starts.
+    /// The most a spreadsheet may unpack to, checked before it starts.
     unpacked: u64,
+}
+
+/// A file that stops being read when the budget runs out. It sits before any
+/// decompressor, so it also stops one spinning with no output.
+pub struct Stoppable<R> {
+    inner: R,
+    budget: Budget,
+}
+
+impl<R> Stoppable<R> {
+    pub fn new(inner: R, budget: Budget) -> Self {
+        Stoppable { inner, budget }
+    }
+}
+
+impl<R: Read> Read for Stoppable<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.budget.over() {
+            return Err(std::io::Error::other("the reading was stopped"));
+        }
+        self.inner.read(buf)
+    }
+}
+
+impl<R: Seek> Seek for Stoppable<R> {
+    fn seek(&mut self, to: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.inner.seek(to)
+    }
 }
 
 impl Budget {
@@ -90,6 +127,19 @@ impl Budget {
             cancel: Some(cancel),
             unpacked,
         }
+    }
+
+    /// Someone else can stop it too, before the deadline.
+    pub fn stopped_by(mut self, cancel: Arc<AtomicBool>) -> Self {
+        self.cancel = Some(cancel);
+        self
+    }
+
+    /// Whether someone stopped it, rather than the time running out.
+    pub fn cancelled(&self) -> bool {
+        self.cancel
+            .as_ref()
+            .is_some_and(|c| c.load(Ordering::Relaxed))
     }
 
     #[cfg(test)]
@@ -479,28 +529,118 @@ fn sheet_cell(value: &Data) -> Cell<'_> {
     }
 }
 
-/// A sheet (by position) of an Excel / ODS spreadsheet using `calamine`, which
-/// loads the whole sheet before the first record.
-pub fn read_spreadsheet(
-    path: &Path,
-    sheet: usize,
+/// A value read in a stream: a shared string stays borrowed, so that one long
+/// string in many cells costs nothing.
+fn streamed_cell<'a>(value: &'a DataRef<'a>) -> Cell<'a> {
+    match value {
+        DataRef::Empty => Cell::Null,
+        DataRef::Int(i) => Cell::Int(*i),
+        DataRef::Float(f) => Cell::Float(*f),
+        DataRef::Bool(b) => Cell::Bool(*b),
+        DataRef::SharedString(s) => Cell::Text(Cow::Borrowed(s)),
+        DataRef::String(s) => Cell::Text(Cow::Borrowed(s)),
+        other => Cell::Text(Cow::Owned(Data::from(other.clone()).to_string())),
+    }
+}
+
+/// A sheet read cell by cell, keeping one row at a time. The cells come in the
+/// file's order, and whoever wrote the file chose their positions: a cell at the
+/// far end of the sheet costs no more than any other.
+fn stream_sheet<'a, E: std::fmt::Display>(
+    declared: Dimensions,
+    mut next: impl FnMut() -> Result<Option<SheetCell<DataRef<'a>>>, E>,
+    name: &str,
     budget: Budget,
     sink: &mut dyn RecordSink,
 ) -> Result<End, String> {
-    check_unpacked(path, budget.unpacked)?;
-    let mut workbook = open_workbook_auto(path)
-        .map_err(|e| format!("Failed to open spreadsheet {}: {e}", path.display()))?;
+    // A letter is the sheet's own, from A: where a sheet says it starts may be wrong,
+    // and a cell left of that would be lost. The width it declares is only a start,
+    // and a cell past it widens the table, as in JSON Lines.
+    let declared_cols = declared.end.1 as usize + 1;
+    let mut letters: Vec<String> = Vec::new();
+    let mut row: Vec<DataRef<'a>> = Vec::new();
+    let mut at: Option<u32> = None;
+    let mut cut = false;
+    let mut pace = Pace::new(budget);
+    let mut flush =
+        |row: &mut Vec<DataRef<'a>>, pace: &mut Pace, sink: &mut dyn RecordSink| -> Option<End> {
+            let width = row.len().max(declared_cols.min(MAX_COLS));
+            if width > letters.len() {
+                letters = (0..width).map(column_letter).collect();
+                sink.columns(&letters);
+            }
+            let cells: Vec<Cell<'_>> = row.iter().map(streamed_cell).collect();
+            let end = deliver(pace, sink, &cells);
+            drop(cells);
+            row.clear();
+            end
+        };
+    loop {
+        let cell = next().map_err(|e| {
+            let shown = TableGrid::sanitize_cell(name);
+            format!("Failed to read sheet '{shown}': {e}")
+        })?;
+        let Some(cell) = cell else { break };
+        // Empty cells give no record, so the clock has to be looked at here too.
+        if pace.over() {
+            return Ok(End::OutOfTime);
+        }
+        if cell.get_value() == &DataRef::Empty {
+            continue;
+        }
+        let (r, c) = cell.get_position();
+        // Past the format's rows, or going back: each row is written once, so what
+        // a file can ask for stays within the format's rows.
+        if r >= MAX_SHEET_ROWS || at.is_some_and(|at| r < at) {
+            continue;
+        }
+        if at != Some(r) {
+            if let Some(previous) = at {
+                if let Some(end) = flush(&mut row, &mut pace, sink) {
+                    return Ok(end);
+                }
+                // Empty rows in the middle stay, and the time limit counts them.
+                for _ in previous.saturating_add(1)..r {
+                    if let Some(end) = flush(&mut row, &mut pace, sink) {
+                        return Ok(end);
+                    }
+                }
+            }
+            at = Some(r);
+        }
+        let col = c as usize;
+        if col >= MAX_COLS {
+            if !cut {
+                cut = true;
+                sink.columns_cut();
+            }
+            continue;
+        }
+        if col >= row.len() {
+            row.resize(col + 1, DataRef::Empty);
+        }
+        let value = cell.get_value().clone();
+        row[col] = value;
+    }
+    if at.is_some()
+        && let Some(end) = flush(&mut row, &mut pace, sink)
+    {
+        return Ok(end);
+    }
+    Ok(End::Complete)
+}
 
-    let names = workbook.sheet_names();
-    let Some(name) = names.get(sheet) else {
-        return Err("Spreadsheet has no such sheet".to_string());
-    };
+/// A sheet its reader loads whole, there being no other way (`.ods`, `.xls`).
+fn range_sheet<RS: Read + Seek>(
+    workbook: &mut impl Reader<RS, Error: std::fmt::Display>,
+    name: &str,
+    budget: Budget,
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
     let range = workbook.worksheet_range(name).map_err(|e| {
         let shown = TableGrid::sanitize_cell(name);
         format!("Failed to read sheet '{shown}': {e}")
     })?;
-    sink.sheets(&names, sheet);
-
     let (height, width) = range.get_size();
     let cols = width.min(MAX_COLS);
     if width > MAX_COLS {
@@ -519,6 +659,97 @@ pub fn read_spreadsheet(
         }
     }
     Ok(End::Complete)
+}
+
+fn open_book<T, RS>(path: &Path, reader: RS) -> Result<T, String>
+where
+    RS: Read + Seek,
+    T: Reader<RS, Error: std::fmt::Display>,
+{
+    T::new(reader).map_err(|e| format!("Failed to open spreadsheet {}: {e}", path.display()))
+}
+
+/// The sheet's name, once the sink knows the file's sheets.
+fn pick_sheet(names: &[String], sheet: usize, sink: &mut dyn RecordSink) -> Result<String, String> {
+    let Some(name) = names.get(sheet) else {
+        return Err("Spreadsheet has no such sheet".to_string());
+    };
+    sink.sheets(names, sheet);
+    Ok(name.clone())
+}
+
+/// A sheet (by position) of an Excel / ODS spreadsheet using `calamine`. Its size
+/// is checked first, by what the ZIP declares, and that holds: the `zip` crate
+/// refuses an entry that gives more than it declared.
+pub fn read_spreadsheet(
+    path: &Path,
+    sheet: usize,
+    budget: Budget,
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
+    check_unpacked(path, budget.unpacked)?;
+    match read_book(path, sheet, budget.clone(), sink) {
+        // Whatever calamine made of it, the file stopped being read.
+        Err(_) if budget.over() => Ok(End::OutOfTime),
+        result => result,
+    }
+}
+
+fn read_book(
+    path: &Path,
+    sheet: usize,
+    budget: Budget,
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
+    let file = File::open(path)
+        .map_err(|e| format!("Failed to open spreadsheet {}: {e}", path.display()))?;
+    let reader = BufReader::new(Stoppable::new(file, budget.clone()));
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "xlsx" => {
+            let mut book: Xlsx<_> = open_book(path, reader)?;
+            let name = pick_sheet(&book.sheet_names(), sheet, sink)?;
+            let mut cells = match book.worksheet_cells_reader(&name) {
+                Ok(cells) => cells,
+                // A chart takes a tab of its own, and has no cells.
+                Err(XlsxError::NotAWorksheet(_)) => return Ok(End::Complete),
+                Err(e) => {
+                    let shown = TableGrid::sanitize_cell(&name);
+                    return Err(format!("Failed to read sheet '{shown}': {e}"));
+                }
+            };
+            let declared = cells.dimensions();
+            stream_sheet(declared, || cells.next_cell(), &name, budget, sink)
+        }
+        "xlsb" => {
+            let mut book: Xlsb<_> = open_book(path, reader)?;
+            let name = pick_sheet(&book.sheet_names(), sheet, sink)?;
+            let mut cells = book.worksheet_cells_reader(&name).map_err(|e| {
+                let shown = TableGrid::sanitize_cell(&name);
+                format!("Failed to read sheet '{shown}': {e}")
+            })?;
+            let declared = cells.dimensions();
+            stream_sheet(declared, || cells.next_cell(), &name, budget, sink)
+        }
+        "ods" => {
+            let mut book: Ods<_> = open_book(path, reader)?;
+            let name = pick_sheet(&book.sheet_names(), sheet, sink)?;
+            range_sheet(&mut book, &name, budget, sink)
+        }
+        "xls" => {
+            let mut book: Xls<_> = open_book(path, reader)?;
+            let name = pick_sheet(&book.sheet_names(), sheet, sink)?;
+            range_sheet(&mut book, &name, budget, sink)
+        }
+        _ => Err(format!(
+            "Failed to open spreadsheet {}: not a known format",
+            path.display()
+        )),
+    }
 }
 
 fn is_interrupted(error: &rusqlite::Error) -> bool {
@@ -762,6 +993,15 @@ pub fn read_table(
 /// An Apache Parquet file (.parquet). Columns past [`MAX_COLS`] are never
 /// decoded from disk.
 pub fn read_parquet(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Result<End, String> {
+    read_parquet_within(path, MAX_PARQUET_PAGES, budget, sink)
+}
+
+fn read_parquet_within(
+    path: &Path,
+    pages: u64,
+    budget: Budget,
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
     let mut file = File::open(path).map_err(|e| format!("Failed to open Parquet file: {e}"))?;
 
     // Validate size and magic markers (PAR1 at start and end)
@@ -790,10 +1030,10 @@ pub fn read_parquet(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> R
     file.seek(std::io::SeekFrom::Start(0))
         .map_err(|e| format!("Seek failed: {e}"))?;
 
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+    let metadata = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new())
         .map_err(|e| format!("Failed to parse Parquet metadata: {e}"))?;
 
-    let schema = builder.schema().clone();
+    let schema = metadata.schema().clone();
     let total = schema.fields().len();
     if total == 0 {
         return Ok(End::Complete);
@@ -809,34 +1049,145 @@ pub fn read_parquet(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> R
     }
     sink.columns(&names);
 
-    let mask = ProjectionMask::roots(builder.parquet_schema(), 0..cols);
-    let reader = builder
-        .with_projection(mask)
-        .with_batch_size(1024)
-        .build()
-        .map_err(|e| format!("Failed to create Parquet batch reader: {e}"))?;
+    let mask = ProjectionMask::roots(metadata.parquet_schema(), 0..cols);
+    let mut pace = Pace::new(budget.clone());
+    // One row group at a time: the grid stops early, and pays only for what it reads.
+    for group in 0..metadata.metadata().num_row_groups() {
+        // An empty group has nothing else that looks at the clock.
+        if budget.over() {
+            return Ok(End::OutOfTime);
+        }
+        let handle = file
+            .try_clone()
+            .map_err(|e| format!("Failed to open Parquet file: {e}"))?;
+        let guarded = match parquet_pages::GuardedFile::new(
+            handle,
+            metadata.metadata().row_group(group),
+            |leaf| mask.leaf_included(leaf),
+            pages,
+            budget.clone(),
+        ) {
+            Ok(guarded) => guarded,
+            Err(_) if budget.over() => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("Refused Parquet file: {e}")),
+        };
+        let batch_size = parquet_batch(guarded.dictionaries(), pages);
+        let reader = ParquetRecordBatchReaderBuilder::new_with_metadata(guarded, metadata.clone())
+            .with_projection(mask.clone())
+            .with_row_groups(vec![group])
+            .with_batch_size(batch_size)
+            .build()
+            .map_err(|e| format!("Failed to create Parquet batch reader: {e}"))?;
 
-    let mut pace = Pace::new(budget);
-    for batch in reader {
-        let batch = batch.map_err(|e| format!("Error decoding Parquet batch: {e}"))?;
-        let columns = batch.columns();
-        for r in 0..batch.num_rows() {
-            let cells: Vec<Cell<'_>> = columns
-                .iter()
-                .take(cols)
-                .map(|col| parquet_cell(col.as_ref(), r))
-                .collect();
-            if let Some(end) = deliver(&mut pace, sink, &cells) {
-                return Ok(end);
+        for batch in reader {
+            let batch = match batch {
+                Ok(batch) => batch,
+                Err(_) if budget.over() => return Ok(End::OutOfTime),
+                Err(e) => return Err(format!("Refused Parquet file: {e}")),
+            };
+            let columns = batch.columns();
+            for r in 0..batch.num_rows() {
+                let cells: Vec<Cell<'_>> = columns
+                    .iter()
+                    .take(cols)
+                    .map(|col| parquet_cell(col.as_ref(), r))
+                    .collect();
+                if let Some(end) = deliver(&mut pace, sink, &cells) {
+                    return Ok(end);
+                }
             }
         }
     }
     Ok(End::Complete)
 }
 
+/// Rows per batch. A value of a dictionary is copied into each row that uses it, so
+/// a huge dictionary means few rows at a time.
+fn parquet_batch(dictionaries: u64, limit: u64) -> usize {
+    let rows = limit.checked_div(dictionaries).unwrap_or(1024);
+    rows.clamp(1, 1024) as usize
+}
+
+/// Hand-made spreadsheets, for what no writer of them would produce.
+#[cfg(test)]
+pub mod test_book {
+    use std::io::Write;
+    use std::path::Path;
+
+    const SHEET: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    const PKG: &str = "http://schemas.openxmlformats.org/package/2006";
+    const MAIN: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml";
+
+    /// `.xlsx` with one sheet; `body` has its rows, and `<dimension>` if any.
+    pub fn write(path: &Path, body: &str) {
+        write_parts(path, body, None);
+    }
+
+    /// The same, with one shared string.
+    pub fn write_with_strings(path: &Path, body: &str, string: &str) {
+        write_parts(path, body, Some(string));
+    }
+
+    fn write_parts(path: &Path, body: &str, string: Option<&str>) {
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(path).unwrap());
+        let options = zip::write::SimpleFileOptions::default();
+        let mut add = |name: &str, content: String| {
+            zip.start_file(name, options).unwrap();
+            zip.write_all(content.as_bytes()).unwrap();
+        };
+        add(
+            "[Content_Types].xml",
+            format!(
+                r#"<Types xmlns="{PKG}/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/xl/workbook.xml" ContentType="{MAIN}.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="{MAIN}.worksheet+xml"/></Types>"#
+            ),
+        );
+        add(
+            "_rels/.rels",
+            format!(
+                r#"<Relationships xmlns="{PKG}/relationships"><Relationship Id="rId1" Type="{REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>"#
+            ),
+        );
+        add(
+            "xl/workbook.xml",
+            format!(
+                r#"<workbook xmlns="{SHEET}" xmlns:r="{REL}"><sheets><sheet name="s" sheetId="1" r:id="rId1"/></sheets></workbook>"#
+            ),
+        );
+        add(
+            "xl/_rels/workbook.xml.rels",
+            format!(
+                r#"<Relationships xmlns="{PKG}/relationships"><Relationship Id="rId1" Type="{REL}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"#
+            ),
+        );
+        if let Some(string) = string {
+            add(
+                "xl/sharedStrings.xml",
+                format!(r#"<sst xmlns="{SHEET}"><si><t>{string}</t></si></sst>"#),
+            );
+        }
+        let (dimension, rows) = match body.strip_prefix("<dimension") {
+            Some(rest) => {
+                let end = rest.find("/>").unwrap() + 2;
+                (format!("<dimension{}", &rest[..end]), &rest[end..])
+            }
+            None => (String::new(), body),
+        };
+        add(
+            "xl/worksheets/sheet1.xml",
+            format!(
+                r#"<worksheet xmlns="{SHEET}">{dimension}<sheetData>{rows}</sheetData></worksheet>"#
+            ),
+        );
+        drop(add);
+        zip.finish().unwrap();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use parquet::file::properties::WriterProperties;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -1177,6 +1528,408 @@ mod tests {
         );
     }
 
+    fn collect_sheet(body: &str) -> (Collect, Result<End, String>) {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("book.xlsx");
+        test_book::write(&path, body);
+        let mut sink = Collect::default();
+        let end = read_spreadsheet(&path, 0, Budget::unlimited(), &mut sink);
+        (sink, end)
+    }
+
+    #[test]
+    fn cells_far_apart_cost_no_grid() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("far.xlsx");
+        // With a grid of the sheet's size, this asks for 550 GiB, and that aborts.
+        test_book::write(
+            &path,
+            r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="1048576"><c r="XFD1048576"><v>2</v></c></row>"#,
+        );
+        assert!(std::fs::metadata(&path).unwrap().len() < 4096);
+        let mut sink = Collect {
+            stop: Some(5),
+            ..Default::default()
+        };
+        let end = read_spreadsheet(&path, 0, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!(end, End::Refused);
+        assert_eq!(sink.rows[0], [Owned::Float(1.0)]);
+        assert_eq!(sink.rows[1], [] as [Owned; 0]);
+    }
+
+    #[test]
+    fn a_sheet_has_its_real_letters_and_empty_rows() {
+        let (sink, end) = collect_sheet(
+            r#"<dimension ref="C2:D5"/><row r="2"><c r="C2"><v>1</v></c></row><row r="4"><c r="D4" t="inlineStr"><is><t>x</t></is></c></row>"#,
+        );
+        assert_eq!(end, Ok(End::Complete));
+        assert_eq!(sink.columns, ["A", "B", "C", "D"]);
+        assert_eq!(sink.rows.len(), 3);
+        assert_eq!(sink.rows[0], [Owned::Null, Owned::Null, Owned::Float(1.0)]);
+        assert_eq!(sink.rows[1], [] as [Owned; 0]);
+        assert_eq!(
+            sink.rows[2],
+            [Owned::Null, Owned::Null, Owned::Null, text("x")]
+        );
+    }
+
+    #[test]
+    fn a_wrong_dimension_hides_no_data() {
+        let (sink, _) = collect_sheet(
+            r#"<dimension ref="B2:D5"/><row r="2"><c r="A2"><v>1</v></c><c r="B2"><v>2</v></c></row>"#,
+        );
+        assert_eq!(sink.rows[0], [Owned::Float(1.0), Owned::Float(2.0)]);
+    }
+
+    #[test]
+    fn rows_that_go_back_give_no_more_empty_rows() {
+        let far = r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="1048576"><c r="A1048576"><v>2</v></c></row>"#;
+        let (sink, end) = collect_sheet(&far.repeat(3));
+        assert_eq!(end, Ok(End::Complete));
+        assert_eq!(sink.rows.len(), 1 << 20, "the format's rows, at most");
+    }
+
+    #[test]
+    fn a_sheet_with_no_dimension_finds_its_columns_as_it_goes() {
+        let (sink, _) = collect_sheet(
+            r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="B2"><v>2</v></c></row>"#,
+        );
+        assert_eq!(sink.columns, ["A", "B"]);
+        assert_eq!(sink.rows[1], [Owned::Null, Owned::Float(2.0)]);
+    }
+
+    #[test]
+    fn a_sheet_that_lies_about_its_cells_gets_nowhere() {
+        // Past the format's rows, past the columns kept.
+        let (sink, end) = collect_sheet(
+            r#"<dimension ref="B1:B1"/><row r="1"><c r="B1"><v>2</v></c><c r="ZZ1"><v>3</v></c></row><row r="2000000"><c r="B2000000"><v>4</v></c></row>"#,
+        );
+        assert_eq!(end, Ok(End::Complete));
+        assert_eq!(sink.rows, [[Owned::Null, Owned::Float(2.0)]]);
+        assert!(sink.cut);
+    }
+
+    #[test]
+    fn a_shared_string_is_borrowed_not_copied() {
+        let shared = DataRef::SharedString("long");
+        assert!(matches!(
+            streamed_cell(&shared),
+            Cell::Text(Cow::Borrowed("long"))
+        ));
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("s.xlsx");
+        test_book::write_with_strings(
+            &path,
+            r#"<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>0</v></c></row>"#,
+            "same",
+        );
+        let mut sink = Collect::default();
+        read_spreadsheet(&path, 0, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!(sink.rows[0], [text("same"), text("same")]);
+    }
+
+    #[test]
+    fn a_zip_that_lies_about_its_sizes_is_refused() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("liar.xlsx");
+        let body: String = (1..5_000)
+            .map(|i| format!(r#"<row r="{i}"><c r="A{i}"><v>{i}</v></c></row>"#))
+            .collect();
+        test_book::write(&path, &body);
+        // The central directory says the sheet is only 10 bytes, which is what
+        // the check of the size goes by.
+        let mut bytes = std::fs::read(&path).unwrap();
+        let name = b"xl/worksheets/sheet1.xml";
+        let central = bytes
+            .windows(46 + name.len())
+            .position(|w| w.starts_with(&[0x50, 0x4b, 1, 2]) && w.ends_with(name))
+            .unwrap();
+        bytes[central + 24..central + 28].copy_from_slice(&10u32.to_le_bytes());
+        std::fs::write(&path, bytes).unwrap();
+
+        assert!(check_unpacked(&path, 1 << 20).is_ok());
+        let mut sink = Collect::default();
+        let error = read_spreadsheet(&path, 0, Budget::unlimited(), &mut sink).unwrap_err();
+        assert!(error.contains("declared"), "{error}");
+        assert!(sink.rows.is_empty());
+    }
+
+    #[test]
+    fn a_spreadsheet_stops_when_the_time_is_up_even_while_opening() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("book.xlsx");
+        test_book::write(&path, r#"<row r="1"><c r="A1"><v>1</v></c></row>"#);
+        let mut sink = Collect::default();
+        let end = read_spreadsheet(&path, 0, expired(), &mut sink).unwrap();
+        assert_eq!(end, End::OutOfTime);
+        assert!(sink.rows.is_empty());
+    }
+
+    #[test]
+    fn a_stopped_spreadsheet_says_so_midway() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("book.xlsx");
+        let body: String = (1..2_000)
+            .map(|i| format!(r#"<row r="{i}"><c r="A{i}"><v>{i}</v></c></row>"#))
+            .collect();
+        test_book::write(&path, &body);
+
+        /// Asks to stop at the first record.
+        struct Stopper(Arc<AtomicBool>, usize);
+        impl RecordSink for Stopper {
+            fn sheets(&mut self, _: &[String], _: usize) {}
+            fn columns(&mut self, _: &[String]) {}
+            fn columns_cut(&mut self) {}
+            fn record(&mut self, _: &[Cell<'_>]) -> ControlFlow<()> {
+                self.0.store(true, Ordering::Relaxed);
+                self.1 += 1;
+                ControlFlow::Continue(())
+            }
+        }
+        let cancel = Arc::new(AtomicBool::new(false));
+        let mut sink = Stopper(cancel.clone(), 0);
+        let budget = Budget::cancellable(u64::MAX, cancel);
+        let end = read_spreadsheet(&path, 0, budget, &mut sink).unwrap();
+        assert_eq!(end, End::OutOfTime);
+        assert!((1..1_999).contains(&sink.1), "{}", sink.1);
+    }
+
+    #[test]
+    fn an_empty_sheet_is_no_error() {
+        let (sink, end) = collect_sheet("");
+        assert_eq!(end, Ok(End::Complete));
+        assert!(sink.rows.is_empty());
+    }
+
+    #[test]
+    fn a_file_with_no_known_extension_is_not_a_spreadsheet() {
+        let file = file_with("x");
+        let error = read_spreadsheet(file.path(), 0, Budget::unlimited(), &mut Collect::default())
+            .unwrap_err();
+        assert!(error.contains("not a known format"), "{error}");
+    }
+
+    fn parquet_file(properties: WriterProperties, batches: usize) -> NamedTempFile {
+        use arrow_array::{Int64Array, RecordBatch, StringArray};
+        use arrow_schema::{Field, Schema};
+        use parquet::arrow::arrow_writer::ArrowWriter;
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("i", DataType::Int64, true),
+            Field::new("s", DataType::Utf8, true),
+        ]));
+        let file = NamedTempFile::new().unwrap();
+        let mut writer =
+            ArrowWriter::try_new(file.reopen().unwrap(), schema.clone(), Some(properties)).unwrap();
+        for _ in 0..batches {
+            let ints: Vec<Option<i64>> = (0..5_000).map(|i| (i % 7 != 0).then_some(i)).collect();
+            let strings: Vec<String> = (0..5_000).map(|i| format!("value {}", i % 50)).collect();
+            let batch = RecordBatch::try_new(
+                schema.clone(),
+                vec![
+                    Arc::new(Int64Array::from(ints)),
+                    Arc::new(StringArray::from(strings)),
+                ],
+            )
+            .unwrap();
+            writer.write(&batch).unwrap();
+            writer.flush().unwrap();
+        }
+        writer.close().unwrap();
+        file
+    }
+
+    fn dictionaries_of(file: File) -> u64 {
+        let metadata = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new()).unwrap();
+        let group = metadata.metadata().row_group(0);
+        let budget = Budget::unlimited();
+        parquet_pages::GuardedFile::new(file, group, |_| true, 1 << 30, budget)
+            .unwrap()
+            .dictionaries()
+    }
+
+    #[test]
+    fn every_parquet_codec_and_page_kind_passes_the_check_and_reads() {
+        use parquet::basic::{Compression, GzipLevel};
+        use parquet::file::properties::WriterVersion;
+        for compression in [
+            Compression::UNCOMPRESSED,
+            Compression::SNAPPY,
+            Compression::GZIP(GzipLevel::default()),
+            Compression::ZSTD(Default::default()),
+        ] {
+            for version in [WriterVersion::PARQUET_1_0, WriterVersion::PARQUET_2_0] {
+                for dictionary in [true, false] {
+                    let properties = WriterProperties::builder()
+                        .set_compression(compression)
+                        .set_writer_version(version)
+                        .set_dictionary_enabled(dictionary)
+                        .build();
+                    let file = parquet_file(properties, 2);
+                    let dictionaries = dictionaries_of(file.reopen().unwrap());
+                    assert_eq!(dictionaries > 0, dictionary, "{compression:?} {version:?}");
+                    let mut sink = Collect::default();
+                    let end = read_parquet(file.path(), Budget::unlimited(), &mut sink).unwrap();
+                    assert_eq!(end, End::Complete);
+                    assert_eq!(sink.rows.len(), 10_000, "both row groups");
+                    assert_eq!(sink.rows[8][0], Owned::Int(8));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parquet_pages_over_the_limit_are_refused() {
+        let file = parquet_file(WriterProperties::builder().build(), 1);
+        let mut sink = Collect::default();
+        let error =
+            read_parquet_within(file.path(), 100, Budget::unlimited(), &mut sink).unwrap_err();
+        assert!(error.contains("over the limit"), "{error}");
+    }
+
+    #[test]
+    fn a_gzip_page_that_gives_more_than_it_declares_is_refused() {
+        use parquet::basic::{Compression, GzipLevel};
+        let properties = WriterProperties::builder()
+            .set_compression(Compression::GZIP(GzipLevel::default()))
+            .set_dictionary_enabled(false)
+            .build();
+        let file = parquet_file(properties, 1);
+        let handle = file.reopen().unwrap();
+
+        // The first page: its type, then its size, which is cut down to almost
+        // nothing while taking up the same bytes.
+        let metadata = ArrowReaderMetadata::load(&handle, ArrowReaderOptions::new()).unwrap();
+        let start = metadata
+            .metadata()
+            .row_group(0)
+            .column(0)
+            .data_page_offset() as usize;
+        let mut bytes = std::fs::read(file.path()).unwrap();
+        assert_eq!(bytes[start], 0x15, "field 1, an integer");
+        assert_eq!(bytes[start + 1], 0, "a data page");
+        assert_eq!(bytes[start + 2], 0x15, "field 2, an integer");
+        let mut end = start + 3;
+        while bytes[end] & 0x80 != 0 {
+            bytes[end] = 0x80;
+            end += 1;
+        }
+        bytes[end] = 0;
+        bytes[start + 3] |= 2; // zigzag of 1
+        std::fs::write(file.path(), bytes).unwrap();
+        let mut sink = Collect::default();
+        let error = read_parquet(file.path(), Budget::unlimited(), &mut sink).unwrap_err();
+        assert!(error.contains("more than it declares"), "{error}");
+    }
+
+    #[test]
+    fn a_damaged_parquet_page_header_is_refused() {
+        let file = parquet_file(WriterProperties::builder().build(), 1);
+        let handle = file.reopen().unwrap();
+        let metadata = ArrowReaderMetadata::load(&handle, ArrowReaderOptions::new()).unwrap();
+        let column = metadata.metadata().row_group(0).column(0);
+        let start = column
+            .dictionary_page_offset()
+            .unwrap_or_else(|| column.data_page_offset()) as usize;
+        let mut bytes = std::fs::read(file.path()).unwrap();
+        bytes[start] = 0x1D; // a type that does not exist
+        std::fs::write(file.path(), bytes).unwrap();
+        let mut sink = Collect::default();
+        let error = read_parquet(file.path(), Budget::unlimited(), &mut sink).unwrap_err();
+        assert!(error.starts_with("Refused Parquet file"), "{error}");
+    }
+
+    #[test]
+    fn a_page_never_reached_costs_nothing() {
+        use parquet::basic::{Compression, GzipLevel};
+        let properties = WriterProperties::builder()
+            .set_compression(Compression::GZIP(GzipLevel::default()))
+            .set_dictionary_enabled(false)
+            .set_data_page_size_limit(512)
+            .set_write_batch_size(64)
+            .build();
+        let file = parquet_file(properties, 1);
+        let handle = file.reopen().unwrap();
+        let metadata = ArrowReaderMetadata::load(&handle, ArrowReaderOptions::new()).unwrap();
+        let column = metadata.metadata().row_group(0).column(0);
+
+        // Damages the last page of the column, far past the first rows.
+        let mut bytes = std::fs::read(file.path()).unwrap();
+        let start = column.data_page_offset() as usize;
+        let end = start + column.compressed_size() as usize;
+        let (mut at, mut last, mut pages) = (start, (0, 0), 0);
+        while at < end {
+            let mut input = &bytes[at..end];
+            let header = parquet_pages::read_header(&mut input).unwrap();
+            let length = header.compressed.unwrap() as usize;
+            let data = end - input.len();
+            last = (data, length);
+            at = data + length;
+            pages += 1;
+        }
+        assert!(pages > 3, "{pages}");
+        bytes[last.0..last.0 + last.1].fill(0xAA);
+        std::fs::write(file.path(), bytes).unwrap();
+
+        let mut sink = Collect {
+            stop: Some(3),
+            ..Default::default()
+        };
+        let end = read_parquet(file.path(), Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!(end, End::Refused);
+        assert_eq!(sink.rows.len(), 3);
+    }
+
+    #[test]
+    fn empty_row_groups_look_at_the_clock() {
+        use parquet::file::metadata::{
+            ColumnChunkMetaData, FileMetaData, ParquetMetaData, ParquetMetaDataWriter,
+            RowGroupMetaData,
+        };
+        use parquet::schema::parser::parse_message_type;
+        use parquet::schema::types::SchemaDescriptor;
+
+        // A footer with groups that have nothing in them, which no writer makes:
+        // nothing to read in the file means nothing else looks at the clock.
+        let schema = Arc::new(parse_message_type("message m { required int32 a; }").unwrap());
+        let descriptor = Arc::new(SchemaDescriptor::new(schema));
+        let group = RowGroupMetaData::builder(descriptor.clone())
+            .set_column_metadata(vec![
+                ColumnChunkMetaData::builder(descriptor.column(0))
+                    .build()
+                    .unwrap(),
+            ])
+            .set_num_rows(0)
+            .build()
+            .unwrap();
+        let info = FileMetaData::new(1, 0, None, None, descriptor, None);
+        let metadata = ParquetMetaData::new(info, vec![group; 3]);
+        let mut bytes = b"PAR1".to_vec();
+        ParquetMetaDataWriter::new(&mut bytes, &metadata)
+            .finish()
+            .unwrap();
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(&bytes).unwrap();
+
+        assert_eq!(
+            read_parquet(file.path(), Budget::unlimited(), &mut Collect::default()),
+            Ok(End::Complete)
+        );
+        assert_eq!(
+            read_parquet(file.path(), expired(), &mut Collect::default()),
+            Ok(End::OutOfTime)
+        );
+    }
+
+    #[test]
+    fn big_dictionaries_mean_few_rows_at_a_time() {
+        assert_eq!(parquet_batch(0, 1 << 30), 1024);
+        assert_eq!(parquet_batch(1 << 20, 1 << 30), 1024);
+        assert_eq!(parquet_batch(100 << 20, 1 << 30), 10);
+        assert_eq!(parquet_batch(1 << 30, 1 << 30), 1);
+        assert_eq!(parquet_batch(u64::MAX, 1 << 30), 1);
+    }
+
     proptest::proptest! {
         /// Whatever the bytes, a reader gives a result: a hostile file must
         /// not take the program down.
@@ -1190,6 +1943,10 @@ mod tests {
             let _ = read_jsonl(path, budget(), &mut Collect::default());
             let _ = read_dbf(path, budget(), &mut Collect::default());
             let _ = read_spreadsheet(path, 0, budget(), &mut Collect::default());
+            let copy = path.with_extension("xlsx");
+            std::fs::copy(path, &copy).unwrap();
+            let _ = read_spreadsheet(&copy, 0, budget(), &mut Collect::default());
+            let _ = std::fs::remove_file(&copy);
             let _ = read_parquet(path, budget(), &mut Collect::default());
             let _ = read_sqlite(path, SqlitePart::First, budget(), &mut Collect::default());
         }

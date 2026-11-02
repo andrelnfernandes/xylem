@@ -158,10 +158,10 @@ SELECT c.name, sum(o.price) FROM customers c JOIN orders o ON o.code = c.code GR
 
 ### 限制
 
-一个表格最多容纳 50,000 行和 256 列，耗时也不超过查看器其他限制所允许的范围：3 秒（自动预览中为 100 毫秒）；解压后超过大小限制（自动预览中为 1 MiB）的电子表格不会以表格形式打开。超出部分不会显示，筛选也看不到，标题栏会提示：`(showing first 50,000 rows)` 或 `(stopped by the time limit: showing N rows)`。单元格最多显示 2,048 个字符，之后显示 `…`。控制字符和文本方向字符显示为 `·`。
+一个表格最多容纳 50,000 行和 256 列，耗时也不超过查看器其他限制所允许的范围：3 秒（自动预览中为 100 毫秒）；解压后超过大小限制（自动预览中为 1 MiB）的电子表格不会以表格形式打开。超出部分不会显示，筛选也看不到，标题栏会提示：`(showing first 50,000 rows)` 或 `(stopped by the time limit: showing N rows)`。读取表格时屏幕保持可用，并有提示说明；按 Esc 停止读取并显示已读到的内容，`(stopped by Esc: showing N rows)`，再按一次 Esc 关闭查看器。单元格最多显示 2,048 个字符，之后显示 `…`。控制字符和文本方向字符显示为 `·`。
 
 ## 由 C 库读取的表格
 
-SQLite 数据库（`.db`、`.sqlite`、`.sqlite3`）和 Parquet 文件由 C 语言编写的库读取，不具备 Rust 的内存安全性。因此，只有按 `V` 才会以表格形式打开。Autoview 会读取光标经过的所有文件，并将这些文件显示为普通内容，同时给出提示 `Parquet or SQLite: V opens the table`。只有在接受此风险时，才打开来源不可信的数据库。
+SQLite 数据库（`.db`、`.sqlite`、`.sqlite3`）和 Parquet 文件由 C 语言编写的库读取，不具备 Rust 的内存安全性。因此，只有按 `V` 才会以表格形式打开。Autoview 会读取光标经过的所有文件，并将这些文件显示为普通内容，同时给出提示 `Parquet or SQLite: V opens the table`。只有在接受此风险时，才打开来源不可信的数据库。`.ods` 和 `.xls` 文件同样只有按 `V` 才会以表格形式打开：它们的读取器会先构建整张工作表，这一步无法中止。
 
 另请参阅：[搜索已标记的文件](search.md)。

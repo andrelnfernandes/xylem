@@ -96,6 +96,17 @@ pub fn uses_c_parser(path: &Path) -> bool {
     matches!(ext.as_str(), "sqlite" | "sqlite3" | "db" | "parquet")
 }
 
+/// The sheets a reader builds whole before giving a row: no one can stop that part,
+/// and a small file can make it take gigabytes.
+pub fn is_built_whole(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+    matches!(ext.as_str(), "ods" | "xls")
+}
+
 /// Builds a grid from a stream.
 #[derive(Default)]
 struct GridSink {
@@ -152,7 +163,7 @@ fn thousands(n: usize) -> String {
 }
 
 impl GridSink {
-    fn finish(mut self, path: &Path, end: End) -> TableGrid {
+    fn finish(mut self, path: &Path, end: End, by_user: bool) -> TableGrid {
         // Columns found after a row was read leave it short.
         for row in &mut self.rows {
             row.cells
@@ -160,8 +171,9 @@ impl GridSink {
         }
         let mut cut = Vec::new();
         if end == End::OutOfTime {
+            let by = if by_user { "Esc" } else { "the time limit" };
             cut.push(format!(
-                "stopped by the time limit: showing {} rows",
+                "stopped by {by}: showing {} rows",
                 thousands(self.rows.len())
             ));
         } else if self.rows_cut {
@@ -181,45 +193,54 @@ impl GridSink {
 
 fn load(
     path: &Path,
-    read: impl FnOnce(&mut GridSink) -> Result<End, String>,
+    budget: Budget,
+    read: impl FnOnce(Budget, &mut GridSink) -> Result<End, String>,
 ) -> Result<TableGrid, String> {
     let mut sink = GridSink::default();
-    let end = read(&mut sink)?;
-    Ok(sink.finish(path, end))
+    let end = read(budget.clone(), &mut sink)?;
+    Ok(sink.finish(path, end, budget.cancelled()))
 }
 
 /// Load a CSV or TSV file into a TableGrid.
 pub fn load_csv(path: &Path, delimiter: Option<u8>, budget: Budget) -> Result<TableGrid, String> {
-    load(path, |sink| {
+    load(path, budget, |budget, sink| {
         records::read_csv(path, delimiter, budget, sink)
     })
 }
 
 /// Load a JSON Lines (.jsonl / .ndjson) file into a TableGrid.
 pub fn load_jsonl(path: &Path, budget: Budget) -> Result<TableGrid, String> {
-    load(path, |sink| records::read_jsonl(path, budget, sink))
+    load(path, budget, |budget, sink| {
+        records::read_jsonl(path, budget, sink)
+    })
 }
 
 /// Load a dBase / Clipper / FoxPro .dbf file.
 pub fn load_dbf(path: &Path, budget: Budget) -> Result<TableGrid, String> {
-    load(path, |sink| records::read_dbf(path, budget, sink))
+    load(path, budget, |budget, sink| {
+        records::read_dbf(path, budget, sink)
+    })
 }
 
 /// Load a sheet (by position) of an Excel / ODS spreadsheet.
 pub fn load_spreadsheet(path: &Path, sheet: usize, budget: Budget) -> Result<TableGrid, String> {
-    load(path, |sink| {
+    load(path, budget, |budget, sink| {
         records::read_spreadsheet(path, sheet, budget, sink)
     })
 }
 
 /// Load a table or query result from an SQLite database.
 pub fn load_sqlite(path: &Path, part: SqlitePart<'_>, budget: Budget) -> Result<TableGrid, String> {
-    load(path, |sink| records::read_sqlite(path, part, budget, sink))
+    load(path, budget, |budget, sink| {
+        records::read_sqlite(path, part, budget, sink)
+    })
 }
 
 /// Load an Apache Parquet file (.parquet).
 pub fn load_parquet(path: &Path, budget: Budget) -> Result<TableGrid, String> {
-    load(path, |sink| records::read_parquet(path, budget, sink))
+    load(path, budget, |budget, sink| {
+        records::read_parquet(path, budget, sink)
+    })
 }
 
 #[cfg(test)]

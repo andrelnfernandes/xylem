@@ -24,17 +24,19 @@ rest).
    goes through a named pipe (mode 0600); on Windows it is written to a file
    under `%LOCALAPPDATA%` (private to the user) for a moment. A Windows
    named pipe would avoid the disk. Low priority; needs testing on Windows.
-4. **Searching inside an archive reads each entry in one step.** Memory is
-   bounded now (streamed), but a huge entry holds the screen up while it is
-   searched, as a huge file on disk does. The search could keep the open
-   reader between steps.
-
-5. **What the table readers still cannot limit.** The time limit stops them
-   between records, and SQLite midway, but a spreadsheet's reader loads the whole
-   sheet first: its size is checked before that, by what the ZIP declares, so a
-   ZIP that lies about its sizes gets through. A Parquet page is decompressed
-   whole too. Esc cannot interrupt a table being read, only the time limit can.
-6. **SQLite and Parquet's zstd are C libraries: replace them with Rust as soon
+4. **What the table readers still cannot limit**
+   ([docs/plans/search-and-table-limits.md](docs/plans/search-and-table-limits.md)).
+   With V and in a Batch, an `.ods` is built whole by its reader, up to 100 million
+   cells (about 3 GiB) that a small file can ask for with `number-rows-repeated`
+   (Autoview leaves `.ods` and `.xls` to V, and one such reader runs at a time in the
+   viewer). Time and Esc stop the reading of the file but not that last part. A Parquet
+   list can repeat one dictionary value many times within a row, which the smaller
+   batches do not bound. A Parquet page
+   is decompressed whole, within the limit: the screen is free, but Esc waits for it.
+   Searching from one tagged file to the next in the viewer still holds the screen.
+   Parquet files in LZ4 do not open: the crate's `lz4` feature is off (`lz4_flex` only
+   brings the dependency). Turning it on means one more reader of hostile files.
+5. **SQLite and Parquet's zstd are C libraries: replace them with Rust as soon
    as a usable option appears.** The author's decision. They run only with V,
    never in Autoview, and that is meant to be temporary. What to watch:
    - zstd: a way for the `parquet` crate to decode through a Rust codec; Xylem

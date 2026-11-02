@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{self, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -214,11 +214,6 @@ impl Reader {
                 written.ok_or_else(not_found)
             }
         }
-    }
-
-    /// Extracts entries in a thread of its own, one after the other.
-    pub fn into_extractor(self) -> Extractor {
-        Extractor::spawn(move || Ok(self))
     }
 
     fn list_zip(&mut self) -> io::Result<Vec<Entry>> {
@@ -539,7 +534,7 @@ fn read_through(data: &mut dyn Read, out: &mut dyn Write) -> io::Result<()> {
 /// Size of the blocks sent from the extracting thread.
 const BLOCK: usize = 256 * 1024;
 
-/// An archive being extracted in another thread ([`Reader::into_extractor`]).
+/// An archive being extracted in another thread.
 pub struct Extractor {
     requests: mpsc::Sender<(PathBuf, Pipe)>,
 }
@@ -549,13 +544,9 @@ impl Extractor {
     /// opening. If that fails, each entry asked for gets the error.
     pub fn open(archive: &Path) -> Self {
         let archive = archive.to_path_buf();
-        Self::spawn(move || Reader::open(&archive))
-    }
-
-    fn spawn(open: impl FnOnce() -> io::Result<Reader> + Send + 'static) -> Self {
         let (requests, queue) = mpsc::channel::<(PathBuf, Pipe)>();
         std::thread::spawn(move || {
-            let mut reader = open();
+            let mut reader = Reader::open(&archive);
             for (entry, mut pipe) in queue {
                 let result = match &mut reader {
                     Ok(reader) => reader.extract(&entry, &mut pipe, u64::MAX),
@@ -590,10 +581,20 @@ impl Extractor {
     }
 }
 
-/// Extracts `entry` of `archive` in another thread, for reading as a
-/// stream: a big entry (or a decompression bomb) never sits whole in memory.
-pub fn extract_streamed(archive: &Path, entry: &Path) -> io::Result<Streamed> {
-    Ok(Reader::open(archive)?.into_extractor().extract(entry))
+/// How long a search waits for a block before giving the screen back.
+const SEARCH_WAIT: Duration = Duration::from_millis(20);
+
+/// Reads entries of `archive` for a search: streamed, never whole in memory, and
+/// from one thread that opens the archive once. An entry slow to decompress
+/// answers `WouldBlock` instead of holding the screen up.
+pub fn search_opener(archive: &Path) -> crate::search::Opener {
+    let root = archive.to_path_buf();
+    let extractor = Extractor::open(archive);
+    Box::new(move |path: &Path| {
+        let entry = path.strip_prefix(&root).unwrap_or(path);
+        let data = extractor.extract(entry).waiting_at_most(SEARCH_WAIT);
+        Ok(Box::new(BufReader::new(data)) as Box<dyn BufRead>)
+    })
 }
 
 /// The extracting thread's end: sends what is written in blocks, and fails
@@ -1136,7 +1137,7 @@ pub mod tests {
         let tmp = crate::testing::tempdir();
         let path = tmp.path().join("deep.tar");
         deep_tar(&path);
-        let extractor = Reader::open(&path).unwrap().into_extractor();
+        let extractor = Extractor::open(&path);
         let mut big = Vec::new();
         extractor
             .extract(Path::new("big"))
@@ -1332,5 +1333,53 @@ pub mod tests {
         let broken = tmp.path().join("broken.zip");
         std::fs::write(&broken, "not a zip").unwrap();
         assert!(Reader::open(&broken).is_err());
+    }
+
+    #[test]
+    fn a_search_inside_an_entry_goes_on_step_by_step() {
+        use crate::search::{SearchJob, SearchSpec};
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("big.zip");
+        {
+            let mut zip = zip::ZipWriter::new(File::create(&path).unwrap());
+            let opts = zip::write::SimpleFileOptions::default();
+            zip.start_file("huge.txt", opts).unwrap();
+            for _ in 0..200_000 {
+                zip.write_all(b"nada aqui, siga em frente\n").unwrap();
+            }
+            zip.write_all(b"a CHAVE no fim\n").unwrap();
+            zip.start_file("small.txt", opts).unwrap();
+            zip.write_all(b"pouca coisa\n").unwrap();
+            zip.finish().unwrap();
+        }
+        let items = vec![
+            (1, path.join("huge.txt")),
+            (2, path.join("small.txt")),
+            (3, path.join("missing.txt")),
+        ];
+        let mut job =
+            SearchJob::new(SearchSpec::new("chave"), items, search_opener(&path)).unwrap();
+        let (mut steps, mut results) = (0, Vec::new());
+        while !job.is_done() {
+            results.extend(job.step(Duration::ZERO));
+            steps += 1;
+        }
+        assert_eq!(results, [(1, true), (2, false)]);
+        assert_eq!(job.errors.len(), 1, "{:?}", job.errors);
+        assert!(steps > 100, "the screen was free in between: {steps}");
+    }
+
+    #[test]
+    fn a_search_in_an_archive_that_cannot_be_opened_says_so_per_file() {
+        use crate::search::{SearchJob, SearchSpec};
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("bad.zip");
+        std::fs::write(&path, b"not a zip").unwrap();
+        let items = vec![(1, path.join("a")), (2, path.join("b"))];
+        let mut job = SearchJob::new(SearchSpec::new("x"), items, search_opener(&path)).unwrap();
+        while !job.is_done() {
+            assert!(job.step(Duration::ZERO).is_empty());
+        }
+        assert_eq!(job.errors.len(), 2);
     }
 }
