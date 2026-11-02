@@ -80,8 +80,12 @@ entfernt. Prune lässt andere Datenträger aus, die im Zweig eingehängt sind;
 sie werden über die `statvfs`-Erweiterung von OpenSSH unterschieden, und auf
 einem Server ohne sie wird Prune abgelehnt.
 
-Der Rest des Schreibens fehlt noch: Berechtigungen, Datum ändern, Bearbeiten
-und Ausführen. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
+**Berechtigungen** nehmen oktale Werte (`644`) an, wie ein Unix-Rechner, auch
+von Windows aus; **Datum ändern** setzt das Datum auf die Sekunde genau. Keins
+von beiden wirkt über einen symbolischen Link. [Duplikate](duplicates.md)
+funktioniert dort ebenfalls.
+
+Bearbeiten und Ausführen fehlen noch. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
 gibt es nicht.
 
 **F8** in einem entfernten Fenster öffnet ein zweites Fenster auf dem lokalen

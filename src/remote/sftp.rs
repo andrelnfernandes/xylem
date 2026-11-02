@@ -17,6 +17,7 @@ const READ: u8 = 5;
 const WRITE: u8 = 6;
 const LSTAT: u8 = 7;
 const FSTAT: u8 = 8;
+const SETSTAT: u8 = 9;
 const FSETSTAT: u8 = 10;
 const OPENDIR: u8 = 11;
 const READDIR: u8 = 12;
@@ -71,6 +72,8 @@ pub struct Attrs {
     pub gid: Option<u32>,
     /// Type and permission bits, as in `st_mode`.
     pub permissions: Option<u32>,
+    /// Seconds since the epoch (sent together with `mtime`).
+    pub atime: Option<u32>,
     /// Seconds since the epoch.
     pub mtime: Option<u32>,
 }
@@ -211,7 +214,7 @@ impl In<'_> {
             a.permissions = Some(self.u32()?);
         }
         if flags & ATTR_ACMODTIME != 0 {
-            let _atime = self.u32()?;
+            a.atime = Some(self.u32()?);
             a.mtime = Some(self.u32()?);
         }
         if flags & ATTR_EXTENDED != 0 {
@@ -582,6 +585,21 @@ impl<R: Read, W: Write> Sftp<R, W> {
         })
     }
 
+    /// Sets the permission bits of `path` (which follows a symlink: callers
+    /// look first).
+    pub fn set_mode(&mut self, path: &[u8], mode: u32) -> io::Result<()> {
+        self.expect_ok(SETSTAT, |o| {
+            o.string(path).u32(ATTR_PERMISSIONS).u32(mode);
+        })
+    }
+
+    /// Sets the access and modification times of `path` (the same caveat).
+    pub fn set_times(&mut self, path: &[u8], atime: u32, mtime: u32) -> io::Result<()> {
+        self.expect_ok(SETSTAT, |o| {
+            o.string(path).u32(ATTR_ACMODTIME).u32(atime).u32(mtime);
+        })
+    }
+
     /// Removes an empty directory.
     pub fn rmdir(&mut self, path: &[u8]) -> io::Result<()> {
         self.expect_ok(RMDIR, |o| {
@@ -785,6 +803,14 @@ pub mod tests {
         sftp.write_all(&handle, 1000, &data[1000..]).unwrap();
         assert_eq!(sftp.fstat(&handle).unwrap().size, Some(data.len() as u64));
         sftp.fsetstat(&handle, 0o640, Some(1_000_000_000)).unwrap();
+        sftp.set_mode(bytes(&path), 0o604).unwrap();
+        assert_eq!(
+            sftp.stat(bytes(&path)).unwrap().permissions.unwrap() & 0o777,
+            0o604
+        );
+        sftp.set_mode(bytes(&path), 0o640).unwrap();
+        sftp.set_times(bytes(&path), 7, 1_000_000_000).unwrap();
+        assert_eq!(sftp.stat(bytes(&path)).unwrap().atime, Some(7));
         sftp.close_file(&handle).unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), data);
         let meta = std::fs::metadata(&path).unwrap();

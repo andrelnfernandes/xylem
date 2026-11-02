@@ -48,9 +48,9 @@ do viewer ainda será conferido nesses specs.
 | 3 | 0.8.0 | **Nuvem:** a raiz de um Drive grande sem tela em branco; Branch, Usage e Compare pedindo o ramo de uma vez ao rclone (feito, aguardando release). **Segurança:** busca em entrada enorme de archive, leitores de tabela com limites e Esc, e o `.xlsx` minúsculo que derrubava o programa (feito, aguardando release) | [cloud-opening.md](cloud-opening.md), [search-and-table-limits.md](search-and-table-limits.md) |
 | 4 | | **SSH 3a:** camada de sistema de arquivos sob `ops`, com mkdir e renomear no remoto (feito) | [ssh-write.md](ssh-write.md) |
 | 5 | | **`docker://`:** containers sem sshd, pelo `sftp-server` via `docker exec` (feito) | [ssh-write.md](ssh-write.md) |
-| 6 | | **SSH 3b:** enviar para o remoto (copiar) | |
-| 7 | | **SSH 3c:** apagar e mover no remoto | |
-| 8 | | **SSH 3d:** permissões e datas; Duplicados por SSH passa a fazer sentido | |
+| 6 | | **SSH 3b:** enviar para o remoto (copiar) (feito) | |
+| 7 | | **SSH 3c:** apagar e mover no remoto (feito) | |
+| 8 | | **SSH 3d:** permissões e datas; Duplicados por SSH passa a fazer sentido (feito) | |
 | 9 | | **SSH 4a:** Edit e Open por cópia temporária que volta ao salvar | |
 | 10 | | **SSH 4b:** atualização periódica no lugar do inotify; eXecute por ssh | |
 | 11 | | **SSH 4c:** Git por ssh | |

@@ -150,6 +150,20 @@ Combinações:
 5. **3d — permissões e datas.** Attributes (octal) e NewDate por `SETSTAT`;
    Duplicados por SSH, comparando por tamanho e depois pelo conteúdo lido pelo SFTP
    (não há hash no servidor sem rodar comando, que é fase 4).
+   *Feito na branch `ssh-attributes` (sobre a `ssh-delete-move`): fase 3 completa.*
+   - `SETSTAT` de modo e de datas; o `atime` passou a ser lido e é mantido ao
+     mudar a data. `set_mode` e `set_modified` do remoto fazem `lstat` antes e
+     recusam symlink (o `SETSTAT` seguiria o link). Datas fora de 1970–2106 são
+     recusadas: o SFTP v3 guarda segundos em 32 bits.
+   - Atributos no remoto são sempre octal, como no Unix, mesmo com o Xylem no
+     Windows; numa máquina remota Windows, o Xylem avisa que não se aplicam.
+   - Duplicados: o `Scan` e cada `Item` sabem a máquina (`Machine`); a leitura,
+     a conferência antes de apagar (`unchanged`) e o `drop_missing` passam pelo
+     SFTP, com `lstat` antes de ler. Outros discos montados ficam de fora pelo
+     `statvfs`, como no Prune (sem a extensão, recusa). Apagar pastas vira Prune
+     remoto sem lixeira. Sempre pergunta antes de ler, como numa pasta de rede.
+   - Limite conhecido: o SFTP não dá inode, então hard links aparecem como par
+     (apagar um não perde nem libera nada). Está no manual.
 
 Ao fim de cada fatia: manual (6 línguas) e "What works" de `docs/manual/remote.md`,
 BACKLOG, e este spec com o status.

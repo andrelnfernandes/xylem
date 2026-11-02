@@ -73,7 +73,11 @@ como tal. Prune deja fuera otros discos montados dentro de la rama, que se
 distinguen con la extensión `statvfs` de OpenSSH; en un servidor sin ella,
 Prune se rechaza.
 
-El resto de la escritura aún no está: Atributos, fechas, Editar y eJecutar. F3 vuelve a leer un
+**Atributos** toma permisos en octal (`644`), como una máquina Unix, incluso
+desde Windows; **Nueva fecha** pone la fecha, al segundo. Ninguno pasa por un
+enlace simbólico. [Duplicados](duplicates.md) también funciona allí.
+
+Editar y eJecutar aún no están. F3 vuelve a leer un
 directorio; no hay actualización automática.
 
 **F8** en una ventana remota abre una ventana en esta máquina (la carpeta donde

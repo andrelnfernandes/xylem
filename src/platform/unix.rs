@@ -57,17 +57,12 @@ pub fn mode_prompt(what: &str) -> String {
 
 /// Starting text of the prompt: `644`.
 pub fn mode_text(mode: u32) -> String {
-    format!("{:03o}", mode & 0o7777)
+    super::octal_mode_text(mode)
 }
 
 /// Octal permissions, e.g.: "644" or "0755".
 pub fn parse_mode(text: &str, _current: u32) -> Result<u32, String> {
-    let text = text.trim();
-    let valid = (3..=4).contains(&text.len()) && text.chars().all(|c| ('0'..='7').contains(&c));
-    if !valid {
-        return Err("Permissions must be 3 or 4 octal digits, e.g. 644".into());
-    }
-    u32::from_str_radix(text, 8).map_err(|e| e.to_string())
+    super::parse_octal_mode(text)
 }
 
 pub fn set_mode(path: &Path, mode: u32) -> io::Result<()> {

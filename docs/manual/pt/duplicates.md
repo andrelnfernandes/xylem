@@ -73,8 +73,12 @@ Um arquivo que mudou depois que a árvore foi lida, ou que não pode ser lido, n
 é comparado; a linha de baixo diz quantos. F3 lê tudo de novo.
 
 Numa pasta de rede (NFS, SMB, sshfs...), o total a ler é perguntado antes. Numa
-máquina remota ou dentro de um arquivo compactado, os Duplicados ainda não estão
-disponíveis.
+[máquina remota](remote.md) também: os arquivos são lidos lá, por SSH, e
+conferidos de novo antes de apagar qualquer coisa, como aqui. Duas coisas mudam:
+o SFTP não dá inode, então dois hard links para um mesmo arquivo aparecem como um
+par (apagar um não libera nada e não perde nada); e outros discos montados dentro
+ficam de fora pelo sistema de arquivos, o que precisa da extensão `statvfs` do
+OpenSSH. Dentro de um arquivo compactado, os Duplicados não estão disponíveis.
 
 ## Na nuvem (rclone)
 

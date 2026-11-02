@@ -58,8 +58,8 @@ as a link is what `cp -a` and `rsync -l` do).
 
 - **Remote machines, phases 3 and 4** (phases 1 and 2 are in 0.4.0;
   [docs/plans/ssh-write.md](docs/plans/ssh-write.md)):
-  3. writing on the remote machine: rename, mkdir, copy, move, delete and
-     prune are done; still to do: chmod and dates. Copying there does not recreate
+  3. writing on the remote machine: done (rename, mkdir, copy, move, delete,
+     prune, permissions, dates, and Duplicates there). Copying there does not recreate
      symbolic links (OpenSSH's SYMLINK takes its paths in the other order),
      nor copy between two remote machines; downloads still wait for each
      32 KiB block;
@@ -73,9 +73,9 @@ as a link is what `cp -a` and `rsync -l` do).
   export.
 - **Duplicate files** ([docs/plans/usage.md](docs/plans/usage.md), "Duplicados";
   [the manual](docs/manual/duplicates.md)): done on local folders, whole folders
-  included, and through rclone by the service's hashes. Still open: over SSH
-  (needs writing on the remote machine, phase 3 above, to be of use); whole
-  folders in the cloud.
+  included, through rclone by the service's hashes, and over SSH (read through
+  SFTP; hard links show as pairs there, since SFTP gives no inode). Still open:
+  whole folders in the cloud.
 - **Cloud mounts** ([docs/plans/cloud-opening.md](docs/plans/cloud-opening.md);
   [the manual](docs/manual/cloud.md)): the tree reads in the background, and `*`,
   Branch, Usage and Compare ask rclone for the whole branch at once. Automatic Git

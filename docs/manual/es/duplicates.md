@@ -74,8 +74,12 @@ Un archivo que cambió desde que se leyó el árbol, o que no se puede leer, no 
 compara; la línea de abajo dice cuántos. F3 lee todo otra vez.
 
 En una carpeta de red (NFS, SMB, sshfs...), se pregunta antes el total a leer. En
-una máquina remota o dentro de un archivo comprimido, Duplicados aún no está
-disponible.
+una [máquina remota](remote.md) también: los archivos se leen allí, por SSH, y
+se vuelven a mirar antes de borrar nada, como aquí. Dos cosas cambian: SFTP no
+da inodo, así que dos enlaces duros a un mismo archivo aparecen como un par
+(borrar uno no libera nada y no pierde nada); y otros discos montados dentro se
+dejan fuera por su sistema de archivos, lo que necesita la extensión `statvfs`
+de OpenSSH. Dentro de un archivo comprimido, Duplicados no está disponible.
 
 ## En la nube (rclone)
 

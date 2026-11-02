@@ -75,8 +75,12 @@ un lien est supprimé en tant que tel. Prune laisse de côté les autres disques
 montés dans la branche, distingués grâce à l'extension `statvfs` d'OpenSSH ;
 sur un serveur qui ne l'a pas, Prune est refusé.
 
-Le reste de l'écriture n'est pas encore là : Attributs, dates, Éditer et
-eXécuter. F3 relit un
+**Attributs** prend des permissions en octal (`644`), comme une machine Unix,
+même depuis Windows ; **Nouvelle date** fixe la date, à la seconde. Aucun des
+deux ne passe par un lien symbolique. [Doublons](duplicates.md) y fonctionne
+aussi.
+
+Éditer et eXécuter ne sont pas encore là. F3 relit un
 répertoire ; il n'y a pas de rafraîchissement automatique.
 
 **F8** dans une fenêtre distante ouvre une fenêtre sur votre machine (dans le

@@ -2993,9 +2993,9 @@ fn remote_window_lists_views_and_copies_here() {
     };
     assert_eq!(seconds(&copied), seconds(&tmp.path().join("a.rs")));
 
-    // Attributes on the remote machine are not there yet, nor Oops.
-    press(&mut app, KeyCode::Char('a'));
-    assert!(app.prompt.is_none());
+    // Edit on the remote machine is not there yet.
+    app.apply(Command::Edit);
+    assert!(app.external.is_none());
     assert!(
         app.message
             .as_deref()
@@ -3205,6 +3205,117 @@ fn remote_window_deletes_prunes_and_moves_without_a_trash() {
     answer_prompt(&mut app, "prune");
     assert!(!p.join("sub").exists(), "{:?}", app.message);
     assert!(app.message.as_deref().unwrap().starts_with("Pruned 5 of 5"));
+}
+
+#[cfg(unix)]
+#[test]
+fn remote_window_sets_permissions_and_dates() {
+    use chrono::Datelike;
+    let Some((tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    app.options.date_format = DateFormat::Dmy;
+    let p = tmp.path();
+    fs::set_permissions(p.join("a.rs"), fs::Permissions::from_mode(0o640)).unwrap();
+    press(&mut app, KeyCode::Enter);
+    ctrl(&mut app, 't');
+    // Attributes: octal, starting from the first file's, whatever this machine is.
+    ctrl(&mut app, 'a');
+    let prompt = app.prompt.as_ref().unwrap();
+    assert!(
+        prompt.label.starts_with("PERMISSIONS for"),
+        "{}",
+        prompt.label
+    );
+    assert_eq!(prompt.input.text, "640");
+    answer_prompt(&mut app, "600");
+    for f in ["a.rs", "b.txt"] {
+        let mode = fs::metadata(p.join(f)).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "{f}");
+    }
+    assert!(app.message.as_deref().unwrap().contains("on 2 files"));
+    ctrl(&mut app, 'a');
+    answer_prompt(&mut app, "999");
+    assert!(app.message.as_deref().unwrap().contains("octal"));
+
+    // A new date, kept to the second as SFTP does.
+    app.apply(Command::NewDate { tagged: true });
+    answer_prompt(&mut app, "01/02/2020 13:45");
+    let date = chrono::DateTime::<chrono::Local>::from(
+        fs::metadata(p.join("b.txt")).unwrap().modified().unwrap(),
+    );
+    assert_eq!((date.year(), date.month(), date.day()), (2020, 2, 1));
+    assert!(
+        app.message
+            .as_deref()
+            .unwrap()
+            .starts_with("New date set on 2 of 2")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn duplicates_on_a_remote_machine_are_read_there() {
+    let tmp = crate::testing::tempdir();
+    let p = tmp.path();
+    for dir in ["photos", "photos-copy"] {
+        create_dir_all(p.join(dir)).unwrap();
+        write(p.join(dir).join("trip.jpg"), vec![1u8; 5000]).unwrap();
+    }
+    write(p.join("alone.bin"), vec![2u8; 5000]).unwrap();
+    write(p.join("one.dat"), vec![5u8; 4000]).unwrap();
+    write(p.join("two.dat"), vec![5u8; 4000]).unwrap();
+    let Some(remote) = crate::remote::for_tests(p) else {
+        return;
+    };
+    let mut app = App::new(p.to_path_buf());
+    app.panes[0] = Pane::from_remote(remote);
+    alt(&mut app, 'y');
+    finish(&mut app);
+    // Reading through SSH is asked first.
+    let q = app.confirm.as_ref().expect("asks").question.clone();
+    assert!(q.contains("on a remote machine"), "{q}");
+    press(&mut app, KeyCode::Char('y'));
+    finish(&mut app);
+    let view = app.duplicates.as_ref().expect("open");
+    // alone.bin has the size of trip.jpg, not its contents.
+    assert_eq!(view.files.len(), 2);
+    assert_eq!(view.folders.len(), 1);
+
+    // The copy of a folder: no trash, and the other one stays.
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('a'));
+    press(&mut app, KeyCode::Char('d'));
+    let confirm = app.confirm.as_ref().expect("asks");
+    assert!(
+        confirm.question.contains("no trash there"),
+        "{}",
+        confirm.question
+    );
+    assert_eq!(confirm.options, ["Yes", "No"]);
+    press(&mut app, KeyCode::Char('y'));
+    finish(&mut app);
+    let kept = ["photos", "photos-copy"].map(|f| p.join(f).exists());
+    assert_eq!(kept.iter().filter(|k| **k).count(), 1, "{:?}", app.message);
+
+    // A copy changed since the analysis is not deleted.
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('a'));
+    let view = app.duplicates.as_ref().unwrap();
+    let root = app.panes[0].tree.path(crate::model::tree::ROOT);
+    let tagged = view.groups()[0].items.iter().find(|i| i.tagged).unwrap();
+    assert!(tagged.path.extension().is_some_and(|e| e == "dat"));
+    let local = p.join(tagged.path.strip_prefix(&root).unwrap());
+    let later = std::time::SystemTime::now() + Duration::from_secs(60);
+    fs::File::options()
+        .write(true)
+        .open(&local)
+        .unwrap()
+        .set_modified(later)
+        .unwrap();
+    press(&mut app, KeyCode::Char('d'));
+    assert!(app.confirm.is_none(), "{:?}", app.message);
+    assert!(local.exists());
 }
 
 #[cfg(unix)]
