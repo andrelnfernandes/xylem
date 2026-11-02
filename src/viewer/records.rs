@@ -553,10 +553,10 @@ fn stream_sheet<'a, E: std::fmt::Display>(
     budget: Budget,
     sink: &mut dyn RecordSink,
 ) -> Result<End, String> {
-    // Columns as the file declares them, so that letters do not depend on what is
-    // read first; a cell past them widens the table, as in JSON Lines.
-    let first_col = declared.start.1;
-    let declared_cols = declared.end.1.saturating_sub(first_col) as usize + 1;
+    // A letter is the sheet's own, from A: where a sheet says it starts may be wrong,
+    // and a cell left of that would be lost. The width it declares is only a start,
+    // and a cell past it widens the table, as in JSON Lines.
+    let declared_cols = declared.end.1 as usize + 1;
     let mut letters: Vec<String> = Vec::new();
     let mut row: Vec<DataRef<'a>> = Vec::new();
     let mut at: Option<u32> = None;
@@ -589,7 +589,9 @@ fn stream_sheet<'a, E: std::fmt::Display>(
             continue;
         }
         let (r, c) = cell.get_position();
-        if r >= MAX_SHEET_ROWS {
+        // Past the format's rows, or going back: each row is written once, so what
+        // a file can ask for stays within the format's rows.
+        if r >= MAX_SHEET_ROWS || at.is_some_and(|at| r < at) {
             continue;
         }
         if at != Some(r) {
@@ -606,9 +608,7 @@ fn stream_sheet<'a, E: std::fmt::Display>(
             }
             at = Some(r);
         }
-        let Some(col) = c.checked_sub(first_col).map(|c| c as usize) else {
-            continue;
-        };
+        let col = c as usize;
         if col >= MAX_COLS {
             if !cut {
                 cut = true;
@@ -993,6 +993,15 @@ pub fn read_table(
 /// An Apache Parquet file (.parquet). Columns past [`MAX_COLS`] are never
 /// decoded from disk.
 pub fn read_parquet(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Result<End, String> {
+    read_parquet_within(path, MAX_PARQUET_PAGES, budget, sink)
+}
+
+fn read_parquet_within(
+    path: &Path,
+    pages: u64,
+    budget: Budget,
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
     let mut file = File::open(path).map_err(|e| format!("Failed to open Parquet file: {e}"))?;
 
     // Validate size and magic markers (PAR1 at start and end)
@@ -1044,30 +1053,38 @@ pub fn read_parquet(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> R
     let mut pace = Pace::new(budget.clone());
     // One row group at a time: the grid stops early, and pays only for what it reads.
     for group in 0..metadata.metadata().num_row_groups() {
-        let meta = metadata.metadata().row_group(group);
-        let dictionaries = match parquet_pages::check_row_group(
-            &file,
-            meta,
-            |leaf| mask.leaf_included(leaf),
-            MAX_PARQUET_PAGES,
-            &budget,
-        ) {
-            Ok(dictionaries) => dictionaries,
-            Err(_) if budget.over() => return Ok(End::OutOfTime),
-            Err(e) => return Err(format!("Refused Parquet file: {e}")),
-        };
+        // An empty group has nothing else that looks at the clock.
+        if budget.over() {
+            return Ok(End::OutOfTime);
+        }
         let handle = file
             .try_clone()
             .map_err(|e| format!("Failed to open Parquet file: {e}"))?;
-        let reader = ParquetRecordBatchReaderBuilder::new_with_metadata(handle, metadata.clone())
+        let guarded = match parquet_pages::GuardedFile::new(
+            handle,
+            metadata.metadata().row_group(group),
+            |leaf| mask.leaf_included(leaf),
+            pages,
+            budget.clone(),
+        ) {
+            Ok(guarded) => guarded,
+            Err(_) if budget.over() => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("Refused Parquet file: {e}")),
+        };
+        let batch_size = parquet_batch(guarded.dictionaries(), pages);
+        let reader = ParquetRecordBatchReaderBuilder::new_with_metadata(guarded, metadata.clone())
             .with_projection(mask.clone())
             .with_row_groups(vec![group])
-            .with_batch_size(parquet_batch(dictionaries, MAX_PARQUET_PAGES))
+            .with_batch_size(batch_size)
             .build()
             .map_err(|e| format!("Failed to create Parquet batch reader: {e}"))?;
 
         for batch in reader {
-            let batch = batch.map_err(|e| format!("Error decoding Parquet batch: {e}"))?;
+            let batch = match batch {
+                Ok(batch) => batch,
+                Err(_) if budget.over() => return Ok(End::OutOfTime),
+                Err(e) => return Err(format!("Refused Parquet file: {e}")),
+            };
             let columns = batch.columns();
             for r in 0..batch.num_rows() {
                 let cells: Vec<Cell<'_>> = columns
@@ -1541,16 +1558,35 @@ mod tests {
     }
 
     #[test]
-    fn a_sheet_keeps_its_declared_columns_and_empty_rows() {
+    fn a_sheet_has_its_real_letters_and_empty_rows() {
         let (sink, end) = collect_sheet(
             r#"<dimension ref="C2:D5"/><row r="2"><c r="C2"><v>1</v></c></row><row r="4"><c r="D4" t="inlineStr"><is><t>x</t></is></c></row>"#,
         );
         assert_eq!(end, Ok(End::Complete));
-        assert_eq!(sink.columns, ["A", "B"]);
+        assert_eq!(sink.columns, ["A", "B", "C", "D"]);
         assert_eq!(sink.rows.len(), 3);
-        assert_eq!(sink.rows[0], [Owned::Float(1.0)]);
+        assert_eq!(sink.rows[0], [Owned::Null, Owned::Null, Owned::Float(1.0)]);
         assert_eq!(sink.rows[1], [] as [Owned; 0]);
-        assert_eq!(sink.rows[2], [Owned::Null, text("x")]);
+        assert_eq!(
+            sink.rows[2],
+            [Owned::Null, Owned::Null, Owned::Null, text("x")]
+        );
+    }
+
+    #[test]
+    fn a_wrong_dimension_hides_no_data() {
+        let (sink, _) = collect_sheet(
+            r#"<dimension ref="B2:D5"/><row r="2"><c r="A2"><v>1</v></c><c r="B2"><v>2</v></c></row>"#,
+        );
+        assert_eq!(sink.rows[0], [Owned::Float(1.0), Owned::Float(2.0)]);
+    }
+
+    #[test]
+    fn rows_that_go_back_give_no_more_empty_rows() {
+        let far = r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="1048576"><c r="A1048576"><v>2</v></c></row>"#;
+        let (sink, end) = collect_sheet(&far.repeat(3));
+        assert_eq!(end, Ok(End::Complete));
+        assert_eq!(sink.rows.len(), 1 << 20, "the format's rows, at most");
     }
 
     #[test]
@@ -1564,12 +1600,12 @@ mod tests {
 
     #[test]
     fn a_sheet_that_lies_about_its_cells_gets_nowhere() {
-        // Left of what it declares, past the format's rows, past the columns kept.
+        // Past the format's rows, past the columns kept.
         let (sink, end) = collect_sheet(
-            r#"<dimension ref="B1:B1"/><row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>2</v></c><c r="ZZ1"><v>3</v></c></row><row r="2000000"><c r="B2000000"><v>4</v></c></row>"#,
+            r#"<dimension ref="B1:B1"/><row r="1"><c r="B1"><v>2</v></c><c r="ZZ1"><v>3</v></c></row><row r="2000000"><c r="B2000000"><v>4</v></c></row>"#,
         );
         assert_eq!(end, Ok(End::Complete));
-        assert_eq!(sink.rows, [[Owned::Float(2.0)]]);
+        assert_eq!(sink.rows, [[Owned::Null, Owned::Float(2.0)]]);
         assert!(sink.cut);
     }
 
@@ -1703,10 +1739,13 @@ mod tests {
         file
     }
 
-    fn check_group(file: &File, limit: u64) -> std::io::Result<u64> {
-        let metadata = ArrowReaderMetadata::load(file, ArrowReaderOptions::new()).unwrap();
+    fn dictionaries_of(file: File) -> u64 {
+        let metadata = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new()).unwrap();
         let group = metadata.metadata().row_group(0);
-        parquet_pages::check_row_group(file, group, |_| true, limit, &Budget::unlimited())
+        let budget = Budget::unlimited();
+        parquet_pages::GuardedFile::new(file, group, |_| true, 1 << 30, budget)
+            .unwrap()
+            .dictionaries()
     }
 
     #[test]
@@ -1727,8 +1766,7 @@ mod tests {
                         .set_dictionary_enabled(dictionary)
                         .build();
                     let file = parquet_file(properties, 2);
-                    let handle = file.reopen().unwrap();
-                    let dictionaries = check_group(&handle, 1 << 30).unwrap();
+                    let dictionaries = dictionaries_of(file.reopen().unwrap());
                     assert_eq!(dictionaries > 0, dictionary, "{compression:?} {version:?}");
                     let mut sink = Collect::default();
                     let end = read_parquet(file.path(), Budget::unlimited(), &mut sink).unwrap();
@@ -1743,9 +1781,10 @@ mod tests {
     #[test]
     fn parquet_pages_over_the_limit_are_refused() {
         let file = parquet_file(WriterProperties::builder().build(), 1);
-        let handle = file.reopen().unwrap();
-        let error = check_group(&handle, 100).unwrap_err();
-        assert!(error.to_string().contains("over the limit"), "{error}");
+        let mut sink = Collect::default();
+        let error =
+            read_parquet_within(file.path(), 100, Budget::unlimited(), &mut sink).unwrap_err();
+        assert!(error.contains("over the limit"), "{error}");
     }
 
     #[test]
@@ -1757,7 +1796,6 @@ mod tests {
             .build();
         let file = parquet_file(properties, 1);
         let handle = file.reopen().unwrap();
-        check_group(&handle, 1 << 30).unwrap();
 
         // The first page: its type, then its size, which is cut down to almost
         // nothing while taking up the same bytes.
@@ -1779,13 +1817,6 @@ mod tests {
         bytes[end] = 0;
         bytes[start + 3] |= 2; // zigzag of 1
         std::fs::write(file.path(), bytes).unwrap();
-
-        let handle = file.reopen().unwrap();
-        let error = check_group(&handle, 1 << 30).unwrap_err();
-        assert!(
-            error.to_string().contains("more than it declares"),
-            "{error}"
-        );
         let mut sink = Collect::default();
         let error = read_parquet(file.path(), Budget::unlimited(), &mut sink).unwrap_err();
         assert!(error.contains("more than it declares"), "{error}");
@@ -1806,6 +1837,88 @@ mod tests {
         let mut sink = Collect::default();
         let error = read_parquet(file.path(), Budget::unlimited(), &mut sink).unwrap_err();
         assert!(error.starts_with("Refused Parquet file"), "{error}");
+    }
+
+    #[test]
+    fn a_page_never_reached_costs_nothing() {
+        use parquet::basic::{Compression, GzipLevel};
+        let properties = WriterProperties::builder()
+            .set_compression(Compression::GZIP(GzipLevel::default()))
+            .set_dictionary_enabled(false)
+            .set_data_page_size_limit(512)
+            .set_write_batch_size(64)
+            .build();
+        let file = parquet_file(properties, 1);
+        let handle = file.reopen().unwrap();
+        let metadata = ArrowReaderMetadata::load(&handle, ArrowReaderOptions::new()).unwrap();
+        let column = metadata.metadata().row_group(0).column(0);
+
+        // Damages the last page of the column, far past the first rows.
+        let mut bytes = std::fs::read(file.path()).unwrap();
+        let start = column.data_page_offset() as usize;
+        let end = start + column.compressed_size() as usize;
+        let (mut at, mut last, mut pages) = (start, (0, 0), 0);
+        while at < end {
+            let mut input = &bytes[at..end];
+            let header = parquet_pages::read_header(&mut input).unwrap();
+            let length = header.compressed.unwrap() as usize;
+            let data = end - input.len();
+            last = (data, length);
+            at = data + length;
+            pages += 1;
+        }
+        assert!(pages > 3, "{pages}");
+        bytes[last.0..last.0 + last.1].fill(0xAA);
+        std::fs::write(file.path(), bytes).unwrap();
+
+        let mut sink = Collect {
+            stop: Some(3),
+            ..Default::default()
+        };
+        let end = read_parquet(file.path(), Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!(end, End::Refused);
+        assert_eq!(sink.rows.len(), 3);
+    }
+
+    #[test]
+    fn empty_row_groups_look_at_the_clock() {
+        use parquet::file::metadata::{
+            ColumnChunkMetaData, FileMetaData, ParquetMetaData, ParquetMetaDataWriter,
+            RowGroupMetaData,
+        };
+        use parquet::schema::parser::parse_message_type;
+        use parquet::schema::types::SchemaDescriptor;
+
+        // A footer with groups that have nothing in them, which no writer makes:
+        // nothing to read in the file means nothing else looks at the clock.
+        let schema = Arc::new(parse_message_type("message m { required int32 a; }").unwrap());
+        let descriptor = Arc::new(SchemaDescriptor::new(schema));
+        let group = RowGroupMetaData::builder(descriptor.clone())
+            .set_column_metadata(vec![
+                ColumnChunkMetaData::builder(descriptor.column(0))
+                    .build()
+                    .unwrap(),
+            ])
+            .set_num_rows(0)
+            .build()
+            .unwrap();
+        let info = FileMetaData::new(1, 0, None, None, descriptor, None);
+        let metadata = ParquetMetaData::new(info, vec![group; 3]);
+        let mut bytes = b"PAR1".to_vec();
+        ParquetMetaDataWriter::new(&mut bytes, &metadata)
+            .finish()
+            .unwrap();
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(&bytes).unwrap();
+
+        assert_eq!(
+            read_parquet(file.path(), Budget::unlimited(), &mut Collect::default()),
+            Ok(End::Complete)
+        );
+        assert_eq!(
+            read_parquet(file.path(), expired(), &mut Collect::default()),
+            Ok(End::OutOfTime)
+        );
     }
 
     #[test]

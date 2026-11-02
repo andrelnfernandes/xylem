@@ -3639,6 +3639,7 @@ dependencies = [
  "arrow-array",
  "arrow-cast",
  "arrow-schema",
+ "bytes",
  "bzip2",
  "calamine",
  "chrono",

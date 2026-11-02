@@ -178,6 +178,6 @@ Una tabla guarda como máximo 50 000 filas y 256 columnas, y tarda como máximo 
 
 ## Tablas en bibliotecas C
 
-Las bases SQLite (`.db`, `.sqlite`, `.sqlite3`) y los archivos Parquet se leen con bibliotecas escritas en C, que no tienen la seguridad de memoria de Rust. Por eso solo se abren como tabla con `V`. Autoview lee todo aquello por donde pasa el cursor y muestra estos archivos como contenido normal, con la nota `Parquet or SQLite: V opens the table`. Abre una base de origen no confiable solo si aceptas este riesgo.
+Las bases SQLite (`.db`, `.sqlite`, `.sqlite3`) y los archivos Parquet se leen con bibliotecas escritas en C, que no tienen la seguridad de memoria de Rust. Por eso solo se abren como tabla con `V`. Autoview lee todo aquello por donde pasa el cursor y muestra estos archivos como contenido normal, con la nota `Parquet or SQLite: V opens the table`. Abre una base de origen no confiable solo si aceptas este riesgo. Los archivos `.ods` y `.xls` también se abren como tabla solo con `V`: su lector monta primero la hoja entera, y esa parte no se puede detener.
 
 Véase también: [buscar en los archivos marcados](search.md).

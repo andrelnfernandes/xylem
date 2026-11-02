@@ -47,28 +47,36 @@ Medido com arquivos montados à mão, em 2026-11-01:
 2. **A leitura do arquivo olha o orçamento** (`Stoppable`): tempo e Esc param também a
    abertura do workbook e o XML do meio de um Deflate. A checagem fica antes do
    descompressor, então pega também a bomba que gira sem produzir nada.
-3. **Colunas:** valem as declaradas em `<dimension>`, para as letras serem as de antes
-   numa planilha normal. Coluna que aparece além disso alarga a tabela, como no JSON
-   Lines. Célula à esquerda do declarado (arquivo mentindo) é ignorada.
+3. **Colunas:** a letra é a da própria planilha, a partir de A. Quem começa em C mostra
+   A e B vazias. O `<dimension>` serve só de largura inicial: ele pode estar errado, e
+   confiar no início dele esconderia dados à esquerda. Coluna além disso alarga a
+   tabela, como no JSON Lines.
 4. **Linhas:** vazios no meio viram linhas vazias, como antes, e as vazias do começo não
-   aparecem. Linha além de 1.048.576 (limite do formato) é ignorada.
+   aparecem. Linha além de 1.048.576 (limite do formato) é ignorada, e também célula de
+   linha anterior à atual: cada linha sai uma vez só, então o que um arquivo consegue
+   pedir fica no limite do formato, mesmo no Batch, que não tem limite próprio. Um
+   arquivo com linhas fora de ordem perde as que voltam.
 
 `.ods` e `.xls` não têm leitura por célula no calamine: ver "O que continua".
 
 ### Parquet
 
-Antes de cada row group, `check_pages` percorre os cabeçalhos das páginas das colunas
-pedidas, sem descomprimir:
+O leitor da crate recebe um arquivo vigiado (`GuardedFile`), que olha cada página no
+caminho, e só as que forem lidas. Conferir tudo antes da primeira linha gastava os 3 s
+num arquivo grande e saudável, e cada página era mais uma leitura na nuvem.
 
-1. **Soma, por coluna, do dicionário e da maior página.** É o que fica na memória ao
-   mesmo tempo. Acima de 1 GiB, recusa com mensagem. O limite é fixo, e não o do viewer:
-   arquivo legítimo com 256 colunas de 1 MiB precisa passar.
-2. **GZIP:** descomprime cada página com limite no tamanho declarado, descartando a
-   saída. Página que produz mais que isso é recusada. Custa uma descompressão a mais
-   nesse formato; os outros não pagam nada.
-3. **Lote** de `min(1024, 1 GiB / soma dos dicionários)` linhas.
-4. Row group a row group, e não o arquivo inteiro de uma vez: a grade para em 50.000
-   linhas e não paga pelo resto.
+1. **Ao abrir um row group:** só o cabeçalho da primeira página de cada coluna, que é
+   onde fica o dicionário. O lote é de `min(1024, 1 GiB / soma dos dicionários)` linhas.
+   Dicionário em outro lugar é recusado, porque o lote conta com ele.
+2. **Antes de cada página:** o cabeçalho. A soma, por coluna, do dicionário e da maior
+   página vista é o que fica na memória ao mesmo tempo. Acima de 1 GiB, recusa com
+   mensagem. O limite é fixo, e não o do viewer: arquivo legítimo com 256 colunas de
+   1 MiB precisa passar.
+3. **GZIP:** antes de entregar a página, descomprime com limite no tamanho declarado,
+   descartando a saída, sobre os bytes já lidos. Página que produz mais que isso é
+   recusada. Custa uma descompressão a mais só nas páginas lidas desse formato.
+4. **O orçamento é olhado a cada row group:** um rodapé com milhões de grupos vazios não
+   tem outra coisa que olhe o relógio.
 
 ### Esc e a tela livre
 
@@ -80,19 +88,28 @@ pedidas, sem descomprimir:
   aparece, com `stopped by Esc: showing N rows`. Sem nenhuma linha, o viewer fica como
   estava: em texto, ou na tabela anterior.
 - **Se a thread não responde em 200 ms** (por exemplo, no meio de um `.ods`), a tela não
-  espera por ela: fica para trás e termina sozinha.
+  espera por ela: fica para trás e termina sozinha. Enquanto ela vive, nenhuma outra
+  leitura começa, em nenhum viewer, e a nota diz isso. Repetir V e Esc num `.ods` hostil
+  não acumula memória.
+- **Recarregar** uma tabela ainda em leitura mostra o texto até ela chegar. Se o modo em
+  uso for outro (Hex, por exemplo), a tabela chega sem mudá-lo, e T vai até ela.
 - **O limite de tempo continua** (3 s no V). Sair do viewer cancela a leitura.
 - **Autoview** continua síncrono, com os 100 ms dele: uma thread por movimento do cursor
-  não compensa, e agora a planilha também respeita esse tempo.
+  não compensa, e agora a planilha também respeita esse tempo. `.ods` e `.xls` não abrem
+  como tabela nele, como SQLite e Parquet: a montagem deles não para, e rodaria na linha
+  da tela. V abre.
 - **Leitura parada sem nenhuma coluna** (planilha ainda abrindo): continua em texto, com
   a nota dizendo o motivo, em vez de uma tabela vazia.
 
 ## O que continua (fica no BACKLOG)
 
-- **`.ods` monta a planilha inteira:** o calamine limita a 100 milhões de células, ou
-  cerca de 3 GiB, e isso cabe num arquivo pequeno com `number-rows-repeated`. Tempo e
-  Esc param a leitura do arquivo, mas não a montagem no fim. Um `.xls` é limitado pelo
-  formato (65.536 × 256 células, cerca de 512 MiB).
+- **`.ods` monta a planilha inteira no V e no Batch:** o calamine limita a 100 milhões de
+  células, ou cerca de 3 GiB, e isso cabe num arquivo pequeno com
+  `number-rows-repeated`. Tempo e Esc param a leitura do arquivo, mas não a montagem no
+  fim; a tela fica livre, e há no máximo um leitor assim no viewer. Um `.xls` é limitado
+  pelo formato (65.536 × 256 células, cerca de 512 MiB).
+- **Letras de `.ods` e `.xls`:** continuam contando da primeira coluna usada, diferente
+  de `.xlsx` e `.xlsb`.
 - **Parquet com listas:** uma linha pode ter muitos valores apontando para o mesmo item
   do dicionário, então o lote menor não limita esse caso por completo.
 - **Página de Parquet em si:** é descomprimida inteira, dentro do limite acima; Esc a
@@ -111,11 +128,13 @@ mesmos limites.
   mesmo; `WouldBlock` no meio de uma linha não perde a linha; entrada de archive que
   demora não prende o passo; Esc para a extração.
 - Planilha: o `.xlsx` de 1,4 KiB que abortava lê em instantes; ZIP que mente é recusado;
-  texto compartilhado não é copiado; orçamento vencido para a abertura; colunas e
-  linhas como antes.
+  texto compartilhado não é copiado; orçamento vencido para a abertura; `<dimension>`
+  errado não esconde dados; linhas que voltam não geram linhas vazias a mais; Autoview
+  não abre `.ods`.
 - Parquet: cabeçalhos de um arquivo real (com estatísticas e dicionário) são lidos por
   todos os codecs habilitados; página acima do limite é recusada; bomba de GZIP com
-  tamanho declarado falso é recusada sem descomprimir tudo; lote diminui com dicionário
-  grande.
+  tamanho declarado falso é recusada sem descomprimir tudo; página nunca alcançada não
+  custa nada; grupos vazios olham o relógio; lote diminui com dicionário grande.
 - Esc: a tela não espera, a leitura para, o parcial aparece; o Esc seguinte fecha; uma
-  thread que não responde fica para trás.
+  thread que não responde fica para trás, e é a única; recarregar não deixa a tela em
+  branco nem muda o modo em uso.

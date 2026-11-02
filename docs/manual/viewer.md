@@ -175,6 +175,6 @@ A table holds at most 50,000 rows and 256 columns, and takes at most what the vi
 
 ## Tables in C libraries
 
-SQLite databases (`.db`, `.sqlite`, `.sqlite3`) and Parquet files are read by libraries written in C, which do not have Rust's memory safety. So they open as tables only with `V`. Autoview reads whatever the cursor passes over, and shows these files as ordinary contents, with the note `Parquet or SQLite: V opens the table`. Open a database from an untrusted source only if you accept this risk.
+SQLite databases (`.db`, `.sqlite`, `.sqlite3`) and Parquet files are read by libraries written in C, which do not have Rust's memory safety. So they open as tables only with `V`. Autoview reads whatever the cursor passes over, and shows these files as ordinary contents, with the note `Parquet or SQLite: V opens the table`. Open a database from an untrusted source only if you accept this risk. `.ods` and `.xls` files also open as tables only with `V`: their reader builds the whole sheet first, and that part cannot be stopped.
 
 See also: [searching the tagged files](search.md).

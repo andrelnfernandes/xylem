@@ -96,6 +96,17 @@ pub fn uses_c_parser(path: &Path) -> bool {
     matches!(ext.as_str(), "sqlite" | "sqlite3" | "db" | "parquet")
 }
 
+/// The sheets a reader builds whole before giving a row: no one can stop that part,
+/// and a small file can make it take gigabytes.
+pub fn is_built_whole(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+    matches!(ext.as_str(), "ods" | "xls")
+}
+
 /// Builds a grid from a stream.
 #[derive(Default)]
 struct GridSink {

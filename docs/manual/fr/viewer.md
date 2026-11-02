@@ -179,6 +179,6 @@ Un tableau contient au plus 50 000 lignes et 256 colonnes, et prend au plus ce q
 
 ## Tableaux lus par des bibliothèques C
 
-Les bases SQLite (`.db`, `.sqlite`, `.sqlite3`) et les fichiers Parquet sont lus par des bibliothèques écrites en C, qui n'ont pas la sûreté mémoire de Rust. Ils ne s'ouvrent donc en tableau qu'avec `V`. Autoview lit tout ce que le curseur survole et affiche ces fichiers comme un contenu ordinaire, avec la note `Parquet or SQLite: V opens the table`. N'ouvrez une base de source non fiable que si vous acceptez ce risque.
+Les bases SQLite (`.db`, `.sqlite`, `.sqlite3`) et les fichiers Parquet sont lus par des bibliothèques écrites en C, qui n'ont pas la sûreté mémoire de Rust. Ils ne s'ouvrent donc en tableau qu'avec `V`. Autoview lit tout ce que le curseur survole et affiche ces fichiers comme un contenu ordinaire, avec la note `Parquet or SQLite: V opens the table`. N'ouvrez une base de source non fiable que si vous acceptez ce risque. Les fichiers `.ods` et `.xls` ne s'ouvrent eux aussi en tableau qu'avec `V` : leur lecteur construit d'abord la feuille entière, et cette partie ne peut pas être interrompue.
 
 Voir aussi : [rechercher dans les fichiers marqués](search.md).

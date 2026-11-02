@@ -14,7 +14,7 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::Duration;
 
@@ -103,7 +103,8 @@ pub struct LoadOptions {
     /// Fixed charset for files that are not UTF-8 or UTF-16 (`None`: guess).
     pub fallback: Option<Charset>,
     /// May hand the file to a parser written in C (see
-    /// [`tabular_loader::uses_c_parser`]): only when the user asks to see it.
+    /// [`tabular_loader::uses_c_parser`]), or to one that cannot be stopped (see
+    /// [`tabular_loader::is_built_whole`]): only when the user asks to see it.
     pub c_parsers: bool,
     /// A table is read in another thread, with the screen free and Esc stopping it.
     pub in_background: bool,
@@ -154,9 +155,17 @@ pub struct Hit {
 /// What to do with a table once it has been read.
 #[derive(Debug)]
 enum TableRead {
-    Open,
+    /// `show`: to be seen when it arrives, if the mode is still `from`, the one the
+    /// file opened in. Whoever went to another mode stays there.
+    Open {
+        show: bool,
+        from: ViewMode,
+    },
     Sheet,
-    Query { text: String, current: usize },
+    Query {
+        text: String,
+        current: usize,
+    },
 }
 
 /// A table being read in another thread. Dropping it stops the reading.
@@ -164,6 +173,42 @@ struct TableTask {
     rx: Receiver<Option<Result<TableGrid, String>>>,
     stop: StopOnDrop,
     purpose: TableRead,
+}
+
+thread_local! {
+    /// Table readers still running, of those this thread started. One that does not
+    /// answer Esc holds its memory until it ends, so there is never a second.
+    static READERS: Arc<AtomicUsize> = Arc::default();
+}
+
+/// Counts as a reader for as long as it lives.
+struct RunningReader(Arc<AtomicUsize>);
+
+impl RunningReader {
+    fn new() -> Self {
+        let readers = READERS.with(Arc::clone);
+        readers.fetch_add(1, Ordering::Relaxed);
+        RunningReader(readers)
+    }
+}
+
+impl Drop for RunningReader {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+/// Whether a new reader can start. One told to stop usually ends right away.
+fn reader_is_free() -> bool {
+    let readers = READERS.with(Arc::clone);
+    let deadline = std::time::Instant::now() + TABLE_STOP_WAIT;
+    while readers.load(Ordering::Relaxed) > 0 {
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    true
 }
 
 struct StopOnDrop(Arc<AtomicBool>);
@@ -185,6 +230,7 @@ const TABLE_FIRST_WAIT: Duration = if cfg!(test) {
 const TABLE_STOP_WAIT: Duration = Duration::from_millis(200);
 const READING_TABLE: &str = "Reading the table... Esc stops";
 const TABLE_STOPPED: &str = "Table reading stopped";
+const TABLE_BUSY: &str = "A table left behind is still being read: try again soon";
 
 pub struct Viewer {
     /// The table being read in another thread.
@@ -319,12 +365,22 @@ impl Viewer {
             }
             return;
         }
+        if !self.load.c_parsers && tabular_loader::is_built_whole(&path) {
+            if self.note.is_none() {
+                self.note = Some("ODS or XLS: V opens the table".into());
+            }
+            return;
+        }
         let ext = path
             .extension()
             .and_then(|s| s.to_str())
             .map(|s| s.to_ascii_lowercase())
             .unwrap_or_default();
-        self.read_table(TableRead::Open, move |budget| match ext.as_str() {
+        let purpose = TableRead::Open {
+            show: true,
+            from: self.mode,
+        };
+        self.read_table(purpose, move |budget| match ext.as_str() {
             "csv" | "tsv" | "tab" => tabular_loader::load_csv(&path, None, budget),
             "jsonl" | "ndjson" => tabular_loader::load_jsonl(&path, budget),
             "xlsx" | "ods" | "xls" | "xlsb" => tabular_loader::load_spreadsheet(&path, 0, budget),
@@ -346,6 +402,10 @@ impl Viewer {
     ) {
         self.table_task = None;
         if self.load.in_background {
+            if !reader_is_free() {
+                self.note = Some(TABLE_BUSY.into());
+                return;
+            }
             self.read_table_in_background(purpose, TABLE_FIRST_WAIT, work);
         } else {
             let result = crate::panic_guard::catch(|| work(self.table_budget()));
@@ -362,7 +422,9 @@ impl Viewer {
         let cancel = Arc::new(AtomicBool::new(false));
         let budget = self.table_budget().stopped_by(cancel.clone());
         let (tx, rx) = mpsc::channel();
+        let running = RunningReader::new();
         std::thread::spawn(move || {
+            let _running = running;
             let _ = tx.send(crate::panic_guard::catch(|| work(budget)));
         });
         // A table of ordinary size appears at once, with no text flashing first.
@@ -448,14 +510,16 @@ impl Viewer {
             return;
         }
         match purpose {
-            TableRead::Open => match result {
+            TableRead::Open { show, from } => match result {
                 Ok(grid) => {
                     // Autoview's title has only the note to say it.
                     if self.note.is_none() {
                         self.note = grid.cut.clone();
                     }
                     self.table = Some(grid);
-                    self.mode = ViewMode::Table;
+                    if show && self.mode == from {
+                        self.mode = ViewMode::Table;
+                    }
                 }
                 Err(e) if self.note.is_none() => self.note = Some(format!("Table mode: {e}")),
                 Err(_) => {}
@@ -692,14 +756,29 @@ impl Viewer {
     pub fn reload(&mut self) -> io::Result<()> {
         let new = Self::open(self.path.clone(), self.load)?;
         let old = std::mem::replace(self, new);
+        self.restore_view(old);
+        Ok(())
+    }
+
+    /// A viewer just read again goes back to how the old one was being looked at.
+    fn restore_view(&mut self, old: Viewer) {
         if old.charset_manual {
             self.set_charset(old.charset);
             self.charset_manual = true;
         }
         self.mode = match old.mode {
             ViewMode::Rendered if self.md.is_none() => ViewMode::Text,
+            // Not read yet, or not a table any more: the mode the file opened in.
+            ViewMode::Table if self.table.is_none() => self.mode,
             mode => mode,
         };
+        // A table still being read arrives by itself, if it was what was on screen.
+        if let Some(task) = &mut self.table_task {
+            task.purpose = TableRead::Open {
+                show: old.mode == ViewMode::Table,
+                from: self.mode,
+            };
+        }
         self.page = old.page;
         self.width = old.width;
         self.line_numbers = old.line_numbers;
@@ -717,7 +796,6 @@ impl Viewer {
         self.colors_on = old.colors_on && self.colors.is_some();
         self.wrap = old.wrap;
         self.sub_top = old.sub_top;
-        Ok(())
     }
 
     /// Autoview scrolling (Shift+arrows): only moves the content.
@@ -3933,7 +4011,11 @@ mod tests {
 
     fn reading(work: impl FnOnce(Budget) -> Result<TableGrid, String> + Send + 'static) -> Viewer {
         let mut v = Viewer::from_bytes("t.csv".into(), 3, b"n\n1".to_vec());
-        v.read_table_in_background(TableRead::Open, Duration::ZERO, work);
+        let purpose = TableRead::Open {
+            show: true,
+            from: v.mode,
+        };
+        v.read_table_in_background(purpose, Duration::ZERO, work);
         v
     }
 
@@ -4066,5 +4148,124 @@ mod tests {
         // However far it got in its 100 ms, it is here to tell.
         assert_eq!(v.mode, ViewMode::Table);
         assert_eq!(v.table.as_ref().unwrap().rows[0].cells[0], "1");
+    }
+
+    #[test]
+    fn autoview_leaves_to_v_the_sheets_that_are_built_whole() {
+        use std::io::Write;
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("book.ods");
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        let options = zip::write::SimpleFileOptions::default();
+        zip.start_file("mimetype", options).unwrap();
+        zip.write_all(b"application/vnd.oasis.opendocument.spreadsheet")
+            .unwrap();
+        zip.start_file("META-INF/manifest.xml", options).unwrap();
+        zip.write_all(b"<manifest/>").unwrap();
+        zip.start_file("content.xml", options).unwrap();
+        zip.write_all(
+            br#"<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><office:spreadsheet><table:table table:name="s"><table:table-row><table:table-cell office:value-type="string"><text:p>x</text:p></table:table-cell></table:table-row></table:table></office:spreadsheet></office:body></office:document-content>"#,
+        )
+        .unwrap();
+        zip.finish().unwrap();
+
+        let v = Viewer::open(path.clone(), LoadOptions::autoview()).unwrap();
+        assert!(v.table.is_none());
+        assert_eq!(v.note.as_deref(), Some("ODS or XLS: V opens the table"));
+        let v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.table.as_ref().unwrap().rows[0].cells[0], "x");
+    }
+
+    fn old_viewer(mode: ViewMode) -> Viewer {
+        let mut v = Viewer::from_bytes("t.csv".into(), 3, b"n\n1".to_vec());
+        v.mode = mode;
+        v
+    }
+
+    #[test]
+    fn reloading_a_table_shows_the_text_until_it_is_read_again() {
+        let (go, wait) = mpsc::channel::<()>();
+        let mut v = reading(move |_| {
+            let _ = wait.recv();
+            Ok(rows_grid(1, None))
+        });
+        v.restore_view(old_viewer(ViewMode::Table));
+        assert_eq!(v.mode, ViewMode::Text, "not a blank table");
+        go.send(()).unwrap();
+        while !v.poll_table() || v.reading_table() {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(v.mode, ViewMode::Table);
+    }
+
+    #[test]
+    fn a_table_that_arrives_does_not_change_the_mode_in_use() {
+        let mut v = reading(|_| Ok(rows_grid(1, None)));
+        v.restore_view(old_viewer(ViewMode::Hex));
+        assert_eq!(v.mode, ViewMode::Hex);
+        while v.reading_table() {
+            v.poll_table();
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(v.mode, ViewMode::Hex);
+        assert!(v.table.is_some(), "T goes to it");
+
+        // And the same for what was chosen while it was being read.
+        let (go, wait) = mpsc::channel::<()>();
+        let mut v = reading(move |_| {
+            let _ = wait.recv();
+            Ok(rows_grid(1, None))
+        });
+        v.mode = ViewMode::Hex;
+        go.send(()).unwrap();
+        while v.reading_table() {
+            v.poll_table();
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(v.mode, ViewMode::Hex);
+    }
+
+    #[test]
+    fn a_reader_left_behind_is_the_only_one() {
+        let (release, stuck) = mpsc::channel::<()>();
+        let mut v = reading(move |_| {
+            let _ = stuck.recv();
+            Ok(rows_grid(1, None))
+        });
+        press(&mut v, KeyCode::Esc);
+        assert!(!v.reading_table());
+
+        // Neither this viewer nor another starts one more.
+        let started = Arc::new(AtomicBool::new(false));
+        v.load.in_background = true;
+        let flag = started.clone();
+        v.read_table(TableRead::Sheet, move |_| {
+            flag.store(true, Ordering::Relaxed);
+            Ok(rows_grid(1, None))
+        });
+        assert!(!started.load(Ordering::Relaxed));
+        assert_eq!(v.note.as_deref(), Some(TABLE_BUSY));
+
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("t.csv");
+        std::fs::write(&path, "a,b\n1,2\n").unwrap();
+        let load = LoadOptions {
+            in_background: true,
+            ..LOAD
+        };
+        let other = Viewer::open(path.clone(), load).unwrap();
+        assert!(other.table.is_none());
+        assert_eq!(other.note.as_deref(), Some(TABLE_BUSY));
+
+        // Once it ends, all is as usual.
+        drop(release);
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        loop {
+            let again = Viewer::open(path.clone(), load).unwrap();
+            if again.table.is_some() {
+                break;
+            }
+            assert!(std::time::Instant::now() < deadline);
+        }
     }
 }

@@ -162,6 +162,6 @@ SELECT c.name, sum(o.price) FROM customers c JOIN orders o ON o.code = c.code GR
 
 ## 由 C 库读取的表格
 
-SQLite 数据库（`.db`、`.sqlite`、`.sqlite3`）和 Parquet 文件由 C 语言编写的库读取，不具备 Rust 的内存安全性。因此，只有按 `V` 才会以表格形式打开。Autoview 会读取光标经过的所有文件，并将这些文件显示为普通内容，同时给出提示 `Parquet or SQLite: V opens the table`。只有在接受此风险时，才打开来源不可信的数据库。
+SQLite 数据库（`.db`、`.sqlite`、`.sqlite3`）和 Parquet 文件由 C 语言编写的库读取，不具备 Rust 的内存安全性。因此，只有按 `V` 才会以表格形式打开。Autoview 会读取光标经过的所有文件，并将这些文件显示为普通内容，同时给出提示 `Parquet or SQLite: V opens the table`。只有在接受此风险时，才打开来源不可信的数据库。`.ods` 和 `.xls` 文件同样只有按 `V` 才会以表格形式打开：它们的读取器会先构建整张工作表，这一步无法中止。
 
 另请参阅：[搜索已标记的文件](search.md)。

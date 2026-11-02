@@ -177,6 +177,6 @@ Uma tabela guarda no máximo 50.000 linhas e 256 colunas, e leva no máximo o qu
 
 ## Tabelas em bibliotecas C
 
-Bancos SQLite (`.db`, `.sqlite`, `.sqlite3`) e arquivos Parquet são lidos por bibliotecas escritas em C, que não têm a segurança de memória do Rust. Por isso, eles só abrem como tabela com `V`. O Autoview lê tudo por onde o cursor passa e mostra esses arquivos como conteúdo comum, com a nota `Parquet or SQLite: V opens the table`. Abra um banco de origem não confiável só se aceitar esse risco.
+Bancos SQLite (`.db`, `.sqlite`, `.sqlite3`) e arquivos Parquet são lidos por bibliotecas escritas em C, que não têm a segurança de memória do Rust. Por isso, eles só abrem como tabela com `V`. O Autoview lê tudo por onde o cursor passa e mostra esses arquivos como conteúdo comum, com a nota `Parquet or SQLite: V opens the table`. Abra um banco de origem não confiável só se aceitar esse risco. Arquivos `.ods` e `.xls` também só abrem como tabela com `V`: o leitor deles monta a planilha inteira primeiro, e essa parte não pode ser interrompida.
 
 Veja também: [busca nos arquivos marcados](search.md).
