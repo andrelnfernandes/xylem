@@ -59,9 +59,9 @@ as a link is what `cp -a` and `rsync -l` do).
      chmod, dates; needs a filesystem layer under `ops` and the tree scan;
   4. finishing: Edit and Open via temporary download and upload, eXecute
      over ssh, Git over ssh, periodic refresh instead of inotify.
-- **Disk usage, phases 3 and 4** ([docs/plans/usage.md](docs/plans/usage.md);
-  phases 1 and 2 are in 0.4.0): actions inside the Usage view (tag, delete,
-  prune, viewer); with no date, grouping by type and export.
+- **Disk usage** ([docs/plans/usage.md](docs/plans/usage.md)): phases 1 to 3 are
+  done, the actions of phase 3 going in 0.7.0. With no date: grouping by type and
+  export.
 - **Duplicate files** ([docs/plans/usage.md](docs/plans/usage.md), "Duplicados";
   [the manual](docs/manual/duplicates.md)): done on local folders, whole folders
   included, and through rclone by the service's hashes. Still open: over SSH

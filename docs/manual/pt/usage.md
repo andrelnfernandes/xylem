@@ -63,17 +63,41 @@ ambos.
 | `@` | um link simbólico ou arquivo especial |
 | `e` | uma pasta vazia |
 
+## Agir sobre o que encontrar
+
+As perguntas são as mesmas da janela de arquivos, e os totais se refazem logo em
+seguida, com a visualização ainda aberta.
+
+- **Del numa pasta** apaga a pasta com tudo o que ela contém, para a lixeira se
+  essa for a sua configuração; Alt+P apaga de forma permanente, com a confirmação
+  digitada do Prune.
+- **Marcar uma pasta** marca todos os arquivos dela, ocultos inclusive. `■` indica
+  um arquivo ou uma pasta inteira marcada, `□` uma pasta com parte marcada, e a
+  linha de baixo diz quantos estão marcados na pasta listada e quanto ocupam.
+  Ctrl+D apaga esses. As marcas continuam quando a visualização fecha, para Copy
+  ou Move.
+- **Outro disco nunca é tocado.** Uma linha `>` não pode ser marcada nem apagada,
+  e marcar ou apagar um ramo para onde há outro disco montado. Del recusa uma pasta
+  com um disco montado dentro; Alt+P apaga tudo menos ele.
+- Num archive ou numa máquina remota, só marcar e ver funcionam.
+
 ## Teclas
 
 | Tecla | O que faz |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | move o cursor |
-| Enter ou → | entra na pasta (em `>`: analisa aquele disco) |
+| Enter ou → | entra na pasta (em `>`: analisa aquele disco); num arquivo, abre o viewer |
 | Backspace ou ← | volta para a pasta acima |
 | `\` | fecha a visualização, posicionando a árvore na pasta listada |
 | `A` | alterna entre espaço no disco e aparente |
 | `C` | mostra ou oculta o número de arquivos |
 | `S` | ordena por tamanho, nome, número de arquivos ou data |
+| `T` / `U` | marca ou desmarca o arquivo, ou todos os arquivos da pasta |
+| Ctrl+T / Ctrl+U | marca ou desmarca tudo na pasta listada |
+| Del, Shift+Del | apaga o arquivo ou a pasta (Shift: de forma permanente) |
+| Ctrl+D, Ctrl+Shift+Del | apaga os arquivos marcados na pasta listada (Shift: de forma permanente) |
+| Alt+P | faz o [Prune](delete.md) da pasta |
+| `V` | abre o arquivo no viewer |
 | `D` | procura [duplicados](duplicates.md) na pasta listada |
 | F3 | relê a pasta listada |
 | Esc ou Alt+W | fecha |

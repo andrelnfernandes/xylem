@@ -60,17 +60,39 @@ the bottom always shows both.
 | `@` | a symbolic link or special file |
 | `e` | an empty folder |
 
+## Acting on what you find
+
+The questions are the same as in the file window, and the totals follow right
+after, with the view still open.
+
+- **Del on a folder** deletes it with all it holds, to the trash if that is your
+  setting; Alt+P does it permanently, with the typed confirmation of Prune.
+- **Tagging a folder** tags all its files, hidden ones too. `■` marks a file or
+  a whole folder tagged, `□` a folder partly tagged, and the line at the bottom
+  says how many are tagged in the folder listed, and how much they take. Ctrl+D
+  deletes those. The tags stay when you close the view, for Copy or Move.
+- **Another disk is never touched.** A `>` line cannot be tagged or deleted, and
+  tagging or deleting a branch stops where another disk is mounted. Del refuses
+  a folder with a disk mounted inside it; Alt+P deletes all but that.
+- In an archive or on a remote machine, only tagging and viewing work.
+
 ## Keys
 
 | Key | What it does |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | move |
-| Enter or → | go into the folder (on `>`: analyze that disk) |
+| Enter or → | go into the folder (on `>`: analyze that disk); on a file, view it |
 | Backspace or ← | back to the folder above |
 | `\` | close the view, with the tree on the folder listed |
 | `A` | space on the disk or apparent |
 | `C` | show or hide the number of files |
 | `S` | sort by size, name, number of files or date |
+| `T` / `U` | tag or untag the file, or all the files of the folder |
+| Ctrl+T / Ctrl+U | tag or untag everything in the folder listed |
+| Del, Shift+Del | delete the file or the folder (Shift: permanently) |
+| Ctrl+D, Ctrl+Shift+Del | delete the files tagged in the folder listed (Shift: permanently) |
+| Alt+P | [Prune](delete.md) the folder |
+| `V` | view the file |
 | `D` | look for [duplicates](duplicates.md) in the folder listed |
 | F3 | read the folder listed again |
 | Esc or Alt+W | close |

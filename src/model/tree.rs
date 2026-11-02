@@ -92,6 +92,10 @@ pub struct Usage {
     /// The files' sizes.
     pub apparent: u64,
     pub files: u64,
+    /// Files tagged, and what they take, measured as the totals above.
+    pub tagged: u64,
+    pub tagged_disk: u64,
+    pub tagged_apparent: u64,
     /// Some directory below could not be read: the totals may be short.
     pub incomplete: bool,
     /// Mounted from another file system: not in the totals above it.
@@ -589,9 +593,14 @@ impl Tree {
             };
             for (i, f) in node.files.iter().enumerate() {
                 u.files += 1;
+                u.tagged += u64::from(f.tagged);
                 if !map.repeats.contains(&(id, i)) {
                     u.disk += f.disk;
                     u.apparent += f.size;
+                    if f.tagged {
+                        u.tagged_disk += f.disk;
+                        u.tagged_apparent += f.size;
+                    }
                 }
             }
             for c in &node.children {
@@ -602,6 +611,9 @@ impl Tree {
                 u.disk += cu.disk;
                 u.apparent += cu.apparent;
                 u.files += cu.files;
+                u.tagged += cu.tagged;
+                u.tagged_disk += cu.tagged_disk;
+                u.tagged_apparent += cu.tagged_apparent;
                 u.incomplete |= cu.incomplete || self.nodes[*c].error.is_some();
             }
             map.dirs.insert(id, u);
