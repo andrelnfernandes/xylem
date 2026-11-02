@@ -125,4 +125,28 @@ Innerhalb von Xylem benötigt die Shell kein tmux, um weiterzulaufen: Sie bleibt
 aktiv, solange Xylem geöffnet ist, und falls die Verbindung abbricht, schließt
 sich ohnehin auch das entfernte Fenster.
 
+## Container (Docker, Podman)
+
+Ein Container auf diesem Rechner öffnet sich genauso, ohne `sshd` darin:
+
+- `docker://container` — sein Arbeitsverzeichnis; `docker://container/app` —
+  dieses Verzeichnis; `docker://benutzer@container/app` — als dieser Benutzer
+  (`docker exec -u`).
+
+Xylem ruft `docker exec` auf und startet im Container dessen eigenen
+`sftp-server`, dasselbe Programm, das ein SSH-Server verwendet. Die meisten
+Images haben ihn nicht: Installieren Sie ihn im Container (`apk add
+openssh-sftp-server` unter Alpine, `apt install openssh-sftp-server` unter
+Debian und Ubuntu, `dnf install openssh-server` unter Fedora), sonst meldet
+Xylem, dass er fehlt. Das Image braucht `sh`; Distroless-Images fallen daher weg.
+
+Alles oben Beschriebene funktioniert dort wie auf einem entfernten Rechner, und
+**Alt+X** öffnet eine Shell im Container, im Ordner des Fensters. Mit
+**Podman** starten Sie Xylem mit `XY_DOCKER=podman`. `DOCKER_HOST` und
+Docker-Kontexte gelten wie gewohnt.
+
+Xylem ruft immer nur `docker exec` auf: Es startet, ändert oder lädt keinen
+Container. Was Sie schreiben, landet im Container, außer in Ordnern, die von
+diesem Rechner eingebunden sind (`-v`): Das sind Dateien dieses Rechners.
+
 Für Google Drive, S3 und andere Cloud-Dienste siehe [Cloud-Speicher](cloud.md).

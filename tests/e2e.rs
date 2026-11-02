@@ -708,3 +708,170 @@ fn markdown_opens_rendered_and_the_keys_reach_the_source() {
     xy.press("\x1b");
     xy.quit();
 }
+
+/// A stand-in for `docker`: logs its arguments, knows one container, `web`,
+/// and runs here what would run inside it (so `sftp-server` is this
+/// machine's).
+#[cfg(unix)]
+fn fake_docker(dir: &Path) -> PathBuf {
+    let path = dir.join("docker");
+    std::fs::write(
+        &path,
+        "#!/bin/sh\n\
+         echo \"$@\" >> \"$(dirname \"$0\")/docker.log\"\n\
+         [ \"$1\" = exec ] || exit 2\n\
+         while [ \"$1\" != \"--\" ]; do shift; done\n\
+         shift\n\
+         [ \"$1\" = web ] || { echo \"Error response from daemon: No such container: $1\" >&2; exit 1; }\n\
+         shift\n\
+         exec \"$@\"\n",
+    )
+    .unwrap();
+    let mode = std::os::unix::fs::PermissionsExt::from_mode(0o755);
+    std::fs::set_permissions(&path, mode).unwrap();
+    path
+}
+
+#[cfg(unix)]
+#[test]
+fn a_container_opens_through_docker_exec() {
+    let (home, project) = sample();
+    if !Path::new("/usr/lib/openssh/sftp-server").exists() {
+        eprintln!("sftp-server not installed: skipped");
+        return;
+    }
+    let docker = fake_docker(home.path());
+    let docker = docker.to_str().unwrap();
+    let address = format!("docker://web{}", project.display());
+    let mut xy = Xy::start_with(home.path(), &[&address], &[("XY_DOCKER", docker)]);
+    xy.wait_for("Connected to docker:web");
+    xy.wait_for("Remote: docker:web");
+    xy.press("\r");
+    xy.wait_for("a.rs");
+    xy.press("v");
+    xy.wait_for("fn main() {}");
+    xy.press("\x1b");
+    xy.quit();
+    let log = std::fs::read_to_string(home.path().join("docker.log")).unwrap();
+    assert!(log.starts_with("exec -i -- web sh -c "), "{log}");
+
+    // docker's own words when it cannot.
+    let mut xy = Xy::start_with(home.path(), &["docker://nope"], &[("XY_DOCKER", docker)]);
+    xy.wait_for("Cannot connect to docker:nope: Error response from daemon");
+    xy.quit();
+}
+
+/// A real container, with Docker or Podman (`$XY_DOCKER`, or whichever is
+/// installed), removed at the end.
+#[cfg(unix)]
+struct Container {
+    /// Runs the real program with the real home, whatever `xy`'s is.
+    wrapper: tempfile::TempDir,
+    program: String,
+    name: String,
+}
+
+#[cfg(unix)]
+impl Container {
+    fn start() -> Option<Container> {
+        let program = std::env::var("XY_DOCKER").ok().or_else(|| {
+            [
+                "/usr/bin/docker",
+                "/usr/local/bin/docker",
+                "/usr/bin/podman",
+            ]
+            .into_iter()
+            .find(|p| Path::new(p).exists())
+            .map(String::from)
+        })?;
+        let name = format!("xy-e2e-{}", std::process::id());
+        let started = std::process::Command::new(&program)
+            .args(["run", "-d", "--rm", "--name", &name])
+            .args(["docker.io/library/alpine:3.20", "sleep", "600"])
+            .output()
+            .ok()?;
+        if !started.status.success() {
+            eprintln!("{}", String::from_utf8_lossy(&started.stderr));
+            return None;
+        }
+        let wrapper = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).ok()?;
+        let mut script = String::from("#!/bin/sh\n");
+        for var in ["HOME", "XDG_RUNTIME_DIR", "DOCKER_HOST", "PATH"] {
+            if let Ok(value) = std::env::var(var) {
+                script.push_str(&format!("export {var}='{value}'\n"));
+            }
+        }
+        script.push_str(&format!("exec '{program}' \"$@\"\n"));
+        let path = wrapper.path().join("docker");
+        std::fs::write(&path, script).ok()?;
+        let mode = std::os::unix::fs::PermissionsExt::from_mode(0o755);
+        std::fs::set_permissions(&path, mode).ok()?;
+        Some(Container {
+            wrapper,
+            program,
+            name,
+        })
+    }
+
+    fn wrapper(&self) -> String {
+        self.wrapper.path().join("docker").display().to_string()
+    }
+
+    /// Runs `script` in the container; whether it succeeded.
+    fn sh(&self, script: &str) -> bool {
+        std::process::Command::new(&self.program)
+            .args(["exec", &self.name, "sh", "-c", script])
+            .status()
+            .is_ok_and(|s| s.success())
+    }
+}
+
+#[cfg(unix)]
+impl Drop for Container {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new(&self.program)
+            .args(["rm", "-f", &self.name])
+            .output();
+    }
+}
+
+/// Needs Docker or Podman, and the network for Alpine's package:
+/// `cargo test -- --ignored container`.
+#[cfg(unix)]
+#[test]
+#[ignore]
+fn a_real_container_is_browsed_and_changed() {
+    let Some(container) = Container::start() else {
+        eprintln!("no docker or podman: skipped");
+        return;
+    };
+    assert!(container.sh("mkdir -p /srv/x && echo hi > /srv/x/hello.txt"));
+    let (home, _) = sample();
+    let address = format!("docker://{}/srv/x", container.name);
+    let env = [("XY_DOCKER", container.wrapper())];
+    let env: Vec<(&str, &str)> = env.iter().map(|(k, v)| (*k, v.as_str())).collect();
+
+    // Plain Alpine has no sftp-server: said so.
+    let mut xy = Xy::start_with(home.path(), &[&address], &env);
+    xy.wait_for("no sftp-server in the container");
+    xy.quit();
+
+    assert!(container.sh("apk add --no-cache openssh-sftp-server >/dev/null"));
+    let xy = Xy::start_with(home.path(), &[&address], &env);
+    xy.wait_for("Connected to docker:");
+    xy.press("m");
+    xy.press("made\r");
+    xy.wait_for("Created docker:");
+    assert!(container.sh("test -d /srv/x/made"));
+    xy.press("\r");
+    xy.wait_for("hello.txt");
+    xy.press("r");
+    xy.press("\x15bye.txt\r");
+    xy.wait_for("bye.txt");
+    assert!(container.sh("test -f /srv/x/bye.txt && ! test -e /srv/x/hello.txt"));
+
+    // Alt+X: a shell in the container, in the window's folder.
+    xy.press("\x1bx");
+    xy.press("echo \"in $(pwd)\"\r");
+    xy.wait_for("in /srv/x");
+}

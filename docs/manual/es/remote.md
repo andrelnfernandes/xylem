@@ -115,5 +115,29 @@ Dentro de Xylem la shell no necesita tmux para sobrevivir: sigue ejecutándose
 mientras Xylem está abierto, y si la conexión se cae, la ventana remota cae con
 ella de todos modos.
 
+## Contenedores (Docker, Podman)
+
+Un contenedor de esta máquina se abre igual, sin `sshd` dentro:
+
+- `docker://contenedor` — su directorio de trabajo; `docker://contenedor/app` —
+  ese directorio; `docker://usuario@contenedor/app` — como ese usuario
+  (`docker exec -u`).
+
+Xylem ejecuta `docker exec` y, dentro del contenedor, su propio `sftp-server`,
+el mismo programa que usa un servidor SSH. La mayoría de las imágenes no lo
+tienen: instálelo en el contenedor (`apk add openssh-sftp-server` en Alpine,
+`apt install openssh-sftp-server` en Debian y Ubuntu, `dnf install
+openssh-server` en Fedora), o Xylem dirá que falta. La imagen necesita `sh`,
+así que las imágenes distroless quedan fuera.
+
+Todo lo anterior funciona ahí como en una máquina remota, y **Alt+X** abre un
+shell en el contenedor, en la carpeta de la ventana. Con **Podman**, inicie
+Xylem con `XY_DOCKER=podman`. `DOCKER_HOST` y los contextos de docker valen
+como siempre.
+
+Xylem solo ejecuta `docker exec`: no inicia, no cambia ni descarga ningún
+contenedor. Lo que escriba va al contenedor, salvo en carpetas montadas desde
+esta máquina (`-v`): esas son archivos de esta máquina.
+
 Para Google Drive, S3 y otros servicios de almacenamiento en la nube, véase
 [Almacenamiento en la nube](cloud.md).

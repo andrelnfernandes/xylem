@@ -476,7 +476,7 @@ fn draw_pane(
         let name = archive.file_name().unwrap_or_default().to_string_lossy();
         format!(" Archive: {name} (read-only) ")
     } else if let Some(remote) = &pane.remote {
-        format!(" Remote: {} (read-only) ", remote.address.destination())
+        format!(" Remote: {} ", remote.address.destination())
     } else {
         " Tree ".to_string()
     };

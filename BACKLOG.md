@@ -63,8 +63,8 @@ as a link is what `cp -a` and `rsync -l` do).
   4. finishing: Edit and Open via temporary download and upload, eXecute
      over ssh, Git over ssh, periodic refresh instead of inotify.
 
-  Also approved: containers without sshd (`docker://`), through `docker exec`
-  and the container's `sftp-server`, right after rename and mkdir.
+  Containers without sshd (`docker://`, through `docker exec` and the
+  container's `sftp-server`) are done.
 - **Disk usage** ([docs/plans/usage.md](docs/plans/usage.md)): phases 1 to 3 are
   done, the actions of phase 3 going in 0.7.0. With no date: grouping by type and
   export.
