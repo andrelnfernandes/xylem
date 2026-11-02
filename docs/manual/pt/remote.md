@@ -49,10 +49,15 @@ começando na raiz da janela remota.
 
 ![Tela dividida: três backups marcados na máquina remota, à esquerda, prestes a serem copiados para uma pasta desta máquina, à direita](../../screenshots/remote.png)
 
-Por enquanto, o lado remoto é **somente leitura**: Mover, Excluir, Renomear,
-Criar diretório, Atributos, datas, Edit, eXecute e copiar *para* a máquina
-remota ainda não estão disponíveis. F3 relê um diretório; não há atualização
-automática.
+**Renomear** (um arquivo, um diretório ou os arquivos marcados com uma
+máscara) e **Criar diretório** funcionam na máquina remota como aqui. Renomear
+nunca substitui um arquivo sem perguntar; depois de um sim, o servidor o
+substitui de uma vez, se puder (o OpenSSH pode), e senão o Xylem avisa e deixa
+os dois.
+
+O resto da escrita ainda não está disponível: Mover, Excluir, Atributos, datas,
+Edit, eXecute e copiar *para* a máquina remota. F3 relê um diretório; não há
+atualização automática.
 
 **F8** em uma janela remota abre uma janela nesta máquina (na pasta em que o
 Xylem começou), permitindo ter ambas lado a lado.

@@ -56,11 +56,15 @@ as a link is what `cp -a` and `rsync -l` do).
 
 ## Features
 
-- **Remote machines, phases 3 and 4** (phases 1 and 2 are in 0.4.0):
-  3. writing on the remote machine: upload, move, delete, rename, mkdir,
-     chmod, dates; needs a filesystem layer under `ops` and the tree scan;
+- **Remote machines, phases 3 and 4** (phases 1 and 2 are in 0.4.0;
+  [docs/plans/ssh-write.md](docs/plans/ssh-write.md)):
+  3. writing on the remote machine: rename and mkdir are done; still to do:
+     upload, move, delete, chmod, dates;
   4. finishing: Edit and Open via temporary download and upload, eXecute
      over ssh, Git over ssh, periodic refresh instead of inotify.
+
+  Also approved: containers without sshd (`docker://`), through `docker exec`
+  and the container's `sftp-server`, right after rename and mkdir.
 - **Disk usage** ([docs/plans/usage.md](docs/plans/usage.md)): phases 1 to 3 are
   done, the actions of phase 3 going in 0.7.0. With no date: grouping by type and
   export.

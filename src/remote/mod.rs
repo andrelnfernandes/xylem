@@ -407,6 +407,18 @@ impl Remote {
         Ok(data)
     }
 
+    /// Creates directory `path` (a path of the window's tree).
+    pub fn create_dir(&self, path: &Path) -> io::Result<()> {
+        self.sftp().mkdir(&self.remote_path(path))
+    }
+
+    /// Renames `from` to `to`, replacing an existing `to` only with
+    /// `replace` (see [`Sftp::rename`]).
+    pub fn rename(&self, from: &Path, to: &Path, replace: bool) -> io::Result<()> {
+        let (from, to) = (self.remote_path(from), self.remote_path(to));
+        self.sftp().rename(&from, &to, replace)
+    }
+
     /// The command for a terminal on this machine, starting in `dir` (a
     /// path of the window's tree): `ssh -t`, reusing the login when it can.
     pub fn terminal_command(&self, dir: &Path) -> (OsString, Vec<String>) {

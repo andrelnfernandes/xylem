@@ -46,15 +46,16 @@ do viewer ainda será conferido nesses specs.
 | 1 | 0.6.0 | **TAR comprimido:** listar uma vez, em segundo plano e com cancelamento, e reaproveitar a lista na cópia. Mais a branch `docs-catch-up-with-features` e o que já está no `main`: Batch, Markdown, Duplicados, leitura segura do Git | BACKLOG, Security 1 |
 | 2 | 0.7.0 | **Ações na Usage (fase 3):** marcar, apagar, Prune, viewer (feito, aguardando release) | [usage.md](usage.md) |
 | 3 | 0.8.0 | **Nuvem:** a raiz de um Drive grande sem tela em branco; Branch, Usage e Compare pedindo o ramo de uma vez ao rclone (feito, aguardando release). **Segurança:** busca em entrada enorme de archive, leitores de tabela com limites e Esc, e o `.xlsx` minúsculo que derrubava o programa (feito, aguardando release) | [cloud-opening.md](cloud-opening.md), [search-and-table-limits.md](search-and-table-limits.md) |
-| 4 | | **SSH 3a:** camada de sistema de arquivos sob `ops`, com mkdir e renomear no remoto | BACKLOG, Features |
-| 5 | | **SSH 3b:** enviar para o remoto (copiar) | |
-| 6 | | **SSH 3c:** apagar e mover no remoto | |
-| 7 | | **SSH 3d:** permissões e datas; Duplicados por SSH passa a fazer sentido | |
-| 8 | | **SSH 4a:** Edit e Open por cópia temporária que volta ao salvar | |
-| 9 | | **SSH 4b:** atualização periódica no lugar do inotify; eXecute por ssh | |
-| 10 | | **SSH 4c:** Git por ssh | |
-| 11 a 13 | | **Viewer em janelas (subprojeto 3):** índice de linhas em segundo plano, leitura sob demanda, Esc cancela. É o coração do viewer: fica em branch até busca, quebra de linha, "ir para a linha" e cores funcionarem | [viewers.md](viewers.md) |
-| 14 | | **Logs (subprojeto 4):** follow, ir para o fim, cor por nível, ANSI só SGR | [viewers.md](viewers.md) |
+| 4 | | **SSH 3a:** camada de sistema de arquivos sob `ops`, com mkdir e renomear no remoto | [ssh-write.md](ssh-write.md) |
+| 5 | | **`docker://`:** containers sem sshd, pelo `sftp-server` via `docker exec` | [ssh-write.md](ssh-write.md) |
+| 6 | | **SSH 3b:** enviar para o remoto (copiar) | |
+| 7 | | **SSH 3c:** apagar e mover no remoto | |
+| 8 | | **SSH 3d:** permissões e datas; Duplicados por SSH passa a fazer sentido | |
+| 9 | | **SSH 4a:** Edit e Open por cópia temporária que volta ao salvar | |
+| 10 | | **SSH 4b:** atualização periódica no lugar do inotify; eXecute por ssh | |
+| 11 | | **SSH 4c:** Git por ssh | |
+| 12 a 14 | | **Viewer em janelas (subprojeto 3):** índice de linhas em segundo plano, leitura sob demanda, Esc cancela. É o coração do viewer: fica em branch até busca, quebra de linha, "ir para a linha" e cores funcionarem | [viewers.md](viewers.md) |
+| 15 | | **Logs (subprojeto 4):** follow, ir para o fim, cor por nível, ANSI só SGR | [viewers.md](viewers.md) |
 
 Decisões já tomadas:
 

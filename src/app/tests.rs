@@ -2993,14 +2993,14 @@ fn remote_window_lists_views_and_copies_here() {
     };
     assert_eq!(seconds(&copied), seconds(&tmp.path().join("a.rs")));
 
-    // Writing on the remote machine is not there yet.
+    // Deleting on the remote machine is not there yet.
     press(&mut app, KeyCode::Char('d'));
     assert!(app.confirm.is_none());
     assert!(
         app.message
             .as_deref()
             .unwrap()
-            .starts_with("Read-only on a remote machine")
+            .starts_with("Not yet on a remote machine")
     );
     press(&mut app, KeyCode::Char('c'));
     answer_prompt(&mut app, "test@testhost:/tmp");
@@ -3009,6 +3009,71 @@ fn remote_window_lists_views_and_copies_here() {
             .as_deref()
             .unwrap()
             .contains("remote machine comes in a later version")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn remote_window_renames_and_makes_directories() {
+    let Some((tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    let p = tmp.path();
+    // Makedir, in the tree.
+    press(&mut app, KeyCode::Char('m'));
+    answer_prompt(&mut app, "made");
+    assert!(p.join("made").is_dir());
+    assert!(
+        app.message
+            .as_deref()
+            .unwrap()
+            .starts_with("Created test@testhost:")
+    );
+    // A name that is not one stays here.
+    press(&mut app, KeyCode::Char('m'));
+    answer_prompt(&mut app, "../out");
+    assert!(!p.parent().unwrap().join("out").exists());
+
+    // Rename a directory: the tree follows.
+    let sub = app
+        .rows
+        .iter()
+        .position(|r| app.tree.node(r.id).name == "sub")
+        .unwrap();
+    app.tree_state.select(Some(sub));
+    press(&mut app, KeyCode::Char('r'));
+    answer_prompt(&mut app, "renamed");
+    assert!(p.join("renamed/deep/a.rs").is_file() && !p.join("sub").exists());
+    assert!(
+        app.rows
+            .iter()
+            .any(|r| app.tree.node(r.id).name == "renamed")
+    );
+
+    // Rename a file; a taken name is refused and nothing changes.
+    press(&mut app, KeyCode::Home);
+    press(&mut app, KeyCode::Enter);
+    let i = names(&app).iter().position(|n| n == "a.rs").unwrap();
+    app.file_state.select(Some(i));
+    press(&mut app, KeyCode::Char('r'));
+    answer_prompt(&mut app, "b.txt");
+    assert_eq!(app.message.as_deref(), Some("b.txt already exists"));
+    assert_eq!(fs::read_to_string(p.join("b.txt")).unwrap(), "b");
+    press(&mut app, KeyCode::Char('r'));
+    answer_prompt(&mut app, "main.rs");
+    assert!(p.join("main.rs").is_file() && !p.join("a.rs").exists());
+    assert_eq!(names(&app), ["b.txt", "main.rs"]);
+
+    // The tagged ones, with a mask.
+    ctrl(&mut app, 't');
+    ctrl(&mut app, 'r');
+    answer_prompt(&mut app, "old_*.*");
+    assert!(p.join("old_b.txt").is_file() && p.join("old_main.rs").is_file());
+    assert!(
+        app.message
+            .as_deref()
+            .unwrap()
+            .starts_with("Renamed 2 of 2")
     );
 }
 

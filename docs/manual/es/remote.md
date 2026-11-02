@@ -48,10 +48,15 @@ en la raíz de la ventana remota.
 
 ![Pantalla dividida: tres copias de seguridad marcadas en la máquina remota, a la izquierda, a punto de copiarse a una carpeta de esta máquina, a la derecha](../../screenshots/remote.png)
 
-Por ahora el lado remoto es de **solo lectura**: Mover, Eliminar, Renombrar,
-crear directorios, Atributos, fechas, Editar, eJecutar y copiar *hacia* la
-máquina remota aún no están disponibles. F3 vuelve a leer un directorio; no hay
-actualización automática.
+**Renombrar** (un archivo, un directorio o los archivos marcados con una
+máscara) y **crear directorios** funcionan en la máquina remota igual que aquí.
+Un renombrado nunca reemplaza un archivo sin preguntar; tras un sí, el servidor
+lo reemplaza en un solo paso si puede (OpenSSH puede), y si no, Xylem lo dice y
+deja ambos.
+
+El resto de la escritura aún no está: Mover, Eliminar, Atributos, fechas,
+Editar, eJecutar y copiar *hacia* la máquina remota. F3 vuelve a leer un
+directorio; no hay actualización automática.
 
 **F8** en una ventana remota abre una ventana en esta máquina (la carpeta donde
 se inició Xylem), para tener ambas lado a lado.
