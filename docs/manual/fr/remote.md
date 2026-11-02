@@ -65,8 +65,18 @@ setgid) et sa date, et seulement alors il est mis à sa place ; Échap supprime
 le fichier temporaire. Copier au sein de la machine distante fonctionne de la
 même façon. Les liens symboliques n'y sont pas recréés, et c'est signalé.
 
-Le reste de l'écriture n'est pas encore là : Déplacer, Supprimer, Attributs,
-dates, Éditer et eXécuter. F3 relit un
+**Déplacer** fonctionne dans tous les sens : d'ici vers la machine distante
+et retour (l'original n'est supprimé qu'une fois la copie en place et
+vérifiée), et au sein de la machine distante (un renommage là-bas).
+**Supprimer**, **Prune** et les mêmes actions dans Usage fonctionnent aussi.
+Il n'y a **pas de corbeille** sur une machine distante : la question le dit, et
+Oops n'a rien à restaurer. Rien n'est supprimé à travers un lien symbolique :
+un lien est supprimé en tant que tel. Prune laisse de côté les autres disques
+montés dans la branche, distingués grâce à l'extension `statvfs` d'OpenSSH ;
+sur un serveur qui ne l'a pas, Prune est refusé.
+
+Le reste de l'écriture n'est pas encore là : Attributs, dates, Éditer et
+eXécuter. F3 relit un
 répertoire ; il n'y a pas de rafraîchissement automatique.
 
 **F8** dans une fenêtre distante ouvre une fenêtre sur votre machine (dans le

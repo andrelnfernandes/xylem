@@ -136,7 +136,16 @@ Combinações:
      Move para o remoto são recusados com mensagem (Move vem na 3c).
    - `READ` em voo no download ficou para depois: não é escrita e não muda nada
      do modelo de ameaça.
-4. **3c — apagar e mover.** `REMOVE`, `RMDIR`; Delete (permanente), Prune, Move nas
+4. **3c — apagar e mover.** *Feito na branch `ssh-delete-move` (sobre a `ssh-upload`).*
+   Delete (sem lixeira: a pergunta diz, só Sim e Não; Oops avisa), Delete de pasta
+   vazia, Prune e as ações da Usage; Move nas três combinações da tabela. `RMDIR`
+   novo; `remove_file` e `remove_dir` do remoto fazem `lstat` antes: pasta nunca sai
+   como arquivo, symlink nunca sai como pasta. **Novo no modelo de ameaça:** o Prune
+   local pula outros discos pelo `st_dev`, que o SFTP não informa; no remoto, o
+   disco de cada pasta vem do `statvfs@openssh.com` (fsid, blocos e inodes totais,
+   porque o fsid sozinho é 0 em alguns sistemas de arquivos), e sem a extensão o
+   Prune é recusado. Move local → remoto apaga o original só depois do upload
+   conferido (regra 2); um symlink, que não vai, fica. Texto original da fatia: `REMOVE`, `RMDIR`; Delete (permanente), Prune, Move nas
    quatro combinações da tabela; Usage passa a apagar e podar no remoto.
 5. **3d — permissões e datas.** Attributes (octal) e NewDate por `SETSTAT`;
    Duplicados por SSH, comparando por tamanho e depois pelo conteúdo lido pelo SFTP

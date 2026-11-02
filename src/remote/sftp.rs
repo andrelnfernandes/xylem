@@ -22,11 +22,13 @@ const OPENDIR: u8 = 11;
 const READDIR: u8 = 12;
 const REMOVE: u8 = 13;
 const MKDIR: u8 = 14;
+const RMDIR: u8 = 15;
 const REALPATH: u8 = 16;
 const STAT: u8 = 17;
 const RENAME: u8 = 18;
 const READLINK: u8 = 19;
 const EXTENDED: u8 = 200;
+const EXTENDED_REPLY: u8 = 201;
 const STATUS: u8 = 101;
 const HANDLE: u8 = 102;
 const DATA: u8 = 103;
@@ -120,10 +122,23 @@ pub struct Sftp<R, W> {
     /// The server offers `posix-rename@openssh.com`: a rename that replaces
     /// the destination in one step.
     posix_rename: bool,
+    /// The server offers `statvfs@openssh.com`, which tells filesystems apart.
+    statvfs: bool,
 }
 
 /// The extension that renames over an existing file.
 const POSIX_RENAME: &[u8] = b"posix-rename@openssh.com";
+/// The extension that describes the filesystem a path is on.
+const STATVFS: &[u8] = b"statvfs@openssh.com";
+
+/// What tells one filesystem from another: its id, and its total blocks and
+/// inodes (an id alone is 0 on some filesystems).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Filesystem {
+    pub fsid: u64,
+    pub blocks: u64,
+    pub files: u64,
+}
 
 // ---------------------------------------------------------------- encoding
 
@@ -255,6 +270,7 @@ impl<R: Read, W: Write> Sftp<R, W> {
             next_id: 1,
             broken: false,
             posix_rename: false,
+            statvfs: false,
         };
         let mut out = Out::new(INIT, None);
         out.u32(3);
@@ -267,7 +283,9 @@ impl<R: Read, W: Write> Sftp<R, W> {
                 "the server does not speak SFTP",
             ));
         }
-        sftp.posix_rename = extensions(&body).iter().any(|e| e == POSIX_RENAME);
+        let offered = extensions(&body);
+        sftp.posix_rename = offered.iter().any(|e| e == POSIX_RENAME);
+        sftp.statvfs = offered.iter().any(|e| e == STATVFS);
         Ok(sftp)
     }
 
@@ -564,6 +582,37 @@ impl<R: Read, W: Write> Sftp<R, W> {
         })
     }
 
+    /// Removes an empty directory.
+    pub fn rmdir(&mut self, path: &[u8]) -> io::Result<()> {
+        self.expect_ok(RMDIR, |o| {
+            o.string(path);
+        })
+    }
+
+    /// The filesystem `path` is on (`statvfs@openssh.com`).
+    pub fn filesystem(&mut self, path: &[u8]) -> io::Result<Filesystem> {
+        if !self.statvfs {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "this server cannot tell one disk from another",
+            ));
+        }
+        let body = self.expect(EXTENDED, EXTENDED_REPLY, |o| {
+            o.string(STATVFS).string(path);
+        })?;
+        // bsize, frsize, blocks, bfree, bavail, files, ffree, favail, fsid...
+        let mut p = In(&body);
+        let mut field = [0u64; 9];
+        for f in &mut field {
+            *f = p.u64()?;
+        }
+        Ok(Filesystem {
+            fsid: field[8],
+            blocks: field[2],
+            files: field[5],
+        })
+    }
+
     /// Removes a file, or a symlink itself.
     pub fn remove(&mut self, path: &[u8]) -> io::Result<()> {
         self.expect_ok(REMOVE, |o| {
@@ -764,6 +813,28 @@ pub mod tests {
     }
 
     #[test]
+    fn removes_directories_and_tells_disks_apart_against_openssh() {
+        let Some((mut child, mut sftp)) = server() else {
+            return;
+        };
+        let tmp = crate::testing::tempdir();
+        let dir = tmp.path().join("d");
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::write(dir.join("f"), "f").unwrap();
+        assert!(sftp.rmdir(bytes(&dir)).is_err(), "not empty");
+        std::fs::remove_file(dir.join("f")).unwrap();
+        sftp.rmdir(bytes(&dir)).unwrap();
+        assert!(!dir.exists());
+
+        assert!(sftp.statvfs, "OpenSSH offers statvfs");
+        let here = sftp.filesystem(bytes(tmp.path())).unwrap();
+        assert_eq!(here, sftp.filesystem(bytes(tmp.path())).unwrap());
+        // /proc is always another filesystem.
+        assert_ne!(here, sftp.filesystem(b"/proc").unwrap());
+        let _ = child.kill();
+    }
+
+    #[test]
     fn a_closed_connection_is_an_error_not_a_hang() {
         let Some((mut child, mut sftp)) = server() else {
             return;
@@ -875,6 +946,22 @@ pub mod tests {
         let replies = [status_reply(1, FX_EOF)];
         let mut sftp = scripted(&[&[version(&[])][..], &replies].concat()).unwrap();
         assert!(sftp.write_all(&Handle(b"h".to_vec()), 0, b"x").is_err());
+
+        // No statvfs: disks cannot be told apart, and that is said.
+        let mut sftp = scripted(&[version(&[])]).unwrap();
+        let err = sftp.filesystem(b"/").unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Unsupported);
+        // A short answer is no answer.
+        let mut ext = Vec::new();
+        for s in [STATVFS, b"2"] {
+            ext.extend((s.len() as u32).to_be_bytes());
+            ext.extend(s);
+        }
+        let short = packet(EXTENDED_REPLY, |o| {
+            o.u32(1).u64(4096).u64(4096);
+        });
+        let mut sftp = scripted(&[version(&ext), short]).unwrap();
+        assert!(sftp.filesystem(b"/").is_err());
 
         // The extension, when offered, is what replaces.
         let mut ext = Vec::new();

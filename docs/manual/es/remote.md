@@ -63,8 +63,17 @@ permisos (sin setuid ni setgid) y su fecha, y solo entonces se pone en su
 lugar; Esc borra el archivo temporal. Copiar dentro de la máquina remota
 funciona igual. Los enlaces simbólicos no se recrean allí, y se informa.
 
-El resto de la escritura aún no está: Mover, Eliminar, Atributos, fechas,
-Editar y eJecutar. F3 vuelve a leer un
+**Mover** funciona en todas las direcciones: de aquí a la máquina remota y de
+vuelta (el original se borra solo cuando la copia ya está en su lugar y
+comprobada), y dentro de la máquina remota (un renombrado allí). **Eliminar**,
+**Prune** y las mismas acciones en Usage también funcionan. En una máquina
+remota **no hay papelera**: la pregunta lo dice, y Oops no tiene nada que
+restaurar. Nada se borra a través de un enlace simbólico: un enlace se borra
+como tal. Prune deja fuera otros discos montados dentro de la rama, que se
+distinguen con la extensión `statvfs` de OpenSSH; en un servidor sin ella,
+Prune se rechaza.
+
+El resto de la escritura aún no está: Atributos, fechas, Editar y eJecutar. F3 vuelve a leer un
 directorio; no hay actualización automática.
 
 **F8** en una ventana remota abre una ventana en esta máquina (la carpeta donde

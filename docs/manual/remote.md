@@ -59,8 +59,16 @@ setuid and setgid) and date, and only then put in place; Esc removes the
 temporary file. Copying within the remote machine works the same way.
 Symbolic links are not recreated there, and are reported.
 
-The rest of writing is not there yet: Move, Delete, Attributes, dates, Edit
-and eXecute. F3 rereads a directory; there is
+**Move** works in every direction: from here to the remote machine and back
+(the original is removed only once the copy is in place and checked), and
+within the remote machine (a rename there). **Delete**, **Prune** and the
+same actions in Usage work too. There is **no trash** on a remote machine:
+the question says so, and Oops has nothing to restore. Nothing is removed
+through a symbolic link: a link is removed as itself. Prune leaves out other
+disks mounted inside the branch, told apart with the `statvfs` extension of
+OpenSSH; on a server without it, Prune is refused.
+
+The rest of writing is not there yet: Attributes, dates, Edit and eXecute. F3 rereads a directory; there is
 no automatic refresh.
 
 **F8** in a remote window opens a window on this machine (the folder Xylem

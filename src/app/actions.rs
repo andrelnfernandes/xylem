@@ -734,13 +734,9 @@ impl App {
             return;
         }
 
-        let op = Operation::rename_batch(pairs);
-        match &self.remote {
-            Some(remote) => match op.on_remote(remote.clone()) {
-                Ok(op) => self.start_op(op),
-                Err(e) => self.message = Some(e),
-            },
-            None => self.start_op(op),
+        match self.on_this_side(Operation::rename_batch(pairs)) {
+            Ok(op) => self.start_op(op),
+            Err(e) => self.message = Some(e),
         }
     }
 

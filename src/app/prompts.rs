@@ -356,8 +356,15 @@ impl App {
     /// inside it is not deleted by mistake).
     pub(crate) fn prepare_prune(&mut self, id: NodeId) {
         let root = self.tree.path(id);
-        let root_dev = match fs::symlink_metadata(&root) {
-            Ok(m) => platform::device(&root, &m),
+        // Another disk mounted inside is not pruned. On a remote machine,
+        // where SFTP gives no device, the filesystem tells them apart.
+        let remote = self.remote.clone();
+        let disk = |path: &Path| match &remote {
+            Some(r) => r.filesystem(path).map(Disk::Remote),
+            None => fs::symlink_metadata(path).map(|m| Disk::Local(platform::device(path, &m))),
+        };
+        let root_dev = match disk(&root) {
+            Ok(d) => d,
             Err(e) => {
                 self.message = Some(format!("Cannot prune {}: {e}", root.display()));
                 return;
@@ -368,8 +375,8 @@ impl App {
         let mut stack = vec![id];
         while let Some(n) = stack.pop() {
             let path = self.tree.path(n);
-            match fs::symlink_metadata(&path) {
-                Ok(m) if platform::device(&path, &m) == root_dev => {}
+            match disk(&path) {
+                Ok(d) if d == root_dev => {}
                 Ok(_) => {
                     mounts += 1;
                     continue;
@@ -686,9 +693,10 @@ impl App {
                 dirs,
             } => {
                 if text.trim().eq_ignore_ascii_case(&word) {
-                    self.pruning = Some(root);
-                    self.start_op(Operation::prune(files, dirs));
-                    Ok(())
+                    self.on_this_side(Operation::prune(files, dirs)).map(|op| {
+                        self.pruning = Some(root);
+                        self.start_op(op);
+                    })
                 } else {
                     Err("Prune cancelled: confirmation did not match".into())
                 }
@@ -784,6 +792,14 @@ impl App {
         };
         if let Err(e) = result {
             self.message = Some(e);
+        }
+    }
+
+    /// `op`, on this window's files: on its remote machine, if it has one.
+    pub(crate) fn on_this_side(&self, op: Operation) -> Result<Operation, String> {
+        match &self.remote {
+            Some(remote) => op.on_remote(remote.clone()),
+            None => Ok(op),
         }
     }
 
@@ -948,7 +964,10 @@ impl App {
                     return self.ask_delete_files(sources, false);
                 }
                 if yes {
-                    self.start_op(Operation::delete(sources, to_trash));
+                    match self.on_this_side(Operation::delete(sources, to_trash)) {
+                        Ok(op) => self.start_op(op),
+                        Err(e) => self.message = Some(e),
+                    }
                 }
             }
             ConfirmKind::DeleteFolders { dirs, to_trash } => {
@@ -977,10 +996,10 @@ impl App {
                 if yes {
                     let path = self.tree.path(id);
                     let parent = self.tree.node(id).parent.unwrap_or(ROOT);
-                    let removed = if to_trash {
-                        platform::trash_file(&path)
-                    } else {
-                        fs::remove_dir(&path)
+                    let removed = match &self.remote {
+                        Some(remote) => remote.remove_dir(&path),
+                        None if to_trash => platform::trash_file(&path),
+                        None => fs::remove_dir(&path),
                     };
                     match removed {
                         Ok(()) => {
@@ -1078,15 +1097,19 @@ impl App {
 
     pub(crate) fn ask_delete_files(&mut self, sources: Vec<Source>, to_trash: bool) {
         let label = describe(&sources);
-        let q = if to_trash {
-            format!("MOVE {label} to trash?")
-        } else {
-            format!("DELETE {label}? This cannot be undone.")
+        let to_trash = to_trash && self.remote.is_none();
+        let q = match &self.remote {
+            Some(r) => format!(
+                "DELETE {label} on {}? There is no trash there: this cannot be undone.",
+                r.address.destination()
+            ),
+            None if to_trash => format!("MOVE {label} to trash?"),
+            None => format!("DELETE {label}? This cannot be undone."),
         };
-        let options: &'static [&'static str] = if to_trash {
-            &["Yes", "No", "Permanent"]
-        } else {
-            &["Yes", "No", "Trash"]
+        let options: &'static [&'static str] = match (&self.remote, to_trash) {
+            (Some(_), _) => &["Yes", "No"],
+            (None, true) => &["Yes", "No", "Permanent"],
+            (None, false) => &["Yes", "No", "Trash"],
         };
         self.ask_options(ConfirmKind::DeleteFiles { sources, to_trash }, q, options);
     }
@@ -1114,15 +1137,16 @@ impl App {
             return;
         }
         let name = node.name.to_string_lossy();
-        let q = if to_trash {
-            format!("MOVE directory {name} to trash?")
-        } else {
-            format!("DELETE directory {name}?")
+        let to_trash = to_trash && self.remote.is_none();
+        let q = match &self.remote {
+            Some(r) => format!("DELETE directory {name} on {}?", r.address.destination()),
+            None if to_trash => format!("MOVE directory {name} to trash?"),
+            None => format!("DELETE directory {name}?"),
         };
-        let options: &'static [&'static str] = if to_trash {
-            &["Yes", "No", "Permanent"]
-        } else {
-            &["Yes", "No", "Trash"]
+        let options: &'static [&'static str] = match (&self.remote, to_trash) {
+            (Some(_), _) => &["Yes", "No"],
+            (None, true) => &["Yes", "No", "Permanent"],
+            (None, false) => &["Yes", "No", "Trash"],
         };
         self.ask_options(ConfirmKind::DeleteDir { id, to_trash }, q, options);
     }
@@ -1153,6 +1177,13 @@ impl App {
 
 /// A Copy/Move destination that does not exist and is not a new name for a
 /// single file (in an existing folder): it would have to be created first.
+/// The disk a folder is on, for Prune.
+#[derive(PartialEq, Eq)]
+enum Disk {
+    Local(u64),
+    Remote(crate::remote::sftp::Filesystem),
+}
+
 fn needs_new_dir(side: &Side, dest: &Path, sources: usize, paths: bool) -> bool {
     let new_name = !paths && sources == 1 && dest.parent().is_some_and(|p| side.is_dir(p));
     !side.exists(dest) && !new_name

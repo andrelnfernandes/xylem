@@ -64,8 +64,16 @@ setgid) e a data, e só então vai para o lugar; Esc apaga o temporário. Copiar
 dentro da máquina remota funciona do mesmo jeito. Links simbólicos não são
 recriados lá, e isso é avisado.
 
-O resto da escrita ainda não está disponível: Mover, Excluir, Atributos, datas,
-Edit e eXecute. F3 relê um diretório; não há
+**Mover** funciona em todas as direções: daqui para a máquina remota e de
+volta (o original só é apagado depois que a cópia está no lugar e conferida), e
+dentro da máquina remota (um renomear lá). **Excluir**, **Prune** e as mesmas
+ações na Usage também funcionam. Numa máquina remota **não há lixeira**: a
+pergunta diz isso, e o Oops não tem o que restaurar. Nada é apagado através de
+um link simbólico: um link é apagado como ele mesmo. O Prune deixa de fora
+outros discos montados dentro do ramo, distinguidos pela extensão `statvfs` do
+OpenSSH; num servidor sem ela, o Prune é recusado.
+
+O resto da escrita ainda não está disponível: Atributos, datas, Edit e eXecute. F3 relê um diretório; não há
 atualização automática.
 
 **F8** em uma janela remota abre uma janela nesta máquina (na pasta em que o
