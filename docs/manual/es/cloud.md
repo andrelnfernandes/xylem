@@ -97,6 +97,8 @@ panel indica simplemente rclone.
 - **Los permisos y propietarios** no se conservan: el montaje muestra los mismos
   para todos los archivos y Atributos no puede cambiarlos. Las fechas sí se
   conservan.
+- **Git:** la lista de archivos no muestra las letras de estado en una carpeta montada,
+  porque `git status` lee todo el repositorio por la red. Ctrl+G sigue funcionando allí.
 - **Google Docs, Sheets y Slides** no son archivos normales: rclone los muestra
   exportados (`.docx`, `.xlsx`, `.pptx`), con tamaño 0. `--drive-skip-gdocs` los
   oculta.

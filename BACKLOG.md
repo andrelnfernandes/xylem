@@ -69,9 +69,12 @@ as a link is what `cp -a` and `rsync -l` do).
   folders in the cloud.
 - **Cloud mounts** ([docs/plans/cloud-opening.md](docs/plans/cloud-opening.md);
   [the manual](docs/manual/cloud.md)): the tree reads in the background, and `*`,
-  Branch, Usage and Compare ask rclone for the whole branch at once. Still open: a
-  single slow read holds the screen up on F3, on going to a typed path and when
-  opening a Prune.
+  Branch, Usage and Compare ask rclone for the whole branch at once. Automatic Git
+  status and inotify stay off there. Still open: the screen waits for the network on
+  F3, on going to a typed path and when opening a Prune; the viewer reads a whole file
+  on the main thread, and Esc cannot stop it; while an archive on a mount was being
+  read in the background, the main thread was also seen waiting for rclone, for a
+  reason not found yet.
 - **From ZTreeWin, next:** JFC (compare the contents of two files), and saving
   and loading the log (Zlist), so that the tree of a disk or a Drive opens at once.
 - Postponed by choice: macros, chown, Graft. macOS: to look at again when there

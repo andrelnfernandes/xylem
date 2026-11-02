@@ -91,6 +91,8 @@ comes from rclone's configuration file (`~/.config/rclone/rclone.conf`, or
   file is gone, unless the bucket has versioning.
 - **Permissions and owners** are not kept: the mount shows the same ones for
   every file, and Attributes cannot change them. Dates are kept.
+- **Git:** the file list shows no status letters on a mounted folder, because `git status`
+  reads the whole repository through the network. Ctrl+G still works there.
 - **Google Docs, Sheets and Slides** are not files: rclone shows them exported
   (`.docx`, `.xlsx`, `.pptx`), with size 0. `--drive-skip-gdocs` hides them.
 - **S3 has no real directories**, only names with `/` in them: an empty

@@ -49,9 +49,20 @@ a fazer o mesmo, com o mesmo progresso, Esc e pergunta sobre pedidos recusados.
 Uma leitura de cada vez, que ainda segura a tela se o serviço demorar:
 
 - F3 e ir a um caminho digitado (Treespec, marcadores), que precisam do resultado na hora;
-- abrir o Prune, que confere cada pasta antes de perguntar.
+- abrir o Prune, que confere cada pasta antes de perguntar;
+- o viewer, que lê o arquivo inteiro na thread principal, sem Esc; o viewer em janelas
+  (subprojeto 3 de [viewers.md](viewers.md)) é quem resolve.
 
-Ficam no BACKLOG.
+Ficam no BACKLOG, junto com um caso sem causa conhecida: no Drive real, com um `.zip` da
+montagem sendo lido em segundo plano, a thread principal também esperava o rclone.
+
+## O que o teste no Drive real mudou
+
+- **`git status` automático:** num repositório dentro do Drive, ele prendia a tela. Numa
+  pasta montada, o Xylem não procura `.git` nem roda o status sozinho; Ctrl+G continua.
+- **inotify:** adicionar a observação de uma pasta espera a rede, com a thread principal
+  aguardando a do inotify. Numa pasta montada, não observa; F3 atualiza. A espera foi vista
+  no Drive real, mas não foi reproduzida em teste, então o ganho não está medido.
 
 ## Testes
 

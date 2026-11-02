@@ -100,6 +100,8 @@ le panneau indique simplement rclone.
 - **Permissions et propriétaires** ne sont pas conservés : le montage affiche
   les mêmes pour tous les fichiers, et Attributs ne peut pas les modifier. Les
   dates sont conservées.
+- **Git :** la liste de fichiers n'affiche pas les lettres d'état sur un dossier monté, car
+  `git status` lit tout le dépôt par le réseau. Ctrl+G y fonctionne toujours.
 - **Google Docs, Sheets et Slides** ne sont pas de vrais fichiers : rclone les
   présente exportés (`.docx`, `.xlsx`, `.pptx`), avec une taille de 0.
   `--drive-skip-gdocs` les masque.

@@ -11,9 +11,11 @@ impl App {
             .panes
             .iter()
             .filter(|p| p.archive.is_none() && p.remote.is_none())
-            // Looking for a `.git` in a folder still on its way, on a cloud
-            // mount, would make the screen wait for that same read.
-            .filter(|p| p.tree.node(p.current()).scanned)
+            // On a cloud mount, `git status` would read a whole repository
+            // through the network with the screen waiting, and looking for a
+            // `.git` would wait for the folder still being read. Ctrl+G still
+            // works there, when asked for.
+            .filter(|p| !p.tree.reads_slowly(&p.current_path()))
             .map(|p| p.current_path())
             .collect();
         self.git_status.refresh(dirs, &self.options.git_trusted);

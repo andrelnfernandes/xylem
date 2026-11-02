@@ -97,6 +97,8 @@ criptografado, o painel diz apenas rclone.
 - **Permissões e donos** não são mantidos: a montagem exibe os mesmos para
   todos os arquivos, e o comando de Atributos não pode alterá-los. As datas são
   mantidas.
+- **Git:** a lista de arquivos não mostra as letras de status numa pasta montada, porque o
+  `git status` lê o repositório inteiro pela rede. Ctrl+G continua funcionando ali.
 - **Google Docs, Planilhas e Apresentações** não são arquivos comuns: o rclone
   os mostra exportados (`.docx`, `.xlsx`, `.pptx`), com tamanho 0. A opção
   `--drive-skip-gdocs` os oculta.

@@ -104,6 +104,8 @@ verschlüsselt, steht im Feld lediglich rclone.
 - **Berechtigungen und Eigentümer** werden nicht gespeichert: Das eingehängte
   Dateisystem zeigt für jede Datei dieselben Werte an, und `A` kann sie nicht
   ändern. Zeitstempel bleiben erhalten.
+- **Git:** Die Dateiliste zeigt in einem eingehängten Ordner keine Statusbuchstaben, weil
+  `git status` das ganze Repository über das Netzwerk liest. Strg+G funktioniert dort weiterhin.
 - **Google Docs, Sheets und Slides** sind keine normalen Dateien: rclone zeigt
   sie als exportierte Dokumente (`.docx`, `.xlsx`, `.pptx`) mit der Größe 0 an.
   `--drive-skip-gdocs` blendet sie aus.
