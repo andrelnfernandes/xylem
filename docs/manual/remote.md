@@ -45,9 +45,35 @@ remote window's root.
 
 ![Split screen: three backups tagged on the remote machine, on the left, about to be copied into a folder of this machine, on the right](../screenshots/remote.png)
 
-For now the remote side is **read-only**: Move, Delete, Rename, Makedir,
-Attributes, dates, Edit, eXecute and copying *to* the remote machine are
-not there yet. F3 rereads a directory; there is no automatic refresh.
+**Rename** (a file, a directory, or the tagged files with a mask) and
+**Makedir** work on the remote machine as they do here. A rename never
+replaces a file without asking; when you say yes, the server replaces it in
+one step if it can (OpenSSH can), and otherwise Xylem says so and leaves both.
+
+**Copy to the remote machine** works too: from this machine's window, with
+the screen split the remote window is the suggested destination; or type a
+path of the remote window, or its address (`user@host:/srv/www`, inside the
+folder the window was opened on). Each file is written to a temporary file
+next to the destination, checked for size, given its permissions (without
+setuid and setgid) and date, and only then put in place; Esc removes the
+temporary file. Copying within the remote machine works the same way.
+Symbolic links are not recreated there, and are reported.
+
+**Move** works in every direction: from here to the remote machine and back
+(the original is removed only once the copy is in place and checked), and
+within the remote machine (a rename there). **Delete**, **Prune** and the
+same actions in Usage work too. There is **no trash** on a remote machine:
+the question says so, and Oops has nothing to restore. Nothing is removed
+through a symbolic link: a link is removed as itself. Prune leaves out other
+disks mounted inside the branch, told apart with the `statvfs` extension of
+OpenSSH; on a server without it, Prune is refused.
+
+**Attributes** take octal permissions (`644`), as a Unix machine does, even
+from Windows; **New date** sets the date, to the second. Neither goes through
+a symbolic link. [Duplicates](duplicates.md) works there too.
+
+Edit and eXecute are not there yet. F3 rereads a directory; there is
+no automatic refresh.
 
 **F8** in a remote window opens a window on this machine (the folder Xylem
 started in), so you have both side by side.
@@ -104,5 +130,27 @@ fi
 Inside Xylem the shell does not need tmux to survive: it keeps running while
 Xylem is open, and if the connection drops, the remote window goes with it
 anyway.
+
+## Containers (Docker, Podman)
+
+A container on this machine opens the same way, with no `sshd` in it:
+
+- `docker://container` — its working directory; `docker://container/app` —
+  that directory; `docker://user@container/app` — as that user (`docker exec -u`).
+
+Xylem runs `docker exec` and, inside the container, its own `sftp-server`,
+the same program an SSH server uses. Most images do not have it: install it
+in the container (`apk add openssh-sftp-server` on Alpine, `apt install
+openssh-sftp-server` on Debian and Ubuntu, `dnf install openssh-server` on
+Fedora), or Xylem says it is missing. The image needs `sh`, so distroless
+images are left out.
+
+Everything above works there as on a remote machine, and **Alt+X** opens a
+shell in the container, in the window's folder. With **Podman**, start Xylem
+with `XY_DOCKER=podman`. `DOCKER_HOST` and docker contexts apply as usual.
+
+Xylem only ever runs `docker exec`: it does not start, change or download any
+container. What you write goes into the container, except in folders mounted
+from this machine (`-v`): those are this machine's files.
 
 For Google Drive, S3 and other cloud storage, see [Cloud storage](cloud.md).

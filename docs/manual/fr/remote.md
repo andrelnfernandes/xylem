@@ -49,9 +49,38 @@ aussi, avec des chemins partant de la racine de la fenêtre distante.
 
 ![Écran partagé : trois sauvegardes marquées sur la machine distante, à gauche, sur le point d'être copiées dans un dossier de cette machine, à droite](../../screenshots/remote.png)
 
-Pour l'instant, le côté distant est en **lecture seule** : Déplacer, Supprimer,
-Renommer, Créer un répertoire, Attributs, dates, Éditer, eXécuter et la copie
-*vers* la machine distante ne sont pas encore disponibles. F3 relit un
+**Renommer** (un fichier, un répertoire, ou les fichiers marqués avec un
+masque) et **Créer un répertoire** fonctionnent sur la machine distante comme
+ici. Un renommage ne remplace jamais un fichier sans demander ; après un oui,
+le serveur le remplace en une seule étape s'il le peut (OpenSSH le peut),
+sinon Xylem le dit et garde les deux.
+
+**Copier vers la machine distante** fonctionne aussi : depuis la fenêtre de
+cette machine ; écran partagé, la fenêtre distante est la destination
+proposée ; ou tapez un chemin de la fenêtre distante, ou son adresse
+(`utilisateur@hôte:/srv/www`, dans le dossier sur lequel la fenêtre a été
+ouverte). Chaque fichier est écrit dans un fichier temporaire à côté de la
+destination, sa taille est vérifiée, il reçoit ses permissions (sans setuid ni
+setgid) et sa date, et seulement alors il est mis à sa place ; Échap supprime
+le fichier temporaire. Copier au sein de la machine distante fonctionne de la
+même façon. Les liens symboliques n'y sont pas recréés, et c'est signalé.
+
+**Déplacer** fonctionne dans tous les sens : d'ici vers la machine distante
+et retour (l'original n'est supprimé qu'une fois la copie en place et
+vérifiée), et au sein de la machine distante (un renommage là-bas).
+**Supprimer**, **Prune** et les mêmes actions dans Usage fonctionnent aussi.
+Il n'y a **pas de corbeille** sur une machine distante : la question le dit, et
+Oops n'a rien à restaurer. Rien n'est supprimé à travers un lien symbolique :
+un lien est supprimé en tant que tel. Prune laisse de côté les autres disques
+montés dans la branche, distingués grâce à l'extension `statvfs` d'OpenSSH ;
+sur un serveur qui ne l'a pas, Prune est refusé.
+
+**Attributs** prend des permissions en octal (`644`), comme une machine Unix,
+même depuis Windows ; **Nouvelle date** fixe la date, à la seconde. Aucun des
+deux ne passe par un lien symbolique. [Doublons](duplicates.md) y fonctionne
+aussi.
+
+Éditer et eXécuter ne sont pas encore là. F3 relit un
 répertoire ; il n'y a pas de rafraîchissement automatique.
 
 **F8** dans une fenêtre distante ouvre une fenêtre sur votre machine (dans le
@@ -113,6 +142,31 @@ fi
 Dans Xylem, le shell n'a pas besoin de tmux pour survivre : il continue de
 tourner tant que Xylem est ouvert, et si la connexion coupe, la fenêtre distante
 tombe avec elle de toute façon.
+
+## Conteneurs (Docker, Podman)
+
+Un conteneur de cette machine s'ouvre de la même façon, sans `sshd` dedans :
+
+- `docker://conteneur` — son répertoire de travail ; `docker://conteneur/app` —
+  ce répertoire ; `docker://utilisateur@conteneur/app` — en tant que cet
+  utilisateur (`docker exec -u`).
+
+Xylem lance `docker exec` et, dans le conteneur, son propre `sftp-server`, le
+même programme qu'utilise un serveur SSH. La plupart des images ne l'ont pas :
+installez-le dans le conteneur (`apk add openssh-sftp-server` sous Alpine,
+`apt install openssh-sftp-server` sous Debian et Ubuntu, `dnf install
+openssh-server` sous Fedora), sinon Xylem indique qu'il manque. L'image doit
+avoir `sh` : les images distroless sont donc exclues.
+
+Tout ce qui précède y fonctionne comme sur une machine distante, et **Alt+X**
+ouvre un shell dans le conteneur, dans le dossier de la fenêtre. Avec
+**Podman**, lancez Xylem avec `XY_DOCKER=podman`. `DOCKER_HOST` et les
+contextes docker s'appliquent comme d'habitude.
+
+Xylem ne lance jamais que `docker exec` : il ne démarre, ne modifie et ne
+télécharge aucun conteneur. Ce que vous écrivez va dans le conteneur, sauf dans
+les dossiers montés depuis cette machine (`-v`) : ce sont des fichiers de cette
+machine.
 
 Pour Google Drive, S3 et les autres services de stockage cloud, voir [Stockage
 cloud](cloud.md).

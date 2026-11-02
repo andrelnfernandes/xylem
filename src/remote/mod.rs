@@ -1,6 +1,8 @@
 //! Remote machines over SSH: their files browsed through SFTP, spoken over
 //! the system's own `ssh` (so `~/.ssh/config`, keys, the agent and
 //! `known_hosts` all apply, and nothing is installed on the remote side).
+//! A container is reached the same way, with `docker exec` running the
+//! container's own `sftp-server` instead of ssh.
 //!
 //! A remote window's tree has a root like `andre@10.0.0.5:/home/andre`; the
 //! remote path of anything below it is the remote root plus the components
@@ -22,16 +24,37 @@ use crate::platform;
 use askpass::Askpass;
 use sftp::{Attrs, Handle, Sftp};
 
+/// How a remote machine is reached.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Via {
+    Ssh,
+    /// `docker exec` into a container (`host` is its name or id).
+    Docker,
+}
+
 /// A remote machine and where to start, as typed:
-/// `ssh://[user@]host[:port][/path]` or `user@host:[path]`.
+/// `ssh://[user@]host[:port][/path]`, `user@host:[path]` or
+/// `docker://[user@]container[/path]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Address {
+    pub via: Via,
     pub user: Option<String>,
     pub host: String,
     pub port: Option<u16>,
-    /// Empty: the home directory.
+    /// Empty: the home directory (a container's working directory).
     pub path: String,
 }
+
+/// Finds the container's `sftp-server` and becomes it. Fixed text: nothing
+/// typed goes into it.
+const DOCKER_SFTP: &str = "for p in /usr/lib/openssh/sftp-server /usr/libexec/openssh/sftp-server \
+/usr/lib/ssh/sftp-server /usr/libexec/sftp-server; do [ -x \"$p\" ] && exec \"$p\"; done; \
+echo 'no sftp-server in the container (install openssh-sftp-server)' >&2; exit 127";
+
+/// The shell in a container: in the folder given as `$1`, the user's
+/// shell, or bash if there is one, or sh.
+const DOCKER_SHELL: &str = "cd \"$1\" 2>/dev/null; XY_TERMINAL=1 exec \
+\"${SHELL:-$(command -v bash || echo /bin/sh)}\" -l";
 
 impl Address {
     /// `None` for anything that is not a remote address. Plain `host:path`
@@ -41,6 +64,19 @@ impl Address {
         let text = text.trim();
         if text.is_empty() || text.chars().any(char::is_whitespace) {
             return None;
+        }
+        if let Some(rest) = text.strip_prefix("docker://") {
+            let (authority, path) = match rest.find('/') {
+                Some(i) => (&rest[..i], &rest[i..]),
+                None => (rest, ""),
+            };
+            let (user, name) = match authority.rsplit_once('@') {
+                Some((u, h)) => (Some(u), h),
+                None => (None, authority),
+            };
+            let mut address = Self::build(user, name, None, path)?;
+            address.via = Via::Docker;
+            return Some(address);
         }
         if let Some(rest) = text.strip_prefix("ssh://") {
             let (authority, path) = match rest.find('/') {
@@ -73,6 +109,7 @@ impl Address {
             return None;
         }
         Some(Address {
+            via: Via::Ssh,
             user: user.map(String::from),
             host: host.to_string(),
             port,
@@ -80,12 +117,30 @@ impl Address {
         })
     }
 
-    /// What `ssh` gets: `user@host` or `host`.
+    /// What `ssh` gets: `user@host` or `host`; for a container, its name
+    /// after `docker:`, as shown.
     pub fn destination(&self) -> String {
-        match &self.user {
+        let at = match &self.user {
             Some(user) => format!("{user}@{}", self.host),
             None => self.host.clone(),
+        };
+        match self.via {
+            Via::Ssh => at,
+            Via::Docker => format!("docker:{at}"),
         }
+    }
+
+    /// `docker exec` into the container, with `options` before its name
+    /// and `command` after it.
+    fn docker(&self, options: &[&str], command: &[&str]) -> Command {
+        let mut cmd = Command::new(docker_program());
+        cmd.arg("exec").args(options);
+        if let Some(user) = &self.user {
+            cmd.arg("-u").arg(user);
+        }
+        // The name is checked, and after `--` it could not be an option anyway.
+        cmd.arg("--").arg(&self.host).args(command);
+        cmd
     }
 
     /// `ssh` with the options every connection uses.
@@ -115,6 +170,12 @@ impl Address {
 /// with a configuration of their own, away from the user's `~/.ssh`).
 fn ssh_program() -> OsString {
     std::env::var_os("XY_SSH").unwrap_or_else(|| "ssh".into())
+}
+
+/// The docker program: `docker`, or `$XY_DOCKER` (`podman`, or the tests'
+/// stand-in).
+fn docker_program() -> OsString {
+    std::env::var_os("XY_DOCKER").unwrap_or_else(|| "docker".into())
 }
 
 /// A connected remote machine.
@@ -147,27 +208,35 @@ impl Connecting {
     /// this run and `n` numbers the connection.
     pub fn start(address: Address, run: &Path, n: usize) -> io::Result<Connecting> {
         let askpass = Askpass::new(run, n)?;
-        // Unix sockets have a short path limit (ssh adds a suffix while
-        // creating it); with a long home, the terminal logs in again instead.
-        let control =
-            Some(run.join(format!("cm-{n}"))).filter(|c| cfg!(unix) && c.as_os_str().len() <= 80);
-        let mut cmd = address.ssh(control.as_deref(), true);
-        cmd.arg("-s").arg(address.destination()).arg("sftp");
+        let (mut cmd, control) = match address.via {
+            Via::Ssh => {
+                // Unix sockets have a short path limit (ssh adds a suffix while
+                // creating it); with a long home, the terminal logs in again instead.
+                let control = Some(run.join(format!("cm-{n}")))
+                    .filter(|c| cfg!(unix) && c.as_os_str().len() <= 80);
+                let mut cmd = address.ssh(control.as_deref(), true);
+                cmd.arg("-s").arg(address.destination()).arg("sftp");
+                // ssh asks through Xylem, never on the screen it is drawing.
+                cmd.env("SSH_ASKPASS", std::env::current_exe()?)
+                    .env("SSH_ASKPASS_REQUIRE", "force")
+                    .env(askpass::DIR_VAR, askpass.dir());
+                if std::env::var_os("DISPLAY").is_none() {
+                    // Older ssh only uses SSH_ASKPASS with a DISPLAY.
+                    cmd.env("DISPLAY", ":0");
+                }
+                (cmd, control)
+            }
+            // docker exec asks nothing.
+            Via::Docker => (address.docker(&["-i"], &["sh", "-c", DOCKER_SFTP]), None),
+        };
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        // ssh asks through Xylem, never on the screen it is drawing.
-        cmd.env("SSH_ASKPASS", std::env::current_exe()?)
-            .env("SSH_ASKPASS_REQUIRE", "force")
-            .env(askpass::DIR_VAR, askpass.dir());
-        if std::env::var_os("DISPLAY").is_none() {
-            // Older ssh only uses SSH_ASKPASS with a DISPLAY.
-            cmd.env("DISPLAY", ":0");
-        }
         detach(&mut cmd);
+        let program = cmd.get_program().to_string_lossy().into_owned();
         let mut child = cmd
             .spawn()
-            .map_err(|e| io::Error::new(e.kind(), format!("cannot run ssh: {e}")))?;
+            .map_err(|e| io::Error::new(e.kind(), format!("cannot run {program}: {e}")))?;
         let pipes = (
             child.stdout.take().expect("piped stdout"),
             child.stdin.take().expect("piped stdin"),
@@ -407,9 +476,157 @@ impl Remote {
         Ok(data)
     }
 
+    /// Creates `platform::tmp_path(dst)` on the remote machine for writing,
+    /// never opening what is there: a leftover (or a symlink someone put
+    /// there) is removed as itself and the creation tried once more.
+    pub fn create_tmp(self: &Arc<Self>, dst: &Path) -> io::Result<(RemoteWriter, PathBuf)> {
+        let tmp = platform::tmp_path(dst);
+        let path = self.remote_path(&tmp);
+        let created = self.sftp().create_new(&path);
+        let handle = match created {
+            Ok(h) => h,
+            Err(e) => {
+                let mut sftp = self.sftp();
+                match sftp.lstat(&path) {
+                    Ok(a) if !a.is_dir() => {
+                        sftp.remove(&path)?;
+                        sftp.create_new(&path)?
+                    }
+                    _ => return Err(e),
+                }
+            }
+        };
+        let writer = RemoteWriter {
+            remote: self.clone(),
+            handle: Some(handle),
+            written: 0,
+        };
+        Ok((writer, tmp))
+    }
+
+    /// Whether `path` is a directory (following a symlink).
+    pub fn is_dir(&self, path: &Path) -> bool {
+        self.sftp()
+            .stat(&self.remote_path(path))
+            .is_ok_and(|a| a.is_dir())
+    }
+
+    /// Creates `path` and whatever is missing between it and the window's
+    /// root.
+    pub fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        let missing: Vec<&Path> = path
+            .ancestors()
+            .take_while(|d| d.starts_with(&self.root) && *d != self.root)
+            .collect();
+        if !path.starts_with(&self.root) {
+            return Err(io::Error::other("outside the remote window"));
+        }
+        let mut sftp = self.sftp();
+        for dir in missing.into_iter().rev() {
+            let remote = self.remote_path(dir);
+            match sftp.stat(&remote) {
+                Ok(a) if a.is_dir() => {}
+                Ok(_) => return Err(io::Error::from(io::ErrorKind::NotADirectory)),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => sftp.mkdir(&remote)?,
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+
+    /// Puts a finished temporary file at `dst`. An existing `dst` (only
+    /// with `replace`, after a "yes") is replaced in one step when the
+    /// server can; otherwise it is removed first, and for a moment neither
+    /// is there under that name (the copy is complete in `tmp` by then).
+    pub fn put_in_place(&self, tmp: &Path, dst: &Path, replace: bool) -> io::Result<()> {
+        let (tmp, dst) = (self.remote_path(tmp), self.remote_path(dst));
+        let mut sftp = self.sftp();
+        if replace && !sftp.can_replace() {
+            sftp.remove(&dst)?;
+            return sftp.rename(&tmp, &dst, false);
+        }
+        sftp.rename(&tmp, &dst, replace)
+    }
+
+    /// Removes a file (a symlink itself, never what it points to). What is a
+    /// directory by now is left alone.
+    pub fn remove_file(&self, path: &Path) -> io::Result<()> {
+        let path = self.remote_path(path);
+        let mut sftp = self.sftp();
+        if sftp.lstat(&path)?.is_dir() {
+            return Err(io::Error::from(io::ErrorKind::IsADirectory));
+        }
+        sftp.remove(&path)
+    }
+
+    /// Removes an empty directory; a symlink to one is not a directory.
+    pub fn remove_dir(&self, path: &Path) -> io::Result<()> {
+        let path = self.remote_path(path);
+        let mut sftp = self.sftp();
+        if !sftp.lstat(&path)?.is_dir() {
+            return Err(io::Error::from(io::ErrorKind::NotADirectory));
+        }
+        sftp.rmdir(&path)
+    }
+
+    /// Sets the permission bits of `path`. A symlink has none of its own:
+    /// setting them would change what it points to, so it is refused.
+    pub fn set_mode(&self, path: &Path, mode: u32) -> io::Result<()> {
+        let path = self.remote_path(path);
+        let mut sftp = self.sftp();
+        if sftp.lstat(&path)?.is_symlink() {
+            return Err(io::Error::other("symbolic link skipped"));
+        }
+        sftp.set_mode(&path, mode)
+    }
+
+    /// Sets the modification time of `path`, keeping its access time; a
+    /// symlink is refused, as with [`Remote::set_mode`].
+    pub fn set_modified(&self, path: &Path, when: SystemTime) -> io::Result<()> {
+        let mtime = when
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .ok()
+            .and_then(|d| u32::try_from(d.as_secs()).ok())
+            .ok_or_else(|| io::Error::other("SFTP keeps dates from 1970 to 2106 only"))?;
+        let path = self.remote_path(path);
+        let mut sftp = self.sftp();
+        let attrs = sftp.lstat(&path)?;
+        if attrs.is_symlink() {
+            return Err(io::Error::other(
+                "symbolic link skipped (the date would change its target)",
+            ));
+        }
+        sftp.set_times(&path, attrs.atime.unwrap_or(mtime), mtime)
+    }
+
+    /// The filesystem `path` is on, to tell mounted disks apart.
+    pub fn filesystem(&self, path: &Path) -> io::Result<sftp::Filesystem> {
+        self.sftp().filesystem(&self.remote_path(path))
+    }
+
+    /// Creates directory `path` (a path of the window's tree).
+    pub fn create_dir(&self, path: &Path) -> io::Result<()> {
+        self.sftp().mkdir(&self.remote_path(path))
+    }
+
+    /// Renames `from` to `to`, replacing an existing `to` only with
+    /// `replace` (see [`Sftp::rename`]).
+    pub fn rename(&self, from: &Path, to: &Path, replace: bool) -> io::Result<()> {
+        let (from, to) = (self.remote_path(from), self.remote_path(to));
+        self.sftp().rename(&from, &to, replace)
+    }
+
     /// The command for a terminal on this machine, starting in `dir` (a
     /// path of the window's tree): `ssh -t`, reusing the login when it can.
     pub fn terminal_command(&self, dir: &Path) -> (OsString, Vec<String>) {
+        if self.address.via == Via::Docker {
+            let dir = String::from_utf8_lossy(&self.remote_path(dir)).into_owned();
+            let cmd = self
+                .address
+                .docker(&["-it"], &["sh", "-c", DOCKER_SHELL, "sh", &dir]);
+            let args = cmd.get_args().map(|a| a.to_string_lossy().into_owned());
+            return (docker_program(), args.collect());
+        }
         let mut args: Vec<String> = Vec::new();
         args.extend(
             [
@@ -477,6 +694,13 @@ pub struct RemoteFile {
     offset: u64,
 }
 
+impl RemoteFile {
+    /// Reads from `offset` on.
+    pub fn skip_to(&mut self, offset: u64) {
+        self.offset = offset;
+    }
+}
+
 impl Read for RemoteFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let Some(handle) = &self.handle else {
@@ -491,6 +715,58 @@ impl Read for RemoteFile {
 }
 
 impl Drop for RemoteFile {
+    fn drop(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            let _ = self.remote.sftp().close_file(&handle);
+        }
+    }
+}
+
+/// A file being written on a remote machine (a temporary one: see
+/// [`Remote::create_tmp`]).
+pub struct RemoteWriter {
+    remote: Arc<Remote>,
+    handle: Option<Handle>,
+    written: u64,
+}
+
+impl RemoteWriter {
+    /// The end of writing: checks that the server has every byte sent,
+    /// gives the file its permissions and date, and closes it.
+    pub fn finish(mut self, mode: u32, mtime: Option<SystemTime>) -> io::Result<()> {
+        let handle = self.handle.take().expect("open until finished");
+        let mut sftp = self.remote.sftp();
+        let checked = sftp.fstat(&handle).and_then(|a| match a.size {
+            Some(size) if size == self.written => Ok(()),
+            size => Err(io::Error::other(format!(
+                "the server has {} bytes of the {} sent",
+                size.map_or("an unknown number of".into(), |s| s.to_string()),
+                self.written
+            ))),
+        });
+        let mtime = mtime
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .and_then(|d| u32::try_from(d.as_secs()).ok());
+        let set = checked.and_then(|()| sftp.fsetstat(&handle, mode, mtime));
+        let closed = sftp.close_file(&handle);
+        set.and(closed)
+    }
+}
+
+impl io::Write for RemoteWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let handle = self.handle.as_ref().expect("open until finished");
+        self.remote.sftp().write_all(handle, self.written, buf)?;
+        self.written += buf.len() as u64;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Drop for RemoteWriter {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
             let _ = self.remote.sftp().close_file(&handle);
@@ -555,6 +831,72 @@ mod tests {
         assert!(command.contains("XY_TERMINAL=1 exec"), "{command}");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn removing_never_follows_a_symlink() {
+        let tmp = crate::testing::tempdir();
+        let outside = crate::testing::tempdir();
+        std::fs::write(outside.path().join("keep"), "k").unwrap();
+        std::fs::create_dir(tmp.path().join("dir")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), tmp.path().join("to_dir")).unwrap();
+        std::os::unix::fs::symlink(outside.path().join("keep"), tmp.path().join("to_file"))
+            .unwrap();
+        let Some(remote) = for_tests(tmp.path()) else {
+            return;
+        };
+        let at = |n: &str| remote.root.join(n);
+        // A symlink to a directory is not a directory to remove...
+        assert!(remote.remove_dir(&at("to_dir")).is_err());
+        // ...and a directory is not a file to remove.
+        assert!(remote.remove_file(&at("dir")).is_err());
+        assert!(tmp.path().join("dir").is_dir());
+        // A symlink goes as itself; what it pointed to stays.
+        remote.remove_file(&at("to_dir")).unwrap();
+        remote.remove_file(&at("to_file")).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(outside.path().join("keep")).unwrap(),
+            "k"
+        );
+        remote.remove_dir(&at("dir")).unwrap();
+        assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn permissions_and_dates_never_go_through_a_symlink() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = crate::testing::tempdir();
+        let outside = crate::testing::tempdir();
+        let target = outside.path().join("t");
+        std::fs::write(&target, "t").unwrap();
+        std::fs::write(tmp.path().join("f"), "f").unwrap();
+        std::os::unix::fs::symlink(&target, tmp.path().join("l")).unwrap();
+        let Some(remote) = for_tests(tmp.path()) else {
+            return;
+        };
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o7777;
+        let before = mode(&target);
+        remote.set_mode(&remote.root.join("f"), 0o640).unwrap();
+        assert_eq!(mode(&tmp.path().join("f")), 0o640);
+        assert!(remote.set_mode(&remote.root.join("l"), 0o777).is_err());
+        assert_eq!(mode(&target), before);
+
+        let when = SystemTime::UNIX_EPOCH + Duration::from_secs(1_234_567_890);
+        let atime = remote.attrs(&remote.root.join("f")).unwrap().atime;
+        remote.set_modified(&remote.root.join("f"), when).unwrap();
+        let a = remote.attrs(&remote.root.join("f")).unwrap();
+        assert_eq!((a.mtime, a.atime), (Some(1_234_567_890), atime));
+        let target_time = std::fs::metadata(&target).unwrap().modified().unwrap();
+        assert!(remote.set_modified(&remote.root.join("l"), when).is_err());
+        assert_eq!(
+            std::fs::metadata(&target).unwrap().modified().unwrap(),
+            target_time
+        );
+        // SFTP v3 cannot say a date before 1970.
+        let old = SystemTime::UNIX_EPOCH - Duration::from_secs(1);
+        assert!(remote.set_modified(&remote.root.join("f"), old).is_err());
+    }
+
     #[test]
     fn parses_addresses() {
         let a = Address::parse("andre@10.0.0.5:/srv/www").unwrap();
@@ -583,5 +925,86 @@ mod tests {
         // Nothing ssh would read as an option.
         assert_eq!(Address::parse("ssh://-oProxyCommand=x"), None);
         assert_eq!(Address::parse("-oX@host:/"), None);
+        assert_eq!(Address::parse("andre@host:").unwrap().via, Via::Ssh);
+    }
+
+    #[test]
+    fn parses_containers() {
+        let a = Address::parse("docker://web").unwrap();
+        assert_eq!(
+            (a.via, a.host.as_str(), a.path.as_str()),
+            (Via::Docker, "web", "")
+        );
+        assert_eq!((&a.user, a.port), (&None, None));
+        assert_eq!(a.destination(), "docker:web");
+        let a = Address::parse("docker://root@my_app.1/srv/www").unwrap();
+        assert_eq!(a.destination(), "docker:root@my_app.1");
+        assert_eq!(a.path, "/srv/www");
+        // No port, no options, no shell.
+        for bad in [
+            "docker://",
+            "docker://web:2222",
+            "docker://-it",
+            "docker://-u@web",
+            "docker://a;b",
+            "docker://$(id)",
+            "docker://a b",
+            "docker://@web",
+        ] {
+            assert_eq!(Address::parse(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_container_is_reached_with_docker_exec_and_nothing_else() {
+        let args = |cmd: Command| -> Vec<String> {
+            cmd.get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+        let a = Address::parse("docker://web").unwrap();
+        let got = args(a.docker(&["-i"], &["sh", "-c", DOCKER_SFTP]));
+        assert_eq!(got, ["exec", "-i", "--", "web", "sh", "-c", DOCKER_SFTP]);
+        let a = Address::parse("docker://deploy@web").unwrap();
+        let got = args(a.docker(&["-it"], &["true"]));
+        assert_eq!(got, ["exec", "-it", "-u", "deploy", "--", "web", "true"]);
+        // The scripts are fixed: no name or path is ever part of them.
+        for script in [DOCKER_SFTP, DOCKER_SHELL] {
+            assert!(!script.contains("web") && !script.contains("deploy"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_shell_in_a_container_gets_its_folder_as_an_argument() {
+        let tmp = crate::testing::tempdir();
+        let Some(remote) = for_tests(tmp.path()) else {
+            return;
+        };
+        let mut remote = Arc::try_unwrap(remote).ok().unwrap();
+        remote.address = Address::parse("docker://web").unwrap();
+        let odd = remote.root.join("it's $(here)");
+        let (_, args) = remote.terminal_command(&odd);
+        let real = tmp.path().canonicalize().unwrap();
+        assert_eq!(&args[..4], ["exec", "-it", "--", "web"]);
+        assert_eq!(&args[4..7], ["sh", "-c", DOCKER_SHELL]);
+        assert_eq!(
+            &args[7..],
+            ["sh", &format!("{}/it's $(here)", real.display())]
+        );
+        // And the script does go there, and starts a shell.
+        std::fs::create_dir(tmp.path().join("it's $(here)")).unwrap();
+        let shell = tmp.path().join("shell");
+        std::fs::write(&shell, "#!/bin/sh\npwd\n").unwrap();
+        let mode = std::os::unix::fs::PermissionsExt::from_mode(0o755);
+        std::fs::set_permissions(&shell, mode).unwrap();
+        let out = Command::new("sh")
+            .args(["-c", DOCKER_SHELL, "sh"])
+            .arg(&args[8])
+            .env("SHELL", &shell)
+            .output()
+            .unwrap();
+        let said = String::from_utf8_lossy(&out.stdout);
+        assert!(said.trim().ends_with("it's $(here)"), "{said}");
     }
 }

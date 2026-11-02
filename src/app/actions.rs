@@ -380,21 +380,35 @@ impl App {
             .ok_or_else(|| format!("Invalid date: {text}"))?;
         let mut errors = Vec::new();
         let mut changed = 0;
+        let remote = self.remote.clone();
         for path in paths {
             let result = (|| -> Result<(), String> {
-                let meta = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
-                if meta.is_symlink() {
-                    return Err("symbolic link skipped (the date would change its target)".into());
-                }
+                let modified = match &remote {
+                    // The symlink check is the remote machine's own, below.
+                    Some(r) => r.lstat(path).map_err(|e| e.to_string())?.modified,
+                    None => {
+                        let meta = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
+                        if meta.is_symlink() {
+                            return Err(
+                                "symbolic link skipped (the date would change its target)".into()
+                            );
+                        }
+                        meta.modified().ok()
+                    }
+                };
                 let old = chrono::DateTime::<chrono::Local>::from(
-                    meta.modified().map_err(|e| e.to_string())?,
+                    modified.ok_or("the file has no date")?,
                 );
                 let when = date
                     .and_time(time.unwrap_or(old.time()))
                     .and_local_timezone(chrono::Local)
                     .earliest()
                     .ok_or("time does not exist (daylight saving change)")?;
-                platform::set_modified(path, when.into()).map_err(|e| e.to_string())
+                match &remote {
+                    Some(r) => r.set_modified(path, when.into()),
+                    None => platform::set_modified(path, when.into()),
+                }
+                .map_err(|e| e.to_string())
             })();
             match result {
                 Ok(()) => changed += 1,
@@ -734,8 +748,10 @@ impl App {
             return;
         }
 
-        let op = Operation::rename_batch(pairs);
-        self.start_op(op);
+        match self.on_this_side(Operation::rename_batch(pairs)) {
+            Ok(op) => self.start_op(op),
+            Err(e) => self.message = Some(e),
+        }
     }
 
     pub(crate) fn rename_file(&mut self, path: &Path, name: &str) -> Result<(), String> {
@@ -744,10 +760,12 @@ impl App {
         if new == path {
             return Ok(());
         }
-        if fs::symlink_metadata(&new).is_ok() {
+        let side = Side::of(self.remote.as_ref());
+        if side.exists(&new) {
             return Err(format!("{name} already exists"));
         }
-        fs::rename(path, &new).map_err(|e| format!("Cannot rename: {e}"))?;
+        side.rename(path, &new, false)
+            .map_err(|e| format!("Cannot rename: {e}"))?;
         if let Some(dir) = path.parent() {
             self.rescan_everywhere(&[dir]);
         }
@@ -765,10 +783,12 @@ impl App {
         if new == path {
             return Ok(());
         }
-        if fs::symlink_metadata(&new).is_ok() {
+        let side = Side::of(self.remote.as_ref());
+        if side.exists(&new) {
             return Err(format!("{name} already exists"));
         }
-        fs::rename(&path, &new).map_err(|e| format!("Cannot rename: {e}"))?;
+        side.rename(&path, &new, false)
+            .map_err(|e| format!("Cannot rename: {e}"))?;
         let parent = self.tree.node(id).parent.unwrap_or(ROOT);
         self.tree.rescan(parent);
         let keep = self.tree.find(&new).unwrap_or(parent);
@@ -784,7 +804,9 @@ impl App {
     pub(crate) fn make_dir(&mut self, id: NodeId, name: &str) -> Result<(), String> {
         ops::check_name(name)?;
         let path = self.tree.path(id).join(name);
-        fs::create_dir(&path).map_err(|e| format!("Cannot create directory: {e}"))?;
+        Side::of(self.remote.as_ref())
+            .create_dir(&path)
+            .map_err(|e| format!("Cannot create directory: {e}"))?;
         self.tree.rescan(id);
         self.tree.expand(id);
         self.refresh_rows(id);
@@ -796,6 +818,9 @@ impl App {
     /// Permissions (Linux) or attributes (Windows, where `+R -A` changes
     /// each file's own attributes).
     pub(crate) fn chmod(&mut self, paths: &[PathBuf], text: &str) -> Result<(), String> {
+        if let Some(remote) = self.remote.clone() {
+            return self.chmod_remote(&remote, paths, text);
+        }
         platform::parse_mode(text, 0)?;
         let mut errors = Vec::new();
         let mut changed = 0;
@@ -820,6 +845,34 @@ impl App {
         self.rescan_everywhere(&dirs);
         let what = platform::describe_mode(0).0;
         let mut msg = format!("{what} set to {} on {changed} files", text.trim());
+        if let Some(e) = errors.first() {
+            msg.push_str(&format!(". {} errors, first: {e}", errors.len()));
+        }
+        self.message = Some(msg);
+        Ok(())
+    }
+
+    /// Attributes on a remote machine: octal, as Unix takes them, whatever
+    /// this machine is. Symlinks are left out, as here.
+    fn chmod_remote(
+        &mut self,
+        remote: &crate::remote::Remote,
+        paths: &[PathBuf],
+        text: &str,
+    ) -> Result<(), String> {
+        let mode = platform::parse_octal_mode(text)?;
+        let mut errors = Vec::new();
+        let mut changed = 0;
+        for path in paths {
+            match remote.set_mode(path, mode) {
+                Ok(()) => changed += 1,
+                Err(e) => errors.push(format!("{}: {e}", path.display())),
+            }
+        }
+        let mut dirs: Vec<&Path> = paths.iter().filter_map(|p| p.parent()).collect();
+        dirs.dedup();
+        self.rescan_everywhere(&dirs);
+        let mut msg = format!("Permissions set to {} on {changed} files", text.trim());
         if let Some(e) = errors.first() {
             msg.push_str(&format!(". {} errors, first: {e}", errors.len()));
         }

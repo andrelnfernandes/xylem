@@ -2993,23 +2993,329 @@ fn remote_window_lists_views_and_copies_here() {
     };
     assert_eq!(seconds(&copied), seconds(&tmp.path().join("a.rs")));
 
-    // Writing on the remote machine is not there yet.
-    press(&mut app, KeyCode::Char('d'));
-    assert!(app.confirm.is_none());
+    // Edit on the remote machine is not there yet.
+    app.apply(Command::Edit);
+    assert!(app.external.is_none());
     assert!(
         app.message
             .as_deref()
             .unwrap()
-            .starts_with("Read-only on a remote machine")
+            .starts_with("Not yet on a remote machine")
     );
+    // An address outside the window's root, or of a machine not connected.
     press(&mut app, KeyCode::Char('c'));
     answer_prompt(&mut app, "test@testhost:/tmp");
+    let message = app.message.take().unwrap();
+    assert!(message.contains("outside the remote window"), "{message}");
+    press(&mut app, KeyCode::Char('c'));
+    answer_prompt(&mut app, "other@elsewhere:/tmp");
+    let message = app.message.take().unwrap();
+    assert!(
+        message.starts_with("Not connected to other@elsewhere"),
+        "{message}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn copies_from_here_to_the_remote_window() {
+    let (tmp, mut app) = sample();
+    let there = tmp.path().join("there");
+    create_dir_all(&there).unwrap();
+    let Some(remote) = crate::remote::for_tests(&there) else {
+        return;
+    };
+    press(&mut app, KeyCode::F(8));
+    app.panes[1] = Pane::from_remote(remote.clone());
+    assert_eq!(app.active, 0);
+    press(&mut app, KeyCode::Enter);
+    ctrl(&mut app, 't');
+    // The other window is the suggested destination.
+    app.apply(Command::Copy {
+        tagged: true,
+        paths: false,
+    });
+    let suggested = app.prompt.as_ref().unwrap().input.text.clone();
+    assert!(suggested.starts_with("test@testhost:"), "{suggested}");
+    press(&mut app, KeyCode::Enter);
+    while app.busy() {
+        app.tick(Duration::from_millis(30));
+    }
+    assert_eq!(
+        fs::read_to_string(there.join("a.rs")).unwrap(),
+        "fn main() {}\n"
+    );
+    assert_eq!(fs::read_to_string(there.join("b.txt")).unwrap(), "b");
+    assert!(app.message.as_deref().unwrap().starts_with("Copied 2 of 2"));
+    // The remote window shows them.
+    let names: Vec<_> = app.panes[1]
+        .tree
+        .node(crate::model::tree::ROOT)
+        .files
+        .iter()
+        .map(|f| f.name.to_string_lossy().into_owned())
+        .collect();
+    assert!(names.contains(&"a.rs".to_string()), "{names:?}");
+
+    // Typed as an address, into a folder to be created; a Move is refused.
+    app.apply(Command::Copy {
+        tagged: true,
+        paths: false,
+    });
+    answer_prompt(
+        &mut app,
+        &format!(
+            "test@testhost:{}/new",
+            there.canonicalize().unwrap().display()
+        ),
+    );
+    assert!(app.confirm.is_some(), "asks to create the folder");
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(30));
+    }
+    assert!(there.join("new/a.rs").is_file() && there.join("new/b.txt").is_file());
+    // Move: there, and gone from here.
+    app.apply(Command::Move {
+        tagged: true,
+        paths: false,
+    });
+    let real = there.canonicalize().unwrap();
+    answer_prompt(&mut app, &format!("test@testhost:{}/moved", real.display()));
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(30));
+    }
+    assert!(there.join("moved/a.rs").is_file() && there.join("moved/b.txt").is_file());
+    assert!(!tmp.path().join("a.rs").exists() && !tmp.path().join("b.txt").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn remote_window_renames_and_makes_directories() {
+    let Some((tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    let p = tmp.path();
+    // Makedir, in the tree.
+    press(&mut app, KeyCode::Char('m'));
+    answer_prompt(&mut app, "made");
+    assert!(p.join("made").is_dir());
     assert!(
         app.message
             .as_deref()
             .unwrap()
-            .contains("remote machine comes in a later version")
+            .starts_with("Created test@testhost:")
     );
+    // A name that is not one stays here.
+    press(&mut app, KeyCode::Char('m'));
+    answer_prompt(&mut app, "../out");
+    assert!(!p.parent().unwrap().join("out").exists());
+
+    // Rename a directory: the tree follows.
+    let sub = app
+        .rows
+        .iter()
+        .position(|r| app.tree.node(r.id).name == "sub")
+        .unwrap();
+    app.tree_state.select(Some(sub));
+    press(&mut app, KeyCode::Char('r'));
+    answer_prompt(&mut app, "renamed");
+    assert!(p.join("renamed/deep/a.rs").is_file() && !p.join("sub").exists());
+    assert!(
+        app.rows
+            .iter()
+            .any(|r| app.tree.node(r.id).name == "renamed")
+    );
+
+    // Rename a file; a taken name is refused and nothing changes.
+    press(&mut app, KeyCode::Home);
+    press(&mut app, KeyCode::Enter);
+    let i = names(&app).iter().position(|n| n == "a.rs").unwrap();
+    app.file_state.select(Some(i));
+    press(&mut app, KeyCode::Char('r'));
+    answer_prompt(&mut app, "b.txt");
+    assert_eq!(app.message.as_deref(), Some("b.txt already exists"));
+    assert_eq!(fs::read_to_string(p.join("b.txt")).unwrap(), "b");
+    press(&mut app, KeyCode::Char('r'));
+    answer_prompt(&mut app, "main.rs");
+    assert!(p.join("main.rs").is_file() && !p.join("a.rs").exists());
+    assert_eq!(names(&app), ["b.txt", "main.rs"]);
+
+    // The tagged ones, with a mask.
+    ctrl(&mut app, 't');
+    ctrl(&mut app, 'r');
+    answer_prompt(&mut app, "old_*.*");
+    assert!(p.join("old_b.txt").is_file() && p.join("old_main.rs").is_file());
+    assert!(
+        app.message
+            .as_deref()
+            .unwrap()
+            .starts_with("Renamed 2 of 2")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn remote_window_deletes_prunes_and_moves_without_a_trash() {
+    let Some((tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    let p = tmp.path();
+    app.options.delete_to_trash = true;
+    press(&mut app, KeyCode::Enter);
+    let i = names(&app).iter().position(|n| n == "b.txt").unwrap();
+    app.file_state.select(Some(i));
+    press(&mut app, KeyCode::Char('d'));
+    let confirm = app.confirm.as_ref().expect("asks");
+    assert!(
+        confirm.question.contains("no trash there"),
+        "{}",
+        confirm.question
+    );
+    assert_eq!(confirm.options, ["Yes", "No"]);
+    press(&mut app, KeyCode::Char('y'));
+    finish_op(&mut app);
+    assert!(!p.join("b.txt").exists());
+    assert_eq!(names(&app), ["a.rs"]);
+    // Oops has nothing to restore there.
+    app.apply(Command::Oops);
+    assert!(app.confirm.is_none());
+    let message = app.message.take().unwrap();
+    assert!(message.starts_with("There is no trash"), "{message}");
+
+    // Move within the machine.
+    app.apply(Command::Move {
+        tagged: false,
+        paths: false,
+    });
+    let sub = app.panes[0].tree.path(crate::model::tree::ROOT).join("sub");
+    answer_prompt(&mut app, sub.to_str().unwrap());
+    assert!(p.join("sub/a.rs").is_file() && !p.join("a.rs").exists());
+
+    // Prune, typed as usual; the files go, the folder too.
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Down);
+    alt(&mut app, 'p');
+    while app.busy() {
+        app.tick(Duration::from_millis(30));
+    }
+    let label = app.prompt.as_ref().expect("asks to type").label.clone();
+    assert!(label.starts_with("PRUNE sub: 3 files, 2 dirs"), "{label}");
+    answer_prompt(&mut app, "prune");
+    assert!(!p.join("sub").exists(), "{:?}", app.message);
+    assert!(app.message.as_deref().unwrap().starts_with("Pruned 5 of 5"));
+}
+
+#[cfg(unix)]
+#[test]
+fn remote_window_sets_permissions_and_dates() {
+    use chrono::Datelike;
+    let Some((tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    app.options.date_format = DateFormat::Dmy;
+    let p = tmp.path();
+    fs::set_permissions(p.join("a.rs"), fs::Permissions::from_mode(0o640)).unwrap();
+    press(&mut app, KeyCode::Enter);
+    ctrl(&mut app, 't');
+    // Attributes: octal, starting from the first file's, whatever this machine is.
+    ctrl(&mut app, 'a');
+    let prompt = app.prompt.as_ref().unwrap();
+    assert!(
+        prompt.label.starts_with("PERMISSIONS for"),
+        "{}",
+        prompt.label
+    );
+    assert_eq!(prompt.input.text, "640");
+    answer_prompt(&mut app, "600");
+    for f in ["a.rs", "b.txt"] {
+        let mode = fs::metadata(p.join(f)).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "{f}");
+    }
+    assert!(app.message.as_deref().unwrap().contains("on 2 files"));
+    ctrl(&mut app, 'a');
+    answer_prompt(&mut app, "999");
+    assert!(app.message.as_deref().unwrap().contains("octal"));
+
+    // A new date, kept to the second as SFTP does.
+    app.apply(Command::NewDate { tagged: true });
+    answer_prompt(&mut app, "01/02/2020 13:45");
+    let date = chrono::DateTime::<chrono::Local>::from(
+        fs::metadata(p.join("b.txt")).unwrap().modified().unwrap(),
+    );
+    assert_eq!((date.year(), date.month(), date.day()), (2020, 2, 1));
+    assert!(
+        app.message
+            .as_deref()
+            .unwrap()
+            .starts_with("New date set on 2 of 2")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn duplicates_on_a_remote_machine_are_read_there() {
+    let tmp = crate::testing::tempdir();
+    let p = tmp.path();
+    for dir in ["photos", "photos-copy"] {
+        create_dir_all(p.join(dir)).unwrap();
+        write(p.join(dir).join("trip.jpg"), vec![1u8; 5000]).unwrap();
+    }
+    write(p.join("alone.bin"), vec![2u8; 5000]).unwrap();
+    write(p.join("one.dat"), vec![5u8; 4000]).unwrap();
+    write(p.join("two.dat"), vec![5u8; 4000]).unwrap();
+    let Some(remote) = crate::remote::for_tests(p) else {
+        return;
+    };
+    let mut app = App::new(p.to_path_buf());
+    app.panes[0] = Pane::from_remote(remote);
+    alt(&mut app, 'y');
+    finish(&mut app);
+    // Reading through SSH is asked first.
+    let q = app.confirm.as_ref().expect("asks").question.clone();
+    assert!(q.contains("on a remote machine"), "{q}");
+    press(&mut app, KeyCode::Char('y'));
+    finish(&mut app);
+    let view = app.duplicates.as_ref().expect("open");
+    // alone.bin has the size of trip.jpg, not its contents.
+    assert_eq!(view.files.len(), 2);
+    assert_eq!(view.folders.len(), 1);
+
+    // The copy of a folder: no trash, and the other one stays.
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('a'));
+    press(&mut app, KeyCode::Char('d'));
+    let confirm = app.confirm.as_ref().expect("asks");
+    assert!(
+        confirm.question.contains("no trash there"),
+        "{}",
+        confirm.question
+    );
+    assert_eq!(confirm.options, ["Yes", "No"]);
+    press(&mut app, KeyCode::Char('y'));
+    finish(&mut app);
+    let kept = ["photos", "photos-copy"].map(|f| p.join(f).exists());
+    assert_eq!(kept.iter().filter(|k| **k).count(), 1, "{:?}", app.message);
+
+    // A copy changed since the analysis is not deleted.
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('a'));
+    let view = app.duplicates.as_ref().unwrap();
+    let root = app.panes[0].tree.path(crate::model::tree::ROOT);
+    let tagged = view.groups()[0].items.iter().find(|i| i.tagged).unwrap();
+    assert!(tagged.path.extension().is_some_and(|e| e == "dat"));
+    let local = p.join(tagged.path.strip_prefix(&root).unwrap());
+    let later = std::time::SystemTime::now() + Duration::from_secs(60);
+    fs::File::options()
+        .write(true)
+        .open(&local)
+        .unwrap()
+        .set_modified(later)
+        .unwrap();
+    press(&mut app, KeyCode::Char('d'));
+    assert!(app.confirm.is_none(), "{:?}", app.message);
+    assert!(local.exists());
 }
 
 #[cfg(unix)]

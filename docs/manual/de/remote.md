@@ -52,10 +52,40 @@ beginnen.
 
 ![Geteilter Bildschirm: links drei markierte Backups auf dem entfernten Rechner, gleich in einen Ordner dieses Rechners, rechts, kopiert](../../screenshots/remote.png)
 
-Derzeit ist die entfernte Seite **schreibgeschützt**: Verschieben, Löschen,
-Umbenennen, Verzeichnis erstellen, Berechtigungen, Datum ändern, Bearbeiten,
-Ausführen sowie das Kopieren *auf* den entfernten Rechner sind noch nicht
-vorhanden. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
+**Umbenennen** (eine Datei, ein Verzeichnis oder die markierten Dateien mit
+einer Maske) und **Verzeichnis erstellen** funktionieren auf dem entfernten
+Rechner wie hier. Eine Umbenennung ersetzt nie eine Datei, ohne zu fragen;
+nach einem Ja ersetzt der Server sie in einem Schritt, wenn er es kann
+(OpenSSH kann es), sonst sagt Xylem das und lässt beide stehen.
+
+**Kopieren auf den entfernten Rechner** funktioniert ebenfalls: aus dem
+Fenster dieses Rechners; bei geteiltem Bildschirm wird das entfernte Fenster
+als Ziel vorgeschlagen; oder Sie geben einen Pfad des entfernten Fensters oder
+seine Adresse ein (`benutzer@host:/srv/www`, innerhalb des Ordners, mit dem das
+Fenster geöffnet wurde). Jede Datei wird in eine temporäre Datei neben dem Ziel
+geschrieben, auf ihre Größe geprüft, erhält ihre Berechtigungen (ohne setuid
+und setgid) und ihr Datum und wird erst dann an ihren Platz gesetzt; Esc
+entfernt die temporäre Datei. Kopieren innerhalb des entfernten Rechners
+funktioniert genauso. Symbolische Links werden dort nicht neu angelegt, und
+das wird gemeldet.
+
+**Verschieben** funktioniert in alle Richtungen: von hier auf den entfernten
+Rechner und zurück (das Original wird erst entfernt, wenn die Kopie an ihrem
+Platz und geprüft ist) und innerhalb des entfernten Rechners (dort eine
+Umbenennung). **Löschen**, **Prune** und dieselben Aktionen in Usage
+funktionieren ebenfalls. Auf einem entfernten Rechner gibt es **keinen
+Papierkorb**: Die Rückfrage sagt das, und Oops hat nichts wiederherzustellen.
+Nichts wird über einen symbolischen Link entfernt: Ein Link wird als er selbst
+entfernt. Prune lässt andere Datenträger aus, die im Zweig eingehängt sind;
+sie werden über die `statvfs`-Erweiterung von OpenSSH unterschieden, und auf
+einem Server ohne sie wird Prune abgelehnt.
+
+**Berechtigungen** nehmen oktale Werte (`644`) an, wie ein Unix-Rechner, auch
+von Windows aus; **Datum ändern** setzt das Datum auf die Sekunde genau. Keins
+von beiden wirkt über einen symbolischen Link. [Duplikate](duplicates.md)
+funktioniert dort ebenfalls.
+
+Bearbeiten und Ausführen fehlen noch. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
 gibt es nicht.
 
 **F8** in einem entfernten Fenster öffnet ein zweites Fenster auf dem lokalen
@@ -119,5 +149,29 @@ fi
 Innerhalb von Xylem benötigt die Shell kein tmux, um weiterzulaufen: Sie bleibt
 aktiv, solange Xylem geöffnet ist, und falls die Verbindung abbricht, schließt
 sich ohnehin auch das entfernte Fenster.
+
+## Container (Docker, Podman)
+
+Ein Container auf diesem Rechner öffnet sich genauso, ohne `sshd` darin:
+
+- `docker://container` — sein Arbeitsverzeichnis; `docker://container/app` —
+  dieses Verzeichnis; `docker://benutzer@container/app` — als dieser Benutzer
+  (`docker exec -u`).
+
+Xylem ruft `docker exec` auf und startet im Container dessen eigenen
+`sftp-server`, dasselbe Programm, das ein SSH-Server verwendet. Die meisten
+Images haben ihn nicht: Installieren Sie ihn im Container (`apk add
+openssh-sftp-server` unter Alpine, `apt install openssh-sftp-server` unter
+Debian und Ubuntu, `dnf install openssh-server` unter Fedora), sonst meldet
+Xylem, dass er fehlt. Das Image braucht `sh`; Distroless-Images fallen daher weg.
+
+Alles oben Beschriebene funktioniert dort wie auf einem entfernten Rechner, und
+**Alt+X** öffnet eine Shell im Container, im Ordner des Fensters. Mit
+**Podman** starten Sie Xylem mit `XY_DOCKER=podman`. `DOCKER_HOST` und
+Docker-Kontexte gelten wie gewohnt.
+
+Xylem ruft immer nur `docker exec` auf: Es startet, ändert oder lädt keinen
+Container. Was Sie schreiben, landet im Container, außer in Ordnern, die von
+diesem Rechner eingebunden sind (`-v`): Das sind Dateien dieses Rechners.
 
 Für Google Drive, S3 und andere Cloud-Dienste siehe [Cloud-Speicher](cloud.md).

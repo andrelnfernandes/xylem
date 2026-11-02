@@ -394,27 +394,22 @@ impl App {
             self.message = Some("Archives are read-only (use Copy to extract)".into());
             return;
         }
-        // A remote machine: browsing, viewing, searching and copying here for
-        // now; Log and the terminal work too.
+        // A remote machine: what is not there yet (Oops: it has no trash).
         let remote_writes = matches!(
             cmd,
-            Command::Move { .. }
-                | Command::Delete { .. }
-                | Command::Oops
-                | Command::Rename { .. }
-                | Command::Attributes { .. }
-                | Command::MakeDir
+            Command::Oops
                 | Command::Edit
                 | Command::Execute
                 | Command::TerminalTagged
-                | Command::Prune
-                | Command::NewDate { .. }
                 | Command::CreateArchive { .. }
                 | Command::Batch
         );
         if remote_writes && self.remote.is_some() {
-            self.message =
-                Some("Read-only on a remote machine for now: Copy brings files here".into());
+            self.message = Some(match cmd {
+                Command::Oops => "There is no trash on a remote machine to restore from".into(),
+                _ => "Not yet on a remote machine: Edit, eXecute, archives and Batch come later"
+                    .into(),
+            });
             return;
         }
         match cmd {

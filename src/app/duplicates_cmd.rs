@@ -3,6 +3,7 @@
 use super::*;
 use crate::duplicates::{DuplicatesView, Fail, Finder, Scan};
 use crate::usage;
+use std::collections::HashMap;
 
 impl App {
     pub(crate) fn open_duplicates(&mut self) {
@@ -12,8 +13,8 @@ impl App {
 
     /// Looks for duplicates in the branch of `id`: logs it, on one disk.
     pub(crate) fn duplicates_of(&mut self, id: NodeId) {
-        if self.archive.is_some() || self.remote.is_some() {
-            self.message = Some("Duplicates work on folders of this machine for now".into());
+        if self.archive.is_some() {
+            self.message = Some("Duplicates do not look inside archives".into());
             return;
         }
         // In the cloud, the service knows the hashes: nothing to log or read.
@@ -44,16 +45,27 @@ impl App {
     /// The branch is in memory. On a network, reading it costs: asks first.
     pub(crate) fn duplicates_logged(&mut self, id: NodeId) {
         let path = self.tree.path(id);
-        let network = crate::info::mount_of(&path).is_some_and(|m| is_network(&m.fstype));
+        let network = self.remote.is_some()
+            || crate::info::mount_of(&path).is_some_and(|m| is_network(&m.fstype));
         if network {
-            let total = self.duplicates_scan(id).to_read();
+            let total = match self.duplicates_scan(id) {
+                Ok(scan) => scan.to_read(),
+                Err(e) => {
+                    self.message = Some(e);
+                    return;
+                }
+            };
             if total > 0 {
                 let why = self
                     .duplicates_why
                     .take()
                     .map_or(String::new(), |w| format!("{w}. "));
+                let place = match &self.remote {
+                    Some(_) => "on a remote machine",
+                    None => "on a network",
+                };
                 let q = format!(
-                    "{why}This folder is on a network: comparing reads up to {}. Continue?",
+                    "{why}This folder is {place}: comparing reads up to {}. Continue?",
                     usage::size(total)
                 );
                 self.ask(ConfirmKind::ReadThroughNetwork(id), q);
@@ -63,18 +75,56 @@ impl App {
         self.duplicates_compare(id);
     }
 
-    fn duplicates_scan(&self, id: NodeId) -> Scan {
-        Scan::of(
-            &self.tree,
-            id,
+    fn duplicates_scan(&self, id: NodeId) -> Result<Scan, String> {
+        let (min, ignore) = (
             self.options.duplicates_min_size,
             &self.options.duplicates_ignore,
-        )
+        );
+        let Some(remote) = &self.remote else {
+            return Ok(Scan::of(&self.tree, id, min, ignore));
+        };
+        // The tree has no devices there: each folder's filesystem says which
+        // are other disks, as for Prune.
+        let disks = self.remote_disks(remote, id)?;
+        let root = disks.get(&id).copied();
+        let other_disk = |c| disks.get(&c).copied() != root;
+        let scan = Scan::of_disks(&self.tree, id, min, ignore, &other_disk);
+        Ok(scan.on_remote(remote.clone()))
+    }
+
+    /// The filesystem of each folder of the branch of `id`, on a remote
+    /// machine.
+    fn remote_disks(
+        &self,
+        remote: &crate::remote::Remote,
+        id: NodeId,
+    ) -> Result<HashMap<NodeId, crate::remote::sftp::Filesystem>, String> {
+        let mut disks = HashMap::new();
+        let mut stack = vec![id];
+        while let Some(n) = stack.pop() {
+            let path = self.tree.path(n);
+            match remote.filesystem(&path) {
+                Ok(fs) => {
+                    disks.insert(n, fs);
+                }
+                Err(e) if n == id => return Err(format!("Cannot compare: {e}")),
+                // Unreadable: left out, as another disk would be.
+                Err(_) => continue,
+            }
+            stack.extend(self.tree.node(n).children.iter().copied());
+        }
+        Ok(disks)
     }
 
     pub(crate) fn duplicates_compare(&mut self, id: NodeId) {
         self.duplicates_why = None;
-        let scan = self.duplicates_scan(id);
+        let scan = match self.duplicates_scan(id) {
+            Ok(scan) => scan,
+            Err(e) => {
+                self.message = Some(e);
+                return;
+            }
+        };
         self.duplicates_root = Some(self.tree.path(id));
         self.duplicates_job = Some(Finder::start(scan));
     }
@@ -318,20 +368,27 @@ impl App {
             [dir] => format!("folder {} and all it holds", fit_name(dir)),
             _ => format!("{} folders and all they hold", dirs.len()),
         };
-        let q = if to_trash {
-            format!("MOVE {what} to trash?")
-        } else {
-            format!("DELETE {what}? This cannot be undone.")
+        let to_trash = to_trash && self.remote.is_none();
+        let q = match &self.remote {
+            Some(r) => format!(
+                "DELETE {what} on {}? There is no trash there: this cannot be undone.",
+                r.address.destination()
+            ),
+            None if to_trash => format!("MOVE {what} to trash?"),
+            None => format!("DELETE {what}? This cannot be undone."),
         };
-        let options: &'static [&'static str] = if to_trash {
-            &["Yes", "No", "Permanent"]
-        } else {
-            &["Yes", "No", "Trash"]
+        let options: &'static [&'static str] = match (&self.remote, to_trash) {
+            (Some(_), _) => &["Yes", "No"],
+            (None, true) => &["Yes", "No", "Permanent"],
+            (None, false) => &["Yes", "No", "Trash"],
         };
         self.ask_options(ConfirmKind::DeleteFolders { dirs, to_trash }, q, options);
     }
 
     pub(crate) fn delete_folders(&mut self, dirs: Vec<PathBuf>, to_trash: bool) {
+        if let Some(remote) = self.remote.clone() {
+            return self.delete_remote_folders(&remote, dirs);
+        }
         if to_trash {
             let sources = dirs
                 .into_iter()
@@ -388,6 +445,57 @@ impl App {
             folders.push(dir);
         }
         self.start_op(Operation::prune(files, folders));
+    }
+
+    /// [`App::delete_folders`] on a remote machine: no trash, and another
+    /// disk mounted inside (told by its filesystem) stays.
+    fn delete_remote_folders(&mut self, remote: &crate::remote::Remote, dirs: Vec<PathBuf>) {
+        use crate::model::tree::{FileKind, Lister};
+        let (mut files, mut folders) = (Vec::new(), Vec::new());
+        let mut stack = Vec::new();
+        for dir in dirs {
+            let disk = remote.attrs(&dir).and_then(|a| {
+                if a.is_dir() {
+                    remote.filesystem(&dir)
+                } else {
+                    Err(std::io::Error::other("not a folder"))
+                }
+            });
+            match disk {
+                Ok(disk) => stack.push((dir, disk)),
+                Err(e) => {
+                    self.message = Some(format!("Cannot delete {}: {e}", dir.display()));
+                    return;
+                }
+            }
+        }
+        while let Some((dir, disk)) = stack.pop() {
+            let (subdirs, entries) = match remote.list(&dir) {
+                Ok(listed) => listed,
+                Err(e) => {
+                    self.message = Some(format!("Cannot read {}: {e}", dir.display()));
+                    return;
+                }
+            };
+            for (name, _) in subdirs {
+                let path = dir.join(name);
+                if remote.filesystem(&path).is_ok_and(|d| d == disk) {
+                    stack.push((path, disk));
+                }
+            }
+            for f in entries {
+                let size = if f.kind == FileKind::File { f.size } else { 0 };
+                files.push(Source {
+                    path: dir.join(&f.name),
+                    size,
+                });
+            }
+            folders.push(dir);
+        }
+        match self.on_this_side(Operation::prune(files, folders)) {
+            Ok(op) => self.start_op(op),
+            Err(e) => self.message = Some(e),
+        }
     }
 
     /// Writes the list shown, never over a file that exists.
