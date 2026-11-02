@@ -77,12 +77,14 @@ panel indica simplemente rclone.
 
 - **Todo va por la red.** Cada lectura de directorio es una petición, y un
   servicio como Google Drive las rechaza cuando son demasiadas. Por eso, en una
-  carpeta montada, `*` pide a rclone toda la rama en un solo listado, mucho más
-  rápido, y llena el árbol al terminar; Esc deja el árbol como estaba. Si rclone
-  falla o muestra carpetas distintas de las del montaje, `*` lee carpeta por
-  carpeta. Branch (`B`) siempre lee así y puede tardar un rato. Abrir solo los
-  directorios que necesitas (→ o `+`) es rápido, ya que se leen a medida que los
-  abres.
+  carpeta montada, `*`, Branch (`B`), la vista Usage y Compare en una rama piden
+  a rclone toda la rama en un solo listado, mucho más rápido, salvo que ya esté
+  toda leída; Esc deja el árbol como estaba. Si rclone falla o muestra otras carpetas que el montaje,
+  leen carpeta por carpeta. Solo `*` expande el árbol.
+- **La pantalla no espera.** El árbol aparece enseguida y se llena a medida que
+  llegan las carpetas, también al abrir una (→ o `+`) o al llevar el cursor a ella;
+  mientras tanto, la ventana de archivos muestra `reading...`. F3 e ir a una ruta
+  escrita todavía esperan su lectura.
 - **Los cambios hechos en otro lugar** (en el navegador, en el teléfono) solo
   aparecen después de pulsar F3 y una vez que expira la caché de directorios
   (`--dir-cache-time`).

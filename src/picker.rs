@@ -45,6 +45,17 @@ impl Picker {
         Picker { panes, active }
     }
 
+    /// Puts on screen what its windows read in the background.
+    pub fn apply_reads(&mut self) {
+        for pane in &mut self.panes {
+            pane.apply_reads();
+        }
+    }
+
+    pub fn reading(&self) -> bool {
+        self.panes.iter().any(|p| p.tree.reading())
+    }
+
     pub fn pane(&self) -> &Pane {
         &self.panes[self.active]
     }

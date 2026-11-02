@@ -102,6 +102,12 @@ fn leaving_showall_selects_file_dir() {
 /// `*` as on a cloud mount, with a script in place of rclone.
 #[cfg(unix)]
 fn cloud_log(body: &str) -> (tempfile::TempDir, App) {
+    cloud_log_for(body, AfterLog::Refresh, LogJob::new(ROOT, true))
+}
+
+/// A cloud listing of the root, for `then`.
+#[cfg(unix)]
+fn cloud_log_for(body: &str, then: AfterLog, fallback: LogJob) -> (tempfile::TempDir, App) {
     use std::os::unix::fs::PermissionsExt;
     let tmp = crate::testing::tempdir();
     create_dir_all(tmp.path().join("docs/deep")).unwrap();
@@ -120,6 +126,8 @@ fn cloud_log(body: &str) -> (tempfile::TempDir, App) {
         id: ROOT,
         service: "Google Drive".into(),
         ask_at: REFUSALS_TO_ASK,
+        then,
+        fallback,
     });
     (tmp, app)
 }
@@ -211,6 +219,66 @@ echo '{"Path":"docs/deep/only-in-the-listing.txt","Size":9,"IsDir":false}'"#,
     assert!(tree.node(deep).expanded);
     assert_eq!(tree.node(deep).files[0].name, "only-in-the-listing.txt");
     assert!(app.message.is_none());
+}
+
+#[cfg(unix)]
+const CLOUD_LISTING: &str = r#"echo '{"Path":"docs","IsDir":true}'
+echo '{"Path":"docs/deep","IsDir":true}'
+echo '{"Path":"docs/deep/only-in-the-listing.txt","Size":9,"IsDir":false}'"#;
+
+#[cfg(unix)]
+#[test]
+fn usage_on_a_cloud_mount_takes_the_listing_without_expanding() {
+    let (tmp, mut app) = cloud_log_for(
+        CLOUD_LISTING,
+        AfterLog::Usage(ROOT),
+        LogJob::new(ROOT, false),
+    );
+    assert!(app.usage.is_none(), "not before the listing");
+    finish(&mut app);
+    assert!(app.usage.is_some());
+    let tree = &app.panes[0].tree;
+    let deep = tree.find(&tmp.path().join("docs/deep")).unwrap();
+    assert!(!tree.node(deep).expanded);
+    assert_eq!(tree.node(deep).files[0].name, "only-in-the-listing.txt");
+}
+
+#[cfg(unix)]
+#[test]
+fn branch_on_a_cloud_mount_lists_what_the_listing_brought() {
+    let (_tmp, mut app) = cloud_log_for(
+        CLOUD_LISTING,
+        AfterLog::OpenBranch(ROOT),
+        LogJob::new(ROOT, false),
+    );
+    finish(&mut app);
+    assert_eq!(app.view, FileView::Branch(ROOT));
+    assert!(names(&app).contains(&"only-in-the-listing.txt".to_string()));
+}
+
+#[cfg(unix)]
+#[test]
+fn usage_on_a_cloud_mount_opens_folder_by_folder_if_rclone_fails() {
+    let (_tmp, mut app) = cloud_log_for(
+        "echo 'no such remote' >&2; exit 3",
+        AfterLog::Usage(ROOT),
+        LogJob::new(ROOT, false),
+    );
+    finish(&mut app);
+    assert!(app.usage.is_some());
+}
+
+#[cfg(unix)]
+#[test]
+fn usage_stays_closed_when_the_service_refuses() {
+    let (_tmp, mut app) = cloud_log_for(
+        &refusing(3, "exit 1"),
+        AfterLog::Usage(ROOT),
+        LogJob::new(ROOT, false),
+    );
+    finish(&mut app);
+    assert!(app.usage.is_none());
+    assert!(app.message.as_deref().unwrap().contains("refused"));
 }
 
 #[cfg(unix)]
