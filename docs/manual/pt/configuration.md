@@ -8,7 +8,7 @@ janela e nunca chega ao Xylem) abre quatro páginas:
 | Página | Opções |
 |---|---|
 | 1. Programas e formatos | editor, abrir editor dentro da moldura do Xylem, tema do Xylem no editor, editar arquivos binários com E, editor binário, idioma da ajuda, programa de abertura (`opener`), formato de data, formato numérico, comandos Git, pastas Git confiáveis |
-| 2. Exibição e ordenação | arquivos ocultos, ordem e direção iniciais de classificação, o que Enter faz na janela de arquivos, modo de exibição inicial, cores de sintaxe, quebra de linha, números de linha, arquivos comprimidos, a codificação de textos antigos, o limite de tamanho do que o visualizador lê, ícones e glifos (Nerd Fonts), cores do terminal integrado |
+| 2. Exibição e ordenação | arquivos ocultos, ordem e direção iniciais de classificação, o que Enter faz na janela de arquivos, modo de exibição inicial, cores de sintaxe, quebra de linha, números de linha, arquivos comprimidos, a codificação de textos antigos, o limite de tamanho do que o visualizador lê, ícones e glifos (Nerd Fonts), nomes de arquivo coloridos por tipo, bordas das janelas, cores do terminal integrado |
 | 3. Confirmações e histórico | confirmar ao sair, excluir para a lixeira, confirmação do Prune, entradas com `@` não salvas, histórico próprio do terminal integrado |
 | 4. Copiar, comparar e atualizar | ignorar 2 s, ignorar 1 h, atualização automática, onde começam os caminhos de Alt+C/Alt+M |
 
@@ -19,6 +19,8 @@ O limite de tamanho do visualizador (**L** na página 2) custa memória e tempo:
 - Selecione a fonte instalada nas preferências do seu emulador de terminal.
 
 Se as colunas se desalinharem com os ícones ligados, o terminal provavelmente desenha os caracteres de "largura ambígua" como largos (ajuste comum com fontes chinesas, japonesas e coreanas), enquanto o Xylem conta cada ícone como uma célula. Ajuste essa opção para estreito ou desligue os ícones.
+
+Nomes coloridos por tipo (**N** na página 2) dão a compactados, imagens, áudio e vídeo, documentos, código e dados uma cor do tema cada, só pelo nome (nada é lido). Desligado, a lista fica com o visual clássico. As bordas das janelas (**O**) são arredondadas nos temas nord, gruvbox, slate, graphite, daylight e vivid, e retas nos outros; `plain` ou `rounded` as fixa em todos os temas.
 
 A letra da opção (ou Enter) altera o valor, PgUp/PgDn ou 1–4 trocam de página,
 **F4** escolhe o tema em uma lista (com pré-visualização instantânea), **F3**

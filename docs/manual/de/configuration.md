@@ -8,7 +8,7 @@ Fenster und erreicht Xylem nicht) öffnet vier Seiten:
 | Seite | Optionen |
 |---|---|
 | 1. Programme und Formate | Editor, Editor im Xylem-Rahmen öffnen, Xylem-Thema im Editor, Binärdateien mit E bearbeiten, Binäreditor, Hilfesprache, Programm zum Öffnen (Opener), Datumsformat, Zahlenformat, Git-Befehle, vertrauenswürdige Git-Ordner |
-| 2. Anzeige und Sortierung | versteckte Dateien, anfängliches Sortierkriterium und Richtung, Verhalten von Enter im Dateifenster, anfänglicher Anzeigemodus, Syntaxfarben, Zeilenumbruch, Zeilennummern, komprimierte Dateien, die Kodierung alter Texte, das Größenlimit dessen, was der Betrachter liest, Icons und Symbole (Nerd Fonts), Farben des integrierten Terminals |
+| 2. Anzeige und Sortierung | versteckte Dateien, anfängliches Sortierkriterium und Richtung, Verhalten von Enter im Dateifenster, anfänglicher Anzeigemodus, Syntaxfarben, Zeilenumbruch, Zeilennummern, komprimierte Dateien, die Kodierung alter Texte, das Größenlimit dessen, was der Betrachter liest, Icons und Symbole (Nerd Fonts), Dateinamen nach Typ gefärbt, Fensterrahmen, Farben des integrierten Terminals |
 | 3. Bestätigungen und Verlauf | beim Beenden nachfragen, in den Papierkorb löschen, Prune-Bestätigung, Einträge mit `@` nicht speichern, eigener Verlauf des integrierten Terminals |
 | 4. Kopieren, Vergleichen und Aktualisieren | 2 s ignorieren, 1 Std. ignorieren, automatische Aktualisierung, Startpunkt der Pfade bei Alt+C/Alt+M |
 
@@ -19,6 +19,8 @@ Icons und Symbole (**M** auf Seite 2) erfordern eine mit Nerd Fonts erweiterte S
 - Wählen Sie diese Schriftart in den Einstellungen Ihres Terminal-Emulators aus.
 
 Verrutschen die Spalten bei eingeschalteten Icons, stellt das Terminal vermutlich Zeichen „mehrdeutiger Breite“ breit dar (eine bei chinesischen, japanischen und koreanischen Schriften übliche Einstellung), während Xylem jedes Icon als eine Zelle zählt. Stellen Sie diese Option auf schmal oder schalten Sie die Icons aus.
+
+Dateinamen nach Typ gefärbt (**N** auf Seite 2) gibt Archiven, Bildern, Audio und Video, Dokumenten, Code und Daten je eine Farbe des Themes, allein nach dem Namen (es wird nichts gelesen). Ausgeschaltet sieht die Liste klassisch aus. Fensterrahmen (**O**) sind in den Themes nord, gruvbox, slate, graphite, daylight und vivid abgerundet und in den anderen gerade; `plain` oder `rounded` legt sie in jedem Theme fest.
 
 Der Buchstabe der Option (oder Enter) ändert den Wert, PgUp/PgDn oder 1–4
 wechseln die Seite, **F4** wählt das Thema aus einer Liste (mit sofortiger
