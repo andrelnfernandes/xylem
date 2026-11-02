@@ -85,7 +85,13 @@ as a link is what `cp -a` and `rsync -l` do).
   read in the background, the main thread was also seen waiting for rclone, for a
   reason not found yet.
 - **From ZTreeWin, next:** JFC (compare the contents of two files), and saving
-  and loading the log (Zlist), so that the tree of a disk or a Drive opens at once.
+  and loading the log (Zlist), so that the tree of a disk or a Drive opens at once;
+  the Zlist also for remote machines, containers and Docker images
+  ([docs/plans/machines.md](docs/plans/machines.md)).
+- **Machines in F2** ([docs/plans/machines.md](docs/plans/machines.md)): a page of
+  the folder picker listing Docker containers (`docker ps`), the hosts of
+  `~/.ssh/config` and addresses used before; and Docker contexts in `docker://`,
+  for daemons on other machines. No date yet.
 - Postponed by choice: macros, chown, Graft. macOS: to look at again when there
   is a machine to test on.
 - Left out by decision: Xylem in its own window, external converters, HTML in the
