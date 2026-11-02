@@ -20,7 +20,7 @@ O limite de tamanho do visualizador (**L** na página 2) custa memória e tempo:
 
 Se as colunas se desalinharem com os ícones ligados, o terminal provavelmente desenha os caracteres de "largura ambígua" como largos (ajuste comum com fontes chinesas, japonesas e coreanas), enquanto o Xylem conta cada ícone como uma célula. Ajuste essa opção para estreito ou desligue os ícones.
 
-Nomes coloridos por tipo (**N** na página 2) dão a compactados, imagens, áudio e vídeo, documentos, código e dados uma cor do tema cada, só pelo nome (nada é lido). Desligado, a lista fica com o visual clássico. As bordas das janelas (**O**) são arredondadas nos temas nord, gruvbox, slate, graphite, daylight e vivid, e retas nos outros; `plain` ou `rounded` as fixa em todos os temas.
+Nomes coloridos por tipo (**N** na página 2) dão a compactados, imagens, áudio e vídeo, documentos, código e dados uma cor do tema cada, só pelo nome (nada é lido). Desligado, a lista fica com o visual clássico. As bordas das janelas (**O**) são arredondadas nos temas nord, gruvbox, slate, graphite, daylight e vivid, e retas nos outros; `plain` ou `rounded` as fixa em todos os temas. A tela de abertura (**P**) mostra o nome em letras de bloco por dois segundos quando o Xylem abre; qualquer tecla a fecha (essa tecla não faz mais nada), e a pasta inicial é lida enquanto isso. Não aparece ao conectar numa máquina remota ou container pela linha de comando, nem num terminal menor que 58 por 13.
 
 A letra da opção (ou Enter) altera o valor, PgUp/PgDn ou 1–4 trocam de página,
 **F4** escolhe o tema em uma lista (com pré-visualização instantânea), **F3**

@@ -205,6 +205,11 @@ fn main() -> anyhow::Result<()> {
             to.display()
         ))
     });
+    // Not over a connection that may ask for a password at once; nor in the
+    // e2e tests, which type at once.
+    let splash = config.options.splash
+        && remote_address.is_none()
+        && std::env::var_os("XY_NO_SPLASH").is_none();
     if let Some(address) = remote_address
         && let Err(e) = app.connect(address)
     {
@@ -219,6 +224,9 @@ fn main() -> anyhow::Result<()> {
     // `init` also installs a panic hook that restores the terminal.
     let mut terminal = ratatui::init();
     let mut keyboard = Keyboard::detect();
+    if splash {
+        app.splash = Some(Instant::now() + app::SPLASH);
+    }
     // Outermost hook: while `panic_guard::catch` runs, a caught panic must
     // not trigger the hooks that restore the terminal.
     let previous = std::panic::take_hook();
@@ -390,6 +398,7 @@ fn run(
         app.poll_connection();
         app.poll_opening();
         app.apply_reads();
+        app.splash_tick(Instant::now());
         redraw |= app.terminal_tick();
         redraw |= app.editor_tick();
         redraw |= app.table_tick();
@@ -411,7 +420,8 @@ fn run(
         let in_pty = app.terminal_focus || app.editor_pty.is_some();
         let wait = if in_pty {
             15
-        } else if app.connecting.is_some()
+        } else if app.splash.is_some()
+            || app.connecting.is_some()
             || app.opening.is_some()
             || app.reading()
             || app.reading_table()

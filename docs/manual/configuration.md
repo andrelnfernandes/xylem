@@ -20,7 +20,7 @@ Icons and glyphs (**M** on page 2) require a font patched with Nerd Fonts. You d
 
 If the columns drift out of line with icons on, the terminal is probably drawing "ambiguous width" characters as wide (a setting common with Chinese, Japanese and Korean fonts), while Xylem counts each icon as one cell. Set that option to narrow, or turn icons off.
 
-File names colored by type (**N** on page 2) give archives, images, audio and video, documents, code and data each a color of the theme, by the name only (nothing is read). Off, the list has the classic look. Window borders (**O**) are rounded in the nord, gruvbox, slate, graphite, daylight and vivid themes and straight in the others; `plain` or `rounded` keeps them one way in every theme.
+File names colored by type (**N** on page 2) give archives, images, audio and video, documents, code and data each a color of the theme, by the name only (nothing is read). Off, the list has the classic look. Window borders (**O**) are rounded in the nord, gruvbox, slate, graphite, daylight and vivid themes and straight in the others; `plain` or `rounded` keeps them one way in every theme. The start screen (**P**) shows the name in block letters for two seconds when Xylem opens; any key closes it (that key does nothing else), and the start folder is read meanwhile. It is not shown when connecting to a remote machine or container from the command line, nor in a terminal smaller than 58 by 13.
 
 The option's letter (or Enter) changes the value, PgUp/PgDn or 1–4 switch
 pages, **F4** picks the theme from a list (with an instant preview), **F3**

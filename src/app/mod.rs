@@ -11,7 +11,7 @@ use std::io::BufRead;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, ModifierKeyCode};
 
@@ -119,6 +119,9 @@ pub const LOG_SMALLER: &str = "Log smaller folders: * on each one, or + to open 
 /// Refusals until `*` asks, and again each time after that: a few are normal,
 /// and at this point a large Drive is costing minutes.
 pub const REFUSALS_TO_ASK: u64 = 100;
+
+/// How long the start screen with the name stays up.
+pub const SPLASH: Duration = Duration::from_secs(2);
 
 /// An archive being read in the background (Alt+F5).
 pub struct Opening {
@@ -237,6 +240,8 @@ pub struct App {
     /// The `[editors]` table: which editor E uses for each file.
     pub editors: Editors,
     pub should_quit: bool,
+    /// Until when the start screen with the name stays up (the option `splash`).
+    pub splash: Option<Instant>,
     /// Alt+Q: the directory for the shell to go to on exit.
     pub quit_dir: Option<PathBuf>,
     /// Ctrl/Alt currently pressed (only on terminals that report it).
@@ -342,6 +347,7 @@ impl App {
             keymap: Keymap::default(),
             editors: Editors::default(),
             should_quit: false,
+            splash: None,
             quit_dir: None,
             held: None,
             sticky: MenuMode::Normal,
@@ -458,6 +464,13 @@ impl App {
         let dirs: Vec<PathBuf> = self.pending_changes.drain().collect();
         self.rescan_everywhere(&dirs);
         true
+    }
+
+    /// Closes the start screen once its time is up.
+    pub fn splash_tick(&mut self, now: Instant) {
+        if self.splash.is_some_and(|until| now >= until) {
+            self.splash = None;
+        }
     }
 
     /// There is ongoing work that does not depend on the user.

@@ -20,7 +20,7 @@ Los iconos y glifos (**M** en la página 2) requieren una fuente con el parche d
 
 Si las columnas se desalinean con los iconos activados, probablemente la terminal dibuja los caracteres de "ancho ambiguo" como anchos (un ajuste habitual con fuentes chinas, japonesas y coreanas), mientras que Xylem cuenta cada icono como una celda. Ponga esa opción en estrecho o desactive los iconos.
 
-Los nombres coloreados por tipo (**N** en la página 2) dan a los archivos comprimidos, imágenes, audio y vídeo, documentos, código y datos un color del tema cada uno, solo por el nombre (no se lee nada). Desactivado, la lista tiene el aspecto clásico. Los bordes de las ventanas (**O**) son redondeados en los temas nord, gruvbox, slate, graphite, daylight y vivid, y rectos en los demás; `plain` o `rounded` los fija en todos los temas.
+Los nombres coloreados por tipo (**N** en la página 2) dan a los archivos comprimidos, imágenes, audio y vídeo, documentos, código y datos un color del tema cada uno, solo por el nombre (no se lee nada). Desactivado, la lista tiene el aspecto clásico. Los bordes de las ventanas (**O**) son redondeados en los temas nord, gruvbox, slate, graphite, daylight y vivid, y rectos en los demás; `plain` o `rounded` los fija en todos los temas. La pantalla de inicio (**P**) muestra el nombre en letras de bloque durante dos segundos cuando Xylem se abre; cualquier tecla la cierra (esa tecla no hace nada más), y mientras tanto se lee la carpeta inicial. No aparece al conectarse a una máquina remota o a un contenedor desde la línea de órdenes, ni en un terminal de menos de 58 por 13.
 
 La letra de la opción (o Enter) cambia el valor, PgUp/PgDn o 1–4 cambian de
 página, **F4** elige el tema de una lista (con vista previa instantánea), **F3**

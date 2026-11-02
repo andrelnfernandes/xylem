@@ -81,6 +81,8 @@ type_colors = true
 # Window borders: "theme" (rounded in nord, gruvbox, slate, graphite,
 # daylight and vivid, straight in the others), "plain" or "rounded".
 borders = "theme"
+# The name in block letters for two seconds at start (any key closes it).
+splash = true
 # Initial mode of the files window (Alt+F changes it while running): "names"
 # (several columns), "names_size" (columns with size), "details" (one
 # column with size, date and permissions), "owner" (size, owner and group,
@@ -244,6 +246,8 @@ pub struct Options {
     pub type_colors: bool,
     /// Window borders: as the theme says, straight or rounded.
     pub borders: Borders,
+    /// The start screen with the name, for two seconds.
+    pub splash: bool,
     /// Initial mode of the files window (Alt+F changes it while running).
     pub file_display: FileDisplay,
     /// Initial file sort order.
@@ -297,6 +301,7 @@ impl Default for Options {
             icons: IconStyle::None,
             type_colors: true,
             borders: Borders::Theme,
+            splash: true,
             file_display: FileDisplay::Details,
             sort: SortKey::Name,
             sort_descending: false,
@@ -352,6 +357,7 @@ impl Options {
             ("icons", s(self.icons.as_str())),
             ("type_colors", Value::from(self.type_colors)),
             ("borders", s(self.borders.as_str())),
+            ("splash", Value::from(self.splash)),
             ("file_display", s(self.file_display.as_str())),
             ("sort", s(self.sort.as_str())),
             ("sort_descending", Value::from(self.sort_descending)),
