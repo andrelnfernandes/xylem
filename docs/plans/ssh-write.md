@@ -118,6 +118,24 @@ Combinações:
 3. **3b — enviar.** `OPEN` de escrita, `WRITE` em voo, `FSTAT`, `SETSTAT`; Copy local → remoto e
    remoto → mesmo remoto; Alt+C com caminhos; criar pasta de destino que falta;
    conflito com tamanho e data dos dois lados; Esc apaga o temporário remoto.
+   *Feito na branch `ssh-upload` (sobre a `docker-remote`).* Diferenças do previsto:
+   - `REMOVE` veio já aqui: apaga o temporário no Esc e no erro, e substitui o
+     destino aprovado em servidor sem `posix-rename` (remove e renomeia; a cópia
+     já está inteira no temporário nessa hora).
+   - O temporário é criado com `CREAT|EXCL` e modo 0600; um que sobrou (ou um
+     symlink com o nome dele) é apagado como ele mesmo e a criação tentada de novo,
+     como no local. `FSETSTAT` dá o modo final (`& 0o777`) e a data antes do `CLOSE`.
+   - `WRITE` em voo só dentro de cada passo (1 MiB, até 16 blocos de 32 KiB): o
+     passo só termina com todas as respostas lidas, porque a sessão SFTP é
+     compartilhada com a árvore e o viewer. Resposta com id desconhecido ou repetido
+     marca a sessão como fora de passo, e nada mais é pedido nela.
+   - Symlinks não são recriados no remoto: o `SYMLINK` do OpenSSH tem os
+     argumentos na ordem trocada em relação ao padrão. O erro diz isso por arquivo.
+   - O destino precisa estar dentro da raiz de uma janela remota aberta (caminho
+     da janela ou endereço `user@host:/x`). Copiar entre duas máquinas remotas e
+     Move para o remoto são recusados com mensagem (Move vem na 3c).
+   - `READ` em voo no download ficou para depois: não é escrita e não muda nada
+     do modelo de ameaça.
 4. **3c — apagar e mover.** `REMOVE`, `RMDIR`; Delete (permanente), Prune, Move nas
    quatro combinações da tabela; Usage passa a apagar e podar no remoto.
 5. **3d — permissões e datas.** Attributes (octal) e NewDate por `SETSTAT`;

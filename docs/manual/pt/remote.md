@@ -55,8 +55,17 @@ nunca substitui um arquivo sem perguntar; depois de um sim, o servidor o
 substitui de uma vez, se puder (o OpenSSH pode), e senão o Xylem avisa e deixa
 os dois.
 
+**Copiar para a máquina remota** também funciona: da janela desta máquina;
+com a tela dividida, a janela remota é o destino sugerido; ou digite um
+caminho da janela remota, ou o endereço dela (`usuário@host:/srv/www`, dentro
+da pasta em que a janela foi aberta). Cada arquivo é gravado num temporário ao
+lado do destino, tem o tamanho conferido, recebe as permissões (sem setuid e
+setgid) e a data, e só então vai para o lugar; Esc apaga o temporário. Copiar
+dentro da máquina remota funciona do mesmo jeito. Links simbólicos não são
+recriados lá, e isso é avisado.
+
 O resto da escrita ainda não está disponível: Mover, Excluir, Atributos, datas,
-Edit, eXecute e copiar *para* a máquina remota. F3 relê um diretório; não há
+Edit e eXecute. F3 relê um diretório; não há
 atualização automática.
 
 **F8** em uma janela remota abre uma janela nesta máquina (na pasta em que o

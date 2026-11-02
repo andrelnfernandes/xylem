@@ -54,8 +54,17 @@ Un renombrado nunca reemplaza un archivo sin preguntar; tras un sí, el servidor
 lo reemplaza en un solo paso si puede (OpenSSH puede), y si no, Xylem lo dice y
 deja ambos.
 
+**Copiar a la máquina remota** también funciona: desde la ventana de esta
+máquina; con la pantalla dividida, la ventana remota es el destino sugerido; o
+escriba una ruta de la ventana remota, o su dirección (`usuario@host:/srv/www`,
+dentro de la carpeta con la que se abrió la ventana). Cada archivo se escribe
+en un archivo temporal junto al destino, se comprueba su tamaño, recibe sus
+permisos (sin setuid ni setgid) y su fecha, y solo entonces se pone en su
+lugar; Esc borra el archivo temporal. Copiar dentro de la máquina remota
+funciona igual. Los enlaces simbólicos no se recrean allí, y se informa.
+
 El resto de la escritura aún no está: Mover, Eliminar, Atributos, fechas,
-Editar, eJecutar y copiar *hacia* la máquina remota. F3 vuelve a leer un
+Editar y eJecutar. F3 vuelve a leer un
 directorio; no hay actualización automática.
 
 **F8** en una ventana remota abre una ventana en esta máquina (la carpeta donde

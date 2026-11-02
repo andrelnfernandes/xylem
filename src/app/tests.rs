@@ -3002,14 +3002,90 @@ fn remote_window_lists_views_and_copies_here() {
             .unwrap()
             .starts_with("Not yet on a remote machine")
     );
+    // An address outside the window's root, or of a machine not connected.
     press(&mut app, KeyCode::Char('c'));
     answer_prompt(&mut app, "test@testhost:/tmp");
+    let message = app.message.take().unwrap();
+    assert!(message.contains("outside the remote window"), "{message}");
+    press(&mut app, KeyCode::Char('c'));
+    answer_prompt(&mut app, "other@elsewhere:/tmp");
+    let message = app.message.take().unwrap();
     assert!(
-        app.message
-            .as_deref()
-            .unwrap()
-            .contains("remote machine comes in a later version")
+        message.starts_with("Not connected to other@elsewhere"),
+        "{message}"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn copies_from_here_to_the_remote_window() {
+    let (tmp, mut app) = sample();
+    let there = tmp.path().join("there");
+    create_dir_all(&there).unwrap();
+    let Some(remote) = crate::remote::for_tests(&there) else {
+        return;
+    };
+    press(&mut app, KeyCode::F(8));
+    app.panes[1] = Pane::from_remote(remote.clone());
+    assert_eq!(app.active, 0);
+    press(&mut app, KeyCode::Enter);
+    ctrl(&mut app, 't');
+    // The other window is the suggested destination.
+    app.apply(Command::Copy {
+        tagged: true,
+        paths: false,
+    });
+    let suggested = app.prompt.as_ref().unwrap().input.text.clone();
+    assert!(suggested.starts_with("test@testhost:"), "{suggested}");
+    press(&mut app, KeyCode::Enter);
+    while app.busy() {
+        app.tick(Duration::from_millis(30));
+    }
+    assert_eq!(
+        fs::read_to_string(there.join("a.rs")).unwrap(),
+        "fn main() {}\n"
+    );
+    assert_eq!(fs::read_to_string(there.join("b.txt")).unwrap(), "b");
+    assert!(app.message.as_deref().unwrap().starts_with("Copied 2 of 2"));
+    // The remote window shows them.
+    let names: Vec<_> = app.panes[1]
+        .tree
+        .node(crate::model::tree::ROOT)
+        .files
+        .iter()
+        .map(|f| f.name.to_string_lossy().into_owned())
+        .collect();
+    assert!(names.contains(&"a.rs".to_string()), "{names:?}");
+
+    // Typed as an address, into a folder to be created; a Move is refused.
+    app.apply(Command::Copy {
+        tagged: true,
+        paths: false,
+    });
+    answer_prompt(
+        &mut app,
+        &format!(
+            "test@testhost:{}/new",
+            there.canonicalize().unwrap().display()
+        ),
+    );
+    assert!(app.confirm.is_some(), "asks to create the folder");
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(30));
+    }
+    assert!(there.join("new/a.rs").is_file() && there.join("new/b.txt").is_file());
+    app.apply(Command::Move {
+        tagged: true,
+        paths: false,
+    });
+    press(&mut app, KeyCode::Enter);
+    let message = app.message.take().unwrap();
+    assert!(
+        message.starts_with("Moving to a remote machine"),
+        "{message}"
+    );
+    assert!(tmp.path().join("a.rs").exists());
 }
 
 #[cfg(unix)]

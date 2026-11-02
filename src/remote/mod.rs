@@ -476,6 +476,83 @@ impl Remote {
         Ok(data)
     }
 
+    /// Creates `platform::tmp_path(dst)` on the remote machine for writing,
+    /// never opening what is there: a leftover (or a symlink someone put
+    /// there) is removed as itself and the creation tried once more.
+    pub fn create_tmp(self: &Arc<Self>, dst: &Path) -> io::Result<(RemoteWriter, PathBuf)> {
+        let tmp = platform::tmp_path(dst);
+        let path = self.remote_path(&tmp);
+        let created = self.sftp().create_new(&path);
+        let handle = match created {
+            Ok(h) => h,
+            Err(e) => {
+                let mut sftp = self.sftp();
+                match sftp.lstat(&path) {
+                    Ok(a) if !a.is_dir() => {
+                        sftp.remove(&path)?;
+                        sftp.create_new(&path)?
+                    }
+                    _ => return Err(e),
+                }
+            }
+        };
+        let writer = RemoteWriter {
+            remote: self.clone(),
+            handle: Some(handle),
+            written: 0,
+        };
+        Ok((writer, tmp))
+    }
+
+    /// Whether `path` is a directory (following a symlink).
+    pub fn is_dir(&self, path: &Path) -> bool {
+        self.sftp()
+            .stat(&self.remote_path(path))
+            .is_ok_and(|a| a.is_dir())
+    }
+
+    /// Creates `path` and whatever is missing between it and the window's
+    /// root.
+    pub fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        let missing: Vec<&Path> = path
+            .ancestors()
+            .take_while(|d| d.starts_with(&self.root) && *d != self.root)
+            .collect();
+        if !path.starts_with(&self.root) {
+            return Err(io::Error::other("outside the remote window"));
+        }
+        let mut sftp = self.sftp();
+        for dir in missing.into_iter().rev() {
+            let remote = self.remote_path(dir);
+            match sftp.stat(&remote) {
+                Ok(a) if a.is_dir() => {}
+                Ok(_) => return Err(io::Error::from(io::ErrorKind::NotADirectory)),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => sftp.mkdir(&remote)?,
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+
+    /// Puts a finished temporary file at `dst`. An existing `dst` (only
+    /// with `replace`, after a "yes") is replaced in one step when the
+    /// server can; otherwise it is removed first, and for a moment neither
+    /// is there under that name (the copy is complete in `tmp` by then).
+    pub fn put_in_place(&self, tmp: &Path, dst: &Path, replace: bool) -> io::Result<()> {
+        let (tmp, dst) = (self.remote_path(tmp), self.remote_path(dst));
+        let mut sftp = self.sftp();
+        if replace && !sftp.can_replace() {
+            sftp.remove(&dst)?;
+            return sftp.rename(&tmp, &dst, false);
+        }
+        sftp.rename(&tmp, &dst, replace)
+    }
+
+    /// Removes a file (a symlink itself, never what it points to).
+    pub fn remove_file(&self, path: &Path) -> io::Result<()> {
+        self.sftp().remove(&self.remote_path(path))
+    }
+
     /// Creates directory `path` (a path of the window's tree).
     pub fn create_dir(&self, path: &Path) -> io::Result<()> {
         self.sftp().mkdir(&self.remote_path(path))
@@ -580,6 +657,58 @@ impl Read for RemoteFile {
 }
 
 impl Drop for RemoteFile {
+    fn drop(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            let _ = self.remote.sftp().close_file(&handle);
+        }
+    }
+}
+
+/// A file being written on a remote machine (a temporary one: see
+/// [`Remote::create_tmp`]).
+pub struct RemoteWriter {
+    remote: Arc<Remote>,
+    handle: Option<Handle>,
+    written: u64,
+}
+
+impl RemoteWriter {
+    /// The end of writing: checks that the server has every byte sent,
+    /// gives the file its permissions and date, and closes it.
+    pub fn finish(mut self, mode: u32, mtime: Option<SystemTime>) -> io::Result<()> {
+        let handle = self.handle.take().expect("open until finished");
+        let mut sftp = self.remote.sftp();
+        let checked = sftp.fstat(&handle).and_then(|a| match a.size {
+            Some(size) if size == self.written => Ok(()),
+            size => Err(io::Error::other(format!(
+                "the server has {} bytes of the {} sent",
+                size.map_or("an unknown number of".into(), |s| s.to_string()),
+                self.written
+            ))),
+        });
+        let mtime = mtime
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .and_then(|d| u32::try_from(d.as_secs()).ok());
+        let set = checked.and_then(|()| sftp.fsetstat(&handle, mode, mtime));
+        let closed = sftp.close_file(&handle);
+        set.and(closed)
+    }
+}
+
+impl io::Write for RemoteWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let handle = self.handle.as_ref().expect("open until finished");
+        self.remote.sftp().write_all(handle, self.written, buf)?;
+        self.written += buf.len() as u64;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Drop for RemoteWriter {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
             let _ = self.remote.sftp().close_file(&handle);
