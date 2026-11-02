@@ -55,8 +55,18 @@ ici. Un renommage ne remplace jamais un fichier sans demander ; après un oui,
 le serveur le remplace en une seule étape s'il le peut (OpenSSH le peut),
 sinon Xylem le dit et garde les deux.
 
+**Copier vers la machine distante** fonctionne aussi : depuis la fenêtre de
+cette machine ; écran partagé, la fenêtre distante est la destination
+proposée ; ou tapez un chemin de la fenêtre distante, ou son adresse
+(`utilisateur@hôte:/srv/www`, dans le dossier sur lequel la fenêtre a été
+ouverte). Chaque fichier est écrit dans un fichier temporaire à côté de la
+destination, sa taille est vérifiée, il reçoit ses permissions (sans setuid ni
+setgid) et sa date, et seulement alors il est mis à sa place ; Échap supprime
+le fichier temporaire. Copier au sein de la machine distante fonctionne de la
+même façon. Les liens symboliques n'y sont pas recréés, et c'est signalé.
+
 Le reste de l'écriture n'est pas encore là : Déplacer, Supprimer, Attributs,
-dates, Éditer, eXécuter et la copie *vers* la machine distante. F3 relit un
+dates, Éditer et eXécuter. F3 relit un
 répertoire ; il n'y a pas de rafraîchissement automatique.
 
 **F8** dans une fenêtre distante ouvre une fenêtre sur votre machine (dans le

@@ -715,26 +715,30 @@ impl App {
                 bases,
                 ..
             } => {
-                if crate::remote::Address::parse(&text).is_some() {
-                    Err("Copying to a remote machine comes in a later version".into())
-                } else {
-                    let dest = ops::resolve_path(&text, &self.tree.path(self.current()));
-                    // Saves the absolute path: a relative one would change meaning
-                    // next time, from another directory.
-                    self.last_dest = Some(dest.to_string_lossy().into_owned());
-                    let paths_from = paths.then(|| bases.get(mode).to_path_buf());
-                    if needs_new_dir(&dest, sources.len(), paths_from.is_some()) {
-                        let question = format!("Create the missing folder {}?", dest.display());
-                        let kind = ConfirmKind::CreateDest {
-                            kind,
-                            sources,
-                            dest,
-                            paths_from,
-                        };
-                        self.ask(kind, question);
-                        Ok(())
-                    } else {
-                        self.start_transfer(kind, sources, &dest, paths_from.as_deref())
+                match self.typed_remote_dest(&text) {
+                    Err(e) => Err(e),
+                    Ok(remote) => {
+                        let dest = remote.unwrap_or_else(|| {
+                            ops::resolve_path(&text, &self.tree.path(self.current()))
+                        });
+                        // Saves the absolute path: a relative one would change meaning
+                        // next time, from another directory.
+                        self.last_dest = Some(dest.to_string_lossy().into_owned());
+                        let paths_from = paths.then(|| bases.get(mode).to_path_buf());
+                        let side = self.side_of(&dest);
+                        if needs_new_dir(&side, &dest, sources.len(), paths_from.is_some()) {
+                            let question = format!("Create the missing folder {}?", dest.display());
+                            let kind = ConfirmKind::CreateDest {
+                                kind,
+                                sources,
+                                dest,
+                                paths_from,
+                            };
+                            self.ask(kind, question);
+                            Ok(())
+                        } else {
+                            self.start_transfer(kind, sources, &dest, paths_from.as_deref())
+                        }
                     }
                 }
             }
@@ -783,6 +787,49 @@ impl App {
         }
     }
 
+    /// The machine `path` is on: the remote one of the window whose tree it
+    /// is in, or this one.
+    pub(crate) fn side_of(&self, path: &Path) -> Side {
+        let remote = self
+            .panes
+            .iter()
+            .filter_map(|p| p.remote.as_ref())
+            .find(|r| path.starts_with(&r.root));
+        Side::of(remote)
+    }
+
+    /// A typed destination on a remote machine: a path of a remote window
+    /// (`user@host:/home/user/x`, as the other window suggests), or an
+    /// address (`user@host:/home/user/x`) of a machine a window is connected
+    /// to. `None`: a path of this machine.
+    fn typed_remote_dest(&self, text: &str) -> Result<Option<PathBuf>, String> {
+        let remotes = || self.panes.iter().filter_map(|p| p.remote.as_ref());
+        // Not joined to the current directory: it is not one of its own.
+        let typed = ops::resolve_path(text, Path::new(""));
+        if remotes().any(|r| typed.starts_with(&r.root)) {
+            return Ok(Some(typed));
+        }
+        let Some(address) = crate::remote::Address::parse(text) else {
+            return Ok(None);
+        };
+        let destination = address.destination();
+        let Some(remote) = remotes().find(|r| r.address.destination() == destination) else {
+            return Err(format!(
+                "Not connected to {destination}: open it with L, then copy to its window"
+            ));
+        };
+        if address.path.is_empty() {
+            return Ok(Some(remote.root.clone()));
+        }
+        remote.virtual_path(&address.path).map(Some).ok_or_else(|| {
+            format!(
+                "{} is outside the remote window ({})",
+                address.path,
+                remote.root.display()
+            )
+        })
+    }
+
     /// Starts a Copy/Move to `dest` (reading from the open archive, if any).
     fn start_transfer(
         &mut self,
@@ -791,17 +838,10 @@ impl App {
         dest: &Path,
         paths_from: Option<&Path>,
     ) -> Result<(), String> {
-        let into_remote = self
-            .panes
-            .iter()
-            .filter_map(|p| p.remote.as_ref())
-            .any(|r| dest.starts_with(&r.root));
-        if into_remote {
-            return Err("Copying to a remote machine comes in a later version".into());
-        }
+        let side = self.side_of(dest);
         let (archive, remote) = (self.archive.clone(), self.remote.clone());
         let entries = self.archive_entries.clone();
-        Operation::transfer(kind, sources, dest, paths_from)
+        Operation::transfer_to(kind, sources, dest, paths_from, side)
             .and_then(|op| match (&archive, remote) {
                 (_, Some(remote)) => op.reading_remote(remote),
                 (Some(path), None) => op.reading_archive(path, entries),
@@ -822,7 +862,9 @@ impl App {
                 if !yes {
                     return;
                 }
-                let started = fs::create_dir_all(&dest)
+                let started = self
+                    .side_of(&dest)
+                    .create_dir_all(&dest)
                     .map_err(|e| format!("Cannot create {}: {e}", dest.display()))
                     .and_then(|()| {
                         self.start_transfer(kind, sources, &dest, paths_from.as_deref())
@@ -1111,7 +1153,7 @@ impl App {
 
 /// A Copy/Move destination that does not exist and is not a new name for a
 /// single file (in an existing folder): it would have to be created first.
-fn needs_new_dir(dest: &Path, sources: usize, paths: bool) -> bool {
-    let new_name = !paths && sources == 1 && dest.parent().is_some_and(Path::is_dir);
-    fs::symlink_metadata(dest).is_err() && !new_name
+fn needs_new_dir(side: &Side, dest: &Path, sources: usize, paths: bool) -> bool {
+    let new_name = !paths && sources == 1 && dest.parent().is_some_and(|p| side.is_dir(p));
+    !side.exists(dest) && !new_name
 }

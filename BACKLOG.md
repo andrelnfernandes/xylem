@@ -58,8 +58,11 @@ as a link is what `cp -a` and `rsync -l` do).
 
 - **Remote machines, phases 3 and 4** (phases 1 and 2 are in 0.4.0;
   [docs/plans/ssh-write.md](docs/plans/ssh-write.md)):
-  3. writing on the remote machine: rename and mkdir are done; still to do:
-     upload, move, delete, chmod, dates;
+  3. writing on the remote machine: rename, mkdir and copying to it are done;
+     still to do: move, delete, chmod, dates. Copying there does not recreate
+     symbolic links (OpenSSH's SYMLINK takes its paths in the other order),
+     nor copy between two remote machines; downloads still wait for each
+     32 KiB block;
   4. finishing: Edit and Open via temporary download and upload, eXecute
      over ssh, Git over ssh, periodic refresh instead of inotify.
 

@@ -50,8 +50,17 @@ remote window's root.
 replaces a file without asking; when you say yes, the server replaces it in
 one step if it can (OpenSSH can), and otherwise Xylem says so and leaves both.
 
-The rest of writing is not there yet: Move, Delete, Attributes, dates, Edit,
-eXecute and copying *to* the remote machine. F3 rereads a directory; there is
+**Copy to the remote machine** works too: from this machine's window, with
+the screen split the remote window is the suggested destination; or type a
+path of the remote window, or its address (`user@host:/srv/www`, inside the
+folder the window was opened on). Each file is written to a temporary file
+next to the destination, checked for size, given its permissions (without
+setuid and setgid) and date, and only then put in place; Esc removes the
+temporary file. Copying within the remote machine works the same way.
+Symbolic links are not recreated there, and are reported.
+
+The rest of writing is not there yet: Move, Delete, Attributes, dates, Edit
+and eXecute. F3 rereads a directory; there is
 no automatic refresh.
 
 **F8** in a remote window opens a window on this machine (the folder Xylem

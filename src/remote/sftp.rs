@@ -14,9 +14,13 @@ const VERSION: u8 = 2;
 const OPEN: u8 = 3;
 const CLOSE: u8 = 4;
 const READ: u8 = 5;
+const WRITE: u8 = 6;
 const LSTAT: u8 = 7;
+const FSTAT: u8 = 8;
+const FSETSTAT: u8 = 10;
 const OPENDIR: u8 = 11;
 const READDIR: u8 = 12;
+const REMOVE: u8 = 13;
 const MKDIR: u8 = 14;
 const REALPATH: u8 = 16;
 const STAT: u8 = 17;
@@ -40,12 +44,22 @@ const ATTR_ACMODTIME: u32 = 0x8;
 const ATTR_EXTENDED: u32 = 0x8000_0000;
 
 const OPEN_READ: u32 = 0x1;
+const OPEN_WRITE: u32 = 0x2;
+const OPEN_CREAT: u32 = 0x8;
+const OPEN_EXCL: u32 = 0x20;
 
 /// Largest packet accepted from the server (data replies are far smaller).
 const MAX_PACKET: usize = 1024 * 1024;
 
 /// What a READ asks for at most: every server accepts 32 KiB.
 pub const READ_CHUNK: u32 = 32 * 1024;
+
+/// What a WRITE sends at most, for the same reason.
+const WRITE_CHUNK: usize = 32 * 1024;
+
+/// WRITEs sent before waiting for an answer: SFTP answers each request, and
+/// waiting for every one would make each block cost a round trip.
+const IN_FLIGHT: usize = 16;
 
 /// File attributes; each one only if the server sent it.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -100,6 +114,9 @@ pub struct Sftp<R, W> {
     reader: R,
     writer: W,
     next_id: u32,
+    /// An answer went missing or made no sense: the replies can no longer
+    /// be matched to the requests, so nothing more is asked.
+    broken: bool,
     /// The server offers `posix-rename@openssh.com`: a rename that replaces
     /// the destination in one step.
     posix_rename: bool,
@@ -236,6 +253,7 @@ impl<R: Read, W: Write> Sftp<R, W> {
             reader,
             writer,
             next_id: 1,
+            broken: false,
             posix_rename: false,
         };
         let mut out = Out::new(INIT, None);
@@ -279,18 +297,45 @@ impl<R: Read, W: Write> Sftp<R, W> {
     /// Sends a request built by `fill` and returns the reply's type and
     /// payload (after the id).
     fn request(&mut self, kind: u8, fill: impl FnOnce(&mut Out)) -> io::Result<(u8, Vec<u8>)> {
+        let id = self.send(kind, fill)?;
+        let (reply_id, reply, body) = self.receive()?;
+        if reply_id != id {
+            self.broken = true;
+            return Err(malformed());
+        }
+        Ok((reply, body))
+    }
+
+    /// Sends a request without waiting for its answer; its id.
+    fn send(&mut self, kind: u8, fill: impl FnOnce(&mut Out)) -> io::Result<u32> {
+        if self.broken {
+            return Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "the SFTP session is out of step: reconnect",
+            ));
+        }
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
         let mut out = Out::new(kind, Some(id));
         fill(&mut out);
-        self.writer.write_all(&out.finish())?;
-        self.writer.flush()?;
-        let (reply, body) = self.read_packet()?;
-        let mut payload = In(&body);
-        if payload.u32()? != id {
-            return Err(malformed());
+        let sent = self.writer.write_all(&out.finish());
+        if let Err(e) = sent.and_then(|()| self.writer.flush()) {
+            self.broken = true;
+            return Err(e);
         }
-        Ok((reply, payload.0.to_vec()))
+        Ok(id)
+    }
+
+    /// The next answer: its id, type and payload (after the id).
+    fn receive(&mut self) -> io::Result<(u32, u8, Vec<u8>)> {
+        let received = self.read_packet().and_then(|(reply, body)| {
+            let mut payload = In(&body);
+            Ok((payload.u32()?, reply, payload.0.to_vec()))
+        });
+        if received.is_err() {
+            self.broken = true;
+        }
+        received
     }
 
     /// A request answered with STATUS (OK) or `expected`.
@@ -436,11 +481,106 @@ impl<R: Read, W: Write> Sftp<R, W> {
         self.close(handle)
     }
 
+    /// Creates `path` for writing, failing if anything is there (a symlink
+    /// included), readable only by its owner until [`Sftp::fsetstat`].
+    pub fn create_new(&mut self, path: &[u8]) -> io::Result<Handle> {
+        let body = self.expect(OPEN, HANDLE, |o| {
+            o.string(path)
+                .u32(OPEN_WRITE | OPEN_CREAT | OPEN_EXCL)
+                .u32(ATTR_PERMISSIONS)
+                .u32(0o600);
+        })?;
+        Ok(Handle(In(&body).string()?))
+    }
+
+    /// Writes `data` at `offset`, in blocks, with up to [`IN_FLIGHT`] of
+    /// them waiting for an answer. Returns only when every block has been
+    /// answered, so the session is free for other requests afterwards.
+    pub fn write_all(&mut self, handle: &Handle, offset: u64, data: &[u8]) -> io::Result<()> {
+        let mut waiting: Vec<u32> = Vec::with_capacity(IN_FLIGHT);
+        let mut failed = None;
+        let mut blocks = data.chunks(WRITE_CHUNK).enumerate();
+        loop {
+            if failed.is_none()
+                && waiting.len() < IN_FLIGHT
+                && let Some((i, block)) = blocks.next()
+            {
+                let at = offset + (i * WRITE_CHUNK) as u64;
+                waiting.push(self.send(WRITE, |o| {
+                    o.string(&handle.0).u64(at).string(block);
+                })?);
+                continue;
+            }
+            if waiting.is_empty() {
+                break;
+            }
+            // Answers may come in any order, but each one only once, and
+            // only for a block that was sent.
+            let (id, reply, body) = self.receive()?;
+            let Some(pos) = waiting.iter().position(|&w| w == id) else {
+                self.broken = true;
+                return Err(malformed());
+            };
+            waiting.swap_remove(pos);
+            let result = match reply {
+                STATUS => status(&mut In(&body)).and_then(|code| match code {
+                    0 => Ok(()),
+                    _ => Err(malformed()),
+                }),
+                _ => {
+                    self.broken = true;
+                    Err(malformed())
+                }
+            };
+            // After a failure the rest is not sent, but what was sent is
+            // still answered: those answers are read before returning.
+            if let Err(e) = result {
+                failed.get_or_insert(e);
+            }
+        }
+        failed.map_or(Ok(()), Err)
+    }
+
+    /// The attributes of an open file.
+    pub fn fstat(&mut self, handle: &Handle) -> io::Result<Attrs> {
+        let body = self.expect(FSTAT, ATTRS, |o| {
+            o.string(&handle.0);
+        })?;
+        In(&body).attrs()
+    }
+
+    /// Sets the permission bits and the date of an open file.
+    pub fn fsetstat(&mut self, handle: &Handle, mode: u32, mtime: Option<u32>) -> io::Result<()> {
+        self.expect_ok(FSETSTAT, |o| {
+            o.string(&handle.0);
+            match mtime {
+                Some(t) => o
+                    .u32(ATTR_PERMISSIONS | ATTR_ACMODTIME)
+                    .u32(mode)
+                    .u32(t)
+                    .u32(t),
+                None => o.u32(ATTR_PERMISSIONS).u32(mode),
+            };
+        })
+    }
+
+    /// Removes a file, or a symlink itself.
+    pub fn remove(&mut self, path: &[u8]) -> io::Result<()> {
+        self.expect_ok(REMOVE, |o| {
+            o.string(path);
+        })
+    }
+
     /// Creates directory `path`, with the server's default permissions.
     pub fn mkdir(&mut self, path: &[u8]) -> io::Result<()> {
         self.expect_ok(MKDIR, |o| {
             o.string(path).u32(0);
         })
+    }
+
+    /// Whether [`Sftp::rename`] can replace a file.
+    pub fn can_replace(&self) -> bool {
+        self.posix_rename
     }
 
     /// Renames `from` to `to`. An existing `to` is replaced only with
@@ -581,6 +721,49 @@ pub mod tests {
     }
 
     #[test]
+    fn writes_files_against_openssh() {
+        let Some((mut child, mut sftp)) = server() else {
+            return;
+        };
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("new.bin");
+        // More blocks than are ever in flight, and a last one that is short.
+        let data: Vec<u8> = (0..(IN_FLIGHT * WRITE_CHUNK * 2 + 77))
+            .map(|i| (i % 253) as u8)
+            .collect();
+        let handle = sftp.create_new(bytes(&path)).unwrap();
+        sftp.write_all(&handle, 0, &data[..1000]).unwrap();
+        sftp.write_all(&handle, 1000, &data[1000..]).unwrap();
+        assert_eq!(sftp.fstat(&handle).unwrap().size, Some(data.len() as u64));
+        sftp.fsetstat(&handle, 0o640, Some(1_000_000_000)).unwrap();
+        sftp.close_file(&handle).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), data);
+        let meta = std::fs::metadata(&path).unwrap();
+        assert_eq!(
+            std::os::unix::fs::PermissionsExt::mode(&meta.permissions()) & 0o777,
+            0o640
+        );
+        let mtime = meta
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap();
+        assert_eq!(mtime.as_secs(), 1_000_000_000);
+
+        // Never over what is there, a symlink included.
+        assert!(sftp.create_new(bytes(&path)).is_err());
+        std::os::unix::fs::symlink(&path, tmp.path().join("link")).unwrap();
+        assert!(sftp.create_new(bytes(&tmp.path().join("link"))).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), data);
+        // A symlink is removed as itself.
+        sftp.remove(bytes(&tmp.path().join("link"))).unwrap();
+        assert!(path.exists());
+        sftp.remove(bytes(&path)).unwrap();
+        assert!(!path.exists());
+        let _ = child.kill();
+    }
+
+    #[test]
     fn a_closed_connection_is_an_error_not_a_hang() {
         let Some((mut child, mut sftp)) = server() else {
             return;
@@ -657,6 +840,41 @@ pub mod tests {
         // The connection ending mid-answer is an error, not a success.
         let mut sftp = scripted(&[version(&[])]).unwrap();
         assert!(sftp.mkdir(b"/x").is_err());
+
+        // Writes: answers in any order are fine...
+        let blocks = [3, 1, 4, 2].map(|id| status_reply(id, 0));
+        let mut sftp = scripted(&[&[version(&[])][..], &blocks].concat()).unwrap();
+        let data = vec![7u8; WRITE_CHUNK * 3 + 1];
+        sftp.write_all(&Handle(b"h".to_vec()), 0, &data).unwrap();
+        // ...an answer for a block never sent, or twice for one, is not.
+        for ids in [[1, 9], [1, 1]] {
+            let replies = ids.map(|id| status_reply(id, 0));
+            let mut sftp = scripted(&[&[version(&[])][..], &replies].concat()).unwrap();
+            let data = vec![7u8; WRITE_CHUNK * 2];
+            assert!(sftp.write_all(&Handle(b"h".to_vec()), 0, &data).is_err());
+            // And then the session is not trusted any more.
+            let err = sftp.mkdir(b"/x").unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::BrokenPipe, "{ids:?}");
+        }
+        // A failed block fails the write, after the other answers are read:
+        // the session goes on.
+        let replies = [
+            status_reply(1, 0),
+            status_reply(2, FX_PERMISSION_DENIED),
+            status_reply(3, 0),
+            status_reply(4, 0),
+        ];
+        let mut sftp = scripted(&[&[version(&[])][..], &replies].concat()).unwrap();
+        let data = vec![7u8; WRITE_CHUNK * 3];
+        let err = sftp
+            .write_all(&Handle(b"h".to_vec()), 0, &data)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+        sftp.mkdir(b"/x").unwrap();
+        // EOF is not an answer to a WRITE.
+        let replies = [status_reply(1, FX_EOF)];
+        let mut sftp = scripted(&[&[version(&[])][..], &replies].concat()).unwrap();
+        assert!(sftp.write_all(&Handle(b"h".to_vec()), 0, b"x").is_err());
 
         // The extension, when offered, is what replaces.
         let mut ext = Vec::new();

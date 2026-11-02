@@ -58,9 +58,19 @@ Rechner wie hier. Eine Umbenennung ersetzt nie eine Datei, ohne zu fragen;
 nach einem Ja ersetzt der Server sie in einem Schritt, wenn er es kann
 (OpenSSH kann es), sonst sagt Xylem das und lässt beide stehen.
 
+**Kopieren auf den entfernten Rechner** funktioniert ebenfalls: aus dem
+Fenster dieses Rechners; bei geteiltem Bildschirm wird das entfernte Fenster
+als Ziel vorgeschlagen; oder Sie geben einen Pfad des entfernten Fensters oder
+seine Adresse ein (`benutzer@host:/srv/www`, innerhalb des Ordners, mit dem das
+Fenster geöffnet wurde). Jede Datei wird in eine temporäre Datei neben dem Ziel
+geschrieben, auf ihre Größe geprüft, erhält ihre Berechtigungen (ohne setuid
+und setgid) und ihr Datum und wird erst dann an ihren Platz gesetzt; Esc
+entfernt die temporäre Datei. Kopieren innerhalb des entfernten Rechners
+funktioniert genauso. Symbolische Links werden dort nicht neu angelegt, und
+das wird gemeldet.
+
 Der Rest des Schreibens fehlt noch: Verschieben, Löschen, Berechtigungen,
-Datum ändern, Bearbeiten, Ausführen sowie das Kopieren *auf* den entfernten
-Rechner. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
+Datum ändern, Bearbeiten und Ausführen. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
 gibt es nicht.
 
 **F8** in einem entfernten Fenster öffnet ein zweites Fenster auf dem lokalen
