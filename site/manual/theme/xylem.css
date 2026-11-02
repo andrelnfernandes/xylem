@@ -1,0 +1,32 @@
+/* The manual in the colors of the website: XTree blue in the light theme,
+   cyan in the dark one. */
+.light, .rust {
+  --links: #1f3fd1;
+  --sidebar-active: #0000aa;
+}
+.navy, .coal, .ayu {
+  --links: #7fd8ff;
+  --sidebar-active: #55ffff;
+}
+.menu-title {
+  font-weight: 600;
+}
+.xylem-home {
+  margin: 0 0.6em;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--icons);
+}
+.xylem-home:hover {
+  color: var(--icons-hover);
+}
+.xylem-language {
+  margin: 0 0.4em;
+  font: inherit;
+  font-size: 0.85em;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--theme-popup-border);
+  border-radius: 4px;
+  padding: 0.15em 0.3em;
+}

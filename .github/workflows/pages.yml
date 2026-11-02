@@ -1,13 +1,15 @@
 name: Website
 
-# Publishes the website (site/, with the images from docs/) on GitHub Pages
-# whenever it changes on main. Needs Settings → Pages → Source: GitHub Actions.
+# Publishes the website (site/, with the images from docs/, and the manual
+# from docs/manual/ as mdBook) on GitHub Pages whenever it changes on main.
+# Needs Settings → Pages → Source: GitHub Actions.
 
 on:
   push:
     branches: [main]
     paths:
       - "site/**"
+      - "docs/manual/**"
       - "docs/social-preview.png"
       - "docs/icons/**"
       - "docs/screenshots/*.png"
@@ -32,6 +34,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+      # A fixed version, with the dependencies of its Cargo.lock (--locked),
+      # each checked by crates.io's checksum; no plugins.
+      - name: Install mdBook
+        run: cargo install mdbook --version 0.5.4 --locked
       - name: Assemble the site
         run: sh site/build.sh _site
       - uses: actions/configure-pages@v6
