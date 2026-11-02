@@ -548,9 +548,30 @@ impl Remote {
         sftp.rename(&tmp, &dst, replace)
     }
 
-    /// Removes a file (a symlink itself, never what it points to).
+    /// Removes a file (a symlink itself, never what it points to). What is a
+    /// directory by now is left alone.
     pub fn remove_file(&self, path: &Path) -> io::Result<()> {
-        self.sftp().remove(&self.remote_path(path))
+        let path = self.remote_path(path);
+        let mut sftp = self.sftp();
+        if sftp.lstat(&path)?.is_dir() {
+            return Err(io::Error::from(io::ErrorKind::IsADirectory));
+        }
+        sftp.remove(&path)
+    }
+
+    /// Removes an empty directory; a symlink to one is not a directory.
+    pub fn remove_dir(&self, path: &Path) -> io::Result<()> {
+        let path = self.remote_path(path);
+        let mut sftp = self.sftp();
+        if !sftp.lstat(&path)?.is_dir() {
+            return Err(io::Error::from(io::ErrorKind::NotADirectory));
+        }
+        sftp.rmdir(&path)
+    }
+
+    /// The filesystem `path` is on, to tell mounted disks apart.
+    pub fn filesystem(&self, path: &Path) -> io::Result<sftp::Filesystem> {
+        self.sftp().filesystem(&self.remote_path(path))
     }
 
     /// Creates directory `path` (a path of the window's tree).
@@ -771,6 +792,36 @@ mod tests {
             "{command}"
         );
         assert!(command.contains("XY_TERMINAL=1 exec"), "{command}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn removing_never_follows_a_symlink() {
+        let tmp = crate::testing::tempdir();
+        let outside = crate::testing::tempdir();
+        std::fs::write(outside.path().join("keep"), "k").unwrap();
+        std::fs::create_dir(tmp.path().join("dir")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), tmp.path().join("to_dir")).unwrap();
+        std::os::unix::fs::symlink(outside.path().join("keep"), tmp.path().join("to_file"))
+            .unwrap();
+        let Some(remote) = for_tests(tmp.path()) else {
+            return;
+        };
+        let at = |n: &str| remote.root.join(n);
+        // A symlink to a directory is not a directory to remove...
+        assert!(remote.remove_dir(&at("to_dir")).is_err());
+        // ...and a directory is not a file to remove.
+        assert!(remote.remove_file(&at("dir")).is_err());
+        assert!(tmp.path().join("dir").is_dir());
+        // A symlink goes as itself; what it pointed to stays.
+        remote.remove_file(&at("to_dir")).unwrap();
+        remote.remove_file(&at("to_file")).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(outside.path().join("keep")).unwrap(),
+            "k"
+        );
+        remote.remove_dir(&at("dir")).unwrap();
+        assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 0);
     }
 
     #[test]

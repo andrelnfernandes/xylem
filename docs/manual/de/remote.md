@@ -69,8 +69,19 @@ entfernt die temporäre Datei. Kopieren innerhalb des entfernten Rechners
 funktioniert genauso. Symbolische Links werden dort nicht neu angelegt, und
 das wird gemeldet.
 
-Der Rest des Schreibens fehlt noch: Verschieben, Löschen, Berechtigungen,
-Datum ändern, Bearbeiten und Ausführen. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
+**Verschieben** funktioniert in alle Richtungen: von hier auf den entfernten
+Rechner und zurück (das Original wird erst entfernt, wenn die Kopie an ihrem
+Platz und geprüft ist) und innerhalb des entfernten Rechners (dort eine
+Umbenennung). **Löschen**, **Prune** und dieselben Aktionen in Usage
+funktionieren ebenfalls. Auf einem entfernten Rechner gibt es **keinen
+Papierkorb**: Die Rückfrage sagt das, und Oops hat nichts wiederherzustellen.
+Nichts wird über einen symbolischen Link entfernt: Ein Link wird als er selbst
+entfernt. Prune lässt andere Datenträger aus, die im Zweig eingehängt sind;
+sie werden über die `statvfs`-Erweiterung von OpenSSH unterschieden, und auf
+einem Server ohne sie wird Prune abgelehnt.
+
+Der Rest des Schreibens fehlt noch: Berechtigungen, Datum ändern, Bearbeiten
+und Ausführen. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
 gibt es nicht.
 
 **F8** in einem entfernten Fenster öffnet ein zweites Fenster auf dem lokalen

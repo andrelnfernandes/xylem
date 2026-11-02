@@ -2993,9 +2993,9 @@ fn remote_window_lists_views_and_copies_here() {
     };
     assert_eq!(seconds(&copied), seconds(&tmp.path().join("a.rs")));
 
-    // Deleting on the remote machine is not there yet.
-    press(&mut app, KeyCode::Char('d'));
-    assert!(app.confirm.is_none());
+    // Attributes on the remote machine are not there yet, nor Oops.
+    press(&mut app, KeyCode::Char('a'));
+    assert!(app.prompt.is_none());
     assert!(
         app.message
             .as_deref()
@@ -3075,17 +3075,19 @@ fn copies_from_here_to_the_remote_window() {
         app.tick(Duration::from_millis(30));
     }
     assert!(there.join("new/a.rs").is_file() && there.join("new/b.txt").is_file());
+    // Move: there, and gone from here.
     app.apply(Command::Move {
         tagged: true,
         paths: false,
     });
-    press(&mut app, KeyCode::Enter);
-    let message = app.message.take().unwrap();
-    assert!(
-        message.starts_with("Moving to a remote machine"),
-        "{message}"
-    );
-    assert!(tmp.path().join("a.rs").exists());
+    let real = there.canonicalize().unwrap();
+    answer_prompt(&mut app, &format!("test@testhost:{}/moved", real.display()));
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(30));
+    }
+    assert!(there.join("moved/a.rs").is_file() && there.join("moved/b.txt").is_file());
+    assert!(!tmp.path().join("a.rs").exists() && !tmp.path().join("b.txt").exists());
 }
 
 #[cfg(unix)]
@@ -3151,6 +3153,58 @@ fn remote_window_renames_and_makes_directories() {
             .unwrap()
             .starts_with("Renamed 2 of 2")
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn remote_window_deletes_prunes_and_moves_without_a_trash() {
+    let Some((tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    let p = tmp.path();
+    app.options.delete_to_trash = true;
+    press(&mut app, KeyCode::Enter);
+    let i = names(&app).iter().position(|n| n == "b.txt").unwrap();
+    app.file_state.select(Some(i));
+    press(&mut app, KeyCode::Char('d'));
+    let confirm = app.confirm.as_ref().expect("asks");
+    assert!(
+        confirm.question.contains("no trash there"),
+        "{}",
+        confirm.question
+    );
+    assert_eq!(confirm.options, ["Yes", "No"]);
+    press(&mut app, KeyCode::Char('y'));
+    finish_op(&mut app);
+    assert!(!p.join("b.txt").exists());
+    assert_eq!(names(&app), ["a.rs"]);
+    // Oops has nothing to restore there.
+    app.apply(Command::Oops);
+    assert!(app.confirm.is_none());
+    let message = app.message.take().unwrap();
+    assert!(message.starts_with("There is no trash"), "{message}");
+
+    // Move within the machine.
+    app.apply(Command::Move {
+        tagged: false,
+        paths: false,
+    });
+    let sub = app.panes[0].tree.path(crate::model::tree::ROOT).join("sub");
+    answer_prompt(&mut app, sub.to_str().unwrap());
+    assert!(p.join("sub/a.rs").is_file() && !p.join("a.rs").exists());
+
+    // Prune, typed as usual; the files go, the folder too.
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Down);
+    alt(&mut app, 'p');
+    while app.busy() {
+        app.tick(Duration::from_millis(30));
+    }
+    let label = app.prompt.as_ref().expect("asks to type").label.clone();
+    assert!(label.starts_with("PRUNE sub: 3 files, 2 dirs"), "{label}");
+    answer_prompt(&mut app, "prune");
+    assert!(!p.join("sub").exists(), "{:?}", app.message);
+    assert!(app.message.as_deref().unwrap().starts_with("Pruned 5 of 5"));
 }
 
 #[cfg(unix)]
