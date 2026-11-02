@@ -45,9 +45,14 @@ remote window's root.
 
 ![Split screen: three backups tagged on the remote machine, on the left, about to be copied into a folder of this machine, on the right](../screenshots/remote.png)
 
-For now the remote side is **read-only**: Move, Delete, Rename, Makedir,
-Attributes, dates, Edit, eXecute and copying *to* the remote machine are
-not there yet. F3 rereads a directory; there is no automatic refresh.
+**Rename** (a file, a directory, or the tagged files with a mask) and
+**Makedir** work on the remote machine as they do here. A rename never
+replaces a file without asking; when you say yes, the server replaces it in
+one step if it can (OpenSSH can), and otherwise Xylem says so and leaves both.
+
+The rest of writing is not there yet: Move, Delete, Attributes, dates, Edit,
+eXecute and copying *to* the remote machine. F3 rereads a directory; there is
+no automatic refresh.
 
 **F8** in a remote window opens a window on this machine (the folder Xylem
 started in), so you have both side by side.

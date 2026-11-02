@@ -1,5 +1,5 @@
-//! A small SFTP (version 3) client: what Xylem needs to browse and read a
-//! remote machine. It talks to any byte stream; in use, the stdin and stdout
+//! A small SFTP (version 3) client: what Xylem needs to browse, read and
+//! change a remote machine. It talks to any byte stream; in use, the stdin and stdout
 //! of `ssh -s host sftp`.
 //!
 //! The protocol is draft-ietf-secsh-filexfer-02, the version every OpenSSH
@@ -17,9 +17,12 @@ const READ: u8 = 5;
 const LSTAT: u8 = 7;
 const OPENDIR: u8 = 11;
 const READDIR: u8 = 12;
+const MKDIR: u8 = 14;
 const REALPATH: u8 = 16;
 const STAT: u8 = 17;
+const RENAME: u8 = 18;
 const READLINK: u8 = 19;
+const EXTENDED: u8 = 200;
 const STATUS: u8 = 101;
 const HANDLE: u8 = 102;
 const DATA: u8 = 103;
@@ -97,7 +100,13 @@ pub struct Sftp<R, W> {
     reader: R,
     writer: W,
     next_id: u32,
+    /// The server offers `posix-rename@openssh.com`: a rename that replaces
+    /// the destination in one step.
+    posix_rename: bool,
 }
+
+/// The extension that renames over an existing file.
+const POSIX_RENAME: &[u8] = b"posix-rename@openssh.com";
 
 // ---------------------------------------------------------------- encoding
 
@@ -201,6 +210,23 @@ fn status(payload: &mut In) -> io::Result<u32> {
     Err(io::Error::new(kind, message))
 }
 
+/// The names of the extensions a VERSION reply offers. A malformed list
+/// ends where it stops making sense: an extension is only ever an option.
+fn extensions(body: &[u8]) -> Vec<Vec<u8>> {
+    let mut p = In(body);
+    let mut names = Vec::new();
+    if p.u32().is_err() {
+        return names;
+    }
+    while !p.0.is_empty() {
+        let (Ok(name), Ok(_data)) = (p.string(), p.string()) else {
+            break;
+        };
+        names.push(name);
+    }
+    names
+}
+
 // ---------------------------------------------------------------- client
 
 impl<R: Read, W: Write> Sftp<R, W> {
@@ -210,18 +236,20 @@ impl<R: Read, W: Write> Sftp<R, W> {
             reader,
             writer,
             next_id: 1,
+            posix_rename: false,
         };
         let mut out = Out::new(INIT, None);
         out.u32(3);
         sftp.writer.write_all(&out.finish())?;
         sftp.writer.flush()?;
-        let (kind, _) = sftp.read_packet()?;
+        let (kind, body) = sftp.read_packet()?;
         if kind != VERSION {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "the server does not speak SFTP",
             ));
         }
+        sftp.posix_rename = extensions(&body).iter().any(|e| e == POSIX_RENAME);
         Ok(sftp)
     }
 
@@ -279,6 +307,18 @@ impl<R: Read, W: Write> Sftp<R, W> {
                 status(&mut In(&body))?;
                 Err(io::Error::other("unexpected SFTP status"))
             }
+            _ => Err(malformed()),
+        }
+    }
+
+    /// A request answered only with a STATUS, which must be OK.
+    fn expect_ok(&mut self, kind: u8, fill: impl FnOnce(&mut Out)) -> io::Result<()> {
+        let (reply, body) = self.request(kind, fill)?;
+        match reply {
+            STATUS => match status(&mut In(&body))? {
+                0 => Ok(()),
+                _ => Err(malformed()),
+            },
             _ => Err(malformed()),
         }
     }
@@ -395,6 +435,34 @@ impl<R: Read, W: Write> Sftp<R, W> {
     pub fn close_file(&mut self, handle: &Handle) -> io::Result<()> {
         self.close(handle)
     }
+
+    /// Creates directory `path`, with the server's default permissions.
+    pub fn mkdir(&mut self, path: &[u8]) -> io::Result<()> {
+        self.expect_ok(MKDIR, |o| {
+            o.string(path).u32(0);
+        })
+    }
+
+    /// Renames `from` to `to`. An existing `to` is replaced only with
+    /// `replace`, and only by a server that can do it in one step: the plain
+    /// RENAME of SFTP v3 refuses an existing destination (OpenSSH links and
+    /// then unlinks), which is what keeps an unasked overwrite from happening.
+    pub fn rename(&mut self, from: &[u8], to: &[u8], replace: bool) -> io::Result<()> {
+        if !replace {
+            return self.expect_ok(RENAME, |o| {
+                o.string(from).string(to);
+            });
+        }
+        if !self.posix_rename {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "this server cannot replace a file when renaming",
+            ));
+        }
+        self.expect_ok(EXTENDED, |o| {
+            o.string(POSIX_RENAME).string(from).string(to);
+        })
+    }
 }
 
 #[cfg(all(test, unix))]
@@ -479,6 +547,40 @@ pub mod tests {
     }
 
     #[test]
+    fn makes_directories_and_renames_against_openssh() {
+        let Some((mut child, mut sftp)) = server() else {
+            return;
+        };
+        assert!(sftp.posix_rename, "OpenSSH offers posix-rename");
+        let tmp = crate::testing::tempdir();
+        let dir = tmp.path();
+        sftp.mkdir(bytes(&dir.join("new"))).unwrap();
+        assert!(dir.join("new").is_dir());
+        let err = sftp.mkdir(bytes(&dir.join("new"))).unwrap_err();
+        assert_ne!(err.kind(), io::ErrorKind::NotFound, "{err:?}");
+
+        std::fs::write(dir.join("a"), "a").unwrap();
+        std::fs::write(dir.join("b"), "b").unwrap();
+        sftp.rename(bytes(&dir.join("a")), bytes(&dir.join("c")), false)
+            .unwrap();
+        assert!(!dir.join("a").exists());
+        // Without `replace`, an existing destination is kept.
+        assert!(
+            sftp.rename(bytes(&dir.join("c")), bytes(&dir.join("b")), false)
+                .is_err()
+        );
+        assert_eq!(std::fs::read(dir.join("b")).unwrap(), b"b");
+        sftp.rename(bytes(&dir.join("c")), bytes(&dir.join("b")), true)
+            .unwrap();
+        assert_eq!(std::fs::read(dir.join("b")).unwrap(), b"a");
+        // A directory, too.
+        sftp.rename(bytes(&dir.join("new")), bytes(&dir.join("old")), false)
+            .unwrap();
+        assert!(dir.join("old").is_dir());
+        let _ = child.kill();
+    }
+
+    #[test]
     fn a_closed_connection_is_an_error_not_a_hang() {
         let Some((mut child, mut sftp)) = server() else {
             return;
@@ -503,5 +605,69 @@ pub mod tests {
         for bad in [&b""[..], b".", b"..", b"../x", b"/etc/x", b"a/b", b"a\0b"] {
             assert!(!is_plain_name(bad), "{bad:?}");
         }
+    }
+
+    /// A scripted server: `replies` are what it sends, in order, whatever
+    /// is asked; what the client sends is kept.
+    fn scripted(replies: &[Vec<u8>]) -> io::Result<Sftp<io::Cursor<Vec<u8>>, Vec<u8>>> {
+        Sftp::init(io::Cursor::new(replies.concat()), Vec::new())
+    }
+
+    fn packet(kind: u8, fill: impl FnOnce(&mut Out)) -> Vec<u8> {
+        let mut out = Out::new(kind, None);
+        fill(&mut out);
+        out.finish()
+    }
+
+    fn version(extensions: &[u8]) -> Vec<u8> {
+        packet(VERSION, |o| {
+            o.u32(3);
+            o.0.extend(extensions);
+        })
+    }
+
+    fn status_reply(id: u32, code: u32) -> Vec<u8> {
+        packet(STATUS, |o| {
+            o.u32(id).u32(code).string(b"").string(b"");
+        })
+    }
+
+    #[test]
+    fn a_hostile_server_cannot_turn_its_answers_into_success() {
+        // Garbage after the version: no extensions, and still a session.
+        let sftp = scripted(&[version(&[0, 0, 0, 9, b'x'])]).unwrap();
+        assert!(!sftp.posix_rename);
+
+        // No posix-rename: replacing is refused before anything is sent.
+        let mut sftp = scripted(&[version(&[])]).unwrap();
+        let sent = sftp.writer.len();
+        let err = sftp.rename(b"/a", b"/b", true).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Unsupported);
+        assert_eq!(sftp.writer.len(), sent);
+
+        // EOF is no answer to a MKDIR, nor is another request's id.
+        let mut sftp = scripted(&[version(&[]), status_reply(1, FX_EOF)]).unwrap();
+        assert!(sftp.mkdir(b"/x").is_err());
+        let mut sftp = scripted(&[version(&[]), status_reply(7, 0)]).unwrap();
+        assert!(sftp.mkdir(b"/x").is_err());
+        // A failure stays a failure, with the server's code.
+        let mut sftp = scripted(&[version(&[]), status_reply(1, FX_PERMISSION_DENIED)]).unwrap();
+        let err = sftp.rename(b"/a", b"/b", false).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+        // The connection ending mid-answer is an error, not a success.
+        let mut sftp = scripted(&[version(&[])]).unwrap();
+        assert!(sftp.mkdir(b"/x").is_err());
+
+        // The extension, when offered, is what replaces.
+        let mut ext = Vec::new();
+        for s in [POSIX_RENAME, b"1"] {
+            ext.extend((s.len() as u32).to_be_bytes());
+            ext.extend(s);
+        }
+        let mut sftp = scripted(&[version(&ext), status_reply(1, 0)]).unwrap();
+        assert!(sftp.posix_rename);
+        sftp.rename(b"/a", b"/b", true).unwrap();
+        let sent = &sftp.writer[sftp.writer.len() - 40..];
+        assert!(sent.windows(POSIX_RENAME.len()).any(|w| w == POSIX_RENAME));
     }
 }

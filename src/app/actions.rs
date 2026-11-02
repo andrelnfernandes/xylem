@@ -735,7 +735,13 @@ impl App {
         }
 
         let op = Operation::rename_batch(pairs);
-        self.start_op(op);
+        match &self.remote {
+            Some(remote) => match op.on_remote(remote.clone()) {
+                Ok(op) => self.start_op(op),
+                Err(e) => self.message = Some(e),
+            },
+            None => self.start_op(op),
+        }
     }
 
     pub(crate) fn rename_file(&mut self, path: &Path, name: &str) -> Result<(), String> {
@@ -744,10 +750,12 @@ impl App {
         if new == path {
             return Ok(());
         }
-        if fs::symlink_metadata(&new).is_ok() {
+        let side = Side::of(self.remote.as_ref());
+        if side.exists(&new) {
             return Err(format!("{name} already exists"));
         }
-        fs::rename(path, &new).map_err(|e| format!("Cannot rename: {e}"))?;
+        side.rename(path, &new, false)
+            .map_err(|e| format!("Cannot rename: {e}"))?;
         if let Some(dir) = path.parent() {
             self.rescan_everywhere(&[dir]);
         }
@@ -765,10 +773,12 @@ impl App {
         if new == path {
             return Ok(());
         }
-        if fs::symlink_metadata(&new).is_ok() {
+        let side = Side::of(self.remote.as_ref());
+        if side.exists(&new) {
             return Err(format!("{name} already exists"));
         }
-        fs::rename(&path, &new).map_err(|e| format!("Cannot rename: {e}"))?;
+        side.rename(&path, &new, false)
+            .map_err(|e| format!("Cannot rename: {e}"))?;
         let parent = self.tree.node(id).parent.unwrap_or(ROOT);
         self.tree.rescan(parent);
         let keep = self.tree.find(&new).unwrap_or(parent);
@@ -784,7 +794,9 @@ impl App {
     pub(crate) fn make_dir(&mut self, id: NodeId, name: &str) -> Result<(), String> {
         ops::check_name(name)?;
         let path = self.tree.path(id).join(name);
-        fs::create_dir(&path).map_err(|e| format!("Cannot create directory: {e}"))?;
+        Side::of(self.remote.as_ref())
+            .create_dir(&path)
+            .map_err(|e| format!("Cannot create directory: {e}"))?;
         self.tree.rescan(id);
         self.tree.expand(id);
         self.refresh_rows(id);

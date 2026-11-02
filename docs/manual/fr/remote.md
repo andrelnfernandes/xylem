@@ -49,9 +49,14 @@ aussi, avec des chemins partant de la racine de la fenêtre distante.
 
 ![Écran partagé : trois sauvegardes marquées sur la machine distante, à gauche, sur le point d'être copiées dans un dossier de cette machine, à droite](../../screenshots/remote.png)
 
-Pour l'instant, le côté distant est en **lecture seule** : Déplacer, Supprimer,
-Renommer, Créer un répertoire, Attributs, dates, Éditer, eXécuter et la copie
-*vers* la machine distante ne sont pas encore disponibles. F3 relit un
+**Renommer** (un fichier, un répertoire, ou les fichiers marqués avec un
+masque) et **Créer un répertoire** fonctionnent sur la machine distante comme
+ici. Un renommage ne remplace jamais un fichier sans demander ; après un oui,
+le serveur le remplace en une seule étape s'il le peut (OpenSSH le peut),
+sinon Xylem le dit et garde les deux.
+
+Le reste de l'écriture n'est pas encore là : Déplacer, Supprimer, Attributs,
+dates, Éditer, eXécuter et la copie *vers* la machine distante. F3 relit un
 répertoire ; il n'y a pas de rafraîchissement automatique.
 
 **F8** dans une fenêtre distante ouvre une fenêtre sur votre machine (dans le

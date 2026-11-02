@@ -52,10 +52,15 @@ beginnen.
 
 ![Geteilter Bildschirm: links drei markierte Backups auf dem entfernten Rechner, gleich in einen Ordner dieses Rechners, rechts, kopiert](../../screenshots/remote.png)
 
-Derzeit ist die entfernte Seite **schreibgeschützt**: Verschieben, Löschen,
-Umbenennen, Verzeichnis erstellen, Berechtigungen, Datum ändern, Bearbeiten,
-Ausführen sowie das Kopieren *auf* den entfernten Rechner sind noch nicht
-vorhanden. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
+**Umbenennen** (eine Datei, ein Verzeichnis oder die markierten Dateien mit
+einer Maske) und **Verzeichnis erstellen** funktionieren auf dem entfernten
+Rechner wie hier. Eine Umbenennung ersetzt nie eine Datei, ohne zu fragen;
+nach einem Ja ersetzt der Server sie in einem Schritt, wenn er es kann
+(OpenSSH kann es), sonst sagt Xylem das und lässt beide stehen.
+
+Der Rest des Schreibens fehlt noch: Verschieben, Löschen, Berechtigungen,
+Datum ändern, Bearbeiten, Ausführen sowie das Kopieren *auf* den entfernten
+Rechner. F3 liest ein Verzeichnis neu ein; eine automatische Aktualisierung
 gibt es nicht.
 
 **F8** in einem entfernten Fenster öffnet ein zweites Fenster auf dem lokalen
