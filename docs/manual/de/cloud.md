@@ -82,12 +82,15 @@ verschlüsselt, steht im Feld lediglich rclone.
 
 - **Alles läuft über das Netzwerk.** Jedes gelesene Verzeichnis ist eine
   Netzwerkanfrage, und ein Dienst wie Google Drive lehnt sie ab, wenn es zu viele
-  werden. Daher fragt `*` in einem eingehängten Ordner rclone nach dem gesamten
-  Zweig in einer einzigen, viel schnelleren Liste und füllt den Baum am Ende; Esc
-  lässt den Baum unverändert. Schlägt rclone fehl oder zeigt es andere Ordner als
-  die Einhängung, liest `*` Ordner für Ordner. Branch (`B`) liest immer so und
-  kann eine Weile dauern. Das gezielte Öffnen nur der benötigten Verzeichnisse
-  (→ oder `+`) geht hingegen schnell, da sie erst beim Öffnen gelesen werden.
+  werden. Daher fragen `*`, Branch (`B`), die Usage-Ansicht und Compare auf einem Zweig in einem
+  eingehängten Ordner rclone nach dem gesamten Zweig in einer einzigen, viel
+  schnelleren Liste, sofern er nicht schon ganz gelesen ist; Esc lässt den Baum
+  unverändert. Schlägt rclone fehl oder zeigt es andere Ordner als die Einhängung,
+  lesen sie Ordner für Ordner. Nur `*` klappt den Baum auf.
+- **Der Bildschirm wartet nicht.** Der Baum erscheint sofort und füllt sich, sobald
+  die Ordner eintreffen, auch beim Öffnen (→ oder `+`) oder wenn der Cursor dorthin
+  geht; das Dateifenster zeigt so lange `reading...`. F3 und das Springen zu einem
+  eingetippten Pfad warten weiterhin auf ihren Lesevorgang.
 - **Anderswo vorgenommene Änderungen** (im Browser, auf dem Smartphone)
   erscheinen erst nach F3 und nachdem der Verzeichnis-Cache abgelaufen ist
   (`--dir-cache-time`).

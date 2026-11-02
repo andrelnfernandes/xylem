@@ -102,6 +102,12 @@ fn leaving_showall_selects_file_dir() {
 /// `*` as on a cloud mount, with a script in place of rclone.
 #[cfg(unix)]
 fn cloud_log(body: &str) -> (tempfile::TempDir, App) {
+    cloud_log_for(body, AfterLog::Refresh, LogJob::new(ROOT, true))
+}
+
+/// A cloud listing of the root, for `then`.
+#[cfg(unix)]
+fn cloud_log_for(body: &str, then: AfterLog, fallback: LogJob) -> (tempfile::TempDir, App) {
     use std::os::unix::fs::PermissionsExt;
     let tmp = crate::testing::tempdir();
     create_dir_all(tmp.path().join("docs/deep")).unwrap();
@@ -120,6 +126,8 @@ fn cloud_log(body: &str) -> (tempfile::TempDir, App) {
         id: ROOT,
         service: "Google Drive".into(),
         ask_at: REFUSALS_TO_ASK,
+        then,
+        fallback,
     });
     (tmp, app)
 }
@@ -211,6 +219,66 @@ echo '{"Path":"docs/deep/only-in-the-listing.txt","Size":9,"IsDir":false}'"#,
     assert!(tree.node(deep).expanded);
     assert_eq!(tree.node(deep).files[0].name, "only-in-the-listing.txt");
     assert!(app.message.is_none());
+}
+
+#[cfg(unix)]
+const CLOUD_LISTING: &str = r#"echo '{"Path":"docs","IsDir":true}'
+echo '{"Path":"docs/deep","IsDir":true}'
+echo '{"Path":"docs/deep/only-in-the-listing.txt","Size":9,"IsDir":false}'"#;
+
+#[cfg(unix)]
+#[test]
+fn usage_on_a_cloud_mount_takes_the_listing_without_expanding() {
+    let (tmp, mut app) = cloud_log_for(
+        CLOUD_LISTING,
+        AfterLog::Usage(ROOT),
+        LogJob::new(ROOT, false),
+    );
+    assert!(app.usage.is_none(), "not before the listing");
+    finish(&mut app);
+    assert!(app.usage.is_some());
+    let tree = &app.panes[0].tree;
+    let deep = tree.find(&tmp.path().join("docs/deep")).unwrap();
+    assert!(!tree.node(deep).expanded);
+    assert_eq!(tree.node(deep).files[0].name, "only-in-the-listing.txt");
+}
+
+#[cfg(unix)]
+#[test]
+fn branch_on_a_cloud_mount_lists_what_the_listing_brought() {
+    let (_tmp, mut app) = cloud_log_for(
+        CLOUD_LISTING,
+        AfterLog::OpenBranch(ROOT),
+        LogJob::new(ROOT, false),
+    );
+    finish(&mut app);
+    assert_eq!(app.view, FileView::Branch(ROOT));
+    assert!(names(&app).contains(&"only-in-the-listing.txt".to_string()));
+}
+
+#[cfg(unix)]
+#[test]
+fn usage_on_a_cloud_mount_opens_folder_by_folder_if_rclone_fails() {
+    let (_tmp, mut app) = cloud_log_for(
+        "echo 'no such remote' >&2; exit 3",
+        AfterLog::Usage(ROOT),
+        LogJob::new(ROOT, false),
+    );
+    finish(&mut app);
+    assert!(app.usage.is_some());
+}
+
+#[cfg(unix)]
+#[test]
+fn usage_stays_closed_when_the_service_refuses() {
+    let (_tmp, mut app) = cloud_log_for(
+        &refusing(3, "exit 1"),
+        AfterLog::Usage(ROOT),
+        LogJob::new(ROOT, false),
+    );
+    finish(&mut app);
+    assert!(app.usage.is_none());
+    assert!(app.message.as_deref().unwrap().contains("refused"));
 }
 
 #[cfg(unix)]
@@ -3683,4 +3751,193 @@ fn usage_d_goes_to_the_duplicates_of_the_folder() {
     finish(&mut app);
     assert!(app.usage.is_none());
     assert!(app.duplicates.is_some());
+}
+
+fn usage_sample() -> (tempfile::TempDir, App) {
+    let tmp = crate::testing::tempdir();
+    let p = tmp.path();
+    create_dir_all(p.join("big/inner")).unwrap();
+    create_dir_all(p.join("empty")).unwrap();
+    write(p.join("big/one.bin"), vec![1u8; 40_000]).unwrap();
+    write(p.join("big/inner/two.bin"), vec![1u8; 20_000]).unwrap();
+    write(p.join("keep.bin"), b"to keep, and to view").unwrap();
+    write(p.join("old.bin"), vec![1u8; 30_000]).unwrap();
+    let mut app = App::new(p.to_path_buf());
+    app.options.delete_to_trash = false;
+    alt(&mut app, 'w');
+    finish(&mut app);
+    let active = app.active;
+    app.panes[active].usage.as_mut().expect("open").apparent = true;
+    (tmp, app)
+}
+
+fn usage_select(app: &mut App, name: &str) {
+    let active = app.active;
+    let pane = &mut app.panes[active];
+    let (tree, view) = (&pane.tree, pane.usage.as_mut().expect("open"));
+    let at = view.rows(tree).iter().position(|r| r.name == name);
+    view.list.select(Some(at.expect("a row with that name")));
+}
+
+fn usage_total(app: &mut App) -> crate::model::tree::Usage {
+    let active = app.active;
+    let pane = &mut app.panes[active];
+    pane.usage.as_mut().expect("open").total(&pane.tree)
+}
+
+#[test]
+fn usage_del_deletes_a_file_and_the_sums_follow() {
+    let (tmp, mut app) = usage_sample();
+    let before = usage_total(&mut app).apparent;
+    usage_select(&mut app, "old.bin");
+    press(&mut app, KeyCode::Delete);
+    let question = &app.confirm.as_ref().expect("asked").question;
+    assert!(question.starts_with("DELETE old.bin?"), "{question}");
+    press(&mut app, KeyCode::Char('y'));
+    finish(&mut app);
+    assert!(!tmp.path().join("old.bin").exists());
+    assert!(app.usage.is_some(), "the view stays open");
+    assert_eq!(usage_total(&mut app).apparent, before - 30_000);
+}
+
+#[test]
+fn usage_del_deletes_a_whole_folder() {
+    let (tmp, mut app) = usage_sample();
+    usage_select(&mut app, "big");
+    app.options.delete_to_trash = true;
+    press(&mut app, KeyCode::Delete);
+    let question = &app.confirm.as_ref().expect("asked").question;
+    assert_eq!(question, "MOVE folder big and all it holds to trash?");
+    press(&mut app, KeyCode::Char('n'));
+    assert!(tmp.path().join("big").exists());
+
+    app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::SHIFT));
+    let question = &app.confirm.as_ref().expect("asked").question;
+    assert!(question.starts_with("DELETE folder big"), "{question}");
+    press(&mut app, KeyCode::Char('y'));
+    finish(&mut app);
+    assert!(!tmp.path().join("big").exists());
+    assert!(tmp.path().join("keep.bin").exists());
+    assert_eq!(usage_total(&mut app).files, 2);
+}
+
+#[test]
+fn usage_del_on_an_empty_folder() {
+    let (tmp, mut app) = usage_sample();
+    usage_select(&mut app, "empty");
+    press(&mut app, KeyCode::Delete);
+    assert!(app.confirm.is_some());
+    press(&mut app, KeyCode::Char('y'));
+    finish(&mut app);
+    assert!(!tmp.path().join("empty").exists());
+}
+
+#[test]
+fn usage_tags_a_branch_and_deletes_only_what_is_tagged() {
+    let (tmp, mut app) = usage_sample();
+    usage_select(&mut app, "big");
+    press(&mut app, KeyCode::Char('t'));
+    assert_eq!(usage_total(&mut app).tagged, 2);
+    assert_eq!(usage_total(&mut app).tagged_apparent, 60_000);
+    usage_select(&mut app, "big");
+    press(&mut app, KeyCode::Char('u'));
+    assert_eq!(usage_total(&mut app).tagged, 0);
+    ctrl(&mut app, 'd');
+    assert!(app.confirm.is_none(), "nothing tagged");
+
+    usage_select(&mut app, "old.bin");
+    press(&mut app, KeyCode::Char('t'));
+    usage_select(&mut app, "big");
+    press(&mut app, KeyCode::Enter);
+    usage_select(&mut app, "one.bin");
+    press(&mut app, KeyCode::Char('t'));
+    // In "big", only what is below it: old.bin stays.
+    ctrl(&mut app, 'd');
+    let question = &app.confirm.as_ref().expect("asked").question;
+    assert!(question.starts_with("DELETE one.bin?"), "{question}");
+    press(&mut app, KeyCode::Char('y'));
+    finish(&mut app);
+    assert!(!tmp.path().join("big/one.bin").exists());
+    assert!(tmp.path().join("old.bin").exists());
+    assert!(tmp.path().join("big/inner/two.bin").exists());
+
+    press(&mut app, KeyCode::Left);
+    ctrl(&mut app, 't');
+    assert_eq!(usage_total(&mut app).tagged, 3);
+    ctrl(&mut app, 'u');
+    assert_eq!(usage_total(&mut app).tagged, 0);
+}
+
+#[test]
+fn usage_alt_p_prunes_the_folder() {
+    let (tmp, mut app) = usage_sample();
+    usage_select(&mut app, "keep.bin");
+    alt(&mut app, 'p');
+    assert!(app.prompt.is_none(), "not on a file");
+    app.options.prune_confirmation = PruneConfirm::Name;
+    usage_select(&mut app, "big");
+    alt(&mut app, 'p');
+    finish(&mut app);
+    answer_prompt(&mut app, "big");
+    finish(&mut app);
+    assert!(!tmp.path().join("big").exists());
+    assert!(app.usage.is_some(), "the view stays open");
+    assert_eq!(usage_total(&mut app).files, 2);
+}
+
+#[test]
+fn usage_v_views_the_file() {
+    let (_tmp, mut app) = usage_sample();
+    usage_select(&mut app, "big");
+    press(&mut app, KeyCode::Char('v'));
+    assert!(app.viewer.is_none(), "a folder");
+    usage_select(&mut app, "keep.bin");
+    press(&mut app, KeyCode::Char('v'));
+    assert!(app.viewer.is_some());
+    press(&mut app, KeyCode::Esc);
+    assert!(app.viewer.is_none());
+    assert!(app.usage.is_some(), "back to the view");
+    press(&mut app, KeyCode::Enter);
+    assert!(app.viewer.is_some(), "Enter on a file too");
+}
+
+#[test]
+fn usage_in_an_archive_tags_but_does_not_delete() {
+    let (_tmp, mut app) = archive_setup();
+    alt_f5(&mut app);
+    assert!(app.archive.is_some());
+    alt(&mut app, 'w');
+    finish(&mut app);
+    assert!(app.usage.is_some());
+    usage_select(&mut app, "README");
+    press(&mut app, KeyCode::Delete);
+    assert!(app.confirm.is_none());
+    assert!(app.message.as_deref().unwrap().contains("read-only"));
+    usage_select(&mut app, "src");
+    alt(&mut app, 'p');
+    finish(&mut app);
+    assert!(app.prompt.is_none());
+    usage_select(&mut app, "README");
+    press(&mut app, KeyCode::Char('t'));
+    assert_eq!(usage_total(&mut app).tagged, 1);
+}
+
+#[test]
+fn usage_draws_the_tags() {
+    use ratatui::{Terminal, backend::TestBackend};
+    let (_tmp, mut app) = usage_sample();
+    usage_select(&mut app, "keep.bin");
+    press(&mut app, KeyCode::Char('t'));
+    let mut term = Terminal::new(TestBackend::new(120, 24)).unwrap();
+    term.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let text: String = term
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|c| c.symbol())
+        .collect();
+    assert!(text.contains("1 tagged"), "{text}");
+    assert!(text.contains('■'), "{text}");
+    assert!(text.contains("Alt+P"), "{text}");
 }

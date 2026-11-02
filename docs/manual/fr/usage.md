@@ -66,17 +66,43 @@ ligne du bas affiche toujours les deux.
 | `@` | un lien symbolique ou un fichier spécial |
 | `e` | un dossier vide |
 
+## Agir sur ce que vous trouvez
+
+Les questions sont les mêmes que dans la fenêtre de fichiers, et les totaux se
+recalculent aussitôt, la vue restant ouverte.
+
+- **Suppr sur un dossier** le supprime avec tout son contenu, vers la corbeille si
+  c'est votre réglage ; Alt+P le supprime définitivement, avec la confirmation
+  saisie de Prune.
+- **Marquer un dossier** marque tous ses fichiers, cachés compris. `■` indique un
+  fichier ou un dossier entièrement marqué, `□` un dossier marqué en partie, et la
+  ligne du bas donne le nombre de marqués dans le dossier affiché et leur taille.
+  Ctrl+D supprime ceux-là. Les marques restent à la fermeture de la vue, pour Copy
+  ou Move.
+- **Un autre disque n'est jamais touché.** Une ligne `>` ne peut être ni marquée ni
+  supprimée, et marquer ou supprimer une branche s'arrête là où un autre disque est
+  monté. Suppr refuse un dossier contenant un disque monté ; Alt+P supprime tout
+  sauf ce disque.
+- Dans une archive ou sur une machine distante, seuls le marquage et l'affichage
+  fonctionnent.
+
 ## Touches
 
 | Touche | Action |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | se déplacer |
-| Enter ou → | entrer dans le dossier (sur `>` : analyser ce disque) |
+| Enter ou → | entrer dans le dossier (sur `>` : analyser ce disque) ; sur un fichier, l'afficher |
 | Backspace ou ← | remonter au dossier parent |
 | `\` | fermer la vue en plaçant l'arborescence sur le dossier affiché |
 | `A` | espace sur le disque ou taille apparente |
 | `C` | afficher ou masquer le nombre de fichiers |
 | `S` | trier par taille, nom, nombre de fichiers ou date |
+| `T` / `U` | marquer ou démarquer le fichier, ou tous les fichiers du dossier |
+| Ctrl+T / Ctrl+U | marquer ou démarquer tout le dossier affiché |
+| Suppr, Maj+Suppr | supprimer le fichier ou le dossier (Maj : définitivement) |
+| Ctrl+D, Ctrl+Maj+Suppr | supprimer les fichiers marqués du dossier affiché (Maj : définitivement) |
+| Alt+P | [Prune](delete.md) du dossier |
+| `V` | afficher le fichier |
 | `D` | chercher les [doublons](duplicates.md) dans le dossier affiché |
 | F3 | relire le dossier affiché |
 | Esc ou Alt+W | fermer |

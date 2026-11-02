@@ -171,9 +171,9 @@ fn draw_usage(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
         return;
     };
     let tree = &pane.tree;
-    let path = tree.path(view.dir);
     let width = area.width.saturating_sub(2) as usize;
     let rows = view.rows(tree);
+    let path = tree.path(view.dir);
     let counter = position(view.list.selected(), rows.len());
     // Room for " Usage: ", the counter and a bit of border between them.
     let room = width.saturating_sub(12 + counter.width());
@@ -223,7 +223,13 @@ fn draw_usage(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
                 Item::Dir(_) => format!("/{}", r.name),
                 Item::File(_) => format!(" {}", r.name),
             };
+            let tag = match r.tagged {
+                0 => " ",
+                n if n >= r.files => "■",
+                _ => "□",
+            };
             let mut spans = vec![
+                Span::styled(tag, Style::new().fg(theme().tagged)),
                 Span::styled(format!("{} ", r.mark), Style::new().fg(theme().key)),
                 Span::raw(format!("{size:>10} ")),
             ];
@@ -236,7 +242,13 @@ fn draw_usage(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
             if view.counts {
                 spans.push(Span::styled(format!(" {:>10}", fmt_num(r.files)), dim));
             }
-            let style = if r.mark == '>' { dim } else { Style::new() };
+            let style = if r.mark == '>' {
+                dim
+            } else if r.tagged > 0 {
+                Style::new().fg(theme().tagged)
+            } else {
+                Style::new()
+            };
             spans.push(Span::styled(format!("  {name}"), style));
             ListItem::new(Line::from(spans))
         })
@@ -249,11 +261,24 @@ fn draw_usage(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
     frame.render_stateful_widget(list, list_area, &mut view.list);
 
     // The totals, and how much of the disk they are.
-    let mut parts = vec![
+    let mut parts = Vec::new();
+    if total.tagged > 0 {
+        let bytes = if view.apparent {
+            total.tagged_apparent
+        } else {
+            total.tagged_disk
+        };
+        parts.push(format!(
+            "{} tagged, {}",
+            fmt_num(total.tagged),
+            usage::size(bytes)
+        ));
+    }
+    parts.extend([
         format!("{} on disk", usage::size(total.disk)),
         format!("{} apparent", usage::size(total.apparent)),
         format!("{} files", fmt_num(total.files)),
-    ];
+    ]);
     if let Some(d) = crate::platform::disk_space(&path) {
         let used = d.total.saturating_sub(d.free);
         let at_top = crate::info::mount_of(&path).is_some_and(|m| m.point == path);
@@ -752,13 +777,17 @@ fn draw_files(
     } else {
         kind.to_string()
     };
-    let title = format!(
+    let mut title = format!(
         " {}{kind}: {} ({}) {} ",
         crate::icons::view_icon(pane.view, icons).unwrap_or_default(),
         pane.filespec.text(),
         fmt_num(pane.files.len() as u64),
         pane.sort.label()
     );
+    // Not empty: on its way, from a cloud mount.
+    if pane.view == FileView::Dir && pane.tree.is_reading(pane.current()) {
+        title.push_str("reading... ");
+    }
     let error = match pane.view {
         FileView::Dir => pane.tree.node(pane.current()).error.is_some(),
         _ => false,
@@ -1406,19 +1435,19 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
             },
         ]
     } else if app.usage.is_some() && app.job.is_none() {
-        let about = "> another disk  ! unreadable  . incomplete  H hard link  @ link  e empty";
+        let about = "> other disk  ! unreadable  . incomplete  H hard link  @ link  e empty";
         vec![
             menu_line(
                 "USAGE",
                 &[
                     ("Enter", "open"),
                     ("←", "back"),
-                    ("\\", "to the tree"),
-                    ("A", "disk/apparent"),
-                    ("C", "files"),
-                    ("S", "sort"),
+                    ("T", "tag"),
+                    ("Del", "delete"),
+                    ("Alt+P", "prune"),
+                    ("V", "view"),
                     ("D", "duplicates"),
-                    ("F3", "reread"),
+                    ("\\", "to the tree"),
                     ("Esc", "close"),
                 ],
             ),
@@ -1429,7 +1458,16 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                         .fg(theme().message)
                         .add_modifier(Modifier::BOLD),
                 )),
-                None => menu_line("", &[("", about)]),
+                None => menu_line(
+                    "",
+                    &[
+                        ("A", "disk/apparent"),
+                        ("C", "files"),
+                        ("S", "sort"),
+                        ("F3", "reread"),
+                        ("", about),
+                    ],
+                ),
             },
         ]
     } else if let Some(job) = &app.archive_job {

@@ -68,17 +68,42 @@ Byte-Größe der Dateien. Die untere Zeile zeigt immer beide Werte an.
 | `@` | symbolischer Link oder Spezialdatei |
 | `e` | leerer Ordner |
 
+## Mit dem Gefundenen arbeiten
+
+Die Rückfragen sind dieselben wie im Dateifenster, und die Summen werden gleich
+danach neu berechnet, während die Ansicht offen bleibt.
+
+- **Entf auf einem Ordner** löscht ihn mit allem Inhalt, in den Papierkorb, wenn
+  das so eingestellt ist; Alt+P löscht endgültig, mit der getippten Bestätigung
+  von Prune.
+- **Einen Ordner markieren** markiert alle seine Dateien, auch versteckte. `■`
+  steht für eine markierte Datei oder einen ganz markierten Ordner, `□` für einen
+  teilweise markierten Ordner, und die untere Zeile nennt Anzahl und Platzbedarf
+  der Markierten im angezeigten Ordner. Strg+D löscht diese. Die Markierungen
+  bleiben nach dem Schließen der Ansicht erhalten, für Copy oder Move.
+- **Ein anderer Datenträger wird nie angetastet.** Eine `>`-Zeile lässt sich weder
+  markieren noch löschen, und Markieren oder Löschen eines Zweigs endet dort, wo
+  ein anderer Datenträger eingehängt ist. Entf verweigert einen Ordner, in dem ein
+  Datenträger eingehängt ist; Alt+P löscht alles außer diesem.
+- In einem Archiv oder auf einem entfernten Rechner gehen nur Markieren und Anzeigen.
+
 ## Tasten
 
 | Taste | Funktion |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | bewegen |
-| Enter oder → | in den Ordner wechseln (auf `>`: diesen Datenträger analysieren) |
+| Enter oder → | in den Ordner wechseln (auf `>`: diesen Datenträger analysieren); bei einer Datei: anzeigen |
 | Backspace oder ← | zurück zum übergeordneten Ordner |
 | `\` | Ansicht schließen und im Baum auf dem angezeigten Ordner landen |
 | `A` | Platz auf dem Datenträger oder scheinbare Größe |
 | `C` | Dateianzahl ein- oder ausblenden |
 | `S` | nach Größe, Name, Dateianzahl oder Datum sortieren |
+| `T` / `U` | die Datei oder alle Dateien des Ordners markieren oder die Markierung aufheben |
+| Strg+T / Strg+U | alles im angezeigten Ordner markieren oder die Markierung aufheben |
+| Entf, Umschalt+Entf | die Datei oder den Ordner löschen (Umschalt: endgültig) |
+| Strg+D, Strg+Umschalt+Entf | die markierten Dateien im angezeigten Ordner löschen (Umschalt: endgültig) |
+| Alt+P | [Prune](delete.md) des Ordners |
+| `V` | die Datei anzeigen |
 | `D` | im gezeigten Ordner nach [Duplikaten](duplicates.md) suchen |
 | F3 | angezeigten Ordner neu einlesen |
 | Esc oder Alt+W | schließen |

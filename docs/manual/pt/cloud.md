@@ -78,11 +78,14 @@ criptografado, o painel diz apenas rclone.
 
 - **Tudo passa pela rede.** Cada leitura de diretório é uma requisição, e um
   serviço como o Google Drive as recusa quando são muitas. Por isso, numa pasta
-  montada, `*` pede ao rclone o ramo inteiro numa só listagem, bem mais rápida,
-  e preenche a árvore ao terminar; Esc deixa a árvore como estava. Se o rclone
-  falhar ou mostrar pastas diferentes das da montagem, `*` lê pasta por pasta.
-  Branch (`B`) sempre lê assim e pode demorar. Abrir apenas os diretórios de que
-  você precisa (→ ou `+`) é rápido, pois eles são lidos conforme você os abre.
+  montada, `*`, Branch (`B`), a visão Usage e o Compare em ramo pedem ao rclone o ramo
+  inteiro numa só listagem, bem mais rápida, a não ser que ele já esteja todo
+  lido; Esc deixa a árvore como estava. Se o rclone falhar ou mostrar pastas
+  diferentes das da montagem, eles leem pasta por pasta. Só `*` expande a árvore.
+- **A tela não espera.** A árvore aparece na hora e se preenche conforme as pastas
+  chegam, também ao abrir uma (→ ou `+`) ou levar o cursor até ela; enquanto isso,
+  a janela de arquivos mostra `reading...`. F3 e ir a um caminho digitado ainda
+  esperam a sua leitura.
 - **Alterações feitas em outro lugar** (no navegador, no celular) só aparecem
   após F3 e depois que o cache de diretórios expira (`--dir-cache-time`).
 - **Excluir:** responda `P` (permanentemente) em vez de `T`: no Linux, a

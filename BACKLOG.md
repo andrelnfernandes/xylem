@@ -59,19 +59,19 @@ as a link is what `cp -a` and `rsync -l` do).
      chmod, dates; needs a filesystem layer under `ops` and the tree scan;
   4. finishing: Edit and Open via temporary download and upload, eXecute
      over ssh, Git over ssh, periodic refresh instead of inotify.
-- **Disk usage, phases 3 and 4** ([docs/plans/usage.md](docs/plans/usage.md);
-  phases 1 and 2 are in 0.4.0): actions inside the Usage view (tag, delete,
-  prune, viewer); with no date, grouping by type and export.
+- **Disk usage** ([docs/plans/usage.md](docs/plans/usage.md)): phases 1 to 3 are
+  done, the actions of phase 3 going in 0.7.0. With no date: grouping by type and
+  export.
 - **Duplicate files** ([docs/plans/usage.md](docs/plans/usage.md), "Duplicados";
   [the manual](docs/manual/duplicates.md)): done on local folders, whole folders
   included, and through rclone by the service's hashes. Still open: over SSH
   (needs writing on the remote machine, phase 3 above, to be of use); whole
   folders in the cloud.
-- **Cloud mounts:** `*` asks rclone for the whole branch at once
-  ([the manual](docs/manual/cloud.md)). Still open: opening the root of a large
-  Drive reads every folder in it before the first draw (over 29 s on a blank
-  screen, with a cold cache); Branch, Usage and Compare still read folder by
-  folder, and a single slow read holds the screen up.
+- **Cloud mounts** ([docs/plans/cloud-opening.md](docs/plans/cloud-opening.md);
+  [the manual](docs/manual/cloud.md)): the tree reads in the background, and `*`,
+  Branch, Usage and Compare ask rclone for the whole branch at once. Still open: a
+  single slow read holds the screen up on F3, on going to a typed path and when
+  opening a Prune.
 - **From ZTreeWin, next:** JFC (compare the contents of two files), and saving
   and loading the log (Zlist), so that the tree of a disk or a Drive opens at once.
 - Postponed by choice: macros, chown, Graft. macOS: to look at again when there

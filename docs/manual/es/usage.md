@@ -63,17 +63,40 @@ tamaño propio de los archivos. La línea inferior siempre muestra ambos.
 | `@` | un enlace simbólico o archivo especial |
 | `e` | una carpeta vacía |
 
+## Actuar sobre lo que encuentre
+
+Las preguntas son las mismas que en la ventana de archivos, y los totales se
+rehacen enseguida, con la vista todavía abierta.
+
+- **Supr en una carpeta** la borra con todo su contenido, a la papelera si esa es
+  su configuración; Alt+P la borra de forma permanente, con la confirmación
+  escrita de Prune.
+- **Marcar una carpeta** marca todos sus archivos, también los ocultos. `■` indica
+  un archivo o una carpeta entera marcada, `□` una carpeta marcada en parte, y la
+  línea inferior dice cuántos hay marcados en la carpeta listada y cuánto ocupan.
+  Ctrl+D borra esos. Las marcas siguen al cerrar la vista, para Copy o Move.
+- **Otro disco nunca se toca.** Una línea `>` no se puede marcar ni borrar, y marcar
+  o borrar una rama se detiene donde hay otro disco montado. Supr rechaza una
+  carpeta con un disco montado dentro; Alt+P borra todo menos ese disco.
+- En un archivo comprimido o en una máquina remota, solo funcionan marcar y ver.
+
 ## Teclas
 
 | Tecla | Qué hace |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | moverse |
-| Enter o → | entrar en la carpeta (en `>`: analizar ese disco) |
+| Enter o → | entrar en la carpeta (en `>`: analizar ese disco); en un archivo, verlo |
 | Backspace o ← | volver a la carpeta superior |
 | `\` | cerrar la vista, dejando el árbol en la carpeta listada |
 | `A` | espacio en disco o aparente |
 | `C` | mostrar u ocultar el número de archivos |
 | `S` | ordenar por tamaño, nombre, número de archivos o fecha |
+| `T` / `U` | marcar o desmarcar el archivo, o todos los archivos de la carpeta |
+| Ctrl+T / Ctrl+U | marcar o desmarcar todo en la carpeta listada |
+| Supr, Mayús+Supr | borrar el archivo o la carpeta (Mayús: de forma permanente) |
+| Ctrl+D, Ctrl+Mayús+Supr | borrar los archivos marcados en la carpeta listada (Mayús: de forma permanente) |
+| Alt+P | [Prune](delete.md) de la carpeta |
+| `V` | ver el archivo |
 | `D` | buscar [duplicados](duplicates.md) en la carpeta listada |
 | F3 | volver a leer la carpeta listada |
 | Esc o Alt+W | cerrar |

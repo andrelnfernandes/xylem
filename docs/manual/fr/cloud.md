@@ -79,12 +79,15 @@ le panneau indique simplement rclone.
 
 - **Tout passe par le réseau.** Chaque lecture de répertoire est une requête, et
   un service comme Google Drive les refuse quand elles sont trop nombreuses.
-  Aussi, sur un dossier monté, `*` demande à rclone toute la branche en une seule
-  liste, bien plus rapide, et remplit l'arbre à la fin ; Échap laisse l'arbre tel
-  quel. Si rclone échoue ou montre d'autres dossiers que le montage, `*` lit
-  dossier par dossier. Branch (`B`) lit toujours ainsi et peut prendre du temps.
-  Ouvrir uniquement les répertoires dont vous avez besoin (→ ou `+`) est rapide,
-  puisqu'ils sont lus à mesure que vous les ouvrez.
+  Aussi, sur un dossier monté, `*`, Branch (`B`), la vue Usage et Compare sur une branche demandent à rclone
+  toute la branche en une seule liste, bien plus rapide, sauf si elle est déjà
+  entièrement lue ; Échap laisse l'arbre tel quel. Si rclone échoue ou montre
+  d'autres dossiers que le montage, ils lisent dossier par dossier. Seul `*`
+  déplie l'arbre.
+- **L'écran n'attend pas.** L'arbre s'affiche aussitôt et se remplit à mesure que
+  les dossiers arrivent, aussi en ouvrant un dossier (→ ou `+`) ou en y amenant le
+  curseur ; la fenêtre de fichiers indique `reading...` entre-temps. F3 et l'accès
+  à un chemin saisi attendent toujours leur lecture.
 - **Les modifications faites ailleurs** (dans le navigateur, sur le téléphone)
   n'apparaissent qu'après F3, et une fois le cache de répertoires expiré
   (`--dir-cache-time`).

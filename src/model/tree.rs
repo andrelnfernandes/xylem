@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::time::{Duration, Instant, SystemTime};
 
 use crate::platform;
@@ -92,6 +93,10 @@ pub struct Usage {
     /// The files' sizes.
     pub apparent: u64,
     pub files: u64,
+    /// Files tagged, and what they take, measured as the totals above.
+    pub tagged: u64,
+    pub tagged_disk: u64,
+    pub tagged_apparent: u64,
     /// Some directory below could not be read: the totals may be short.
     pub incomplete: bool,
     /// Mounted from another file system: not in the totals above it.
@@ -118,6 +123,87 @@ pub struct Tree {
     lister: Option<std::sync::Arc<dyn Lister>>,
     /// Goes up whenever what was read changes (to recompute only then).
     version: u64,
+    /// Directories read in the background, on a cloud mount.
+    reads: Option<Reads>,
+    /// In tests, a folder of the disk behaves as a cloud mount.
+    always_slow: bool,
+}
+
+/// What one read brought.
+type Read = (NodeId, std::io::Result<(Vec<DirName>, Vec<FileEntry>)>);
+
+/// How many directories are read at once. rclone paces the requests itself.
+const READERS: usize = 4;
+
+/// Directories waiting to be read: the last one goes first.
+#[derive(Default)]
+struct ReadQueue {
+    waiting: Vec<(NodeId, PathBuf)>,
+    closed: bool,
+}
+
+/// Threads reading directories through the mount, so that a slow service
+/// never holds the screen up. One stuck on a hung mount is left behind.
+struct Reads {
+    queue: Arc<(Mutex<ReadQueue>, Condvar)>,
+    results: mpsc::Receiver<Read>,
+    /// Asked for and not arrived yet.
+    pending: HashSet<NodeId>,
+}
+
+impl Reads {
+    fn start() -> Self {
+        let queue: Arc<(Mutex<ReadQueue>, Condvar)> = Arc::default();
+        let (tx, results) = mpsc::channel();
+        for _ in 0..READERS {
+            let (queue, tx) = (queue.clone(), tx.clone());
+            std::thread::spawn(move || {
+                while let Some((id, path)) = next_read(&queue) {
+                    if tx.send((id, read_dir_entries(&path))).is_err() {
+                        return;
+                    }
+                }
+            });
+        }
+        Reads {
+            queue,
+            results,
+            pending: HashSet::new(),
+        }
+    }
+
+    /// Puts `id` at the front, asking for it if nobody has.
+    fn ask(&mut self, id: NodeId, path: PathBuf) {
+        self.pending.insert(id);
+        let (queue, ready) = &*self.queue;
+        let mut queue = queue.lock().unwrap_or_else(|e| e.into_inner());
+        queue.waiting.retain(|(n, _)| *n != id);
+        queue.waiting.push((id, path));
+        ready.notify_one();
+    }
+}
+
+impl Drop for Reads {
+    fn drop(&mut self) {
+        let (queue, ready) = &*self.queue;
+        queue.lock().unwrap_or_else(|e| e.into_inner()).closed = true;
+        ready.notify_all();
+    }
+}
+
+/// The next directory to read; `None` once the tree is gone.
+fn next_read(queue: &(Mutex<ReadQueue>, Condvar)) -> Option<(NodeId, PathBuf)> {
+    let (queue, ready) = queue;
+    let mut queue = queue.lock().unwrap_or_else(|e| e.into_inner());
+    loop {
+        if queue.closed {
+            return None;
+        }
+        if let Some(next) = queue.waiting.pop() {
+            return Some(next);
+        }
+        queue = ready.wait(queue).unwrap_or_else(|e| e.into_inner());
+    }
 }
 
 /// Reading of a whole branch done in small steps, so the interface can
@@ -153,6 +239,11 @@ impl LogJob {
 
     pub fn is_done(&self) -> bool {
         self.stack.is_empty()
+    }
+
+    /// Also expands what it reads (`*`).
+    pub fn expands(&self) -> bool {
+        self.expand
     }
 
     /// The directory that will be read next.
@@ -199,7 +290,96 @@ impl Tree {
             show_hidden: true,
             lister: None,
             version: 0,
+            reads: None,
+            always_slow: false,
         }
+    }
+
+    /// A tree of `root` that reads in the background, as on a cloud mount.
+    #[cfg(test)]
+    pub fn slow(root: PathBuf) -> Self {
+        let mut tree = Tree::empty(root);
+        tree.always_slow = true;
+        tree.expand(ROOT);
+        tree
+    }
+
+    /// Each read here is a request to a service: a folder mounted by rclone.
+    fn reads_slowly(&self, path: &Path) -> bool {
+        self.always_slow
+            || (self.lister.is_none()
+                && !self.is_virtual
+                && crate::info::mount_of(path).is_some_and(|m| m.fstype == "fuse.rclone"))
+    }
+
+    /// Asks for `id` to be read in the background, first of all.
+    fn ask_read(&mut self, id: NodeId) {
+        let path = self.path(id);
+        self.reads.get_or_insert_with(Reads::start).ask(id, path);
+    }
+
+    /// The directory is about to be shown: reads it if it was not yet, in
+    /// the background where reading is slow.
+    pub fn touch(&mut self, id: NodeId) {
+        if self.nodes[id].scanned {
+            return;
+        }
+        if self.reads_slowly(&self.path(id)) {
+            self.ask_read(id);
+        } else {
+            self.scan(id);
+        }
+    }
+
+    /// `id` was asked for and has not arrived yet.
+    pub fn is_reading(&self, id: NodeId) -> bool {
+        self.reads.as_ref().is_some_and(|r| r.pending.contains(&id))
+    }
+
+    /// Something is still being read in the background.
+    pub fn reading(&self) -> bool {
+        self.reads.as_ref().is_some_and(|r| !r.pending.is_empty())
+    }
+
+    /// Puts in the tree what was read in the background, saying whether
+    /// anything arrived. An expanded directory has its subdirectories asked
+    /// for in turn, to know which have a `+`.
+    pub fn apply_reads(&mut self) -> bool {
+        let Some(reads) = &mut self.reads else {
+            return false;
+        };
+        let arrived: Vec<Read> = reads.results.try_iter().collect();
+        for (id, _) in &arrived {
+            reads.pending.remove(id);
+        }
+        let any = !arrived.is_empty();
+        for (id, result) in arrived {
+            self.version += 1;
+            match result {
+                Ok((dirs, files)) => self.apply(id, dirs, files),
+                Err(e) => self.nodes[id].error = Some(e.to_string()),
+            }
+            self.nodes[id].scanned = true;
+            if self.nodes[id].expanded {
+                self.ask_children(id);
+            }
+        }
+        any
+    }
+
+    /// Asks for the subdirectories not read yet, the first on top.
+    fn ask_children(&mut self, id: NodeId) {
+        for i in (0..self.nodes[id].children.len()).rev() {
+            let child = self.nodes[id].children[i];
+            if !self.nodes[child].scanned && !self.is_reading(child) {
+                self.ask_read(child);
+            }
+        }
+    }
+
+    /// Everything in the branch of `id` has been read.
+    pub fn branch_read(&self, id: NodeId) -> bool {
+        self.subtree(id).iter().all(|&n| self.nodes[n].scanned)
     }
 
     /// Reads `path` from the disk, or through the lister.
@@ -383,7 +563,7 @@ impl Tree {
     /// with the file (`Some`) or a directory (`None`). Directories already
     /// read keep what is tagged. A name repeated in a directory counts once,
     /// a directory first, as a mount shows it.
-    pub fn fill(&mut self, id: NodeId, listing: Vec<(PathBuf, Option<FileEntry>)>) {
+    pub fn fill(&mut self, id: NodeId, listing: Vec<(PathBuf, Option<FileEntry>)>, expand: bool) {
         let mut found: HashMap<PathBuf, (Vec<DirName>, Vec<FileEntry>)> = HashMap::new();
         found.insert(PathBuf::new(), Default::default());
         for (path, file) in &listing {
@@ -425,7 +605,7 @@ impl Tree {
             self.apply(n, dirs, files);
             let node = &mut self.nodes[n];
             node.scanned = true;
-            node.expanded = true;
+            node.expanded |= expand;
             for i in 0..self.nodes[n].children.len() {
                 let child = self.nodes[n].children[i];
                 stack.push((child, rel.join(&self.nodes[child].name)));
@@ -455,6 +635,15 @@ impl Tree {
     /// Expands a node. The children are also read so we know whether
     /// they have subdirectories (and show the `+` indicator).
     pub fn expand(&mut self, id: NodeId) {
+        if self.reads_slowly(&self.path(id)) {
+            self.nodes[id].expanded = true;
+            if self.nodes[id].scanned {
+                self.ask_children(id);
+            } else if !self.is_reading(id) {
+                self.ask_read(id);
+            }
+            return;
+        }
         self.scan(id);
         self.nodes[id].expanded = true;
         for i in 0..self.nodes[id].children.len() {
@@ -537,8 +726,16 @@ impl Tree {
     }
 
     /// Device (file system) of a directory on the local disk; `None` for
-    /// archives and remote machines, or when it cannot be read.
+    /// archives, remote machines and cloud mounts (there, asking is one more
+    /// request), or when it cannot be read.
     pub fn device(&self, id: NodeId) -> Option<u64> {
+        if self.reads_slowly(&self.path(id)) {
+            return None;
+        }
+        self.device_here(id)
+    }
+
+    fn device_here(&self, id: NodeId) -> Option<u64> {
         if self.lister.is_some() || self.is_virtual {
             return None;
         }
@@ -553,7 +750,13 @@ impl Tree {
     /// file system are marked and left out of the totals above them.
     /// `devices` keeps the device of each directory between calls.
     pub fn usage(&self, root: NodeId, devices: &mut HashMap<NodeId, Option<u64>>) -> UsageMap {
-        let mut device = |id| *devices.entry(id).or_insert_with(|| self.device(id));
+        let slow = self.reads_slowly(&self.path(root));
+        let mut device = |id| {
+            if slow {
+                return None;
+            }
+            *devices.entry(id).or_insert_with(|| self.device_here(id))
+        };
         let root_dev = device(root);
         let mut map = UsageMap::default();
         // Pre-order, stopping at other file systems.
@@ -589,9 +792,14 @@ impl Tree {
             };
             for (i, f) in node.files.iter().enumerate() {
                 u.files += 1;
+                u.tagged += u64::from(f.tagged);
                 if !map.repeats.contains(&(id, i)) {
                     u.disk += f.disk;
                     u.apparent += f.size;
+                    if f.tagged {
+                        u.tagged_disk += f.disk;
+                        u.tagged_apparent += f.size;
+                    }
                 }
             }
             for c in &node.children {
@@ -602,6 +810,9 @@ impl Tree {
                 u.disk += cu.disk;
                 u.apparent += cu.apparent;
                 u.files += cu.files;
+                u.tagged += cu.tagged;
+                u.tagged_disk += cu.tagged_disk;
+                u.tagged_apparent += cu.tagged_apparent;
                 u.incomplete |= cu.incomplete || self.nodes[*c].error.is_some();
             }
             map.dirs.insert(id, u);
@@ -926,7 +1137,7 @@ mod tests {
             (PathBuf::from("Alpha"), None),
             (PathBuf::from("Alpha"), Some(file("Alpha"))),
         ];
-        tree.fill(sub, listing);
+        tree.fill(sub, listing, true);
         let names = |tree: &Tree, id: NodeId| -> Vec<String> {
             tree.nodes[id]
                 .children
@@ -1145,5 +1356,71 @@ mod tests {
         let mut tree = Tree::new(PathBuf::from("/caminho/que/nao/existe"));
         tree.scan(ROOT);
         assert!(tree.node(ROOT).error.is_some());
+    }
+
+    fn apply_until_read(tree: &mut Tree) {
+        for _ in 0..1000 {
+            tree.apply_reads();
+            if !tree.reading() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!("the reads did not arrive");
+    }
+
+    #[test]
+    fn a_slow_tree_opens_before_reading_and_fills_in_the_background() {
+        let tmp = crate::testing::tempdir();
+        fs::create_dir_all(tmp.path().join("a/b/c")).unwrap();
+        fs::write(tmp.path().join("top.txt"), "x").unwrap();
+        fs::write(tmp.path().join("a/b/f.txt"), "x").unwrap();
+        let mut tree = Tree::slow(tmp.path().to_path_buf());
+        assert!(!tree.node(ROOT).scanned, "nothing read yet");
+        assert!(tree.node(ROOT).expanded);
+        assert!(tree.is_reading(ROOT));
+        apply_until_read(&mut tree);
+        assert_eq!(tree.node(ROOT).files[0].name, "top.txt");
+        // The folder below too, for the +, and no deeper than that.
+        let a = tree.node(ROOT).children[0];
+        let b = tree.node(a).children[0];
+        assert!(tree.node(a).scanned);
+        assert!(!tree.node(b).scanned);
+        assert!(tree.visible_rows()[1].prefix.ends_with('+'));
+
+        tree.touch(b);
+        assert!(tree.is_reading(b));
+        apply_until_read(&mut tree);
+        assert_eq!(tree.node(b).files[0].name, "f.txt");
+        assert!(!tree.node(tree.node(b).children[0]).scanned);
+        assert!(!tree.branch_read(a));
+    }
+
+    #[test]
+    fn a_read_arriving_late_keeps_the_tags() {
+        let tmp = crate::testing::tempdir();
+        fs::write(tmp.path().join("f"), "x").unwrap();
+        let mut tree = Tree::slow(tmp.path().to_path_buf());
+        tree.scan(ROOT);
+        tree.file_mut(ROOT, 0).tagged = true;
+        apply_until_read(&mut tree);
+        assert!(tree.node(ROOT).files[0].tagged);
+    }
+
+    #[test]
+    fn a_folder_that_cannot_be_read_shows_the_error() {
+        let tmp = crate::testing::tempdir();
+        let gone = tmp.path().join("gone");
+        let mut tree = Tree::slow(gone);
+        apply_until_read(&mut tree);
+        assert!(tree.node(ROOT).scanned);
+        assert!(tree.node(ROOT).error.is_some());
+    }
+
+    #[test]
+    fn a_slow_tree_does_not_ask_for_the_device() {
+        let tmp = crate::testing::tempdir();
+        let tree = Tree::slow(tmp.path().to_path_buf());
+        assert_eq!(tree.device(ROOT), None);
     }
 }
