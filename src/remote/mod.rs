@@ -1,6 +1,8 @@
 //! Remote machines over SSH: their files browsed through SFTP, spoken over
 //! the system's own `ssh` (so `~/.ssh/config`, keys, the agent and
 //! `known_hosts` all apply, and nothing is installed on the remote side).
+//! A container is reached the same way, with `docker exec` running the
+//! container's own `sftp-server` instead of ssh.
 //!
 //! A remote window's tree has a root like `andre@10.0.0.5:/home/andre`; the
 //! remote path of anything below it is the remote root plus the components
@@ -22,16 +24,37 @@ use crate::platform;
 use askpass::Askpass;
 use sftp::{Attrs, Handle, Sftp};
 
+/// How a remote machine is reached.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Via {
+    Ssh,
+    /// `docker exec` into a container (`host` is its name or id).
+    Docker,
+}
+
 /// A remote machine and where to start, as typed:
-/// `ssh://[user@]host[:port][/path]` or `user@host:[path]`.
+/// `ssh://[user@]host[:port][/path]`, `user@host:[path]` or
+/// `docker://[user@]container[/path]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Address {
+    pub via: Via,
     pub user: Option<String>,
     pub host: String,
     pub port: Option<u16>,
-    /// Empty: the home directory.
+    /// Empty: the home directory (a container's working directory).
     pub path: String,
 }
+
+/// Finds the container's `sftp-server` and becomes it. Fixed text: nothing
+/// typed goes into it.
+const DOCKER_SFTP: &str = "for p in /usr/lib/openssh/sftp-server /usr/libexec/openssh/sftp-server \
+/usr/lib/ssh/sftp-server /usr/libexec/sftp-server; do [ -x \"$p\" ] && exec \"$p\"; done; \
+echo 'no sftp-server in the container (install openssh-sftp-server)' >&2; exit 127";
+
+/// The shell in a container: in the folder given as `$1`, the user's
+/// shell, or bash if there is one, or sh.
+const DOCKER_SHELL: &str = "cd \"$1\" 2>/dev/null; XY_TERMINAL=1 exec \
+\"${SHELL:-$(command -v bash || echo /bin/sh)}\" -l";
 
 impl Address {
     /// `None` for anything that is not a remote address. Plain `host:path`
@@ -41,6 +64,19 @@ impl Address {
         let text = text.trim();
         if text.is_empty() || text.chars().any(char::is_whitespace) {
             return None;
+        }
+        if let Some(rest) = text.strip_prefix("docker://") {
+            let (authority, path) = match rest.find('/') {
+                Some(i) => (&rest[..i], &rest[i..]),
+                None => (rest, ""),
+            };
+            let (user, name) = match authority.rsplit_once('@') {
+                Some((u, h)) => (Some(u), h),
+                None => (None, authority),
+            };
+            let mut address = Self::build(user, name, None, path)?;
+            address.via = Via::Docker;
+            return Some(address);
         }
         if let Some(rest) = text.strip_prefix("ssh://") {
             let (authority, path) = match rest.find('/') {
@@ -73,6 +109,7 @@ impl Address {
             return None;
         }
         Some(Address {
+            via: Via::Ssh,
             user: user.map(String::from),
             host: host.to_string(),
             port,
@@ -80,12 +117,30 @@ impl Address {
         })
     }
 
-    /// What `ssh` gets: `user@host` or `host`.
+    /// What `ssh` gets: `user@host` or `host`; for a container, its name
+    /// after `docker:`, as shown.
     pub fn destination(&self) -> String {
-        match &self.user {
+        let at = match &self.user {
             Some(user) => format!("{user}@{}", self.host),
             None => self.host.clone(),
+        };
+        match self.via {
+            Via::Ssh => at,
+            Via::Docker => format!("docker:{at}"),
         }
+    }
+
+    /// `docker exec` into the container, with `options` before its name
+    /// and `command` after it.
+    fn docker(&self, options: &[&str], command: &[&str]) -> Command {
+        let mut cmd = Command::new(docker_program());
+        cmd.arg("exec").args(options);
+        if let Some(user) = &self.user {
+            cmd.arg("-u").arg(user);
+        }
+        // The name is checked, and after `--` it could not be an option anyway.
+        cmd.arg("--").arg(&self.host).args(command);
+        cmd
     }
 
     /// `ssh` with the options every connection uses.
@@ -115,6 +170,12 @@ impl Address {
 /// with a configuration of their own, away from the user's `~/.ssh`).
 fn ssh_program() -> OsString {
     std::env::var_os("XY_SSH").unwrap_or_else(|| "ssh".into())
+}
+
+/// The docker program: `docker`, or `$XY_DOCKER` (`podman`, or the tests'
+/// stand-in).
+fn docker_program() -> OsString {
+    std::env::var_os("XY_DOCKER").unwrap_or_else(|| "docker".into())
 }
 
 /// A connected remote machine.
@@ -147,27 +208,35 @@ impl Connecting {
     /// this run and `n` numbers the connection.
     pub fn start(address: Address, run: &Path, n: usize) -> io::Result<Connecting> {
         let askpass = Askpass::new(run, n)?;
-        // Unix sockets have a short path limit (ssh adds a suffix while
-        // creating it); with a long home, the terminal logs in again instead.
-        let control =
-            Some(run.join(format!("cm-{n}"))).filter(|c| cfg!(unix) && c.as_os_str().len() <= 80);
-        let mut cmd = address.ssh(control.as_deref(), true);
-        cmd.arg("-s").arg(address.destination()).arg("sftp");
+        let (mut cmd, control) = match address.via {
+            Via::Ssh => {
+                // Unix sockets have a short path limit (ssh adds a suffix while
+                // creating it); with a long home, the terminal logs in again instead.
+                let control = Some(run.join(format!("cm-{n}")))
+                    .filter(|c| cfg!(unix) && c.as_os_str().len() <= 80);
+                let mut cmd = address.ssh(control.as_deref(), true);
+                cmd.arg("-s").arg(address.destination()).arg("sftp");
+                // ssh asks through Xylem, never on the screen it is drawing.
+                cmd.env("SSH_ASKPASS", std::env::current_exe()?)
+                    .env("SSH_ASKPASS_REQUIRE", "force")
+                    .env(askpass::DIR_VAR, askpass.dir());
+                if std::env::var_os("DISPLAY").is_none() {
+                    // Older ssh only uses SSH_ASKPASS with a DISPLAY.
+                    cmd.env("DISPLAY", ":0");
+                }
+                (cmd, control)
+            }
+            // docker exec asks nothing.
+            Via::Docker => (address.docker(&["-i"], &["sh", "-c", DOCKER_SFTP]), None),
+        };
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        // ssh asks through Xylem, never on the screen it is drawing.
-        cmd.env("SSH_ASKPASS", std::env::current_exe()?)
-            .env("SSH_ASKPASS_REQUIRE", "force")
-            .env(askpass::DIR_VAR, askpass.dir());
-        if std::env::var_os("DISPLAY").is_none() {
-            // Older ssh only uses SSH_ASKPASS with a DISPLAY.
-            cmd.env("DISPLAY", ":0");
-        }
         detach(&mut cmd);
+        let program = cmd.get_program().to_string_lossy().into_owned();
         let mut child = cmd
             .spawn()
-            .map_err(|e| io::Error::new(e.kind(), format!("cannot run ssh: {e}")))?;
+            .map_err(|e| io::Error::new(e.kind(), format!("cannot run {program}: {e}")))?;
         let pipes = (
             child.stdout.take().expect("piped stdout"),
             child.stdin.take().expect("piped stdin"),
@@ -422,6 +491,14 @@ impl Remote {
     /// The command for a terminal on this machine, starting in `dir` (a
     /// path of the window's tree): `ssh -t`, reusing the login when it can.
     pub fn terminal_command(&self, dir: &Path) -> (OsString, Vec<String>) {
+        if self.address.via == Via::Docker {
+            let dir = String::from_utf8_lossy(&self.remote_path(dir)).into_owned();
+            let cmd = self
+                .address
+                .docker(&["-it"], &["sh", "-c", DOCKER_SHELL, "sh", &dir]);
+            let args = cmd.get_args().map(|a| a.to_string_lossy().into_owned());
+            return (docker_program(), args.collect());
+        }
         let mut args: Vec<String> = Vec::new();
         args.extend(
             [
@@ -595,5 +672,86 @@ mod tests {
         // Nothing ssh would read as an option.
         assert_eq!(Address::parse("ssh://-oProxyCommand=x"), None);
         assert_eq!(Address::parse("-oX@host:/"), None);
+        assert_eq!(Address::parse("andre@host:").unwrap().via, Via::Ssh);
+    }
+
+    #[test]
+    fn parses_containers() {
+        let a = Address::parse("docker://web").unwrap();
+        assert_eq!(
+            (a.via, a.host.as_str(), a.path.as_str()),
+            (Via::Docker, "web", "")
+        );
+        assert_eq!((&a.user, a.port), (&None, None));
+        assert_eq!(a.destination(), "docker:web");
+        let a = Address::parse("docker://root@my_app.1/srv/www").unwrap();
+        assert_eq!(a.destination(), "docker:root@my_app.1");
+        assert_eq!(a.path, "/srv/www");
+        // No port, no options, no shell.
+        for bad in [
+            "docker://",
+            "docker://web:2222",
+            "docker://-it",
+            "docker://-u@web",
+            "docker://a;b",
+            "docker://$(id)",
+            "docker://a b",
+            "docker://@web",
+        ] {
+            assert_eq!(Address::parse(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_container_is_reached_with_docker_exec_and_nothing_else() {
+        let args = |cmd: Command| -> Vec<String> {
+            cmd.get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+        let a = Address::parse("docker://web").unwrap();
+        let got = args(a.docker(&["-i"], &["sh", "-c", DOCKER_SFTP]));
+        assert_eq!(got, ["exec", "-i", "--", "web", "sh", "-c", DOCKER_SFTP]);
+        let a = Address::parse("docker://deploy@web").unwrap();
+        let got = args(a.docker(&["-it"], &["true"]));
+        assert_eq!(got, ["exec", "-it", "-u", "deploy", "--", "web", "true"]);
+        // The scripts are fixed: no name or path is ever part of them.
+        for script in [DOCKER_SFTP, DOCKER_SHELL] {
+            assert!(!script.contains("web") && !script.contains("deploy"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_shell_in_a_container_gets_its_folder_as_an_argument() {
+        let tmp = crate::testing::tempdir();
+        let Some(remote) = for_tests(tmp.path()) else {
+            return;
+        };
+        let mut remote = Arc::try_unwrap(remote).ok().unwrap();
+        remote.address = Address::parse("docker://web").unwrap();
+        let odd = remote.root.join("it's $(here)");
+        let (_, args) = remote.terminal_command(&odd);
+        let real = tmp.path().canonicalize().unwrap();
+        assert_eq!(&args[..4], ["exec", "-it", "--", "web"]);
+        assert_eq!(&args[4..7], ["sh", "-c", DOCKER_SHELL]);
+        assert_eq!(
+            &args[7..],
+            ["sh", &format!("{}/it's $(here)", real.display())]
+        );
+        // And the script does go there, and starts a shell.
+        std::fs::create_dir(tmp.path().join("it's $(here)")).unwrap();
+        let shell = tmp.path().join("shell");
+        std::fs::write(&shell, "#!/bin/sh\npwd\n").unwrap();
+        let mode = std::os::unix::fs::PermissionsExt::from_mode(0o755);
+        std::fs::set_permissions(&shell, mode).unwrap();
+        let out = Command::new("sh")
+            .args(["-c", DOCKER_SHELL, "sh"])
+            .arg(&args[8])
+            .env("SHELL", &shell)
+            .output()
+            .unwrap();
+        let said = String::from_utf8_lossy(&out.stdout);
+        assert!(said.trim().ends_with("it's $(here)"), "{said}");
     }
 }

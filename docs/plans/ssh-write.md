@@ -111,7 +111,10 @@ Combinações:
    de remover antes vem com o `REMOVE` da 3c). `SETSTAT` ficou para a 3b, onde é
    usado. Testes: contra o `sftp-server` e contra um servidor roteirizado (status
    EOF ou id trocado não viram sucesso; extensões malformadas são ignoradas).
-2. **docker:// — containers sem sshd.** Ver a seção no fim.
+2. **docker:// — containers sem sshd.** *Feito na branch `docker-remote` (sobre a
+   `ssh-write-3a`).* Ver a seção no fim. Testado também com um Alpine real pelo
+   Podman 5.7: erro sem `sftp-server`, Makedir, Rename e o shell do Alt+X. De quebra,
+   o título da janela remota deixou de dizer "(read-only)".
 3. **3b — enviar.** `OPEN` de escrita, `WRITE` em voo, `FSTAT`, `SETSTAT`; Copy local → remoto e
    remoto → mesmo remoto; Alt+C com caminhos; criar pasta de destino que falta;
    conflito com tamanho e data dos dois lados; Esc apaga o temporário remoto.
@@ -138,12 +141,62 @@ BACKLOG, e este spec com o status.
 ## Containers Docker (`docker://`, aprovado)
 
 Funciona hoje, sem nada novo, quando o container tem `sshd`: `ssh://root@localhost:2222`
-com a porta mapeada, o IP do container, ou um `Host` no `~/.ssh/config`. Sem `sshd`,
-não. Mas o Xylem só precisa de um `sftp-server` falando por stdin/stdout, que é
-exatamente o que os testes fazem; então um endereço `docker://container[/caminho]`
-poderia rodar `docker exec -i <container> <sftp-server>` no lugar do ssh (e o terminal,
-`docker exec -it <container> sh`). Exige o binário `sftp-server` dentro do container,
-que imagens mínimas não têm. Entra como fatia própria depois da 3a e reaproveita tudo
-da fase 3. Ganha o seu modelo de ameaça no início da fatia (o nome do container vai
-para o `docker` como argumento, nunca por shell; o container é tão hostil quanto um
-servidor).
+com a porta mapeada, o IP do container, ou um `Host` no `~/.ssh/config`. Sem `sshd`, a
+fatia `docker://` resolve: o Xylem só precisa de um `sftp-server` falando por
+stdin/stdout, que é o que os testes já fazem.
+
+### Uso
+
+- `docker://[usuário@]container[/caminho]` em `L` ou na linha de comando. Sem caminho,
+  começa no diretório de trabalho do container. O usuário vai para `docker exec -u`.
+- A raiz da janela aparece como `docker:container:/caminho` (ou
+  `docker:usuário@container:/caminho`); o rodapé diz `Remote: docker:container`.
+- Alt+X abre um shell no container, começando na pasta da janela.
+- O programa é `docker`, ou `$XY_DOCKER` (Podman: `XY_DOCKER=podman`; os testes usam um
+  wrapper). Vale o que o próprio CLI usa: `DOCKER_HOST`, contextos.
+
+### Modelo de ameaça
+
+O container é tão hostil quanto um servidor SFTP: a imagem pode ter vindo de qualquer
+lugar, e o `sftp-server` dentro dela pode ter sido trocado. Tudo o que vale para a
+leitura e a escrita por SFTP vale aqui, sem exceção, porque o código depois da conexão
+é o mesmo.
+
+O que é novo é **como** a conexão começa:
+
+1. **Nada digitado chega a um shell.** O nome do container e o usuário passam pela
+   mesma validação dos nomes de host (letras, dígitos, `-`, `.`, `_`, sem começar com
+   `-`) e vão para o `docker` como argumentos próprios, depois de `--`. O script que
+   procura o `sftp-server` é fixo, escrito no código; o caminho inicial vai pelo
+   `realpath` do SFTP, e a pasta do terminal vai como `$1` do `sh -c`, nunca no texto
+   do script.
+2. **Só `docker exec`.** O Xylem nunca roda outro subcomando (`run`, `cp`, `pull`): não
+   cria, não muda e não baixa container nenhum. Quem tem acesso ao socket do Docker é
+   quase root na máquina; o Xylem usa esse acesso só para o `exec` pedido.
+3. **Escrita fica dentro do container,** como o usuário do `exec`, com uma exceção que o
+   manual diz: pastas montadas do host (`-v`) são arquivos do host, e escrever nelas
+   pelo container é escrever no host.
+4. **Erros do `docker` são texto de fora:** a última linha do stderr aparece no rodapé
+   como já acontece com o ssh, passando pelo mesmo filtro de caracteres de controle.
+
+### Desenho
+
+- `Address` ganha `via: Via { Ssh, Docker }`; `docker://` não aceita porta.
+- `Connecting::start` monta `docker exec -i [-u usuário] -- <container> sh -c <script>`,
+  sem askpass (o `docker exec` não pergunta nada) e sem socket de controle.
+- O script tenta, nesta ordem, `/usr/lib/openssh/sftp-server` (Debian, Ubuntu),
+  `/usr/libexec/openssh/sftp-server` (Fedora, RHEL), `/usr/lib/ssh/sftp-server`
+  (Alpine, Arch) e `/usr/libexec/sftp-server`; sem nenhum, termina dizendo "no
+  sftp-server in the container (install openssh-sftp-server)". Exige `sh`: imagens
+  distroless ficam de fora, e de qualquer forma não têm `sftp-server`.
+- Terminal: `docker exec -it [-u usuário] -- <container> sh -c '<fixo>' sh <pasta>`, que
+  entra na pasta e abre `$SHELL`, ou `bash` se existir, ou `sh`, com `XY_TERMINAL=1`.
+
+### Testes
+
+- Unitários: endereços (`docker://web`, `docker://root@web/app`, recusa de porta e de
+  nome com `-` ou espaço) e os argumentos montados para conexão e terminal.
+- Com um `docker` falso (wrapper que descarta tudo até o nome do container e roda o
+  resto aqui): a conexão completa, a listagem e o erro sem `sftp-server`.
+- Com um container de verdade (`#[ignore]`, como o teste do sshd): Alpine com
+  `openssh-sftp-server`, por `XY_DOCKER` (Docker ou Podman).

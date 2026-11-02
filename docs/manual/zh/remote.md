@@ -72,4 +72,16 @@ fi
 
 在 Xylem 内部，shell 不需要靠 tmux 来保活：只要 Xylem 打开着，它就会一直运行；而如果网络连接断开，远程窗口本身也会随之断开。
 
+## 容器（Docker、Podman）
+
+本机上的容器也可以用同样的方式打开，容器内无需 `sshd`：
+
+- `docker://容器` —— 容器的工作目录；`docker://容器/app` —— 该目录；`docker://用户@容器/app` —— 以该用户身份（`docker exec -u`）。
+
+Xylem 运行 `docker exec`，并在容器内启动容器自带的 `sftp-server`，也就是 SSH 服务器所用的同一个程序。大多数镜像没有它：请在容器内安装（Alpine 上 `apk add openssh-sftp-server`，Debian 和 Ubuntu 上 `apt install openssh-sftp-server`，Fedora 上 `dnf install openssh-server`），否则 Xylem 会提示缺少该程序。镜像需要有 `sh`，因此 distroless 镜像不受支持。
+
+上述所有功能在容器中的用法与远程主机相同，**Alt+X** 会在容器内、窗口所在的文件夹中打开 shell。使用 **Podman** 时，请以 `XY_DOCKER=podman` 启动 Xylem。`DOCKER_HOST` 和 docker 上下文照常生效。
+
+Xylem 只会运行 `docker exec`：不会启动、修改或下载任何容器。写入的内容进入容器，但从本机挂载的文件夹（`-v`）除外：那些是本机的文件。
+
 关于 Google Drive、S3 等云端存储，请参阅 [云存储](cloud.md)。

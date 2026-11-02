@@ -57,7 +57,8 @@ use app::App;
 const USAGE: &str = "\
 Xylem - text-mode file manager inspired by XTree/ZTreeWin
 
-Usage: xy [--cwd-file FILE] [DIRECTORY | user@host:[PATH] | ssh://[user@]host[:port][/PATH]]
+Usage: xy [--cwd-file FILE] [DIRECTORY | user@host:[PATH] | ssh://[user@]host[:port][/PATH]
+          | docker://[user@]container[/PATH]]
 
 Options:
   --cwd-file FILE    on Alt+Q (quit and change directory), write the current
