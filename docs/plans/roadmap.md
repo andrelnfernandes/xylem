@@ -70,7 +70,13 @@ Depois da Parte 1, nesta ordem:
 
 1. **JFC:** comparar o conteúdo de dois arquivos, sem depender de `diff %t` no eXecute.
 2. **Salvar e recarregar o log (Zlist):** a árvore de um disco ou Drive abre na hora e é
-   atualizada depois. O arquivo salvo também é lido como hostil.
+   atualizada depois. O arquivo salvo também é lido como hostil. Cobre também máquinas
+   remotas, containers e, se aprovado, imagens do Docker
+   ([machines.md](machines.md), parte 3).
+
+Sem posição decidida ainda: **máquinas e containers no F2** e **contextos do Docker**
+([machines.md](machines.md), partes 1 e 2), registrados em 2026-11-02. A ordem em
+relação à fase 4 do SSH e ao JFC fica para o autor.
 
 ## Em paralelo: divulgação
 
