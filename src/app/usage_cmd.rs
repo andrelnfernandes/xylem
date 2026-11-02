@@ -163,15 +163,10 @@ impl App {
         }
     }
 
-    /// Deleting and Prune work on files of this machine only, as in the file
-    /// window.
+    /// Deleting and Prune work as in the file window: not inside archives.
     fn usage_can_write(&mut self) -> bool {
         if self.archive.is_some() {
             self.message = Some("Archives are read-only (use Copy to extract)".into());
-            false
-        } else if self.remote.is_some() {
-            self.message =
-                Some("Read-only on a remote machine for now: Copy brings files here".into());
             false
         } else {
             true

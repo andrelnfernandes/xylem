@@ -166,6 +166,22 @@ pub fn run_dir_path(base: &std::path::Path) -> PathBuf {
     base.join(format!("run-{}", std::process::id()))
 }
 
+/// Octal permissions as typed, e.g. "644" or "0755": what a Unix machine
+/// takes, here or remote.
+pub fn parse_octal_mode(text: &str) -> Result<u32, String> {
+    let text = text.trim();
+    let valid = (3..=4).contains(&text.len()) && text.chars().all(|c| ('0'..='7').contains(&c));
+    if !valid {
+        return Err("Permissions must be 3 or 4 octal digits, e.g. 644".into());
+    }
+    u32::from_str_radix(text, 8).map_err(|e| e.to_string())
+}
+
+/// Starting text of a permissions prompt: `644`.
+pub fn octal_mode_text(mode: u32) -> String {
+    format!("{:03o}", mode & 0o7777)
+}
+
 /// Hidden temporary file next to `dst` (so the final rename is atomic),
 /// named after this run.
 pub fn tmp_path(dst: &std::path::Path) -> PathBuf {

@@ -73,7 +73,12 @@ A file that changed since the tree was read, or that cannot be read, is not
 compared; the line at the bottom says how many. F3 reads everything again.
 
 On a network folder (NFS, SMB, sshfs...), the total to read is asked first. On a
-remote machine or inside an archive, Duplicates is not available yet.
+[remote machine](remote.md) too: the files are read there, through SSH, and
+looked at again before anything is deleted, as here. Two things differ there:
+SFTP gives no inode, so two hard links to one file show as a pair (deleting
+one frees nothing, and loses nothing); and other disks mounted inside are left
+out by their filesystem, which needs OpenSSH's `statvfs` extension. Inside an
+archive, Duplicates is not available.
 
 ## In the cloud (rclone)
 

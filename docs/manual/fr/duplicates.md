@@ -74,7 +74,13 @@ Un fichier modifié depuis la lecture de l'arbre, ou illisible, n'est pas compar
 la ligne du bas dit combien. F3 relit tout.
 
 Sur un dossier réseau (NFS, SMB, sshfs...), le total à lire est demandé d'abord. Sur
-une machine distante ou dans une archive, Doublons n'est pas encore disponible.
+une [machine distante](remote.md) aussi : les fichiers y sont lus, par SSH, et
+réexaminés avant toute suppression, comme ici. Deux choses diffèrent : SFTP ne
+donne pas d'inode, donc deux liens physiques vers un même fichier apparaissent
+comme une paire (en supprimer un ne libère rien et ne perd rien) ; et les autres
+disques montés à l'intérieur sont laissés de côté grâce à leur système de
+fichiers, ce qui demande l'extension `statvfs` d'OpenSSH. Dans une archive,
+Doublons n'est pas disponible.
 
 ## Dans le cloud (rclone)
 

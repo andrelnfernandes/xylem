@@ -30,7 +30,7 @@ use crate::model::filespec::{self, DateOrder, Filespec};
 use crate::model::rename_mask::{CaseMode, RenameMask};
 use crate::model::sort::{Sort, SortKey};
 use crate::model::tree::{LogJob, NodeId, ROOT};
-use crate::ops::{self, Answer, OpKind, Operation, Source};
+use crate::ops::{self, Answer, OpKind, Operation, Side, Source};
 pub use crate::pane::{ArchiveContents, FileRef, FileView, Focus, Kbyte, KbyteShow, Pane};
 use crate::picker::{Outcome as PickerOutcome, Picker};
 use crate::platform;

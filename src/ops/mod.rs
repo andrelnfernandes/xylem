@@ -9,10 +9,12 @@ use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{self, ErrorKind, Read, Write};
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use crate::archive;
 use crate::platform;
+use crate::remote::{Remote, RemoteWriter};
 
 const CHUNK: usize = 1024 * 1024;
 /// How long a step waits for the next block of an archive entry.
@@ -46,6 +48,88 @@ impl OpKind {
             OpKind::Delete => "Deleted",
             OpKind::Prune => "Pruned",
             OpKind::Rename => "Renamed",
+        }
+    }
+}
+
+/// The machine a path is on: this one, or a remote one through SFTP.
+#[derive(Clone, Default)]
+pub enum Side {
+    #[default]
+    Local,
+    Remote(Arc<Remote>),
+}
+
+impl Side {
+    /// The side of a window, from its remote machine (if any).
+    pub fn of(remote: Option<&Arc<Remote>>) -> Side {
+        remote.map_or(Side::Local, |r| Side::Remote(r.clone()))
+    }
+
+    /// Whether anything is at `path`, even a broken symlink.
+    pub fn exists(&self, path: &Path) -> bool {
+        match self {
+            Side::Local => fs::symlink_metadata(path).is_ok(),
+            Side::Remote(remote) => remote.attrs(path).is_ok(),
+        }
+    }
+
+    pub fn create_dir(&self, path: &Path) -> io::Result<()> {
+        match self {
+            Side::Local => fs::create_dir(path),
+            Side::Remote(remote) => remote.create_dir(path),
+        }
+    }
+
+    /// Whether `path` is a directory, following a symlink (as `Path::is_dir`).
+    pub fn is_dir(&self, path: &Path) -> bool {
+        match self {
+            Side::Local => path.is_dir(),
+            Side::Remote(remote) => remote.is_dir(path),
+        }
+    }
+
+    /// Creates `path` and whatever is missing above it.
+    pub fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        match self {
+            Side::Local => fs::create_dir_all(path),
+            Side::Remote(remote) => remote.create_dir_all(path),
+        }
+    }
+
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        match self {
+            Side::Local => fs::remove_file(path),
+            Side::Remote(remote) => remote.remove_file(path),
+        }
+    }
+
+    /// The same machine (a remote one: the same connection).
+    fn same(&self, other: &Side) -> bool {
+        match (self, other) {
+            (Side::Local, Side::Local) => true,
+            (Side::Remote(a), Side::Remote(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+
+    /// A temporary file next to `dst`, for writing a copy.
+    fn create_tmp(&self, dst: &Path) -> io::Result<(Writer, PathBuf)> {
+        match self {
+            Side::Local => platform::create_tmp(dst).map(|(f, tmp)| (Writer::Local(f), tmp)),
+            Side::Remote(remote) => remote
+                .create_tmp(dst)
+                .map(|(w, tmp)| (Writer::Remote(w), tmp)),
+        }
+    }
+
+    /// Renames `from` to `to`. Here `fs::rename` replaces an existing `to`;
+    /// on a remote machine, only with `replace` (callers check first, and
+    /// the server refuses if something appeared in between).
+    pub fn rename(&self, from: &Path, to: &Path, replace: bool) -> io::Result<()> {
+        match self {
+            Side::Local => fs::rename(from, to),
+            Side::Remote(remote) => remote.rename(from, to, replace),
         }
     }
 }
@@ -119,11 +203,35 @@ struct ArchiveSource {
     entries: crate::pane::ArchiveEntries,
 }
 
+/// Where a copy is written: a temporary file here or on a remote machine.
+enum Writer {
+    Local(File),
+    Remote(RemoteWriter),
+}
+
+impl Write for Writer {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Writer::Local(f) => f.write(buf),
+            Writer::Remote(w) => w.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Writer::Local(f) => f.flush(),
+            Writer::Remote(w) => w.flush(),
+        }
+    }
+}
+
 /// A copy of a file in progress.
 struct Transfer {
     reader: Box<dyn Read>,
-    writer: File,
+    writer: Writer,
     tmp: PathBuf,
+    /// The destination exists and the user said to replace it.
+    replace: bool,
     /// Permissions and date to give the copy.
     mode: u32,
     modified: Option<SystemTime>,
@@ -149,8 +257,10 @@ pub struct Operation {
     pub errors: Vec<String>,
     /// The source files are inside this archive...
     archive: Option<ArchiveSource>,
-    /// ...or on this remote machine.
-    remote: Option<std::sync::Arc<crate::remote::Remote>>,
+    /// ...or on this machine,
+    src: Side,
+    /// and go to this one.
+    dst: Side,
     /// Symlinks this operation created. Nothing is written through them: a
     /// remote server could list `sub` as a link to `/etc` and also `sub/x`.
     links: HashSet<PathBuf>,
@@ -202,7 +312,18 @@ impl Operation {
         dest: &Path,
         paths_from: Option<&Path>,
     ) -> Result<Self, String> {
-        let items = if dest.is_dir() {
+        Self::transfer_to(kind, sources, dest, paths_from, Side::Local)
+    }
+
+    /// The same, with `dest` on the machine `side`.
+    pub fn transfer_to(
+        kind: OpKind,
+        sources: Vec<Source>,
+        dest: &Path,
+        paths_from: Option<&Path>,
+        side: Side,
+    ) -> Result<Self, String> {
+        let items = if side.is_dir(dest) {
             sources
                 .into_iter()
                 .map(|s| {
@@ -220,7 +341,7 @@ impl Operation {
                 .collect()
         } else if paths_from.is_none()
             && sources.len() == 1
-            && dest.parent().is_some_and(Path::is_dir)
+            && dest.parent().is_some_and(|p| side.is_dir(p))
         {
             let s = sources.into_iter().next().unwrap();
             vec![Item {
@@ -235,7 +356,9 @@ impl Operation {
                 dest.display()
             ));
         };
-        Ok(Self::new(kind, items))
+        let mut op = Self::new(kind, items);
+        op.dst = side;
+        Ok(op)
     }
 
     /// Prepares a batch rename operation from pairs of (source, destination, size).
@@ -271,7 +394,8 @@ impl Operation {
             #[cfg(test)]
             force_cross_device: false,
             archive: None,
-            remote: None,
+            src: Side::Local,
+            dst: Side::Local,
             links: HashSet::new(),
         }
     }
@@ -296,15 +420,37 @@ impl Operation {
     }
 
     /// The files come from a remote machine (Copy only, for now).
-    pub fn reading_remote(
-        mut self,
-        remote: std::sync::Arc<crate::remote::Remote>,
-    ) -> Result<Self, String> {
-        if self.kind != OpKind::Copy {
-            return Err("Read-only on a remote machine for now: Copy brings files here".into());
+    pub fn reading_remote(mut self, remote: Arc<Remote>) -> Result<Self, String> {
+        if !matches!(self.kind, OpKind::Copy | OpKind::Move) {
+            return Err("Not yet on a remote machine: Copy brings files here".into());
         }
-        self.remote = Some(remote);
+        let src = Side::Remote(remote);
+        if matches!(self.dst, Side::Remote(_)) && !src.same(&self.dst) {
+            return Err("Copying between two remote machines comes in a later version".into());
+        }
+        self.src = src;
         Ok(self)
+    }
+
+    /// A rename, delete or prune of files on a remote machine.
+    pub fn on_remote(mut self, remote: Arc<Remote>) -> Result<Self, String> {
+        if !matches!(self.kind, OpKind::Rename | OpKind::Delete | OpKind::Prune) {
+            return Err("Not yet on a remote machine".into());
+        }
+        if self.to_trash {
+            return Err("There is no trash on a remote machine".into());
+        }
+        self.src = Side::Remote(remote.clone());
+        self.dst = Side::Remote(remote);
+        Ok(self)
+    }
+
+    /// The remote machine the files come from, if any.
+    fn remote_src(&self) -> Option<&Arc<Remote>> {
+        match &self.src {
+            Side::Remote(remote) => Some(remote),
+            Side::Local => None,
+        }
     }
 
     pub fn total_files(&self) -> usize {
@@ -357,7 +503,7 @@ impl Operation {
     pub fn cancel(&mut self) {
         if let Some(t) = self.transfer.take() {
             drop(t.writer);
-            let _ = fs::remove_file(&t.tmp);
+            let _ = self.dst.remove_file(&t.tmp);
         }
         self.next = self.items.len();
         self.conflict = None;
@@ -404,12 +550,14 @@ impl Operation {
         let item = self.items[self.next].clone();
 
         if matches!(self.kind, OpKind::Delete | OpKind::Prune) {
-            let removed = if self.to_trash {
-                platform::trash_file(&item.src)
-            } else if item.is_dir {
-                fs::remove_dir(&item.src)
-            } else {
-                platform::remove_file(&item.src)
+            // On a remote machine, each one is looked at first (lstat): a
+            // symlink is removed as itself, and never as a directory.
+            let removed = match &self.src {
+                Side::Remote(remote) if item.is_dir => remote.remove_dir(&item.src),
+                Side::Remote(remote) => remote.remove_file(&item.src),
+                Side::Local if self.to_trash => platform::trash_file(&item.src),
+                Side::Local if item.is_dir => fs::remove_dir(&item.src),
+                Side::Local => platform::remove_file(&item.src),
             };
             match removed {
                 Ok(()) => {
@@ -424,37 +572,46 @@ impl Operation {
             return;
         }
 
+        if let (OpKind::Rename, Side::Remote(remote)) = (self.kind, &self.dst) {
+            let remote = remote.clone();
+            return self.rename_remote(&item, &remote);
+        }
+
         // Inside an archive or on a remote machine there is no metadata on
         // this disk.
-        let src_meta = match (&self.archive, &self.remote) {
+        let src_meta = match (&self.archive, self.remote_src()) {
             (Some(_), _) | (_, Some(_)) => None,
             (None, None) => match fs::symlink_metadata(&item.src) {
                 Ok(m) => Some(m),
                 Err(e) => return self.fail(&item.src, e),
             },
         };
-        if let Ok(dst_meta) = fs::symlink_metadata(&item.dst) {
-            if let Some(src_meta) = &src_meta
-                && let Some(dst_id) = platform::file_id(&item.dst, &dst_meta)
-                && platform::file_id(&item.src, src_meta) == Some(dst_id)
-            {
+        let mut replace = false;
+        if let Some((existing, dst_meta)) = self.existing(&item.dst) {
+            let same = match (&src_meta, &dst_meta) {
+                (Some(src_meta), Some(dst_meta)) => platform::file_id(&item.dst, dst_meta)
+                    .is_some_and(|id| platform::file_id(&item.src, src_meta) == Some(id)),
+                _ => self.src.same(&self.dst) && item.src == item.dst,
+            };
+            if same {
                 return self.fail(&item.src, "source and destination are the same file");
             }
-            if dst_meta.is_dir() {
+            if existing.is_dir {
                 return self.fail(&item.dst, "a directory with this name already exists");
             }
+            replace = true;
             if !self.approved {
                 match self.overwrite {
                     Overwrite::Ask => {
                         let new = match &src_meta {
                             Some(meta) => Facts::of(meta),
-                            None if self.remote.is_some() => self.remote_facts(&item),
+                            None if self.remote_src().is_some() => self.remote_facts(&item),
                             None => self.archive_facts(&item),
                         };
                         self.conflict = Some(Conflict {
                             dst: item.dst,
                             new,
-                            existing: Facts::of(&dst_meta),
+                            existing: existing.facts,
                         });
                         return;
                     }
@@ -468,20 +625,37 @@ impl Operation {
             return self.fail(&item.dst, "would write through a link this copy created");
         }
         if let Some(parent) = item.dst.parent()
-            && !parent.is_dir()
-            && let Err(e) = fs::create_dir_all(parent)
+            && !self.dst.is_dir(parent)
+            && let Err(e) = self.dst.create_dir_all(parent)
         {
             return self.fail(parent, e);
         }
 
+        // Within one remote machine, a Move is a rename there.
+        if let (OpKind::Move, Side::Remote(remote)) = (self.kind, &self.src)
+            && self.src.same(&self.dst)
+        {
+            return match remote.put_in_place(&item.src, &item.dst, replace) {
+                Ok(()) => {
+                    self.done_bytes += item.size;
+                    self.finish_item();
+                }
+                Err(e) => self.fail(&item.src, e),
+            };
+        }
+
         let Some(src_meta) = src_meta else {
-            return match self.remote {
-                Some(_) => self.download_item(&item),
-                None => self.extract_item(&item),
+            return match self.remote_src() {
+                Some(_) => self.download_item(&item, replace),
+                None => self.extract_item(&item, replace),
             };
         };
 
-        if self.kind == OpKind::Move || self.kind == OpKind::Rename {
+        // A rename here only when both are here: to a remote machine, a Move
+        // is a copy and then a delete.
+        if (self.kind == OpKind::Move || self.kind == OpKind::Rename)
+            && matches!(self.dst, Side::Local)
+        {
             match self.rename(&item.src, &item.dst) {
                 Ok(()) => {
                     self.done_bytes += item.size;
@@ -493,7 +667,9 @@ impl Operation {
         }
 
         let ft = src_meta.file_type();
-        if ft.is_symlink() {
+        if ft.is_symlink() && matches!(self.dst, Side::Remote(_)) {
+            self.fail(&item.src, LINK_TO_REMOTE);
+        } else if ft.is_symlink() {
             // Copies the link, not the file it points to.
             let result = fs::read_link(&item.src).and_then(|target| {
                 let tmp = platform::tmp_path(&item.dst);
@@ -511,11 +687,12 @@ impl Operation {
             }
         } else if ft.is_file() {
             let opened = File::open(&item.src).and_then(|reader| {
-                let (writer, tmp) = platform::create_tmp(&item.dst)?;
+                let (writer, tmp) = self.dst.create_tmp(&item.dst)?;
                 Ok(Transfer {
                     reader: Box::new(reader),
                     writer,
                     tmp,
+                    replace,
                     mode: platform::unix_mode(&src_meta) & 0o7777,
                     modified: src_meta.modified().ok(),
                 })
@@ -531,25 +708,85 @@ impl Operation {
 
     /// Extracts an entry from the archive to the destination, via a
     /// temporary file, with the permissions and date stored in the archive.
+    /// What is already at `dst`, if anything: its facts and, here, its
+    /// metadata (to tell whether it is the source itself).
+    fn existing(&self, dst: &Path) -> Option<(Existing, Option<fs::Metadata>)> {
+        match &self.dst {
+            Side::Local => fs::symlink_metadata(dst).ok().map(|m| {
+                let facts = Facts::of(&m);
+                (
+                    Existing {
+                        facts,
+                        is_dir: m.is_dir(),
+                    },
+                    Some(m),
+                )
+            }),
+            // An error other than "not there" is taken as "not there": the
+            // rename at the end refuses to replace what it was not told to.
+            Side::Remote(remote) => remote.attrs(dst).ok().map(|a| {
+                let existing = Existing {
+                    facts: remote_facts(Some(&a), 0),
+                    is_dir: a.is_dir(),
+                };
+                (existing, None)
+            }),
+        }
+    }
+
     /// Size and date of a remote file.
     fn remote_facts(&self, item: &Item) -> Facts {
-        let attrs = self.remote.as_ref().and_then(|r| r.attrs(&item.src).ok());
-        Facts {
-            size: attrs.and_then(|a| a.size).unwrap_or(item.size),
-            modified: attrs
-                .and_then(|a| a.mtime)
-                .map(|s| SystemTime::UNIX_EPOCH + Duration::from_secs(s.into())),
+        let attrs = self.remote_src().and_then(|r| r.attrs(&item.src).ok());
+        remote_facts(attrs.as_ref(), item.size)
+    }
+
+    /// Renames a file on a remote machine, asking first when the new name is
+    /// taken. The server is asked to replace only after a "yes".
+    fn rename_remote(&mut self, item: &Item, remote: &Remote) {
+        let replace = match remote.attrs(&item.dst) {
+            Err(e) if e.kind() == ErrorKind::NotFound => false,
+            Err(e) => return self.fail(&item.dst, e),
+            Ok(a) if a.is_dir() => {
+                return self.fail(&item.dst, "a directory with this name already exists");
+            }
+            Ok(existing) => {
+                if !self.approved {
+                    match self.overwrite {
+                        Overwrite::Ask => {
+                            self.conflict = Some(Conflict {
+                                dst: item.dst.clone(),
+                                new: self.remote_facts(item),
+                                existing: remote_facts(Some(&existing), 0),
+                            });
+                            return;
+                        }
+                        Overwrite::Never => return self.skip(),
+                        Overwrite::Always => {}
+                    }
+                }
+                true
+            }
+        };
+        match remote.rename(&item.src, &item.dst, replace) {
+            Ok(()) => {
+                self.done_bytes += item.size;
+                self.finish_item();
+            }
+            Err(e) => self.fail(&item.src, e),
         }
     }
 
     /// Starts downloading a remote file (or copies a remote symlink as a
     /// link), keeping its permissions and date.
-    fn download_item(&mut self, item: &Item) {
-        let remote = self.remote.clone().expect("remote source");
+    fn download_item(&mut self, item: &Item, replace: bool) {
+        let remote = self.remote_src().cloned().expect("remote source");
         let attrs = match remote.attrs(&item.src) {
             Ok(a) => a,
             Err(e) => return self.fail(&item.src, e),
         };
+        if attrs.is_symlink() && matches!(self.dst, Side::Remote(_)) {
+            return self.fail(&item.src, LINK_TO_REMOTE);
+        }
         if attrs.is_symlink() {
             let result = remote.read_link(&item.src).and_then(|target| {
                 let tmp = platform::tmp_path(&item.dst);
@@ -569,11 +806,12 @@ impl Operation {
             return self.fail(&item.src, "special files are not supported");
         }
         let opened = remote.open(&item.src).and_then(|reader| {
-            let (writer, tmp) = platform::create_tmp(&item.dst)?;
+            let (writer, tmp) = self.dst.create_tmp(&item.dst)?;
             Ok(Transfer {
                 reader: Box::new(reader),
                 writer,
                 tmp,
+                replace,
                 mode: foreign_mode(attrs.permissions.unwrap_or(0o644)),
                 modified: attrs
                     .mtime
@@ -600,19 +838,20 @@ impl Operation {
 
     /// Starts extracting an entry, in another thread: the copy goes on in
     /// steps like any other, so Esc stops even a decompression bomb.
-    fn extract_item(&mut self, item: &Item) {
+    fn extract_item(&mut self, item: &Item, replace: bool) {
         let source = self.archive.as_ref().expect("archive source");
         let entry = item.src.strip_prefix(&source.root).unwrap_or(&item.src);
         let info = source.entries.get(entry);
         let mode = info.map_or(0o644, |i| foreign_mode(i.mode));
         let modified = info.and_then(|i| i.modified);
         let reader = source.extractor.extract(entry).waiting_at_most(WAIT);
-        match platform::create_tmp(&item.dst) {
+        match self.dst.create_tmp(&item.dst) {
             Ok((writer, tmp)) => {
                 self.transfer = Some(Transfer {
                     reader: Box::new(reader),
                     writer,
                     tmp,
+                    replace,
                     mode,
                     modified,
                 })
@@ -643,7 +882,8 @@ impl Operation {
             Err(e) if e.kind() == ErrorKind::WouldBlock => {}
             Err(e) => {
                 let t = self.transfer.take().unwrap();
-                let _ = fs::remove_file(&t.tmp);
+                drop(t.writer);
+                let _ = self.dst.remove_file(&t.tmp);
                 let src = self.items[self.next].src.clone();
                 self.errors.push(format!("{}: {e}", src.display()));
                 self.advance();
@@ -655,18 +895,24 @@ impl Operation {
     fn finish_transfer(&mut self) {
         let t = self.transfer.take().unwrap();
         let item = self.items[self.next].clone();
-        let result = (|| {
-            platform::set_file_mode(&t.writer, t.mode)?;
-            if let Some(mtime) = t.modified {
-                t.writer.set_modified(mtime)?;
-            }
-            drop(t.writer);
-            fs::rename(&t.tmp, &item.dst)
-        })();
+        let result = match (t.writer, &self.dst) {
+            (Writer::Local(file), _) => (|| {
+                platform::set_file_mode(&file, t.mode)?;
+                if let Some(mtime) = t.modified {
+                    file.set_modified(mtime)?;
+                }
+                drop(file);
+                fs::rename(&t.tmp, &item.dst)
+            })(),
+            (Writer::Remote(writer), Side::Remote(remote)) => writer
+                .finish(foreign_mode(t.mode), t.modified)
+                .and_then(|()| remote.put_in_place(&t.tmp, &item.dst, t.replace)),
+            (Writer::Remote(_), Side::Local) => unreachable!("a remote writer has a remote side"),
+        };
         match result {
             Ok(()) => self.complete_copy(&item.src),
             Err(e) => {
-                let _ = fs::remove_file(&t.tmp);
+                let _ = self.dst.remove_file(&t.tmp);
                 self.errors.push(format!("{}: {e}", item.src.display()));
                 self.advance();
             }
@@ -675,8 +921,12 @@ impl Operation {
 
     /// Copy done; on a cross-disk Move, the source still needs to be deleted.
     fn complete_copy(&mut self, src: &Path) {
+        let removed = || match &self.src {
+            Side::Local => platform::remove_file(src),
+            Side::Remote(remote) => remote.remove_file(src),
+        };
         if self.kind == OpKind::Move
-            && let Err(e) = platform::remove_file(src)
+            && let Err(e) = removed()
         {
             self.errors
                 .push(format!("{}: copied but not removed: {e}", src.display()));
@@ -712,6 +962,26 @@ impl Operation {
             [e, rest @ ..] => s.push_str(&format!(". {} errors, first: {e}", rest.len() + 1)),
         }
         s
+    }
+}
+
+/// A file already at a destination.
+struct Existing {
+    facts: Facts,
+    is_dir: bool,
+}
+
+/// SFTP's SYMLINK takes its two paths in opposite orders on OpenSSH and in
+/// the standard, so a link is not recreated on the other side.
+const LINK_TO_REMOTE: &str = "symbolic links are not copied to a remote machine";
+
+/// Size and date from a remote file's attributes (`size` when unknown).
+fn remote_facts(attrs: Option<&crate::remote::sftp::Attrs>, size: u64) -> Facts {
+    Facts {
+        size: attrs.and_then(|a| a.size).unwrap_or(size),
+        modified: attrs
+            .and_then(|a| a.mtime)
+            .map(|s| SystemTime::UNIX_EPOCH + Duration::from_secs(s.into())),
     }
 }
 
@@ -1282,5 +1552,314 @@ mod tests {
         assert!(check_name("").is_err());
         assert!(check_name("..").is_err());
         assert!(check_name("a/b").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn renames_on_a_remote_machine_asking_before_replacing() {
+        let tmp = crate::testing::tempdir();
+        let Some(remote) = crate::remote::for_tests(tmp.path()) else {
+            return;
+        };
+        for (name, text) in [("a", "a"), ("b", "b"), ("c", "c"), ("taken", "t")] {
+            fs::write(tmp.path().join(name), text).unwrap();
+        }
+        fs::create_dir(tmp.path().join("dir")).unwrap();
+        let at = |name: &str| remote.root.join(name);
+        let pairs = vec![
+            (at("a"), at("a2"), 1),
+            (at("b"), at("taken"), 1),
+            (at("c"), at("dir"), 1),
+        ];
+        let mut op = Operation::rename_batch(pairs)
+            .on_remote(remote.clone())
+            .unwrap();
+        run(&mut op);
+        // "taken" exists: asked, with what is known of both.
+        let conflict = op.conflict.clone().expect("asks before replacing");
+        assert_eq!(conflict.dst, at("taken"));
+        assert_eq!((conflict.new.size, conflict.existing.size), (1, 1));
+        assert!(conflict.new.modified.is_some());
+        op.answer(Answer::Yes);
+        run(&mut op);
+        assert!(op.is_done());
+        let read = |name: &str| fs::read_to_string(tmp.path().join(name)).unwrap();
+        assert_eq!((read("a2"), read("taken")), ("a".into(), "b".into()));
+        // Never over a directory.
+        assert_eq!(read("c"), "c");
+        assert_eq!(op.errors.len(), 1, "{:?}", op.errors);
+        assert!(op.errors[0].contains("a directory with this name"));
+
+        // "No" keeps both.
+        fs::write(tmp.path().join("d"), "d").unwrap();
+        let pairs = vec![(at("d"), at("taken"), 1)];
+        let mut op = Operation::rename_batch(pairs).on_remote(remote).unwrap();
+        run(&mut op);
+        op.answer(Answer::No);
+        run(&mut op);
+        assert_eq!((read("d"), read("taken")), ("d".into(), "b".into()));
+        assert_eq!(op.skipped, 1);
+
+        // A Copy there is said where it goes, not with on_remote.
+        let copy = Operation::transfer(OpKind::Copy, vec![], tmp.path(), None).unwrap();
+        assert!(
+            copy.on_remote(crate::remote::for_tests(tmp.path()).unwrap())
+                .is_err()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copies_to_a_remote_machine_through_a_temporary_file() {
+        let (tmp, a, b) = setup();
+        let Some(remote) = crate::remote::for_tests(&b) else {
+            return;
+        };
+        let side = Side::Remote(remote.clone());
+        fs::set_permissions(a.join("one.txt"), fs::Permissions::from_mode(0o4751)).unwrap();
+        let old = SystemTime::UNIX_EPOCH + Duration::from_secs(1_500_000_000);
+        File::options()
+            .write(true)
+            .open(a.join("one.txt"))
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        let big: Vec<u8> = (0..3_000_000u32).map(|i| (i % 249) as u8).collect();
+        fs::write(a.join("big.bin"), &big).unwrap();
+        symlink("one.txt", a.join("link")).unwrap();
+
+        // Into a folder that does not exist yet, keeping the paths.
+        let sources = ["one.txt", "big.bin", "link"]
+            .map(|n| src(&a.join(n)))
+            .to_vec();
+        let op = Operation::transfer_to(
+            OpKind::Copy,
+            sources,
+            &remote.root,
+            Some(tmp.path()),
+            side.clone(),
+        );
+        let mut op = op.unwrap();
+        run(&mut op);
+        assert!(op.is_done());
+        let copied = b.join("a/one.txt");
+        assert_eq!(fs::read_to_string(&copied).unwrap(), "one");
+        assert_eq!(fs::read(b.join("a/big.bin")).unwrap(), big);
+        let meta = fs::metadata(&copied).unwrap();
+        assert_eq!(meta.permissions().mode() & 0o7777, 0o751, "no setuid");
+        assert_eq!(meta.modified().unwrap(), old);
+        // A symlink is not recreated over there.
+        assert_eq!(op.errors.len(), 1, "{:?}", op.errors);
+        assert!(op.errors[0].contains("symbolic links"), "{:?}", op.errors);
+        assert!(!b.join("a/link").exists());
+        assert!(no_temp_files(&b.join("a")));
+
+        // An existing file: asked, with both sides' facts; "yes" replaces.
+        fs::write(a.join("one.txt"), "new one").unwrap();
+        let mut op = Operation::transfer_to(
+            OpKind::Copy,
+            vec![src(&a.join("one.txt"))],
+            &remote.root.join("a"),
+            None,
+            side.clone(),
+        )
+        .unwrap();
+        run(&mut op);
+        let conflict = op.conflict.clone().expect("asks");
+        assert_eq!((conflict.new.size, conflict.existing.size), (7, 3));
+        op.answer(Answer::Yes);
+        run(&mut op);
+        assert_eq!(fs::read_to_string(&copied).unwrap(), "new one");
+        assert!(op.errors.is_empty(), "{:?}", op.errors);
+
+        // Never over a directory.
+        fs::create_dir(b.join("two.txt")).unwrap();
+        let mut op = Operation::transfer_to(
+            OpKind::Copy,
+            vec![src(&a.join("two.txt"))],
+            &remote.root,
+            None,
+            side.clone(),
+        )
+        .unwrap();
+        run(&mut op);
+        assert!(op.errors[0].contains("a directory with this name"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_cancelled_upload_leaves_nothing_behind() {
+        let (_tmp, a, b) = setup();
+        let Some(remote) = crate::remote::for_tests(&b) else {
+            return;
+        };
+        fs::write(a.join("big.bin"), vec![1u8; 5 * CHUNK]).unwrap();
+        let mut op = Operation::transfer_to(
+            OpKind::Copy,
+            vec![src(&a.join("big.bin"))],
+            &remote.root,
+            None,
+            Side::Remote(remote.clone()),
+        )
+        .unwrap();
+        op.step(Duration::ZERO);
+        op.step(Duration::ZERO);
+        assert!(op.transfer.is_some(), "still copying");
+        op.cancel();
+        assert_eq!(fs::read_dir(&b).unwrap().count(), 0, "no temporary file");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copies_within_a_remote_machine_and_refuses_the_rest() {
+        let (_tmp, _a, b) = setup();
+        let Some(remote) = crate::remote::for_tests(&b) else {
+            return;
+        };
+        fs::write(b.join("x.txt"), "x").unwrap();
+        fs::create_dir(b.join("d")).unwrap();
+        let side = Side::Remote(remote.clone());
+        let source = || Source {
+            path: remote.root.join("x.txt"),
+            size: 1,
+        };
+        let mut op = Operation::transfer_to(
+            OpKind::Copy,
+            vec![source()],
+            &remote.root.join("d"),
+            None,
+            side.clone(),
+        )
+        .unwrap()
+        .reading_remote(remote.clone())
+        .unwrap();
+        run(&mut op);
+        assert_eq!(fs::read_to_string(b.join("d/x.txt")).unwrap(), "x");
+        // Onto itself.
+        let mut op = Operation::transfer_to(
+            OpKind::Copy,
+            vec![source()],
+            &remote.root,
+            None,
+            side.clone(),
+        )
+        .unwrap()
+        .reading_remote(remote.clone())
+        .unwrap();
+        run(&mut op);
+        assert!(op.errors[0].contains("same file"), "{:?}", op.errors);
+        assert_eq!(fs::read_to_string(b.join("x.txt")).unwrap(), "x");
+
+        // Not yet: between two machines.
+        let other = crate::remote::for_tests(&b).unwrap();
+        let between =
+            Operation::transfer_to(OpKind::Copy, vec![source()], &remote.root, None, side)
+                .unwrap()
+                .reading_remote(other);
+        assert!(between.is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn deletes_and_prunes_on_a_remote_machine_without_following_links() {
+        let (_tmp, a, b) = setup();
+        let Some(remote) = crate::remote::for_tests(&b) else {
+            return;
+        };
+        let at = |p: &str| remote.root.join(p);
+        let source = |p: &str| Source {
+            path: at(p),
+            size: 0,
+        };
+        fs::create_dir_all(b.join("tree/deep")).unwrap();
+        fs::write(b.join("tree/x"), "x").unwrap();
+        fs::write(b.join("tree/deep/y"), "yy").unwrap();
+        // Links out of the branch, to a folder and a file of this machine.
+        symlink(&a, b.join("tree/deep/to_a")).unwrap();
+        symlink(a.join("one.txt"), b.join("tree/to_one")).unwrap();
+        fs::write(b.join("lone"), "l").unwrap();
+
+        // No trash there.
+        let trash = Operation::delete(vec![], true).on_remote(remote.clone());
+        assert!(trash.is_err());
+        let mut op = Operation::delete(vec![source("lone")], false)
+            .on_remote(remote.clone())
+            .unwrap();
+        run(&mut op);
+        assert!(!b.join("lone").exists() && op.errors.is_empty());
+
+        // Prune: the links are files to it, removed as links.
+        let files = ["tree/x", "tree/deep/y", "tree/deep/to_a", "tree/to_one"]
+            .map(source)
+            .to_vec();
+        let mut op = Operation::prune(files, vec![at("tree"), at("tree/deep")])
+            .on_remote(remote.clone())
+            .unwrap();
+        run(&mut op);
+        assert!(op.errors.is_empty(), "{:?}", op.errors);
+        assert!(!b.join("tree").exists());
+        assert_eq!(fs::read_to_string(a.join("one.txt")).unwrap(), "one");
+        assert!(a.join("two.txt").exists());
+
+        // A directory is never removed as a file, nor a link as a directory.
+        fs::create_dir(b.join("d")).unwrap();
+        symlink(&a, b.join("l")).unwrap();
+        let mut op = Operation::prune(vec![source("d")], vec![at("l")])
+            .on_remote(remote)
+            .unwrap();
+        run(&mut op);
+        assert_eq!(op.errors.len(), 2, "{:?}", op.errors);
+        assert!(b.join("d").is_dir() && a.join("one.txt").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn moves_to_from_and_within_a_remote_machine() {
+        let (_tmp, a, b) = setup();
+        let Some(remote) = crate::remote::for_tests(&b) else {
+            return;
+        };
+        let side = Side::Remote(remote.clone());
+        let at = |p: &str| remote.root.join(p);
+        let source = |p: &str, size| Source { path: at(p), size };
+
+        // Here → there: the local file goes once the remote one is in place.
+        symlink("one.txt", a.join("link")).unwrap();
+        let sources = ["one.txt", "link"].map(|n| src(&a.join(n))).to_vec();
+        let mut op =
+            Operation::transfer_to(OpKind::Move, sources, &remote.root, None, side.clone())
+                .unwrap();
+        run(&mut op);
+        assert_eq!(fs::read_to_string(b.join("one.txt")).unwrap(), "one");
+        assert!(!a.join("one.txt").exists());
+        // A link is not recreated there, so it stays here.
+        assert_eq!(op.errors.len(), 1, "{:?}", op.errors);
+        assert!(fs::symlink_metadata(a.join("link")).is_ok());
+
+        // Within: a rename there.
+        fs::create_dir(b.join("d")).unwrap();
+        let mut op = Operation::transfer_to(
+            OpKind::Move,
+            vec![source("one.txt", 3)],
+            &at("d"),
+            None,
+            side,
+        )
+        .unwrap()
+        .reading_remote(remote.clone())
+        .unwrap();
+        run(&mut op);
+        assert!(op.errors.is_empty(), "{:?}", op.errors);
+        assert!(b.join("d/one.txt").is_file() && !b.join("one.txt").exists());
+
+        // There → here: the remote file goes once the local one is in place.
+        let mut op = Operation::transfer(OpKind::Move, vec![source("d/one.txt", 3)], &a, None)
+            .unwrap()
+            .reading_remote(remote)
+            .unwrap();
+        run(&mut op);
+        assert!(op.errors.is_empty(), "{:?}", op.errors);
+        assert_eq!(fs::read_to_string(a.join("one.txt")).unwrap(), "one");
+        assert!(!b.join("d/one.txt").exists());
     }
 }

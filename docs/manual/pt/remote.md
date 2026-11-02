@@ -49,10 +49,37 @@ começando na raiz da janela remota.
 
 ![Tela dividida: três backups marcados na máquina remota, à esquerda, prestes a serem copiados para uma pasta desta máquina, à direita](../../screenshots/remote.png)
 
-Por enquanto, o lado remoto é **somente leitura**: Mover, Excluir, Renomear,
-Criar diretório, Atributos, datas, Edit, eXecute e copiar *para* a máquina
-remota ainda não estão disponíveis. F3 relê um diretório; não há atualização
-automática.
+**Renomear** (um arquivo, um diretório ou os arquivos marcados com uma
+máscara) e **Criar diretório** funcionam na máquina remota como aqui. Renomear
+nunca substitui um arquivo sem perguntar; depois de um sim, o servidor o
+substitui de uma vez, se puder (o OpenSSH pode), e senão o Xylem avisa e deixa
+os dois.
+
+**Copiar para a máquina remota** também funciona: da janela desta máquina;
+com a tela dividida, a janela remota é o destino sugerido; ou digite um
+caminho da janela remota, ou o endereço dela (`usuário@host:/srv/www`, dentro
+da pasta em que a janela foi aberta). Cada arquivo é gravado num temporário ao
+lado do destino, tem o tamanho conferido, recebe as permissões (sem setuid e
+setgid) e a data, e só então vai para o lugar; Esc apaga o temporário. Copiar
+dentro da máquina remota funciona do mesmo jeito. Links simbólicos não são
+recriados lá, e isso é avisado.
+
+**Mover** funciona em todas as direções: daqui para a máquina remota e de
+volta (o original só é apagado depois que a cópia está no lugar e conferida), e
+dentro da máquina remota (um renomear lá). **Excluir**, **Prune** e as mesmas
+ações na Usage também funcionam. Numa máquina remota **não há lixeira**: a
+pergunta diz isso, e o Oops não tem o que restaurar. Nada é apagado através de
+um link simbólico: um link é apagado como ele mesmo. O Prune deixa de fora
+outros discos montados dentro do ramo, distinguidos pela extensão `statvfs` do
+OpenSSH; num servidor sem ela, o Prune é recusado.
+
+**Atributos** recebe permissões em octal (`644`), como uma máquina Unix, mesmo
+a partir do Windows; **Nova data** acerta a data, ao segundo. Nenhum dos dois
+passa por um link simbólico. Os [Duplicados](duplicates.md) também funcionam
+lá.
+
+Edit e eXecute ainda não estão disponíveis. F3 relê um diretório; não há
+atualização automática.
 
 **F8** em uma janela remota abre uma janela nesta máquina (na pasta em que o
 Xylem começou), permitindo ter ambas lado a lado.
@@ -110,6 +137,29 @@ fi
 Dentro do Xylem, o shell não precisa do tmux para sobreviver: ele continua
 rodando enquanto o Xylem está aberto e, se a conexão cair, a janela remota cai
 junto de qualquer maneira.
+
+## Containers (Docker, Podman)
+
+Um container desta máquina abre do mesmo jeito, sem `sshd` dentro dele:
+
+- `docker://container` — o diretório de trabalho dele; `docker://container/app` —
+  esse diretório; `docker://usuário@container/app` — como esse usuário
+  (`docker exec -u`).
+
+O Xylem roda `docker exec` e, dentro do container, o `sftp-server` dele, o mesmo
+programa que um servidor SSH usa. A maioria das imagens não o tem: instale-o no
+container (`apk add openssh-sftp-server` no Alpine, `apt install
+openssh-sftp-server` no Debian e no Ubuntu, `dnf install openssh-server` no
+Fedora), ou o Xylem avisa que ele falta. A imagem precisa de `sh`, então imagens
+distroless ficam de fora.
+
+Tudo o que está acima funciona ali como numa máquina remota, e **Alt+X** abre um
+shell no container, na pasta da janela. Com **Podman**, inicie o Xylem com
+`XY_DOCKER=podman`. `DOCKER_HOST` e os contextos do docker valem como sempre.
+
+O Xylem só roda `docker exec`: não inicia, não muda e não baixa container
+nenhum. O que você escreve vai para o container, menos nas pastas montadas desta
+máquina (`-v`): essas são arquivos desta máquina.
 
 Para Google Drive, S3 e outros serviços de nuvem, veja
 [Armazenamento na nuvem](cloud.md).
