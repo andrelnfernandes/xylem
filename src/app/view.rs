@@ -71,6 +71,15 @@ impl App {
         self.autoview = Some(v);
     }
 
+    /// A table being read in the viewer: true if there is something new to show.
+    pub fn table_tick(&mut self) -> bool {
+        self.viewer.as_mut().is_some_and(Viewer::poll_table)
+    }
+
+    pub fn reading_table(&self) -> bool {
+        self.viewer.as_ref().is_some_and(Viewer::reading_table)
+    }
+
     pub(crate) fn open_viewer(&mut self) {
         let Some(f) = self.selected_file() else {
             return;
@@ -93,6 +102,7 @@ impl App {
         let mut load = LoadOptions::view(limit);
         load.decompress = self.options.viewer_decompress;
         load.fallback = self.options.legacy_charset.fallback();
+        load.in_background = true;
         self.load_viewer_with(path, size, load)
     }
 
@@ -144,13 +154,8 @@ impl App {
                 Ok(Box::new(std::io::BufReader::new(file)) as Box<dyn BufRead>)
             });
         }
-        match self.archive.clone() {
-            // Streamed, never whole in memory.
-            Some(root) => Box::new(move |path: &Path| {
-                let entry = path.strip_prefix(&root).unwrap_or(path);
-                let data = archive::extract_streamed(&root, entry)?;
-                Ok(Box::new(std::io::BufReader::new(data)) as Box<dyn BufRead>)
-            }),
+        match &self.archive {
+            Some(root) => archive::search_opener(root),
             None => Box::new(search::open_file),
         }
     }

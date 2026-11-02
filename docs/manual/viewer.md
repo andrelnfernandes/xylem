@@ -171,7 +171,7 @@ The frame says `QUERY:`, and the grid shows what it gave. A condition then filte
 
 ### Limits
 
-A table holds at most 50,000 rows and 256 columns, and takes at most what the viewer's other limits allow: 3 s (100 ms in Autoview), and a spreadsheet that unpacks to more than the size limit (1 MiB in Autoview) does not open as a table. What lies beyond them does not show and the filter does not see it; the header says so: `(showing first 50,000 rows)` or `(stopped by the time limit: showing N rows)`. A cell shows at most 2,048 characters and then `…`. Control and text direction characters show as `·`.
+A table holds at most 50,000 rows and 256 columns, and takes at most what the viewer's other limits allow: 3 s (100 ms in Autoview), and a spreadsheet that unpacks to more than the size limit (1 MiB in Autoview) does not open as a table. What lies beyond them does not show and the filter does not see it; the header says so: `(showing first 50,000 rows)` or `(stopped by the time limit: showing N rows)`. While a table is being read the screen stays free and the note says so; Esc stops the reading and shows what came so far, `(stopped by Esc: showing N rows)`, and the next Esc closes the viewer. A cell shows at most 2,048 characters and then `…`. Control and text direction characters show as `·`.
 
 ## Tables in C libraries
 

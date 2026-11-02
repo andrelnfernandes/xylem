@@ -173,7 +173,7 @@ A moldura diz `QUERY:`, e a grade mostra o resultado. Uma condição filtra ent�
 
 ### Limites
 
-Uma tabela guarda no máximo 50.000 linhas e 256 colunas, e leva no máximo o que os outros limites do visualizador permitem: 3 s (100 ms no Autoview), e uma planilha que desempacota para mais que o limite de tamanho (1 MiB no Autoview) não abre como tabela. O que passa disso não aparece e o filtro não vê; o cabeçalho avisa: `(showing first 50,000 rows)` ou `(stopped by the time limit: showing N rows)`. Uma célula mostra no máximo 2.048 caracteres e depois `…`. Caracteres de controle e de direção do texto aparecem como `·`.
+Uma tabela guarda no máximo 50.000 linhas e 256 colunas, e leva no máximo o que os outros limites do visualizador permitem: 3 s (100 ms no Autoview), e uma planilha que desempacota para mais que o limite de tamanho (1 MiB no Autoview) não abre como tabela. O que passa disso não aparece e o filtro não vê; o cabeçalho avisa: `(showing first 50,000 rows)` ou `(stopped by the time limit: showing N rows)`. Enquanto a tabela é lida, a tela fica livre e uma nota avisa; Esc para a leitura e mostra o que já veio, `(stopped by Esc: showing N rows)`, e o Esc seguinte fecha o visualizador. Uma célula mostra no máximo 2.048 caracteres e depois `…`. Caracteres de controle e de direção do texto aparecem como `·`.
 
 ## Tabelas em bibliotecas C
 

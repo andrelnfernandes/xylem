@@ -45,7 +45,7 @@ do viewer ainda será conferido nesses specs.
 |---|---|---|---|
 | 1 | 0.6.0 | **TAR comprimido:** listar uma vez, em segundo plano e com cancelamento, e reaproveitar a lista na cópia. Mais a branch `docs-catch-up-with-features` e o que já está no `main`: Batch, Markdown, Duplicados, leitura segura do Git | BACKLOG, Security 1 |
 | 2 | 0.7.0 | **Ações na Usage (fase 3):** marcar, apagar, Prune, viewer | [usage.md](usage.md) |
-| 3 | 0.8.0 | **Nuvem:** a raiz de um Drive grande sem tela em branco; Branch, Usage e Compare pedindo o ramo de uma vez ao rclone. **Segurança:** busca em entrada enorme de archive (item 4) e o que os leitores de tabela ainda não limitam (item 5), se couber | BACKLOG |
+| 3 | 0.8.0 | **Nuvem:** a raiz de um Drive grande sem tela em branco; Branch, Usage e Compare pedindo o ramo de uma vez ao rclone. **Segurança:** busca em entrada enorme de archive, leitores de tabela com limites e Esc, e o `.xlsx` minúsculo que derrubava o programa | [search-and-table-limits.md](search-and-table-limits.md) |
 | 4 | | **SSH 3a:** camada de sistema de arquivos sob `ops`, com mkdir e renomear no remoto | BACKLOG, Features |
 | 5 | | **SSH 3b:** enviar para o remoto (copiar) | |
 | 6 | | **SSH 3c:** apagar e mover no remoto | |
@@ -89,7 +89,10 @@ Não concorre com as frentes acima, e cada item é pequeno:
   a ordem em relação às frentes acima ainda será decidida.
 - **Sobras de segurança que dependem do Windows:** eXecute (item 2, que também libera
   registros em `.bat`/`.cmd`) e senha do ssh (item 3). Windows não é prioridade.
-- **SQLite e zstd em Rust (item 6):** acompanhar; depende de terceiros.
+- **O que os leitores de tabela ainda não limitam (item 4):** `.ods` montado inteiro e
+  Parquet com listas; depende do calamine e da crate `parquet`
+  ([search-and-table-limits.md](search-and-table-limits.md)).
+- **SQLite e zstd em Rust (item 5):** acompanhar; depende de terceiros.
 - **Pequenos, ainda não aprovados:** Enter no Graph abre o `git show`
   ([git-graph.md](git-graph.md)); `+` sem logar os arquivos das subpastas
   ([release-branch.md](release-branch.md)); Tags-Only fora do Showall

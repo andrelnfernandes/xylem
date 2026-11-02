@@ -174,7 +174,7 @@ El marco dice `QUERY:`, y la cuadrícula muestra el resultado. Una condición fi
 
 ### Límites
 
-Una tabla guarda como máximo 50 000 filas y 256 columnas, y tarda como máximo lo que permiten los demás límites del visor: 3 s (100 ms en Autoview), y una hoja de cálculo que se desempaqueta a más del límite de tamaño (1 MiB en Autoview) no se abre como tabla. Lo que pasa de ahí no aparece y el filtro no lo ve; la cabecera lo avisa: `(showing first 50,000 rows)` o `(stopped by the time limit: showing N rows)`. Una celda muestra como máximo 2048 caracteres y luego `…`. Los caracteres de control y de dirección del texto aparecen como `·`.
+Una tabla guarda como máximo 50 000 filas y 256 columnas, y tarda como máximo lo que permiten los demás límites del visor: 3 s (100 ms en Autoview), y una hoja de cálculo que se desempaqueta a más del límite de tamaño (1 MiB en Autoview) no se abre como tabla. Lo que pasa de ahí no aparece y el filtro no lo ve; la cabecera lo avisa: `(showing first 50,000 rows)` o `(stopped by the time limit: showing N rows)`. Mientras se lee la tabla, la pantalla queda libre y una nota lo avisa; Esc detiene la lectura y muestra lo que ya llegó, `(stopped by Esc: showing N rows)`, y el siguiente Esc cierra el visor. Una celda muestra como máximo 2048 caracteres y luego `…`. Los caracteres de control y de dirección del texto aparecen como `·`.
 
 ## Tablas en bibliotecas C
 

@@ -390,6 +390,7 @@ fn run(
         app.poll_opening();
         redraw |= app.terminal_tick();
         redraw |= app.editor_tick();
+        redraw |= app.table_tick();
         if redraw {
             terminal.draw(|frame| ui::draw(frame, app))?;
         }
@@ -408,7 +409,7 @@ fn run(
         let in_pty = app.terminal_focus || app.editor_pty.is_some();
         let wait = if in_pty {
             15
-        } else if app.connecting.is_some() || app.opening.is_some() {
+        } else if app.connecting.is_some() || app.opening.is_some() || app.reading_table() {
             100
         } else {
             500

@@ -176,23 +176,60 @@ impl Pattern {
         }
     }
 
-    /// Does the content have the term? Text is read line by line.
-    pub fn matches_reader(&self, mut reader: impl BufRead) -> io::Result<bool> {
-        if let Pattern::Bytes(needle) = self {
-            return stream_contains(reader, needle);
+    /// Does the content have the term? Reads until `until`, at least one block or
+    /// line: `None` if it has not found out yet. `kept` is what the next call
+    /// needs of what was read, and starts empty. A reader that has nothing yet
+    /// (`WouldBlock`) also means `None`, with nothing lost.
+    fn scan(
+        &self,
+        reader: &mut dyn BufRead,
+        kept: &mut Vec<u8>,
+        until: Instant,
+    ) -> io::Result<Option<bool>> {
+        let found = match self {
+            Pattern::Bytes(needle) => scan_bytes(reader, needle, kept, until),
+            Pattern::Text { .. } => self.scan_lines(reader, kept, until),
+        };
+        match found {
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => Ok(None),
+            other => other,
         }
-        let mut buf = Vec::new();
+    }
+
+    /// Text is read line by line; `line` is the one not yet complete.
+    fn scan_lines(
+        &self,
+        reader: &mut dyn BufRead,
+        line: &mut Vec<u8>,
+        until: Instant,
+    ) -> io::Result<Option<bool>> {
         loop {
-            buf.clear();
-            let n = Read::take(&mut reader, MAX_LINE as u64).read_until(b'\n', &mut buf)?;
-            if n == 0 {
-                return Ok(false);
+            let room = (MAX_LINE - line.len()) as u64;
+            let n = Read::take(&mut *reader, room).read_until(b'\n', line)?;
+            if n == 0 || line.ends_with(b"\n") || line.len() >= MAX_LINE {
+                if self
+                    .find_in_line(&String::from_utf8_lossy(line), 0)
+                    .is_some()
+                {
+                    return Ok(Some(true));
+                }
+                line.clear();
             }
-            if self
-                .find_in_line(&String::from_utf8_lossy(&buf), 0)
-                .is_some()
-            {
-                return Ok(true);
+            if n == 0 {
+                return Ok(Some(false));
+            }
+            if Instant::now() >= until {
+                return Ok(None);
+            }
+        }
+    }
+
+    /// Does the content have the term, however long it takes?
+    pub fn matches_reader(&self, mut reader: impl BufRead) -> io::Result<bool> {
+        let mut kept = Vec::new();
+        loop {
+            if let Some(found) = self.scan(&mut reader, &mut kept, Instant::now())? {
+                return Ok(found);
             }
         }
     }
@@ -239,27 +276,40 @@ fn char_to_byte(s: &str, chars: usize) -> usize {
 }
 
 /// Searches for bytes in a stream, in overlapping blocks (to find the term
-/// even when split between two blocks).
-fn stream_contains(mut reader: impl BufRead, needle: &[u8]) -> io::Result<bool> {
-    let mut carry: Vec<u8> = Vec::new();
+/// even when split between two blocks); `carry` is the end of the last block.
+fn scan_bytes(
+    reader: &mut dyn BufRead,
+    needle: &[u8],
+    carry: &mut Vec<u8>,
+    until: Instant,
+) -> io::Result<Option<bool>> {
     loop {
         let chunk = reader.fill_buf()?;
         if chunk.is_empty() {
-            return Ok(false);
+            return Ok(Some(false));
         }
         let n = chunk.len();
         carry.extend_from_slice(chunk);
         reader.consume(n);
-        if find_bytes(&carry, needle, 0).is_some() {
-            return Ok(true);
+        if find_bytes(carry, needle, 0).is_some() {
+            return Ok(Some(true));
         }
         let keep = needle.len().saturating_sub(1).min(carry.len());
         carry.drain(..carry.len() - keep);
+        if Instant::now() >= until {
+            return Ok(None);
+        }
     }
 }
 
 /// Opens a file's content for the search.
 pub type Opener = Box<dyn Fn(&Path) -> io::Result<Box<dyn BufRead>>>;
+
+/// The file being searched, from one step to the next.
+struct Reading {
+    reader: Box<dyn BufRead>,
+    kept: Vec<u8>,
+}
 
 /// A search over the tagged files in progress (Ctrl+S). Each item
 /// carries a caller-supplied identifier (`T`), returned in the result.
@@ -270,6 +320,8 @@ pub struct SearchJob<T> {
     /// Reads an item's content (from disk, or from inside a ZIP/TAR).
     open: Opener,
     next: usize,
+    /// The open reader of item `next`: a huge file takes many steps.
+    reading: Option<Reading>,
     pub found: usize,
     pub errors: Vec<String>,
 }
@@ -282,6 +334,7 @@ impl<T: Copy> SearchJob<T> {
             items,
             open,
             next: 0,
+            reading: None,
             found: 0,
             errors: Vec::new(),
         })
@@ -303,23 +356,38 @@ impl<T: Copy> SearchJob<T> {
         self.items.get(self.next).map(|(_, p)| p.as_path())
     }
 
-    /// Searches the next files until `budget` runs out. Returns, for
-    /// each one, whether it contains the term. Files that could not be read
-    /// stay tagged (and the error is kept), like ZTreeWin's "Keep".
+    /// Searches until `budget` runs out, going on from where the last step
+    /// stopped. Returns, for each file finished, whether it contains the term.
+    /// Files that could not be read stay tagged (and the error is kept), like
+    /// ZTreeWin's "Keep".
     pub fn step(&mut self, budget: Duration) -> Vec<(T, bool)> {
-        let start = Instant::now();
+        let until = Instant::now() + budget;
         let mut results = Vec::new();
         while let Some((id, path)) = self.items.get(self.next) {
-            let found = (self.open)(path).and_then(|r| self.pattern.matches_reader(r));
-            match found {
-                Ok(f) => {
+            let reading = match self.reading.take() {
+                Some(reading) => Ok(reading),
+                None => (self.open)(path).map(|reader| Reading {
+                    reader,
+                    kept: Vec::new(),
+                }),
+            };
+            let scanned = reading.and_then(|mut r| {
+                let found = self.pattern.scan(&mut r.reader, &mut r.kept, until)?;
+                Ok((found, r))
+            });
+            match scanned {
+                Ok((None, reading)) => {
+                    self.reading = Some(reading);
+                    break;
+                }
+                Ok((Some(f), _)) => {
                     self.found += usize::from(f);
                     results.push((*id, f));
                 }
                 Err(e) => self.errors.push(format!("{}: {e}", path.display())),
             }
             self.next += 1;
-            if start.elapsed() >= budget {
+            if Instant::now() >= until {
                 break;
             }
         }
@@ -417,6 +485,119 @@ mod tests {
         let needle = Pattern::Bytes(b"XYZ".to_vec());
         let reader = BufReader::with_capacity(4, Cursor::new(b"aaXYZbb".to_vec()));
         assert!(needle.matches_reader(reader).unwrap());
+    }
+
+    /// Gives its blocks one by one, with `WouldBlock` before each.
+    struct Hesitant {
+        blocks: Vec<&'static [u8]>,
+        ready: bool,
+        current: &'static [u8],
+    }
+
+    impl Read for Hesitant {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let block = self.fill_buf()?;
+            let n = block.len().min(buf.len());
+            buf[..n].copy_from_slice(&block[..n]);
+            self.consume(n);
+            Ok(n)
+        }
+    }
+
+    impl BufRead for Hesitant {
+        fn fill_buf(&mut self) -> io::Result<&[u8]> {
+            if self.current.is_empty() && !self.blocks.is_empty() {
+                if !self.ready {
+                    self.ready = true;
+                    return Err(io::Error::from(io::ErrorKind::WouldBlock));
+                }
+                self.ready = false;
+                self.current = self.blocks.remove(0);
+            }
+            Ok(self.current)
+        }
+
+        fn consume(&mut self, n: usize) {
+            self.current = &self.current[n..];
+        }
+    }
+
+    fn hesitant_job(spec: SearchSpec, blocks: Vec<&'static [u8]>) -> SearchJob<u8> {
+        let open = std::cell::Cell::new(Some(blocks));
+        let opener: Opener = Box::new(move |_: &Path| {
+            let blocks = open.take().expect("opened only once");
+            Ok(Box::new(Hesitant {
+                blocks,
+                ready: false,
+                current: &[],
+            }) as Box<dyn BufRead>)
+        });
+        SearchJob::new(spec, vec![(1, PathBuf::from("x"))], opener).unwrap()
+    }
+
+    fn run_steps(job: &mut SearchJob<u8>) -> (usize, Vec<(u8, bool)>) {
+        let (mut steps, mut results) = (0, Vec::new());
+        while !job.is_done() {
+            results.extend(job.step(Duration::ZERO));
+            steps += 1;
+        }
+        (steps, results)
+    }
+
+    #[test]
+    fn a_line_split_by_a_reader_with_nothing_yet_is_still_one_line() {
+        let spec = SearchSpec::new("foo bar");
+        let mut job = hesitant_job(spec, vec![b"a\nfoo ", b"bar\nz"]);
+        let (steps, results) = run_steps(&mut job);
+        assert_eq!(results, [(1, true)]);
+        assert!(steps > 1, "it gave the screen back: {steps}");
+        assert!(job.errors.is_empty());
+
+        // Across a line break it is not a match.
+        let mut job = hesitant_job(SearchSpec::new("foo bar"), vec![b"foo\n", b"bar\n"]);
+        assert_eq!(run_steps(&mut job).1, [(1, false)]);
+    }
+
+    #[test]
+    fn bytes_split_by_a_reader_with_nothing_yet_are_still_found() {
+        let spec = SearchSpec {
+            hex: true,
+            ..SearchSpec::new("58 59 5a")
+        };
+        let mut job = hesitant_job(spec, vec![b"aaX", b"YZbb"]);
+        assert_eq!(run_steps(&mut job).1, [(1, true)]);
+    }
+
+    #[test]
+    fn a_huge_file_takes_many_steps_with_its_reader_open() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("big");
+        let mut body = "uma linha sem nada\n".repeat(50_000);
+        body.push_str("a CHAVE no fim\n");
+        std::fs::write(&path, &body).unwrap();
+        let opened = std::rc::Rc::new(std::cell::Cell::new(0));
+        let count = opened.clone();
+        let opener: Opener = Box::new(move |p: &Path| {
+            count.set(count.get() + 1);
+            open_file(p)
+        });
+        let mut job = SearchJob::new(SearchSpec::new("chave"), vec![(1, path)], opener).unwrap();
+        let (steps, results) = run_steps(&mut job);
+        assert_eq!(results, [(1, true)]);
+        assert!(steps > 1000, "one line per step at zero budget: {steps}");
+        assert_eq!(opened.get(), 1, "the reader stays open between steps");
+    }
+
+    #[test]
+    fn a_line_over_the_limit_is_searched_in_chunks() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("long");
+        let mut body = vec![b'x'; MAX_LINE * 2 + 10];
+        body.extend_from_slice(b"chave");
+        std::fs::write(&path, &body).unwrap();
+        let items = vec![(1, path)];
+        let mut job = SearchJob::new(SearchSpec::new("CHAVE"), items, Box::new(open_file)).unwrap();
+        assert_eq!(run_steps(&mut job).1, [(1, true)]);
     }
 
     #[test]
