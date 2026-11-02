@@ -76,6 +76,12 @@ criptografado, o painel diz apenas rclone.
 
 ## O que muda lá
 
+**Espere lentidão em alguns momentos.** Tudo passa pelo rclone e pela rede do serviço, então
+pode ser bem mais lento que um disco local, pela própria natureza desta integração. Ver um
+arquivo, abrir um archive ou logar uma pasta grande pode demorar, e a tela pode não responder
+até o serviço responder: em geral é espera, não travamento. No Google Drive, vale criar o seu próprio `client_id`: veja a seção sobre o
+erro 403, mais abaixo.
+
 - **Tudo passa pela rede.** Cada leitura de diretório é uma requisição, e um
   serviço como o Google Drive as recusa quando são muitas. Por isso, numa pasta
   montada, `*`, Branch (`B`), a visão Usage e o Compare em ramo pedem ao rclone o ramo

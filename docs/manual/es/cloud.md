@@ -75,6 +75,13 @@ panel indica simplemente rclone.
 
 ## Qué cambia allí
 
+**Cuente con lentitud en algunos momentos.** Todo pasa por rclone y por la red del servicio, así
+que puede ser bastante más lento que un disco local, por la propia naturaleza de esta
+integración. Ver un archivo, abrir un archivo comprimido o leer una carpeta grande puede tardar,
+y la pantalla puede no responder hasta que responda el servicio: en general es espera, no un
+bloqueo. En Google Drive, vale la pena crear su propio `client_id`: vea la sección sobre el
+error 403, más abajo.
+
 - **Todo va por la red.** Cada lectura de directorio es una petición, y un
   servicio como Google Drive las rechaza cuando son demasiadas. Por eso, en una
   carpeta montada, `*`, Branch (`B`), la vista Usage y Compare en una rama piden

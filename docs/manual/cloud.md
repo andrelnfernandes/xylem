@@ -71,6 +71,13 @@ comes from rclone's configuration file (`~/.config/rclone/rclone.conf`, or
 
 ## What is different there
 
+**Expect it to be slow at times.** Everything goes through rclone and the service's
+network, so it can be much slower than a local disk, by the very nature of this
+integration. Viewing a file, opening an archive or logging a large folder may take a
+while, and the screen may not respond until the service answers: that is usually waiting,
+not a crash. On Google Drive, it is worth making your own `client_id`: see the section on
+error 403 below.
+
 - **Everything goes over the network.** Each directory read is a request, and
   a service like Google Drive refuses them when they are too many. So, on a
   mounted folder, `*`, Branch (`B`), the Usage view and Compare on a branch ask
