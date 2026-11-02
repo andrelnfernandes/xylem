@@ -1,6 +1,7 @@
 //! What a file is, for the Type display of the file window (Alt+F): a short
 //! description in the spirit of the `file` command, from the first bytes
-//! (signatures of common formats, `#!` scripts, text and its language).
+//! (signatures of common formats, `#!` scripts, text and its language). And
+//! its [`Category`] by name alone, for the colors of the file lists.
 
 use std::fs::{self, File};
 use std::io::Read;
@@ -287,8 +288,78 @@ fn text(path: &Path, h: &[u8]) -> Option<String> {
     Some(out)
 }
 
+/// A kind of file, for the color of its name: by its name only (nothing is
+/// read, so it costs nothing on a slow disk or a remote machine).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Category {
+    Archive,
+    Image,
+    Media,
+    Document,
+    Code,
+    Data,
+}
+
+/// The category of a file named `name`, if it has one.
+pub fn category(name: &std::ffi::OsStr) -> Option<Category> {
+    let name = name.to_string_lossy().to_ascii_lowercase();
+    if matches!(
+        name.as_str(),
+        "makefile" | "dockerfile" | "containerfile" | "justfile" | "cmakelists.txt"
+    ) {
+        return Some(Category::Code);
+    }
+    // Two-part extensions first: `x.tar.gz` is an archive, not just gzip.
+    if [".tar.gz", ".tar.xz", ".tar.bz2", ".tar.zst"]
+        .iter()
+        .any(|e| name.ends_with(e))
+    {
+        return Some(Category::Archive);
+    }
+    let ext = name.rsplit_once('.').map(|(_, e)| e)?;
+    Some(match ext {
+        "zip" | "jar" | "war" | "7z" | "rar" | "tar" | "gz" | "tgz" | "xz" | "txz" | "bz2"
+        | "tbz" | "tbz2" | "zst" | "tzst" | "lz" | "lzma" | "lz4" | "cab" | "iso" | "deb"
+        | "rpm" | "apk" | "dmg" => Category::Archive,
+        "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "tif" | "tiff" | "svg" | "ico"
+        | "heic" | "heif" | "avif" | "cr2" | "nef" | "psd" | "xcf" => Category::Image,
+        "mp3" | "wav" | "flac" | "ogg" | "oga" | "opus" | "m4a" | "aac" | "wma" | "mid"
+        | "midi" | "mp4" | "mkv" | "avi" | "mov" | "webm" | "wmv" | "flv" | "m4v" | "mpg"
+        | "mpeg" | "3gp" => Category::Media,
+        "pdf" | "doc" | "docx" | "odt" | "rtf" | "txt" | "md" | "markdown" | "rst" | "tex"
+        | "epub" | "ppt" | "pptx" | "odp" | "log" => Category::Document,
+        "rs" | "c" | "h" | "cc" | "cpp" | "hpp" | "cxx" | "py" | "rb" | "go" | "java" | "kt"
+        | "kts" | "scala" | "js" | "mjs" | "cjs" | "ts" | "tsx" | "jsx" | "sh" | "bash" | "zsh"
+        | "fish" | "ps1" | "bat" | "cmd" | "lua" | "pl" | "php" | "swift" | "cs" | "fs" | "vb"
+        | "html" | "htm" | "css" | "scss" | "sass" | "vue" | "svelte" | "el" | "clj" | "hs"
+        | "ml" | "erl" | "ex" | "exs" | "dart" | "zig" | "nim" | "asm" => Category::Code,
+        "csv" | "tsv" | "json" | "jsonl" | "ndjson" | "xml" | "yaml" | "yml" | "toml" | "ini"
+        | "cfg" | "conf" | "sql" | "sqlite" | "sqlite3" | "db" | "parquet" | "dbf" | "xls"
+        | "xlsx" | "ods" | "arrow" | "avro" => Category::Data,
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
+    use super::Category;
+
+    #[test]
+    fn categories_by_name() {
+        let cat = |n: &str| super::category(std::ffi::OsStr::new(n));
+        assert_eq!(cat("backup.tar.gz"), Some(Category::Archive));
+        assert_eq!(cat("x.ZIP"), Some(Category::Archive));
+        assert_eq!(cat("photo.JPG"), Some(Category::Image));
+        assert_eq!(cat("song.flac"), Some(Category::Media));
+        assert_eq!(cat("notes.md"), Some(Category::Document));
+        assert_eq!(cat("main.rs"), Some(Category::Code));
+        assert_eq!(cat("Makefile"), Some(Category::Code));
+        assert_eq!(cat("data.parquet"), Some(Category::Data));
+        assert_eq!(cat("README"), None);
+        assert_eq!(cat(".bashrc"), None, "a dot file has no extension");
+        assert_eq!(cat("weird."), None);
+    }
+
     use super::*;
 
     fn of(name: &str, contents: &[u8]) -> String {

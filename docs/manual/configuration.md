@@ -8,7 +8,7 @@ window and never reaches Xylem) opens four pages:
 | Page | Options |
 |---|---|
 | 1. Programs and formats | editor, open editor inside Xylem's frame, Xylem theme in the editor, edit binary files with E, binary editor, help language, opener, date format, number format, Git commands, trusted Git folders |
-| 2. Display and sorting | hidden files, initial sort order and direction, what Enter does in the file window, initial display mode, syntax colors, soft wrap, line numbers, compressed files, the charset of old text files, the size limit of what the viewer reads, icons and glyphs (Nerd Fonts), colors of the built-in terminal |
+| 2. Display and sorting | hidden files, initial sort order and direction, what Enter does in the file window, initial display mode, syntax colors, soft wrap, line numbers, compressed files, the charset of old text files, the size limit of what the viewer reads, icons and glyphs (Nerd Fonts), file names colored by type, window borders, colors of the built-in terminal |
 | 3. Confirmations and history | confirm on quit, delete to trash, Prune confirmation, entries with `@` not saved, the built-in terminal's own history |
 | 4. Copy, compare and refresh | ignore 2 s, ignore 1 h, automatic refresh, where Alt+C/Alt+M paths start |
 
@@ -19,6 +19,8 @@ Icons and glyphs (**M** on page 2) require a font patched with Nerd Fonts. You d
 - Select that font in your terminal emulator's font settings.
 
 If the columns drift out of line with icons on, the terminal is probably drawing "ambiguous width" characters as wide (a setting common with Chinese, Japanese and Korean fonts), while Xylem counts each icon as one cell. Set that option to narrow, or turn icons off.
+
+File names colored by type (**N** on page 2) give archives, images, audio and video, documents, code and data each a color of the theme, by the name only (nothing is read). Off, the list has the classic look. Window borders (**O**) are rounded in the nord, gruvbox, slate, graphite, daylight and vivid themes and straight in the others; `plain` or `rounded` keeps them one way in every theme.
 
 The option's letter (or Enter) changes the value, PgUp/PgDn or 1–4 switch
 pages, **F4** picks the theme from a list (with an instant preview), **F3**
