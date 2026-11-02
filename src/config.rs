@@ -473,6 +473,52 @@ impl NumberFormat {
             NumberFormat::Plain => None,
         }
     }
+
+    /// The decimal mark that goes with the separator: a comma where the dot
+    /// or a space groups the thousands (`1.234,5`, `1 234,5`).
+    pub fn decimal(self) -> char {
+        match self {
+            NumberFormat::Dot | NumberFormat::Space => ',',
+            NumberFormat::Comma | NumberFormat::Plain => '.',
+        }
+    }
+}
+
+/// `n` with its digits in groups of three, `separator` between them.
+pub fn group_digits(n: u64, separator: Option<char>) -> String {
+    let digits = n.to_string();
+    let Some(sep) = separator else {
+        return digits;
+    };
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(sep);
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// `v` with one decimal, written with `mark`: `12.5` or `12,5`.
+pub fn one_decimal_with(v: f64, mark: char) -> String {
+    let text = format!("{v:.1}");
+    if mark == '.' {
+        text
+    } else {
+        text.replace('.', &mark.to_string())
+    }
+}
+
+/// `v` with one decimal, in the configured number format.
+pub fn one_decimal(v: f64) -> String {
+    one_decimal_with(v, formats().number.decimal())
+}
+
+/// A date and time to the second, in the configured date order, with the
+/// time zone: for the information screens.
+pub fn full_time_pattern() -> String {
+    format!("{}:%S %z", formats().date.pattern())
 }
 
 /// Colors of the built-in terminal (Alt+X). The palettes themselves are in
@@ -1532,6 +1578,18 @@ mod tests {
             Some(Theme::graphite()),
             "new themes are in THEMES"
         );
+    }
+
+    #[test]
+    fn decimals_follow_the_thousands_separator() {
+        assert_eq!(NumberFormat::Comma.decimal(), '.');
+        assert_eq!(NumberFormat::Dot.decimal(), ',');
+        assert_eq!(NumberFormat::Space.decimal(), ',');
+        assert_eq!(NumberFormat::Plain.decimal(), '.');
+        assert_eq!(one_decimal_with(292.24, ','), "292,2");
+        assert_eq!(one_decimal_with(5.75, '.'), "5.8");
+        assert_eq!(group_digits(34_918_255_800, Some('.')), "34.918.255.800");
+        assert_eq!(group_digits(1234, None), "1234");
     }
 
     #[test]
