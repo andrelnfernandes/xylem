@@ -6,7 +6,7 @@
 use std::ops::ControlFlow;
 use std::path::Path;
 
-use super::records::{self, Budget, Cell, End, MAX_COLS, RecordSink, SqlitePart};
+use super::records::{self, Budget, Cell, End, MAX_COLS, RecordSink, SqlitePart, Structure};
 use super::table::{TableGrid, TableRow};
 
 pub use super::records::column_letter;
@@ -117,6 +117,7 @@ struct GridSink {
     rows: Vec<TableRow>,
     rows_cut: bool,
     columns_cut: bool,
+    structure: Option<Structure>,
 }
 
 impl RecordSink for GridSink {
@@ -137,6 +138,20 @@ impl RecordSink for GridSink {
         self.columns_cut = true;
     }
 
+    fn structure(&mut self, structure: Structure) {
+        let clean = |texts: &[String]| texts.iter().map(|s| TableGrid::sanitize_cell(s)).collect();
+        self.structure = Some(Structure {
+            titles: clean(&structure.titles),
+            columns: structure
+                .columns
+                .iter()
+                .take(MAX_COLS)
+                .map(|column| clean(column))
+                .collect(),
+            about: clean(&structure.about),
+        });
+    }
+
     fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()> {
         // One more than it keeps, to tell a table cut from one of that size.
         if self.rows.len() >= MAX_TABLE_ROWS {
@@ -150,7 +165,7 @@ impl RecordSink for GridSink {
 }
 
 /// `50000` -> `50,000`.
-fn thousands(n: usize) -> String {
+pub(super) fn thousands(n: usize) -> String {
     let digits = n.to_string();
     let mut out = String::new();
     for (i, c) in digits.chars().enumerate() {
@@ -187,6 +202,7 @@ impl GridSink {
         grid.current_sheet = self.current_sheet;
         grid.first_view = self.first_view.unwrap_or(usize::MAX);
         grid.cut = (!cut.is_empty()).then(|| cut.join(", "));
+        grid.structure = self.structure;
         grid
     }
 }
@@ -511,5 +527,224 @@ mod tests {
             .unwrap();
         let grid = load_sqlite(file.path(), SqlitePart::First, Budget::unlimited()).unwrap();
         assert_eq!(grid.rows[0].cells, ["<Blob 2 bytes>"]);
+    }
+
+    #[test]
+    fn a_dbf_shows_its_fields_as_display_structure_does() {
+        use dbase::{FieldName, FieldValue, Record, TableWriterBuilder};
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("people.dbf");
+        let name = |s: &str| FieldName::try_from(s).unwrap();
+        let mut writer = TableWriterBuilder::new()
+            .add_character_field(name("NAME"), 20)
+            .add_numeric_field(name("SALARY"), 10, 2)
+            .add_date_field(name("BORN"))
+            .add_logical_field(name("ACTIVE"))
+            .build_with_file_dest(&path)
+            .unwrap();
+        for who in ["Ana", "Rui"] {
+            let mut record = Record::default();
+            record.insert("NAME".into(), FieldValue::Character(Some(who.into())));
+            record.insert("SALARY".into(), FieldValue::Numeric(Some(1234.5)));
+            record.insert("BORN".into(), FieldValue::Date(None));
+            record.insert("ACTIVE".into(), FieldValue::Logical(Some(true)));
+            writer.write_record(&record).unwrap();
+        }
+        drop(writer);
+
+        let grid = load_dbf(&path, Budget::unlimited()).unwrap();
+        let s = grid.structure.clone().expect("a dbf declares its fields");
+        assert_eq!(s, grid.structure(), "the declared one wins");
+        assert_eq!(s.titles, ["Field", "Type", "Width", "Dec"]);
+        assert_eq!(
+            s.columns,
+            [
+                ["NAME", "C Character", "20", "0"],
+                ["SALARY", "N Numeric", "10", "2"],
+                ["BORN", "D Date", "8", "0"],
+                ["ACTIVE", "L Logical", "1", "0"],
+            ]
+        );
+        assert_eq!(s.about[0], "Number of data records: 2");
+        assert!(s.about[1].starts_with("Date of last update: "), "{s:?}");
+        // The deletion flag, then the fields.
+        assert_eq!(s.about[2], "Record length: 40 bytes");
+    }
+
+    #[test]
+    fn decimals_that_disagree_with_the_crate_are_unknown() {
+        use dbase::{FieldName, TableWriterBuilder};
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("odd.dbf");
+        let writer = TableWriterBuilder::new()
+            .add_numeric_field(FieldName::try_from("N").unwrap(), 10, 3)
+            .build_with_file_dest(&path)
+            .unwrap();
+        drop(writer);
+        let fields = dbase::Reader::from_path(&path).unwrap().fields().to_vec();
+        assert_eq!(records_decimals(&path, &fields), [Some(3)]);
+        // Another size in the descriptor than the crate read: not to be trusted.
+        let mut bytes = std::fs::read(&path).unwrap();
+        bytes[32 + 16] = 99;
+        std::fs::write(&path, &bytes).unwrap();
+        assert_eq!(records_decimals(&path, &fields), [None]);
+        // Gone: nothing to read them from.
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(records_decimals(&path, &fields), [None]);
+    }
+
+    fn records_decimals(path: &Path, fields: &[dbase::FieldInfo]) -> Vec<Option<u8>> {
+        records::dbase_decimals(path, fields)
+    }
+
+    #[test]
+    fn a_database_declares_types_and_keys_and_its_names_come_clean() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("data.db");
+        rusqlite::Connection::open(&path)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE \"t\x1b[31m\u{202E}\" (id INTEGER PRIMARY KEY, \
+                 name TEXT NOT NULL DEFAULT 'x\x1b]0;evil\x07', \"bad\u{202E}\" BLOB);
+                 CREATE VIEW v AS SELECT id FROM \"t\x1b[31m\u{202E}\";",
+            )
+            .unwrap();
+        let grid = load_sqlite(&path, SqlitePart::First, Budget::unlimited()).unwrap();
+        let s = grid.structure.expect("SQLite declares its columns");
+        assert_eq!(
+            s.titles,
+            ["Column", "Declared type", "Not null", "Default", "Key"]
+        );
+        assert_eq!(
+            s.columns,
+            [
+                ["id", "INTEGER", "", "", "1"],
+                ["name", "TEXT", "yes", "'x·]0;evil·'", ""],
+                ["bad·", "BLOB", "", "", ""],
+            ]
+        );
+        assert_eq!(s.about, ["Table: t·[31m·"]);
+
+        let grid = load_sqlite(&path, SqlitePart::Table("v"), Budget::unlimited()).unwrap();
+        let s = grid.structure.unwrap();
+        assert_eq!(s.columns, [["id", "INTEGER", "", "", ""]]);
+        assert_eq!(s.about, ["View: v"]);
+
+        // A query: the columns of its result, typed where they come from a table.
+        let grid = load_sqlite(
+            &path,
+            SqlitePart::Query("SELECT name, id + 1 AS next FROM \"t\x1b[31m\u{202E}\""),
+            Budget::unlimited(),
+        )
+        .unwrap();
+        let s = grid.structure.unwrap();
+        assert_eq!(s.titles, ["Column", "Declared type"]);
+        assert_eq!(s.columns, [["name", "TEXT"], ["next", "(expression)"]]);
+        assert_eq!(s.about, ["Columns of the query's result"]);
+    }
+
+    #[test]
+    fn a_database_table_lists_its_indexes() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("data.db");
+        let mut sql = String::from(
+            "CREATE TABLE people (id INTEGER PRIMARY KEY, email TEXT UNIQUE, city TEXT, born DATE);
+             CREATE INDEX by_place ON people (city, born);
+             CREATE INDEX \"lower\x1b[2J\" ON people (lower(email));
+             CREATE TABLE many (x);",
+        );
+        for i in 0..records::MAX_INDEXES + 1 {
+            sql.push_str(&format!("CREATE INDEX many_{i:02} ON many (x);"));
+        }
+        rusqlite::Connection::open(&path)
+            .unwrap()
+            .execute_batch(&sql)
+            .unwrap();
+        let s = load_sqlite(&path, SqlitePart::Table("people"), Budget::unlimited())
+            .unwrap()
+            .structure
+            .unwrap();
+        assert_eq!(
+            s.about,
+            [
+                "Table: people",
+                "Index by_place: city, born",
+                "Index lower·[2J: (expression)",
+                "Index sqlite_autoindex_people_1 unique: email",
+            ]
+        );
+        assert_eq!(s.columns[0], ["id", "INTEGER", "", "", "1"]);
+
+        let s = load_sqlite(&path, SqlitePart::Table("many"), Budget::unlimited())
+            .unwrap()
+            .structure
+            .unwrap();
+        assert_eq!(s.about.len(), 1 + records::MAX_INDEXES + 1);
+        assert_eq!(s.about[1], "Index many_00: x");
+        assert_eq!(
+            s.about.last().unwrap(),
+            &format!("(only the first {} indexes)", records::MAX_INDEXES)
+        );
+    }
+
+    #[test]
+    fn a_parquet_file_declares_arrow_types_and_its_rows() {
+        use arrow_array::{Int64Array, RecordBatch, StringArray};
+        use arrow_schema::{DataType, Field, Schema};
+        use parquet::arrow::arrow_writer::ArrowWriter;
+        use std::sync::Arc;
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
+            Field::new("label\u{202E}", DataType::Utf8, true),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(Int64Array::from(vec![1, 2, 3])),
+                Arc::new(StringArray::from(vec![Some("a"), None, Some("c")])),
+            ],
+        )
+        .unwrap();
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("data.parquet");
+        let file = std::fs::File::create(&path).unwrap();
+        let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+        writer.write(&batch).unwrap();
+        writer.close().unwrap();
+
+        let grid = load_parquet(&path, Budget::unlimited()).unwrap();
+        let s = grid.structure.expect("Parquet declares its columns");
+        assert_eq!(s.titles, ["Column", "Type", "Nulls"]);
+        assert_eq!(
+            s.columns,
+            [["id", "Int64", "no"], ["label·", "Utf8", "yes"]]
+        );
+        assert_eq!(s.about[..2], ["Rows: 3", "Row groups: 1"]);
+        assert!(s.about[2].starts_with("Written by: parquet-rs"), "{s:?}");
+    }
+
+    #[test]
+    fn a_csv_shows_what_its_rows_have() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("data.csv");
+        std::fs::write(&path, "code,price,note,ok\n7,1.5,hi,true\n8,,there,false\n").unwrap();
+        let grid = load_csv(&path, None, Budget::unlimited()).unwrap();
+        assert!(grid.structure.is_none());
+        let s = grid.structure();
+        assert_eq!(s.titles, ["Column", "Values seen", "Widest"]);
+        assert_eq!(
+            s.columns,
+            [
+                ["code", "integer", "1"],
+                ["price", "decimal, empty", "3"],
+                ["note", "text", "5"],
+                ["ok", "logical", "5"],
+            ]
+        );
+        assert_eq!(
+            s.about,
+            ["No types declared here: what the 2 rows read have"]
+        );
     }
 }

@@ -642,9 +642,10 @@ impl App {
                 let clean = text.trim().trim_start_matches(':').trim();
                 if let Some(v) = &mut self.viewer {
                     if v.mode == ViewMode::Table {
+                        let rows = v.grid_rows();
                         if let Some(t) = &mut v.table {
                             match clean.parse::<usize>() {
-                                Ok(row) if row > 0 => v.note = Some(t.goto_row(row, v.page)),
+                                Ok(row) if row > 0 => v.note = Some(t.goto_row(row, rows)),
                                 _ => v.note = Some(format!("Invalid row number: {text}")),
                             }
                         }
