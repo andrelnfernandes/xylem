@@ -3,7 +3,7 @@
 Origem: conversa de 2026-11-02. O autor viu o site de outro projeto chamado Xylem
 (`xylem.ornl.gov`, feito com mdBook) e gostou do formato: menu lateral com os capítulos,
 busca, um capítulo por página. Aprovado registrar o plano. **Tela de abertura feita** (opção `splash`, **P** na página 2
-do F12); o site ainda não.
+do F12). **Manual no site feito** na branch `site-manual` (mdBook 0.5.4).
 
 ## O nome
 
@@ -70,9 +70,10 @@ só existe no repositório e na ajuda do F1.
   Trabalhando com arquivos, …). O mdBook pede um `SUMMARY.md`; ele é **gerado** a partir
   do `index.md` pelo `build.sh`, para não haver duas listas de capítulos para manter.
 - **Línguas:** o mdBook não tem várias línguas num livro só. Um livro por língua:
-  `/manual/` (inglês), `/pt/manual/`, `/es/manual/`, `/fr/manual/`, `/de/manual/`,
-  `/zh/manual/`, com um seletor de língua no topo (um pouco de HTML no tema do mdBook)
-  que leva ao mesmo capítulo na outra língua. Uma busca por livro.
+  `/manual/` (inglês), `/manual/pt/`, `/manual/es/`, `/manual/fr/`, `/manual/de/`,
+  `/manual/zh/`, com um seletor de língua no topo (`site/manual/theme/languages.js`)
+  que leva ao mesmo capítulo na outra língua, e um link "Xylem" de volta à página
+  inicial. Uma busca por livro. Tópico sem tradução entra em inglês, como no F1.
 - **Da página inicial ao manual:** um link "Manual" no topo, na língua da página.
 
 ### Os arquivos do manual não mudam por causa do site
@@ -88,22 +89,24 @@ geram a página do man. Então o site se adapta a eles, nunca o contrário:
 
 ### Montagem e publicação
 
-- `site/build.sh` passa a: copiar o manual de cada língua para uma pasta de trabalho
-  dentro da pasta de saída, gerar o `SUMMARY.md` e o `book.toml`, rodar
-  `mdbook build` e juntar o resultado em `_site/<lang>/manual/`.
-- `pages.yml`: instalar o mdBook numa **versão fixa** (binário do release oficial, com
-  checksum conferido), e incluir `docs/manual/**` nos caminhos que disparam a publicação.
+- `site/manual/book.py` prepara cada língua numa pasta de trabalho dentro da pasta de
+  saída: copia os tópicos, troca só o caminho das imagens (`../screenshots/` vira
+  `screenshots/`, com as imagens copiadas), gera o `SUMMARY.md` (os títulos são o `#`
+  de cada tópico) e o `book.toml`. `site/build.sh` roda o `mdbook build` de cada uma e
+  junta em `_site/manual/` e `_site/manual/<lang>/`.
+- `pages.yml`: `cargo install mdbook --version 0.5.4 --locked` (versão fixa, com as
+  dependências do Cargo.lock dele conferidas pelo checksum do crates.io; mais lento que
+  baixar o binário, mas sem checksum para manter à mão), e `docs/manual/**` nos caminhos
+  que disparam a publicação.
 - Consequência a lembrar: o site é publicado quando o `main` muda, então o manual do site
-  passa a mostrar o `main`, que pode ter recurso ainda não lançado. Opções a decidir na
-  implementação: publicar o manual só a partir das tags de release, ou aceitar e marcar
-  "versão em desenvolvimento". O roadmap já diz que texto de recurso novo entra junto com
-  o release.
+  passa a mostrar o `main`, que pode ter recurso ainda não lançado. Decisão do autor
+  (2026-11-02): **o manual do site segue o `main`**, como o repositório.
 
 ### Segurança
 
 O site é estático e só publica o que está no repositório. O mdBook roda no CI sobre
-arquivos nossos; o cuidado é com a cadeia de fornecimento: versão fixa e checksum do
-binário, e nenhum plugin (`mdbook-*`) de terceiros sem necessidade. O JavaScript que o
+arquivos nossos; o cuidado é com a cadeia de fornecimento: versão fixa, `--locked`, e
+nenhum plugin (`mdbook-*`) de terceiros sem necessidade. O JavaScript que o
 mdBook traz (busca, tema) vem do próprio mdBook; nada de scripts de CDN.
 
 ## Ordem
