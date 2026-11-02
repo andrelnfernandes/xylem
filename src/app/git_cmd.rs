@@ -11,6 +11,9 @@ impl App {
             .panes
             .iter()
             .filter(|p| p.archive.is_none() && p.remote.is_none())
+            // Looking for a `.git` in a folder still on its way, on a cloud
+            // mount, would make the screen wait for that same read.
+            .filter(|p| p.tree.node(p.current()).scanned)
             .map(|p| p.current_path())
             .collect();
         self.git_status.refresh(dirs, &self.options.git_trusted);

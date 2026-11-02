@@ -3941,3 +3941,21 @@ fn usage_draws_the_tags() {
     assert!(text.contains('■'), "{text}");
     assert!(text.contains("Alt+P"), "{text}");
 }
+
+#[test]
+fn git_does_not_look_into_a_folder_still_being_read() {
+    let tmp = crate::testing::tempdir();
+    create_dir_all(tmp.path().join(".git")).unwrap();
+    write(tmp.path().join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+    let mut app = App::new(tmp.path().to_path_buf());
+    app.options.git = true;
+    app.panes[0] = Pane::slow(tmp.path().to_path_buf());
+    app.refresh_git();
+    assert!(!app.git_status.in_repo(tmp.path()), "not read yet");
+    while app.reading() {
+        app.apply_reads();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    app.refresh_git();
+    assert!(app.git_status.in_repo(tmp.path()));
+}

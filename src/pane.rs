@@ -207,6 +207,12 @@ impl Pane {
         Self::with_tree(Tree::new(root))
     }
 
+    /// A window that reads in the background, as on a cloud mount.
+    #[cfg(test)]
+    pub fn slow(root: PathBuf) -> Self {
+        Self::with_tree(Tree::slow(root))
+    }
+
     /// Window showing the contents of an archive, already read.
     pub fn from_archive(path: &Path, contents: ArchiveContents) -> Self {
         let mut pane = Self::with_tree(contents.tree);
