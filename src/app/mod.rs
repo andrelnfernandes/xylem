@@ -108,6 +108,10 @@ pub struct CloudLog {
     pub service: String,
     /// How many refusals make it ask whether to go on.
     pub ask_at: u64,
+    /// What to do with the branch once it is in memory.
+    pub then: AfterLog,
+    /// Reading folder by folder, in case rclone cannot list it.
+    pub fallback: LogJob,
 }
 
 pub const LOG_SMALLER: &str = "Log smaller folders: * on each one, or + to open them.";
@@ -530,36 +534,49 @@ impl App {
         if !job.log.is_done() {
             return;
         }
-        pane.refresh_rows(pane.current());
-        match job.then {
-            AfterLog::OpenBranch(id) => pane.set_view(FileView::Branch(id)),
-            AfterLog::CompareBranch(id, mode) => {
-                pane.set_view(FileView::Branch(id));
-                self.job = None;
-                self.compare(mode);
-                return;
-            }
-            AfterLog::Prune(id) => {
-                pane.refresh_files();
-                self.job = None;
-                self.prepare_prune(id);
-                return;
-            }
-            AfterLog::Refresh => pane.refresh_files(),
-            AfterLog::Usage(id) => pane.usage = Some(crate::usage::UsageView::new(id)),
-            AfterLog::Duplicates(id) => {
-                self.job = None;
-                self.duplicates_logged(id);
-                return;
-            }
-        }
-        self.job = None;
+        let Some(job) = self.job.take() else { return };
+        self.after_log(job.pane, job.then);
     }
 
-    /// `*`: logs and expands the branch. On a cloud mount, asks for it all at
-    /// once instead of folder by folder.
+    /// The branch is in memory: what it was read for.
+    fn after_log(&mut self, pane: usize, then: AfterLog) {
+        let window = &mut self.panes[pane];
+        window.refresh_rows(window.current());
+        match then {
+            AfterLog::OpenBranch(id) => window.set_view(FileView::Branch(id)),
+            AfterLog::CompareBranch(id, mode) => {
+                window.set_view(FileView::Branch(id));
+                self.compare(mode);
+            }
+            AfterLog::Prune(id) => {
+                window.refresh_files();
+                self.prepare_prune(id);
+            }
+            AfterLog::Refresh => window.refresh_files(),
+            AfterLog::Usage(id) => window.usage = Some(crate::usage::UsageView::new(id)),
+            AfterLog::Duplicates(id) => self.duplicates_logged(id),
+        }
+    }
+
+    /// `*`: logs and expands the branch.
     pub(crate) fn expand_all(&mut self) {
         let id = self.current();
+        self.log_branch(id, LogJob::new(id, true), AfterLog::Refresh);
+    }
+
+    /// Reads a branch for Branch, Usage and Compare: nothing to do if it is
+    /// all in memory.
+    pub(crate) fn log_for_view(&mut self, id: NodeId, log: LogJob, then: AfterLog) {
+        if self.tree.branch_read(id) {
+            self.start_job(log, then);
+        } else {
+            self.log_branch(id, log, then);
+        }
+    }
+
+    /// Reads the branch of `id` with `log`. On a cloud mount, asks for it
+    /// all at once instead of folder by folder.
+    fn log_branch(&mut self, id: NodeId, log: LogJob, then: AfterLog) {
         let path = self.tree.path(id);
         if self.archive.is_none()
             && self.remote.is_none()
@@ -582,10 +599,12 @@ impl App {
                 ),
                 pane: self.active,
                 id,
+                then,
+                fallback: log,
             });
             return;
         }
-        self.start_job(LogJob::new(id, true), AfterLog::Refresh);
+        self.start_job(log, then);
     }
 
     fn cloud_log_tick(&mut self, budget: Duration) {
@@ -603,8 +622,10 @@ impl App {
             std::thread::sleep(budget.min(Duration::from_millis(20)));
             return;
         };
-        let (pane, id, service) = (log.pane, log.id, log.service.clone());
-        self.cloud_log = None;
+        let Some(log) = self.cloud_log.take() else {
+            return;
+        };
+        let (pane, id, service) = (log.pane, log.id, log.service);
         // Whatever was being asked no longer matters.
         if self
             .confirm
@@ -615,10 +636,10 @@ impl App {
         }
         match result {
             Ok(listing) => {
-                let pane = &mut self.panes[pane];
-                pane.tree.fill(id, listing);
-                pane.refresh_rows(pane.current());
-                pane.refresh_files();
+                let window = &mut self.panes[pane];
+                window.tree.fill(id, listing, log.fallback.expands());
+                window.refresh_files();
+                self.after_log(pane, log.then);
             }
             // Reading each folder would only be refused more.
             Err(why) if refused > 0 || why.contains("Error 403") => {
@@ -631,12 +652,28 @@ impl App {
                     crate::bidi::escape(&why)
                 ));
                 self.job = Some(Job {
-                    log: LogJob::new(id, true),
+                    log: log.fallback,
                     pane,
-                    then: AfterLog::Refresh,
+                    then: log.then,
                 });
             }
         }
+    }
+
+    /// Puts on screen what the windows read in the background.
+    pub fn apply_reads(&mut self) {
+        for pane in &mut self.panes {
+            pane.apply_reads();
+        }
+        if let Some(picker) = &mut self.picker {
+            picker.apply_reads();
+        }
+    }
+
+    /// A window is waiting for folders being read in the background.
+    pub fn reading(&self) -> bool {
+        self.panes.iter().any(|p| p.tree.reading())
+            || self.picker.as_ref().is_some_and(Picker::reading)
     }
 
     pub(crate) fn start_job(&mut self, log: LogJob, then: AfterLog) {

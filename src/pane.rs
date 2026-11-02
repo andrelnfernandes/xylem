@@ -348,6 +348,15 @@ impl Pane {
         }
     }
 
+    /// Puts on screen what was read in the background, keeping the cursor.
+    pub fn apply_reads(&mut self) {
+        if self.tree.reading() {
+            self.keeping_cursor(|pane| {
+                pane.tree.apply_reads();
+            });
+        }
+    }
+
     /// Updates the tree and the file list after changes on disk.
     pub fn after_change(&mut self) {
         self.refresh_rows(self.current());
@@ -638,7 +647,7 @@ impl Pane {
         if Some(index) != self.tree_state.selected() {
             self.tree_state.select(Some(index));
             let id = self.current();
-            self.tree.scan(id);
+            self.tree.touch(id);
             self.file_state.select(Some(0));
             self.refresh_files();
         }

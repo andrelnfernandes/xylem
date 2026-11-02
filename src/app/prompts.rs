@@ -836,7 +836,8 @@ impl App {
                 None => self.ask_compare(!branch),
                 Some(mode) if branch => {
                     let id = self.current();
-                    self.start_job(LogJob::new(id, false), AfterLog::CompareBranch(id, mode));
+                    let log = LogJob::new(id, false);
+                    self.log_for_view(id, log, AfterLog::CompareBranch(id, mode));
                 }
                 Some(mode) => self.compare(mode),
             },

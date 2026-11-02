@@ -73,12 +73,15 @@ comes from rclone's configuration file (`~/.config/rclone/rclone.conf`, or
 
 - **Everything goes over the network.** Each directory read is a request, and
   a service like Google Drive refuses them when they are too many. So, on a
-  mounted folder, `*` asks rclone for the whole branch in a single listing,
-  which is far quicker, and fills the tree when it ends; Esc leaves the tree as
-  it was. If rclone fails or shows other folders than the mount, `*` reads
-  folder by folder. Branch (`B`) always reads that way and can take a while.
-  Opening just the directories you need (→ or `+`) is quick, since they are read
-  as you open them.
+  mounted folder, `*`, Branch (`B`), the Usage view and Compare on a branch ask
+  rclone for the whole branch in a single listing, which is far quicker, unless
+  it is all read already; Esc leaves the tree as it was. If rclone fails or shows
+  other folders than the mount, they read folder by folder. Only `*` expands the
+  tree.
+- **The screen does not wait.** The tree shows at once and fills in as folders
+  arrive, also when you open one (→ or `+`) or move the cursor to one; the file
+  window says `reading...` meanwhile. F3 and going to a typed path still wait for
+  their one read.
 - **Changes made elsewhere** (in the browser, on the phone) show up only after
   F3, and after the directory cache expires (`--dir-cache-time`).
 - **Delete:** answer `P` (permanently) rather than `T`: on Linux, the trash

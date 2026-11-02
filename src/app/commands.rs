@@ -586,7 +586,7 @@ impl App {
             }
             Command::Branch => {
                 let id = self.view_root();
-                self.start_job(LogJob::new(id, false), AfterLog::OpenBranch(id));
+                self.log_for_view(id, LogJob::new(id, false), AfterLog::OpenBranch(id));
             }
             Command::ExpandAll => self.expand_all(),
             Command::View => self.open_viewer(),

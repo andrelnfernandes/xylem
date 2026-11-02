@@ -777,13 +777,17 @@ fn draw_files(
     } else {
         kind.to_string()
     };
-    let title = format!(
+    let mut title = format!(
         " {}{kind}: {} ({}) {} ",
         crate::icons::view_icon(pane.view, icons).unwrap_or_default(),
         pane.filespec.text(),
         fmt_num(pane.files.len() as u64),
         pane.sort.label()
     );
+    // Not empty: on its way, from a cloud mount.
+    if pane.view == FileView::Dir && pane.tree.is_reading(pane.current()) {
+        title.push_str("reading... ");
+    }
     let error = match pane.view {
         FileView::Dir => pane.tree.node(pane.current()).error.is_some(),
         _ => false,

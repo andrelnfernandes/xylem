@@ -9,7 +9,7 @@ impl App {
     pub(crate) fn open_usage(&mut self) {
         let id = self.current();
         let device = self.tree.device(id);
-        self.start_job(LogJob::one_disk(id, device), AfterLog::Usage(id));
+        self.log_for_view(id, LogJob::one_disk(id, device), AfterLog::Usage(id));
     }
 
     pub(crate) fn usage_key(&mut self, key: KeyEvent) {
