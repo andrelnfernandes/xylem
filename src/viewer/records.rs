@@ -33,6 +33,7 @@ use serde_json::Value as JsonValue;
 
 use super::parquet_pages;
 use super::table::TableGrid;
+use super::tabular_loader::thousands;
 
 /// Columns read per record, in any format: a hostile file could have millions.
 pub const MAX_COLS: usize = 256;
@@ -160,6 +161,16 @@ impl Budget {
     }
 }
 
+/// What a file says of its columns, for the viewer's structure (`i`): the
+/// titles of what it knows, one row per column with its name first, and lines
+/// about the whole. Straight from the file: the grid makes it safe to show.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Structure {
+    pub titles: Vec<String>,
+    pub columns: Vec<Vec<String>>,
+    pub about: Vec<String>,
+}
+
 /// Why a stream ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum End {
@@ -182,6 +193,8 @@ pub trait RecordSink {
     fn columns(&mut self, names: &[String]);
     /// The file has more than [`MAX_COLS`] columns.
     fn columns_cut(&mut self);
+    /// What the file declares of the columns, when it declares something.
+    fn structure(&mut self, _structure: Structure) {}
     fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()>;
 }
 
@@ -452,6 +465,70 @@ fn dbase_cell(val: &dbase::FieldValue) -> Cell<'_> {
     }
 }
 
+/// A dBase field type, as `DISPLAY STRUCTURE` has it.
+fn dbase_type(t: dbase::FieldType) -> &'static str {
+    use dbase::FieldType as T;
+    match t {
+        T::Character => "C Character",
+        T::Date => "D Date",
+        T::Float => "F Float",
+        T::Numeric => "N Numeric",
+        T::Logical => "L Logical",
+        T::Currency => "Y Currency",
+        T::DateTime => "T DateTime",
+        T::Integer => "I Integer",
+        T::Double => "B Double",
+        T::Memo => "M Memo",
+    }
+}
+
+/// The decimals of each field. The `dbase` crate reads them but keeps them to
+/// itself, so they come from the file's own descriptors (32 bytes each, after
+/// the 32 of the header), and only where type and size agree with the crate's.
+pub(super) fn dbase_decimals(path: &Path, fields: &[dbase::FieldInfo]) -> Vec<Option<u8>> {
+    const DESCRIPTOR: usize = 32;
+    let fields = &fields[..fields.len().min(MAX_COLS)];
+    let mut bytes = Vec::new();
+    let wanted = (DESCRIPTOR * (fields.len() + 1)) as u64;
+    if File::open(path)
+        .and_then(|f| f.take(wanted).read_to_end(&mut bytes))
+        .is_err()
+    {
+        bytes.clear();
+    }
+    fields
+        .iter()
+        .enumerate()
+        .map(|(i, field)| {
+            let at = DESCRIPTOR * (i + 1);
+            let d = bytes.get(at..at + DESCRIPTOR)?;
+            (d[11] == u8::from(field.field_type()) && d[16] == field.length()).then_some(d[17])
+        })
+        .collect()
+}
+
+/// The fields of a .dbf, and `about` what its header says of the records.
+fn dbase_structure(path: &Path, fields: &[dbase::FieldInfo], about: Vec<String>) -> Structure {
+    let decimals = dbase_decimals(path, fields);
+    let columns = fields
+        .iter()
+        .zip(&decimals)
+        .map(|(f, dec)| {
+            vec![
+                f.name().to_string(),
+                dbase_type(f.field_type()).to_string(),
+                f.length().to_string(),
+                dec.map_or_else(|| "?".to_string(), |d| d.to_string()),
+            ]
+        })
+        .collect();
+    Structure {
+        titles: ["Field", "Type", "Width", "Dec"].map(String::from).to_vec(),
+        columns,
+        about,
+    }
+}
+
 /// A dBase / Clipper / FoxPro .dbf file (with companion .dbt memo file if present).
 pub fn read_dbf(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Result<End, String> {
     let mut reader = dbase::Reader::from_path(path)
@@ -472,6 +549,25 @@ pub fn read_dbf(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Resul
         sink.columns_cut();
     }
     sink.columns(&names);
+    let header = reader.header();
+    let date = &header.last_update;
+    let about = vec![
+        format!(
+            "Number of data records: {}",
+            thousands(header.num_records as usize)
+        ),
+        format!(
+            "Date of last update: {:04}-{:02}-{:02}",
+            date.year(),
+            date.month(),
+            date.day()
+        ),
+        format!(
+            "Record length: {} bytes",
+            thousands(usize::from(header.size_of_record))
+        ),
+    ];
+    sink.structure(dbase_structure(path, reader.fields(), about));
 
     let mut pace = Pace::new(budget);
     for record in reader.iter_records() {
@@ -771,6 +867,126 @@ pub enum SqlitePart<'a> {
     Query(&'a str),
 }
 
+/// A value SQLite gives back, as text for the structure.
+fn sqlite_text(value: rusqlite::types::ValueRef<'_>) -> String {
+    use rusqlite::types::ValueRef as V;
+    match value {
+        V::Null => String::new(),
+        V::Integer(i) => i.to_string(),
+        V::Real(r) => r.to_string(),
+        V::Text(t) => String::from_utf8_lossy(t).into_owned(),
+        V::Blob(b) => format!("<Blob {} bytes>", b.len()),
+    }
+}
+
+/// What the database declares of a table's or view's columns. The name is a
+/// parameter, never part of the SQL. `None` when SQLite does not say.
+fn sqlite_structure(conn: &rusqlite::Connection, table: &str, view: bool) -> Option<Structure> {
+    let sql = format!(
+        "SELECT name, type, \"notnull\", dflt_value, pk FROM pragma_table_info(?1) LIMIT {MAX_COLS}"
+    );
+    let mut stmt = conn.prepare(&sql).ok()?;
+    let mut rows = stmt.query([table]).ok()?;
+    let mut columns = Vec::new();
+    while let Ok(Some(row)) = rows.next() {
+        let text = |i| row.get_ref(i).map_or_else(|_| String::new(), sqlite_text);
+        let flag = |i| match row.get_ref(i) {
+            Ok(rusqlite::types::ValueRef::Integer(n)) if n > 0 => n,
+            _ => 0,
+        };
+        columns.push(vec![
+            text(0),
+            text(1),
+            if flag(2) > 0 { "yes" } else { "" }.to_string(),
+            text(3),
+            match flag(4) {
+                0 => String::new(),
+                n => n.to_string(),
+            },
+        ]);
+    }
+    if columns.is_empty() {
+        return None;
+    }
+    let what = if view { "View" } else { "Table" };
+    let mut about = vec![format!("{what}: {table}")];
+    about.extend(sqlite_indexes(conn, table));
+    Some(Structure {
+        titles: ["Column", "Declared type", "Not null", "Default", "Key"]
+            .map(String::from)
+            .to_vec(),
+        columns,
+        about,
+    })
+}
+
+/// The indexes shown in the structure, at most: a hostile file can have thousands.
+pub(super) const MAX_INDEXES: usize = 32;
+
+/// A line per index of a table: its name, `unique`, and its columns in order.
+/// Names are parameters, never part of the SQL.
+fn sqlite_indexes(conn: &rusqlite::Connection, table: &str) -> Vec<String> {
+    let list = format!(
+        "SELECT name, \"unique\" FROM pragma_index_list(?1) ORDER BY name LIMIT {}",
+        MAX_INDEXES + 1
+    );
+    let cols = format!("SELECT name FROM pragma_index_info(?1) ORDER BY seqno LIMIT {MAX_COLS}");
+    let (Ok(mut list), Ok(mut cols)) = (conn.prepare(&list), conn.prepare(&cols)) else {
+        return Vec::new();
+    };
+    let Ok(indexes) = list.query_map([table], |row| {
+        Ok((
+            sqlite_text(row.get_ref(0)?),
+            matches!(row.get_ref(1)?, rusqlite::types::ValueRef::Integer(n) if n > 0),
+        ))
+    }) else {
+        return Vec::new();
+    };
+    let indexes: Vec<(String, bool)> = indexes.flatten().collect();
+    let mut lines: Vec<String> = indexes
+        .iter()
+        .take(MAX_INDEXES)
+        .map(|(name, unique)| {
+            let names: Vec<String> = cols
+                .query_map([name], |row| Ok(sqlite_text(row.get_ref(0)?)))
+                .map(|rows| rows.flatten().collect())
+                .unwrap_or_default();
+            // An expression has no name.
+            let names: Vec<&str> = names
+                .iter()
+                .map(|n| if n.is_empty() { "(expression)" } else { n })
+                .collect();
+            let unique = if *unique { " unique" } else { "" };
+            format!("Index {name}{unique}: {}", names.join(", "))
+        })
+        .collect();
+    if indexes.len() > MAX_INDEXES {
+        lines.push(format!("(only the first {MAX_INDEXES} indexes)"));
+    }
+    lines
+}
+
+/// The columns a query gives, with the type each one has where it comes
+/// straight from a table's column; an expression has none.
+fn query_structure(stmt: &rusqlite::Statement<'_>, cols: usize) -> Structure {
+    let columns = stmt
+        .columns()
+        .iter()
+        .take(cols)
+        .map(|c| {
+            vec![
+                c.name().to_string(),
+                c.decl_type().unwrap_or("(expression)").to_string(),
+            ]
+        })
+        .collect();
+    Structure {
+        titles: ["Column", "Declared type"].map(String::from).to_vec(),
+        columns,
+        about: vec!["Columns of the query's result".to_string()],
+    }
+}
+
 /// A table or query result from an SQLite database in strictly defensive
 /// read-only mode.
 pub fn read_sqlite(
@@ -898,6 +1114,11 @@ pub fn read_sqlite(
         sink.columns_cut();
     }
     sink.columns(&names);
+    if matches!(part, SqlitePart::Query(_)) {
+        sink.structure(query_structure(&stmt, cols));
+    } else if let Some(structure) = sqlite_structure(&conn, &tables[active], active >= first_view) {
+        sink.structure(structure);
+    }
 
     let mut rows = stmt
         .query([])
@@ -1048,6 +1269,7 @@ fn read_parquet_within(
         sink.columns_cut();
     }
     sink.columns(&names);
+    sink.structure(parquet_structure(&metadata, cols));
 
     let mask = ProjectionMask::roots(metadata.parquet_schema(), 0..cols);
     let mut pace = Pace::new(budget.clone());
@@ -1099,6 +1321,39 @@ fn read_parquet_within(
         }
     }
     Ok(End::Complete)
+}
+
+/// What a Parquet file declares: the Arrow type of each column, and the rows.
+fn parquet_structure(metadata: &ArrowReaderMetadata, cols: usize) -> Structure {
+    let columns = metadata.schema().fields()[..cols]
+        .iter()
+        .map(|f| {
+            vec![
+                f.name().to_string(),
+                f.data_type().to_string(),
+                if f.is_nullable() { "yes" } else { "no" }.to_string(),
+            ]
+        })
+        .collect();
+    let file = metadata.metadata().file_metadata();
+    // A hostile footer can say anything, even a negative count.
+    let rows =
+        usize::try_from(file.num_rows()).map_or_else(|_| file.num_rows().to_string(), thousands);
+    let mut about = vec![
+        format!("Rows: {rows}"),
+        format!(
+            "Row groups: {}",
+            thousands(metadata.metadata().num_row_groups())
+        ),
+    ];
+    if let Some(by) = file.created_by() {
+        about.push(format!("Written by: {by}"));
+    }
+    Structure {
+        titles: ["Column", "Type", "Nulls"].map(String::from).to_vec(),
+        columns,
+        about,
+    }
 }
 
 /// Rows per batch. A value of a dictionary is copied into each row that uses it, so

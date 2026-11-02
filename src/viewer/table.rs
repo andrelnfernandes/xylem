@@ -8,6 +8,7 @@ use ratatui::text::Span;
 use std::collections::BTreeSet;
 use std::time::SystemTime;
 
+use super::records::Structure;
 use super::sql_filter::{self, Expr, RowContext, SqlFilter, Value};
 use crate::bidi;
 
@@ -72,6 +73,13 @@ impl SheetList {
     }
 }
 
+/// The structure of the table on screen, while it is open (`i`).
+#[derive(Debug, Clone)]
+pub struct StructureView {
+    pub structure: Structure,
+    pub scroll: usize,
+}
+
 /// A structured tabular dataset (from CSV, spreadsheet, SQLite or DBF).
 #[derive(Debug, Clone)]
 pub struct TableGrid {
@@ -109,6 +117,9 @@ pub struct TableGrid {
     pub marked: BTreeSet<usize>,
     /// How the file was when the first of them was marked.
     pub marked_stamp: Option<(u64, SystemTime)>,
+
+    /// What the file declares of its columns, made safe when it was read.
+    pub structure: Option<Structure>,
 }
 
 struct GridRowContext<'a> {
@@ -163,6 +174,7 @@ impl TableGrid {
             cut: None,
             marked: BTreeSet::new(),
             marked_stamp: None,
+            structure: None,
         };
         grid.recalculate_widths();
         grid
@@ -264,6 +276,54 @@ impl TableGrid {
         }
     }
 
+    /// What the file declares of its columns or, when it declares nothing (CSV,
+    /// spreadsheets, a query), what the rows read have in each one.
+    pub fn structure(&self) -> Structure {
+        if let Some(structure) = &self.structure {
+            return structure.clone();
+        }
+        const KINDS: [&str; 5] = ["integer", "decimal", "logical", "text", "empty"];
+        let columns = self
+            .headers
+            .iter()
+            .enumerate()
+            .map(|(col, name)| {
+                let mut seen = [false; KINDS.len()];
+                let mut widest = 0;
+                for row in &self.rows {
+                    let cell = row.cells.get(col).map_or("", String::as_str);
+                    let kind = match Value::infer(cell) {
+                        Value::Int(_) => 0,
+                        Value::Float(_) => 1,
+                        Value::Bool(_) => 2,
+                        Value::Text(_) => 3,
+                        Value::Null => 4,
+                    };
+                    seen[kind] = true;
+                    widest = widest.max(cell.chars().count());
+                }
+                let kinds: Vec<&str> = KINDS
+                    .iter()
+                    .zip(seen)
+                    .filter_map(|(kind, seen)| seen.then_some(*kind))
+                    .collect();
+                vec![name.clone(), kinds.join(", "), widest.to_string()]
+            })
+            .collect();
+        let rows = self.rows.len();
+        let count = super::tabular_loader::thousands(rows);
+        Structure {
+            titles: ["Column", "Values seen", "Widest"]
+                .map(String::from)
+                .to_vec(),
+            columns,
+            about: vec![format!(
+                "No types declared here: what the {count} row{} read have",
+                if rows == 1 { "" } else { "s" }
+            )],
+        }
+    }
+
     /// Total count of rows currently visible (matching filter).
     pub fn visible_row_count(&self) -> usize {
         self.filtered_indices.len()
@@ -296,6 +356,18 @@ impl TableGrid {
             }
         }
         out
+    }
+
+    /// To the first (`last` false) or last of the rows shown, in the same column.
+    pub fn go_to_end(&mut self, last: bool, page_height: usize) {
+        let total = self.visible_row_count();
+        if last && total > 0 {
+            self.cursor_row = total - 1;
+            self.scroll_row = total.saturating_sub(page_height.max(1));
+        } else {
+            self.cursor_row = 0;
+            self.scroll_row = 0;
+        }
     }
 
     /// Handle cursor navigation key events.
