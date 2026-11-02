@@ -2805,6 +2805,9 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         };
         draw_sheet_list(frame, list, grid, word, body);
     }
+    if let Some(view) = &mut v.structure_view {
+        draw_structure(frame, view, body);
+    }
     if let Some(guide) = app.prompt.as_ref().and_then(app::Prompt::batch_guide) {
         match &guide.reading {
             Some(reading) => draw_template_reading(frame, reading, body),
@@ -2854,6 +2857,11 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     let note = v.note.clone();
     let lines = if let Some(prompt) = &app.prompt {
         prompt_lines(frame, prompt, menu)
+    } else if v.structure_view.is_some() {
+        vec![menu_line(
+            "COLUMNS",
+            &[("↑↓ PgUp PgDn", "scroll"), ("Esc", "back")],
+        )]
     } else if v.sheet_list.is_some() {
         let title = format!("{}S", sheet_word(&v.path).to_uppercase());
         vec![menu_line(
@@ -2894,6 +2902,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 &if v.mode == ViewMode::Table {
                     vec![
                         ("&", "filter"),
+                        ("i", "structure"),
                         ("m", "mark"),
                         ("Ctrl+B", "batch"),
                         ("Esc", "close"),
@@ -2926,7 +2935,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 let wrap_badge = if v.wrap { "[Wrap] " } else { "" };
                 let num_badge = if v.line_numbers { "[#] " } else { "" };
                 let sheets = match (&v.mode, &v.table) {
-                    (ViewMode::Table, Some(t)) => sheet_keys(t, &v.path),
+                    (ViewMode::Table, Some(t)) => format!("{TABLE_ENDS}{}", sheet_keys(t, &v.path)),
                     _ => String::new(),
                 };
                 Line::from(format!(
@@ -2965,6 +2974,9 @@ fn table_frame_title(t: &TableGrid) -> String {
         t.view_mark(t.current_sheet)
     )
 }
+
+/// The keys to the ends of a table, on the line of where the cursor is.
+const TABLE_ENDS: &str = "  ·  Ctrl+Home Ctrl+End first, last row";
 
 /// The keys that change the sheet, when there is another one to go to.
 fn sheet_keys(t: &TableGrid, path: &Path) -> String {
@@ -3050,6 +3062,108 @@ fn draw_sheet_list(
         } else {
             Line::raw(text)
         });
+    }
+    frame.render_widget(Clear, rect);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .style(Style::new().fg(t.text).bg(t.background)),
+        rect,
+    );
+}
+
+/// The widest a column of the structure gets: a Parquet type can be long.
+const STRUCTURE_CELL_CHARS: usize = 40;
+
+/// The structure of the table (`i`), over the grid: what the file says of the
+/// whole, then a row per column, numbered. Its texts were made safe when read.
+fn draw_structure(frame: &mut Frame, view: &mut crate::viewer::table::StructureView, area: Rect) {
+    let t = theme();
+    let s = &view.structure;
+    let number = s.columns.len().max(1).to_string().len().max(1);
+    // Numbers (sizes, decimals) line up on the right.
+    let numeric: Vec<bool> = (0..s.titles.len())
+        .map(|c| {
+            s.columns.iter().all(|row| {
+                row.get(c)
+                    .is_none_or(|v| v.is_empty() || v == "?" || v.parse::<u64>().is_ok())
+            })
+        })
+        .collect();
+    let widths: Vec<usize> = s
+        .titles
+        .iter()
+        .enumerate()
+        .map(|(c, title)| {
+            s.columns
+                .iter()
+                .filter_map(|row| row.get(c))
+                .map(|v| v.chars().count())
+                .chain([title.chars().count()])
+                .max()
+                .unwrap_or(0)
+                .min(STRUCTURE_CELL_CHARS)
+        })
+        .collect();
+    let line = |first: &str, cells: &[String]| {
+        let mut text = format!("{first:>number$}");
+        for (c, width) in widths.iter().enumerate() {
+            let cell = fit(cells.get(c).map_or("", String::as_str), *width);
+            text.push_str("  ");
+            if numeric[c] {
+                text.push_str(&format!("{:>width$}", cell.trim_end()));
+            } else {
+                text.push_str(&cell);
+            }
+        }
+        text.trim_end().to_string()
+    };
+    let titles = line("#", &s.titles);
+    let wanted_width = s
+        .about
+        .iter()
+        .map(|a| a.chars().count())
+        .chain([titles.chars().count(), 24])
+        .max()
+        .unwrap_or(0)
+        .saturating_add(4)
+        .min(usize::from(u16::MAX)) as u16;
+    let width = wanted_width.min(area.width.saturating_sub(4));
+    let fixed = s.about.len() + 2;
+    let wanted = (fixed + s.columns.len().max(1) + 2).min(usize::from(u16::MAX)) as u16;
+    let height = wanted.min(area.height.saturating_sub(2));
+    if width < 12 || height < 5 {
+        return;
+    }
+    let rect = Rect {
+        x: area.x + (area.width - width) / 2,
+        y: area.y + (area.height - height) / 2,
+        width,
+        height,
+    };
+    let block = panel(
+        format!(" Structure: {} columns ", fmt_num(s.columns.len() as u64)),
+        true,
+    );
+    let inner = block.inner(rect);
+    let inner_width = usize::from(inner.width);
+    let fixed = fixed.min(usize::from(inner.height).saturating_sub(1));
+    let rows = usize::from(inner.height).saturating_sub(fixed).max(1);
+    view.scroll = view.scroll.min(s.columns.len().saturating_sub(rows));
+    let mut lines: Vec<Line> = s
+        .about
+        .iter()
+        .map(|a| Line::raw(fit(a, inner_width).trim_end().to_string()))
+        .collect();
+    lines.push(Line::raw(""));
+    lines.push(Line::styled(
+        fit(&titles, inner_width).trim_end().to_string(),
+        Style::new().fg(t.key).add_modifier(Modifier::BOLD),
+    ));
+    lines.truncate(fixed);
+    for (i, row) in s.columns.iter().enumerate().skip(view.scroll).take(rows) {
+        let text = line(&(i + 1).to_string(), row);
+        lines.push(Line::raw(fit(&text, inner_width).trim_end().to_string()));
     }
     frame.render_widget(Clear, rect);
     frame.render_widget(
@@ -3422,7 +3536,7 @@ fn draw_table_grid(
         return;
     }
 
-    let page_rows = inner.height.saturating_sub(2) as usize; // reserve 1 for header, 1 for status
+    let page_rows = usize::from(inner.height).saturating_sub(viewer::TABLE_CHROME);
     let total_rows = grid.visible_row_count();
     let col_count = grid.headers.len();
     let row_num_width = (grid.rows.len().max(1)).to_string().len().max(3);
@@ -3811,6 +3925,37 @@ mod tests {
             let row0 = draw_row0(&mut app);
             assert!(row0.contains(shown), "{row0}");
         }
+    }
+
+    #[test]
+    fn the_structure_shows_over_the_table_and_the_footer_has_its_keys() {
+        use crate::viewer::{LoadOptions, Viewer};
+        use ratatui::crossterm::event::{KeyCode, KeyEvent};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let path = tmp.path().join("d.csv");
+        std::fs::write(&path, "code,name\n7,Ana\n12,Rui\n").unwrap();
+        app.viewer = Some(Viewer::open(path, LoadOptions::view(1 << 20)).unwrap());
+        let screen = draw_text(&mut app);
+        assert!(screen.contains("i structure"), "{screen}");
+        assert!(screen.contains("Ctrl+End first, last row"), "{screen}");
+        let v = app.viewer.as_mut().unwrap();
+        v.handle_key(KeyEvent::from(KeyCode::Char('i')));
+        let screen = draw_text(&mut app);
+        assert!(screen.contains("Structure: 2 columns"), "{screen}");
+        assert!(
+            screen.contains("#  Column  Values seen  Widest"),
+            "{screen}"
+        );
+        assert!(
+            screen.contains("1  code    integer           2"),
+            "{screen}"
+        );
+        assert!(
+            screen.contains("2  name    text              3"),
+            "{screen}"
+        );
+        assert!(screen.contains("COLUMNS  ↑↓ PgUp PgDn scroll"), "{screen}");
     }
 
     /// Cut by the line budget, not by the bytes read: the header counts lines.

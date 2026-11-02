@@ -120,18 +120,33 @@ The CSV separator (comma, semicolon, tab or vertical bar) is detected from the s
 | ← → | previous or next column |
 | PgUp PgDn | a page of rows up or down |
 | Home End | first or last column |
+| Ctrl+Home Ctrl+End | first or last row; under a filter, of the rows it keeps |
 | `[` `]` | previous or next sheet of a spreadsheet, or table of a SQLite database, going around; this clears the filter |
 | `Tab` | the list of sheets or tables: type part of a name to narrow it, Enter opens one and Esc goes back; opening another one clears the filter. In a database, views come after the tables, marked `(view)` |
 | `g` or `:` | jump to a row by its number in the file; if the filter hid it, to the next one kept |
 | `\` or `&` | the SQL filter |
 | `m` or Insert | mark or unmark the record under the cursor, and go to the next; **Ctrl+B** then writes only the marked ones |
 | `M` | clear the marks |
+| `i` | the structure of the table: what the file says of each column (see below) |
 | `T` | to the file's text and back |
 | `H` | from the table to text, then hex, then back to the table |
 
 The frame shows `TABLE [2/5: name]` when there is more than one sheet or table, and the bottom line where the cursor is: `Cell B7 (Row 7 of 120)`. Under a filter, rows keep the number they have in the file, and this line adds which match it is: `Cell A13 (Row 13 of 31, match 2 of 8)`. The last line of the grid has the whole contents of the cell and the filter in use. Searching (`F`, `B`, `/`) does not look inside the grid and finds nothing there; it works in text mode.
 
 Marks stay under a filter, and a Batch writes what is marked and kept by the filter. They belong to the sheet or table open, and are lost when changing it. If the file changes after marking, the Batch refuses, since other records may be at those places.
+
+### The structure
+
+`i` shows, over the grid, the columns in order with what the file says of each one, like `DISPLAY STRUCTURE` in dBase and Clipper. The arrows, PgUp, PgDn, Home and End scroll it; Esc, Enter or `i` close it.
+
+| Format | What it shows |
+|---|---|
+| dBase, Clipper, FoxPro | name, type (`C` character, `N` numeric, `D` date, `L` logical, `M` memo, `F` float, `I` integer, `B` double, `Y` currency, `T` date and time), width and decimals; above them, the number of records and the date of the last update written in the header, and the length of a record |
+| SQLite | the type declared for each column, `Not null`, the default and the place in the primary key; above them, whether it is a table or a view, and its indexes with their columns (at most 32). A view shows the columns it gives; a whole query, those of its result, with the type each one has when it comes straight from a table's column |
+| Parquet | the Arrow type of each column and whether it takes nulls; above them, the rows and row groups the file declares and the program that wrote it |
+| CSV, JSON Lines, spreadsheets | these declare no types: what the rows read have in each column (integer, decimal, logical, text, empty) and the widest value |
+
+Names, types and defaults come from the file and are made safe like the cells: control and text direction characters show as `·`. A `.dbf` whose header contradicts itself shows `?` for the decimals.
 
 ### The SQL filter
 

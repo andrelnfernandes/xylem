@@ -123,18 +123,33 @@ Das CSV-Trennzeichen (Komma, Semikolon, Tabulator oder senkrechter Strich) wird 
 | ← → | vorherige oder nächste Spalte |
 | PgUp PgDn | eine Seite Zeilen nach oben oder unten |
 | Home End | erste oder letzte Spalte |
+| Ctrl+Home Ctrl+End | erste oder letzte Zeile; unter einem Filter von den Zeilen, die er behält |
 | `[` `]` | vorheriges oder nächstes Blatt einer Tabellenkalkulation oder vorherige oder nächste Tabelle einer SQLite-Datenbank, im Kreis; das löscht den Filter |
 | `Tab` | die Liste der Blätter oder Tabellen: Teil eines Namens tippen grenzt sie ein, Enter öffnet einen Eintrag und Esc geht zurück; ein anderes Blatt zu öffnen löscht den Filter. In einer Datenbank stehen Views nach den Tabellen, markiert mit `(view)` |
 | `g` oder `:` | zu einer Zeile über ihre Nummer in der Datei springen; hat der Filter sie ausgeblendet, zur nächsten behaltenen |
 | `\` oder `&` | der SQL-Filter |
 | `m` oder Insert | markiert den Datensatz unter dem Cursor oder hebt die Markierung auf und geht zum nächsten; **Ctrl+B** schreibt dann nur die markierten |
 | `M` | löscht die Markierungen |
+| `i` | die Struktur der Tabelle: was die Datei über jede Spalte sagt (siehe unten) |
 | `T` | zum Text der Datei und zurück |
 | `H` | von der Tabelle zum Text, dann Hex, dann zurück zur Tabelle |
 
 Der Rahmen zeigt `TABLE [2/5: Name]`, wenn es mehrere Blätter oder Tabellen gibt, und die untere Zeile die Position des Cursors: `Cell B7 (Row 7 of 120)`. Mit Filter behalten die Zeilen ihre Nummer aus der Datei, und diese Zeile nennt zusätzlich den Treffer: `Cell A13 (Row 13 of 31, match 2 of 8)`. Die letzte Zeile des Rasters enthält den ganzen Zellinhalt und den aktiven Filter. Die Suche (`F`, `B`, `/`) schaut nicht in das Raster und findet dort nichts; sie funktioniert im Textmodus.
 
 Markierungen bleiben unter einem Filter erhalten, und Batch schreibt, was markiert ist und vom Filter behalten wird. Sie gehören zum geöffneten Blatt oder zur Tabelle und gehen beim Wechsel verloren. Ändert sich die Datei nach dem Markieren, verweigert Batch, da an diesen Stellen andere Datensätze stehen können.
+
+### Die Struktur
+
+`i` zeigt über dem Raster die Spalten der Reihe nach mit dem, was die Datei über jede sagt, wie `DISPLAY STRUCTURE` in dBase und Clipper. Pfeile, PgUp, PgDn, Home und End scrollen; Esc, Enter oder `i` schließen sie.
+
+| Format | Was sie zeigt |
+|---|---|
+| dBase, Clipper, FoxPro | Name, Typ (`C` Zeichen, `N` numerisch, `D` Datum, `L` logisch, `M` Memo, `F` Gleitkomma, `I` Ganzzahl, `B` Double, `Y` Währung, `T` Datum und Uhrzeit), Breite und Dezimalstellen; darüber die Anzahl der Datensätze und das Datum der letzten Änderung aus dem Kopf sowie die Länge eines Datensatzes |
+| SQLite | den deklarierten Typ jeder Spalte, `Not null`, den Standardwert und die Stelle im Primärschlüssel; darüber, ob es eine Tabelle oder eine Sicht ist, und ihre Indizes mit ihren Spalten (höchstens 32). Eine Sicht zeigt die Spalten, die sie liefert; eine ganze Abfrage die ihres Ergebnisses, mit dem Typ jeder Spalte, die direkt aus einer Tabellenspalte kommt |
+| Parquet | den Arrow-Typ jeder Spalte und ob sie Nullwerte erlaubt; darüber die Zeilen und Zeilengruppen, die die Datei angibt, und das Programm, das sie geschrieben hat |
+| CSV, JSON Lines, Tabellenkalkulationen | sie deklarieren keine Typen: was die gelesenen Zeilen in jeder Spalte haben (Ganzzahl, Dezimalzahl, logisch, Text, leer) und den breitesten Wert |
+
+Namen, Typen und Standardwerte kommen aus der Datei und werden wie die Zellen bereinigt: Steuer- und Textrichtungszeichen erscheinen als `·`. Eine `.dbf`, deren Kopf sich widerspricht, zeigt `?` bei den Dezimalstellen.
 
 ### Der SQL-Filter
 

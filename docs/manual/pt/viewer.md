@@ -122,18 +122,33 @@ O separador do CSV (vírgula, ponto e vírgula, tabulação ou barra vertical) �
 | ← → | coluna anterior ou seguinte |
 | PgUp PgDn | uma página de linhas para cima ou para baixo |
 | Home End | primeira ou última coluna |
+| Ctrl+Home Ctrl+End | primeira ou última linha; sob um filtro, das linhas que ele mantém |
 | `[` `]` | aba anterior ou seguinte de uma planilha, ou tabela de um banco SQLite, dando a volta; isso limpa o filtro |
 | `Tab` | a lista de abas ou tabelas: digite parte de um nome para reduzi-la, Enter abre uma e Esc volta; abrir outra limpa o filtro. Num banco, as views vêm depois das tabelas, marcadas com `(view)` |
 | `g` ou `:` | pula para uma linha pelo número dela no arquivo; se o filtro a escondeu, para a próxima que ele manteve |
 | `\` ou `&` | o filtro SQL |
 | `m` ou Insert | marca ou desmarca o registro sob o cursor e vai para o próximo; o **Ctrl+B** passa a gravar só os marcados |
 | `M` | limpa as marcas |
+| `i` | a estrutura da tabela: o que o arquivo diz de cada coluna (veja abaixo) |
 | `T` | vai para o texto do arquivo e volta |
 | `H` | da tabela para o texto, depois hexadecimal, depois de volta à tabela |
 
 A moldura mostra `TABLE [2/5: nome]` quando há mais de uma aba ou tabela, e a linha de baixo mostra onde está o cursor: `Cell B7 (Row 7 of 120)`. Com filtro, as linhas mantêm o número que têm no arquivo, e essa linha diz também qual é a ocorrência: `Cell A13 (Row 13 of 31, match 2 of 8)`. A última linha da grade traz o conteúdo inteiro da célula e o filtro em uso. A busca (`F`, `B`, `/`) não olha dentro da grade e nada encontra ali; ela funciona no modo texto.
 
 As marcas continuam sob um filtro, e o Batch grava o que está marcado e o filtro mantém. Elas pertencem à aba ou tabela aberta e se perdem ao trocá-la. Se o arquivo mudar depois da marcação, o Batch recusa, pois outros registros podem estar naquelas posições.
+
+### A estrutura
+
+`i` mostra, sobre a grade, as colunas em ordem com o que o arquivo diz de cada uma, como o `DISPLAY STRUCTURE` do dBase e do Clipper. As setas, PgUp, PgDn, Home e End rolam a lista; Esc, Enter ou `i` fecham.
+
+| Formato | O que mostra |
+|---|---|
+| dBase, Clipper, FoxPro | nome, tipo (`C` caractere, `N` numérico, `D` data, `L` lógico, `M` memo, `F` ponto flutuante, `I` inteiro, `B` double, `Y` moeda, `T` data e hora), tamanho e decimais; acima, o número de registros e a data da última atualização escritos no cabeçalho, e o tamanho de um registro |
+| SQLite | o tipo declarado de cada coluna, `Not null`, o valor padrão e a posição na chave primária; acima, se é tabela ou visão, e os índices com suas colunas (no máximo 32). Uma visão mostra as colunas que dá; uma query inteira, as do resultado, com o tipo de cada uma quando vem direto de uma coluna de tabela |
+| Parquet | o tipo Arrow de cada coluna e se aceita nulos; acima, as linhas e os grupos de linhas que o arquivo declara e o programa que o gravou |
+| CSV, JSON Lines, planilhas | não declaram tipos: o que as linhas lidas têm em cada coluna (inteiro, decimal, lógico, texto, vazio) e o valor mais largo |
+
+Nomes, tipos e valores padrão vêm do arquivo e passam pela mesma limpeza das células: caracteres de controle e de direção do texto aparecem como `·`. Um `.dbf` cujo cabeçalho se contradiz mostra `?` nos decimais.
 
 ### O filtro SQL
 
