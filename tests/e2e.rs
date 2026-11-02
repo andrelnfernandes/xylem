@@ -46,6 +46,8 @@ impl Xy {
             ("TERM", "xterm-256color"),
             ("SHELL", "/bin/sh"),
             ("LANG", "C.UTF-8"),
+            // The tests type at once: no start screen to take the first key.
+            ("XY_NO_SPLASH", "1"),
         ] {
             cmd.env(name, value);
         }

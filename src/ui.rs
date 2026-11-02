@@ -45,6 +45,9 @@ const MIN_TREE_WITH_FILES: u16 = 2 * SMALL_FILE_WINDOW;
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
     draw_screen(frame, app);
+    if app.splash.is_some() {
+        draw_splash(frame, &theme());
+    }
     // Last step, after every early return: no bidi or control character
     // may reach the terminal, whatever drew it.
     crate::bidi::sanitize(frame.buffer_mut(), Style::new().fg(theme().error));
@@ -513,6 +516,76 @@ fn border_type(t: &Theme) -> BorderType {
     }
 }
 
+/// The name in block letters (the shadow in box drawing characters).
+const SPLASH_ART: [&str; 6] = [
+    "██╗  ██╗██╗   ██╗██╗     ███████╗███╗   ███╗",
+    "╚██╗██╔╝╚██╗ ██╔╝██║     ██╔════╝████╗ ████║",
+    " ╚███╔╝  ╚████╔╝ ██║     █████╗  ██╔████╔██║",
+    " ██╔██╗   ╚██╔╝  ██║     ██╔══╝  ██║╚██╔╝██║",
+    "██╔╝ ██╗   ██║   ███████╗███████╗██║ ╚═╝ ██║",
+    "╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝",
+];
+
+/// The start screen: the name over the screen, centered, in the colors of the
+/// theme. Nothing in a terminal too small for it.
+fn draw_splash(frame: &mut Frame, t: &Theme) {
+    const WIDTH: u16 = 44 + 2 * 6 + 2;
+    const HEIGHT: u16 = SPLASH_ART.len() as u16 + 7;
+    let area = frame.area();
+    if area.width < WIDTH || area.height < HEIGHT {
+        return;
+    }
+    let rect = Rect {
+        x: area.x + (area.width - WIDTH) / 2,
+        y: area.y + (area.height - HEIGHT) / 2,
+        width: WIDTH,
+        height: HEIGHT,
+    };
+    let block = Style::new()
+        .fg(t.active_border)
+        .add_modifier(Modifier::BOLD);
+    let shadow = Style::new().fg(t.dim);
+    let mut lines = vec![Line::raw("")];
+    lines.extend(SPLASH_ART.iter().map(|row| {
+        // Runs of the same style, not one span per character.
+        let mut spans: Vec<Span> = Vec::new();
+        let mut run = String::new();
+        let mut solid = None;
+        for c in row.chars() {
+            let this = c == '█';
+            if solid.is_some_and(|s| s != this) {
+                let style = if solid == Some(true) { block } else { shadow };
+                spans.push(Span::styled(std::mem::take(&mut run), style));
+            }
+            solid = Some(this);
+            run.push(c);
+        }
+        let style = if solid == Some(true) { block } else { shadow };
+        spans.push(Span::styled(run, style));
+        Line::from(spans)
+    }));
+    lines.push(Line::raw(""));
+    lines.push(Line::styled(
+        "F I L E   M A N A G E R",
+        Style::new().fg(t.text).add_modifier(Modifier::BOLD),
+    ));
+    lines.push(Line::raw(""));
+    lines.push(Line::styled(
+        concat!("v", env!("CARGO_PKG_VERSION")),
+        Style::new().fg(t.dim),
+    ));
+    frame.render_widget(Clear, rect);
+    frame.render_widget(
+        Paragraph::new(lines).centered().block(
+            Block::bordered()
+                .border_type(border_type(t))
+                .border_style(Style::new().fg(t.border))
+                .style(Style::new().fg(t.text).bg(t.background)),
+        ),
+        rect,
+    );
+}
+
 fn highlight(active: bool) -> Style {
     if active {
         Style::new()
@@ -528,9 +601,24 @@ fn highlight(active: bool) -> Style {
 fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     let path = app.tree.path(app.header_dir());
     let clock = Local::now().format(formats().date.pattern()).to_string();
+    // The name and the version before the date, as XTreeGold did, while there
+    // is room left for the path.
+    let name = concat!("Xylem v", env!("CARGO_PKG_VERSION"), "  ");
+    let mut right_spans = Vec::new();
+    if area.width >= 72 {
+        right_spans.push(Span::styled(
+            "Xylem",
+            Style::new().fg(theme().key).add_modifier(Modifier::BOLD),
+        ));
+        right_spans.push(Span::styled(
+            &name["Xylem".len()..],
+            Style::new().fg(theme().dim),
+        ));
+    }
+    right_spans.push(Span::raw(clock));
+    let width: usize = right_spans.iter().map(|s| s.content.chars().count()).sum();
     let [left, right] =
-        Layout::horizontal([Constraint::Min(1), Constraint::Length(clock.len() as u16)])
-            .areas(area);
+        Layout::horizontal([Constraint::Min(1), Constraint::Length(width as u16)]).areas(area);
     let mut spans = vec![Span::styled("Path: ", Style::new().fg(theme().key))];
     // On a remote machine or a container: its name stands out first, so that
     // where a change goes is never in doubt; then the path there.
@@ -554,7 +642,7 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     let room = (left.width as usize).saturating_sub(used + 1);
     spans.extend(path_spans(&fit_tail(&text, room), separator));
     frame.render_widget(Line::from(spans), left);
-    frame.render_widget(Line::from(clock), right);
+    frame.render_widget(Line::from(right_spans), right);
 }
 
 /// `path` with the home directory as `~`.
@@ -3708,6 +3796,53 @@ mod tests {
         assert_eq!(keys, ["C", "X"]);
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
         assert_eq!(text.trim(), "Copy eXecute");
+    }
+
+    #[test]
+    fn splash_shows_the_name_in_the_middle() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let t = Theme::classic();
+        let screen = |w: u16, h: u16| {
+            let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
+            term.draw(|f| draw_splash(f, &t)).unwrap();
+            term.backend().buffer().clone()
+        };
+        let buf = screen(80, 24);
+        let row = |y: u16| {
+            let line: String = (0..80).map(|x| buf[(x, y)].symbol()).collect();
+            line.trim_matches(|c| c == ' ' || c == '│').to_string()
+        };
+        // 13 rows centered in 24: the box starts at row 5, the art at row 7.
+        assert!(row(5).starts_with("┌─"));
+        assert_eq!(row(7), SPLASH_ART[0]);
+        let x = (0..80).find(|&x| buf[(x, 7)].symbol() == "█").unwrap();
+        assert_eq!(x, (80 - 44) / 2);
+        assert_eq!(buf[(x, 7)].fg, t.active_border);
+        assert_eq!(buf[(x + 2, 7)].symbol(), "╗");
+        assert_eq!(buf[(x + 2, 7)].fg, t.dim);
+        assert_eq!(row(14), "F I L E   M A N A G E R");
+        assert_eq!(row(16), concat!("v", env!("CARGO_PKG_VERSION")));
+        // Too small for it: nothing.
+        let small = screen(57, 24);
+        assert!(small.content().iter().all(|c| c.symbol() == " "));
+        let low = screen(80, 12);
+        assert!(low.content().iter().all(|c| c.symbol() == " "));
+    }
+
+    #[test]
+    fn header_shows_the_name_and_version_when_there_is_room() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let header = |app: &mut App, width: u16| {
+            let mut term = Terminal::new(TestBackend::new(width, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            let buf = term.backend().buffer();
+            (0..width).map(|x| buf[(x, 0)].symbol()).collect::<String>()
+        };
+        let name = concat!("Xylem v", env!("CARGO_PKG_VERSION"), "  ");
+        assert!(header(&mut app, 100).contains(name));
+        assert!(!header(&mut app, 60).contains("Xylem"));
     }
 
     #[test]

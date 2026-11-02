@@ -46,6 +46,29 @@ fn left_on_leaf_goes_to_parent() {
 }
 
 #[test]
+fn the_first_key_only_closes_the_splash() {
+    let (_tmp, mut app) = sample();
+    let start = std::time::Instant::now();
+    app.splash = Some(start + SPLASH);
+    press(&mut app, KeyCode::Down);
+    assert_eq!(app.splash, None);
+    assert_eq!(app.tree_state.selected(), Some(0));
+    press(&mut app, KeyCode::Down);
+    assert_eq!(app.tree_state.selected(), Some(1));
+}
+
+#[test]
+fn the_splash_closes_by_itself_in_time() {
+    let (_tmp, mut app) = sample();
+    let start = std::time::Instant::now();
+    app.splash = Some(start + SPLASH);
+    app.splash_tick(start + SPLASH / 2);
+    assert!(app.splash.is_some());
+    app.splash_tick(start + SPLASH);
+    assert_eq!(app.splash, None);
+}
+
+#[test]
 fn filespec_prompt_filters_files() {
     let (_tmp, mut app) = sample();
     assert_eq!(names(&app), ["a.rs", "b.txt"]);
