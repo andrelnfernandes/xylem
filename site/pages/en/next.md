@@ -4,24 +4,19 @@
 <p class="section-lead">Planned, and most of it already designed. Follow the project on GitHub to see each one land.</p>
 <div class="features soon">
 <div class="feature">
+<p class="badge">Next release</p>
+<h3>Already done</h3>
+<p>Writing on remote machines: copy there, move, rename, delete, prune, make directories, change permissions and dates, and find duplicates there. Containers without sshd, with <code>docker://</code>. Tag, delete and prune right from the Usage view. Large clouds without a blank screen.</p>
+</div>
+<div class="feature">
 <p class="badge">Planned</p>
-<h3>Writing to remote machines</h3>
-<p>Today the remote side is read-only. Next: copy to it, move, rename and delete there, make directories and change permissions and dates; then edit and open its files through a temporary copy, run commands and Git over ssh, and refresh on its own.</p>
+<h3>The rest of remote machines</h3>
+<p>Edit and open their files through a temporary copy that goes back when saved, run commands and Git over ssh, and refresh on its own.</p>
 </div>
 <div class="feature">
 <p class="badge">Planned</p>
 <h3>A viewer that reads more</h3>
 <p>A viewer that reads in windows, like <code>less</code>, with no size limit, and logs that follow and color by level.</p>
-</div>
-<div class="feature">
-<p class="badge">Planned</p>
-<h3>Acting on disk usage</h3>
-<p>Tag, delete, prune and view right from the Usage view.</p>
-</div>
-<div class="feature">
-<p class="badge">Planned</p>
-<h3>Faster on large clouds</h3>
-<p>The root of a large Drive without a blank screen, and Branch, Usage and Compare asking rclone for the whole branch at once.</p>
 </div>
 <div class="feature">
 <p class="badge">Planned</p>
@@ -34,4 +29,3 @@
 <p>The leftovers of the security pass: fewer ways for a hostile repository or archive to slow Xylem down or run a command. Listed in the <a href="https://github.com/andrelnfernandes/xylem/blob/main/BACKLOG.md">backlog</a>.</p>
 </div>
 </div>
-
