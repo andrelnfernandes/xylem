@@ -94,9 +94,13 @@ as a link is what `cp -a` and `rsync -l` do).
   for daemons on other machines. No date yet.
 - Postponed by choice: macros, chown, Graft. macOS: to look at again when there
   is a machine to test on.
+- **The mouse, as a complement** ([docs/plans/mouse.md](docs/plans/mouse.md)):
+  a click picks a folder or a file, a click on the other window makes it active,
+  the wheel scrolls. An option in F12, off by default (capturing the mouse takes
+  text selection away from the terminal). No date yet.
 - Left out by decision: Xylem in its own window, external converters, HTML in the
-  viewer, a treemap, the mouse, and what of ZTreeWin serves parity more than use
-  (Wash, Volume, Hide, video commands).
+  viewer, a treemap, and what of ZTreeWin serves parity more than use (Wash,
+  Volume, Hide, video commands).
 - **New file viewers** ([docs/plans/viewers.md](docs/plans/viewers.md)):
   six subprojects, security first. Done: subproject 1 (encodings, compressed
   files, the size limit; PRs #44 to #49), and the table mode with SQLite and the
@@ -106,8 +110,10 @@ as a link is what `cp -a` and `rsync -l` do).
 - **Rendered Markdown in the viewer**
   ([docs/plans/markdown.md](docs/plans/markdown.md)): done, on `.md` and
   `.markdown`. Still open: the help's small parser could move to the same
-  parser one day (it also feeds the man page); icons with Nerd Fonts were left
-  out on purpose, because they add nothing to the rendering itself.
+  parser one day (it also feeds the man page); pros, cons and a middle way in
+  [docs/plans/help-markdown.md](docs/plans/help-markdown.md), not decided. Icons
+  with Nerd Fonts were left out on purpose, because they add nothing to the
+  rendering itself.
 - **Batch over files and records** ([docs/plans/batch.md](docs/plans/batch.md)):
   complete. Left for when they are missed: Parquet and XLSX as outputs. Records into
   `.bat`/`.cmd` wait for item 2 of Security.

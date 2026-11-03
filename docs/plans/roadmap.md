@@ -91,6 +91,9 @@ Não concorre com as frentes acima, e cada item é pequeno:
 
 ## Sem data
 
+- **Mouse como complemento** ([mouse.md](mouse.md)): clique para escolher pasta ou
+  arquivo, clique para trocar de janela, roda para rolar. Opção no F12, desligada por
+  padrão, porque capturar o mouse tira a seleção de texto do terminal. Uma fatia.
 - **Cockpit de programação** ([cockpit.md](cockpit.md)): rascunho. Primeiro busca no
   projeto, lista de locais e editor na linha certa. Fica para um release depois da 0.6.0;
   a ordem em relação às frentes acima ainda será decidida.
@@ -110,5 +113,6 @@ Não concorre com as frentes acima, e cada item é pequeno:
 ## Fora, por decisão
 
 Conversores externos (o mais arriscado, e `O` e `X` já cobrem o uso), Xylem em janela
-própria, HTML no viewer, treemap, mouse e o resto da lista do ZTreeWin que serve mais à
-paridade do que ao uso (Wash, Volume, Hide, comandos de vídeo).
+própria, HTML no viewer, treemap e o resto da lista do ZTreeWin que serve mais à
+paridade do que ao uso (Wash, Volume, Hide, comandos de vídeo). O mouse saiu desta
+lista em 2026-11-02: entra como complemento, em "Sem data".
