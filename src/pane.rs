@@ -680,12 +680,24 @@ impl Pane {
     /// With `disk` (its mount point, and every mount point there is), only
     /// what is on that disk: a folder where another file system is mounted
     /// takes its branch out, as does what is above the disk. So `/proc`
-    /// (whose `kcore` "has" 128 TiB) never adds to the disk of `/`.
+    /// (whose `kcore` "has" 128 TiB) never adds to the disk of `/`. On one
+    /// disk, a file with other hard links counts its bytes once in Logged and
+    /// Matching, as `du` does, so that they stay within what the disk holds;
+    /// Tagged counts each name, as a copy would.
     pub fn disk_stats(&self, disk: Option<(&Path, &HashSet<PathBuf>)>) -> DiskStats {
         let mut stats = DiskStats::default();
         let add = |t: &mut Count, f: &FileEntry| {
             t.files += 1;
             t.bytes += f.size;
+        };
+        // Inodes already counted, per total: on one disk an inode is one file.
+        let mut seen: [HashSet<u64>; 2] = Default::default();
+        let mut add_once = |t: &mut Count, f: &FileEntry, which: usize| {
+            t.files += 1;
+            match f.link {
+                Some(inode) if disk.is_some() && !seen[which].insert(inode) => {}
+                _ => t.bytes += f.size,
+            }
         };
         let root_path = self.tree.path(ROOT);
         let on_root = match disk {
@@ -704,12 +716,12 @@ impl Pane {
             let node = self.tree.node(id);
             if node.scanned && on_disk {
                 for f in &node.files {
-                    add(&mut stats.logged, f);
+                    add_once(&mut stats.logged, f, 0);
                     if !visible || (!self.tree.show_hidden && f.is_hidden()) {
                         continue;
                     }
                     if self.filespec.matches_entry(f) {
-                        add(&mut stats.matching, f);
+                        add_once(&mut stats.matching, f, 1);
                     }
                     if f.tagged {
                         add(&mut stats.tagged, f);
@@ -898,6 +910,27 @@ mod tests {
         let stats = pane.disk_stats(None);
         assert_eq!(stats.logged, count(4, 22));
         assert_eq!(stats.matching, count(2, 13));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn on_one_disk_a_hard_link_counts_its_bytes_once() {
+        let tmp = crate::testing::tempdir();
+        std::fs::write(tmp.path().join("a.rs"), "0123456789").unwrap();
+        std::fs::hard_link(tmp.path().join("a.rs"), tmp.path().join("b.rs")).unwrap();
+        let mut pane = Pane::new(tmp.path().to_path_buf());
+        let count = |files, bytes| Count { files, bytes };
+        for f in 0..2 {
+            pane.tree.file_mut(ROOT, f).tagged = true;
+        }
+        let root = pane.tree.path(ROOT);
+        let points: HashSet<PathBuf> = [root.clone()].into();
+        let stats = pane.disk_stats(Some((&root, &points)));
+        assert_eq!(stats.logged, count(2, 10), "two names, one file");
+        assert_eq!(stats.matching, count(2, 10));
+        assert_eq!(stats.tagged, count(2, 20), "a copy writes both");
+        // Without knowing the disk (an archive, a remote machine): each name.
+        assert_eq!(pane.disk_stats(None).logged, count(2, 20));
     }
 
     #[test]

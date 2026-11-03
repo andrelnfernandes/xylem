@@ -9,9 +9,8 @@
 //!  command menu (2 lines)
 //! ```
 
-use std::collections::HashSet;
 use std::ops::Range;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Local};
@@ -1531,16 +1530,7 @@ fn draw_stats(frame: &mut Frame, app: &App, area: Rect) {
     // The statistics of the disk shown above: on this machine, only what is
     // on it (other file systems mounted inside are out); in an archive or on
     // a remote machine, everything logged.
-    let points: HashSet<PathBuf> = crate::platform::mounts()
-        .into_iter()
-        .map(|m| m.point)
-        .collect();
-    let point = crate::info::mount_of(&path).map(|m| m.point);
-    let on_disk = match (&app.remote, &app.archive, &point) {
-        (None, None, Some(point)) => Some((point.as_path(), &points)),
-        _ => None,
-    };
-    let stats = app.disk_stats(on_disk);
+    let (stats, _) = app.disk_stats_at(&path);
     let node = app.tree.node(id);
     let here = node
         .files
