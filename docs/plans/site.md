@@ -56,25 +56,30 @@ nome não é marca registrada do projeto, e "Xylem" é marca de outra empresa.
 
 ## O site
 
-Hoje o site é uma página feita à mão em `site/` (inglês e `pt-br/`), montada por
-`site/build.sh` e publicada pelo `.github/workflows/pages.yml` no GitHub Pages. O manual
-só existe no repositório e na ajuda do F1.
+Antes era uma página feita à mão em `site/` (inglês e `pt-br/`), e o manual só existia no
+repositório e na ajuda do F1. Primeiro o manual entrou em `/manual/` (PR #94); depois, a
+pedido do autor ("tudo com menu lateral"), **o site inteiro virou o livro**.
 
 ### Estrutura
 
-- **A página inicial continua** como apresentação: o que é, capturas, instalar.
-- **O manual entra em `/manual/`**, gerado com **mdBook**, o gerador que o Rust usa nos
-  seus livros e o mesmo do site de referência: menu lateral com os capítulos, busca no
-  navegador, ← e → entre capítulos, tema claro e escuro, sem servidor.
-- **O menu lateral** segue os grupos do `docs/manual/index.md` (Janelas e vistas,
-  Trabalhando com arquivos, …). O mdBook pede um `SUMMARY.md`; ele é **gerado** a partir
-  do `index.md` pelo `build.sh`, para não haver duas listas de capítulos para manter.
-- **Línguas:** o mdBook não tem várias línguas num livro só. Um livro por língua:
-  `/manual/` (inglês), `/manual/pt/`, `/manual/es/`, `/manual/fr/`, `/manual/de/`,
-  `/manual/zh/`, com um seletor de língua no topo (`site/manual/theme/languages.js`)
-  que leva ao mesmo capítulo na outra língua, e um link "Xylem" de volta à página
-  inicial. Uma busca por livro. Tópico sem tradução entra em inglês, como no F1.
-- **Da página inicial ao manual:** um link "Manual" no topo, na língua da página.
+- **Um livro mdBook por língua, o site inteiro:** inglês na raiz, os outros em `/pt/`,
+  `/es/`, `/fr/`, `/de/`, `/zh/`. Menu lateral, busca no navegador, ← e → entre
+  páginas, tema claro e escuro, sem servidor.
+- **O menu lateral** começa pelas páginas do site, em `site/pages/<lang>/` (a abertura,
+  Em ação, Recursos, Telas, Instalar, Em breve, Sobre; vieram da página antiga, com o
+  mesmo HTML e as mesmas classes), e segue com o manual: a parte "Manual" com o índice
+  (`docs/manual/index.md`, publicado como `manual.html`) e os grupos dele (Janelas e
+  vistas, Trabalhando com arquivos, …) como partes. O `SUMMARY.md` é **gerado**, para
+  não haver duas listas de capítulos para manter.
+- **Línguas:** as páginas do site existem em inglês e português; as outras línguas
+  usam as inglesas, e os tópicos sem tradução entram em inglês, como no F1. O seletor
+  de língua no topo (`site/theme/languages.js`) leva à mesma página na outra língua.
+- **Endereços antigos** redirecionam: `/pt-br/` e os livros de antes, `/manual/` e
+  `/manual/<lang>/` (`[output.html.redirect]` do livro inglês).
+- **Imagens** do site uma vez só, em `/assets/`, fora dos livros (`ASSETS/` nas páginas
+  vira o caminho certo de cada língua); as do manual vão para o livro de cada língua.
+- **Cabeçalho do HTML:** descrição e Open Graph (a imagem de compartilhamento) por
+  `theme/head.hbs`, gerado por língua; o ícone do Xylem como favicon.
 
 ### Os arquivos do manual não mudam por causa do site
 
@@ -89,11 +94,11 @@ geram a página do man. Então o site se adapta a eles, nunca o contrário:
 
 ### Montagem e publicação
 
-- `site/manual/book.py` prepara cada língua numa pasta de trabalho dentro da pasta de
-  saída: copia os tópicos, troca só o caminho das imagens (`../screenshots/` vira
+- `site/book.py` prepara cada língua numa pasta de trabalho ao lado da pasta de saída:
+  copia as páginas e os tópicos, troca só o caminho das imagens (`../screenshots/` vira
   `screenshots/`, com as imagens copiadas), gera o `SUMMARY.md` (os títulos são o `#`
-  de cada tópico) e o `book.toml`. `site/build.sh` roda o `mdbook build` de cada uma e
-  junta em `_site/manual/` e `_site/manual/<lang>/`.
+  de cada arquivo), o `theme/` e o `book.toml`. `site/build.sh` roda o `mdbook build`
+  de cada uma e junta em `_site/` e `_site/<lang>/`, mais `_site/assets/`.
 - `pages.yml`: `cargo install mdbook --version 0.5.4 --locked` (versão fixa, com as
   dependências do Cargo.lock dele conferidas pelo checksum do crates.io; mais lento que
   baixar o binário, mas sem checksum para manter à mão), e `docs/manual/**` nos caminhos
@@ -112,6 +117,6 @@ mdBook traz (busca, tema) vem do próprio mdBook; nada de scripts de CDN.
 ## Ordem
 
 1. **Tela de abertura** (pequena, independe do site).
-2. **Site com o manual:** `build.sh`, `book.toml`, tema com seletor de língua,
-   `pages.yml`. Conferir localmente com `sh site/build.sh` e um servidor local.
-3. **"Xylem File Manager"** no título do manual nas 6 línguas.
+2. **Manual no site** (PR #94).
+3. **O site inteiro com menu lateral** (branch `site-sidebar`). Título "Xylem File
+   Manager" nas 6 línguas.
