@@ -24,7 +24,7 @@ anyhow = "1.0.104"
 arboard = { version = "3.7.0", default-features = false, features = ["wayland-data-control"] }
 bzip2 = "0.6"
 bytes = "1"
-calamine = "0.37"
+calamine = "0.38"
 chrono = "0.4.45"
 csv = "1.4"
 dbase = { version = "0.8", default-features = false, features = ["yore"] }
