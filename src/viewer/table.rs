@@ -370,6 +370,31 @@ impl TableGrid {
         }
     }
 
+    /// Width of the row numbers on the left of the grid.
+    pub fn row_number_width(&self) -> usize {
+        self.rows.len().max(1).to_string().len().max(3)
+    }
+
+    /// Moves the first column shown so that the cursor's column is on a
+    /// screen `width` wide: right as far as needed, left back to it. A column
+    /// wider than the screen is shown cut, from its start.
+    pub fn show_cursor_col(&mut self, width: usize) {
+        if self.cursor_col < self.scroll_col {
+            self.scroll_col = self.cursor_col;
+            return;
+        }
+        let width_of = |c: usize| self.col_widths.get(c).copied().unwrap_or(8);
+        // Each column takes its width, a space and "│ ".
+        let start = self.row_number_width() + 3;
+        let fits = |first: usize| {
+            let before: usize = (first..self.cursor_col).map(|c| width_of(c) + 2).sum();
+            start + before + width_of(self.cursor_col) <= width
+        };
+        while self.scroll_col < self.cursor_col && !fits(self.scroll_col) {
+            self.scroll_col += 1;
+        }
+    }
+
     /// Handle cursor navigation key events.
     pub fn handle_key(&mut self, code: KeyCode, page_height: usize) {
         let total_rows = self.visible_row_count();
