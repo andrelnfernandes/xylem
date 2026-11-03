@@ -2647,6 +2647,33 @@ fn info_avail_and_stats_screens() {
 }
 
 #[test]
+#[cfg(unix)]
+fn statistics_count_the_disk_as_the_panel_does() {
+    let (tmp, mut app) = sample();
+    // One plain disk: the one line, everything.
+    let logged = |app: &App| {
+        let text = app.stats_text();
+        text.lines()
+            .skip_while(|l| !l.trim_start().starts_with("Logged"))
+            .take(2)
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
+    let lines = logged(&app);
+    assert!(lines[0].contains("2 dirs, 3 files, 15 bytes"), "{lines:?}");
+    assert!(!lines[1].contains("all logged"), "{lines:?}");
+    // A hard link: the disk counts it once, as the panel does, then all of it.
+    std::fs::hard_link(tmp.path().join("a.rs"), tmp.path().join("link.rs")).unwrap();
+    app.tree.rescan(ROOT);
+    let lines = logged(&app);
+    assert!(lines[0].contains("4 files, 15 bytes on "), "{lines:?}");
+    assert!(
+        lines[1].contains("all logged: 2 dirs, 4 files, 28 bytes"),
+        "{lines:?}"
+    );
+}
+
+#[test]
 fn slash_also_opens_treespec() {
     let (_tmp, mut app, root) = treespec_setup();
     press(&mut app, KeyCode::Char('/'));

@@ -293,10 +293,29 @@ impl App {
         }
     }
 
+    /// The DISK statistics for `path`: on this machine only what is on its
+    /// disk, with that disk's mount point; in an archive or on a remote
+    /// machine, everything logged.
+    pub(crate) fn disk_stats_at(&self, path: &Path) -> (crate::pane::DiskStats, Option<PathBuf>) {
+        let point = match (&self.remote, &self.archive) {
+            (None, None) => info::mount_of(path).map(|m| m.point),
+            _ => None,
+        };
+        let Some(point) = point else {
+            return (self.disk_stats(None), None);
+        };
+        let points: std::collections::HashSet<PathBuf> = crate::platform::mounts()
+            .into_iter()
+            .map(|m| m.point)
+            .collect();
+        (self.disk_stats(Some((&point, &points))), Some(point))
+    }
+
     /// ?: statistics of the active window.
     pub(crate) fn stats_text(&self) -> String {
         let g = info::group;
         let logged = self.tree.logged_totals();
+        let (disk, point) = self.disk_stats_at(&self.current_path());
         let listed: u64 = self.files.iter().map(|&f| self.file(f).size).sum();
         let (tagged, tagged_bytes) = self
             .files
@@ -311,15 +330,32 @@ impl App {
         };
         let mut text = format!("STATISTICS  {}\n\n", self.tree.path(ROOT).display());
         let mut row = |k: &str, v: String| text.push_str(&format!("  {k:<14}{v}\n"));
-        row(
-            "Logged",
-            format!(
-                "{} dirs, {} files, {} bytes",
-                g(logged.dirs),
-                g(logged.files),
-                g(logged.bytes)
-            ),
+        let everything = format!(
+            "{} dirs, {} files, {} bytes",
+            g(logged.dirs),
+            g(logged.files),
+            g(logged.bytes)
         );
+        match point {
+            // As the DISK panel counts: only this disk, each hard link once;
+            // then everything logged, other file systems mounted inside and
+            // every name of a hard link included.
+            Some(point)
+                if (disk.logged.files, disk.logged.bytes) != (logged.files, logged.bytes) =>
+            {
+                row(
+                    "Logged",
+                    format!(
+                        "{} files, {} bytes on {}",
+                        g(disk.logged.files),
+                        g(disk.logged.bytes),
+                        point.display()
+                    ),
+                );
+                row("", format!("all logged: {everything}"));
+            }
+            _ => row("Logged", everything),
+        }
         row("Filespec", self.filespec.text().to_string());
         row("Sort", self.sort.label());
         row(
