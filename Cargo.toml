@@ -1,7 +1,7 @@
 [package]
 # On crates.io "xylem" and "xy" belong to other projects; the command is `xy`.
 name = "xylem-fm"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/andrelnfernandes/xylem"
@@ -23,7 +23,7 @@ path = "src/main.rs"
 anyhow = "1.0.104"
 arboard = { version = "3.7.0", default-features = false, features = ["wayland-data-control"] }
 bzip2 = "0.6"
-calamine = "0.37"
+calamine = "0.38"
 chrono = "0.4.45"
 csv = "1.4"
 dbase = { version = "0.8", default-features = false, features = ["yore"] }
