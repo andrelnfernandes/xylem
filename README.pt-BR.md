@@ -2,7 +2,7 @@
 
 # Xylem
 
-[Site](https://andrelnfernandes.github.io/xylem/pt-br/) · [Read in English](README.md)
+[Site](https://andrelnfernandes.github.io/xylem/pt/) · [Read in English](README.md)
 
 Veja o disco inteiro como uma só árvore, reúna arquivos de qualquer pasta e aja sobre
 todos de uma vez, em qualquer terminal, direto do teclado.
