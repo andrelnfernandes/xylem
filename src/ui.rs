@@ -3583,8 +3583,9 @@ fn draw_viewer_body(frame: &mut Frame, v: &mut Viewer, title: String, area: Rect
     v.width = inner.width as usize;
 
     if v.mode == ViewMode::Table
-        && let Some(t) = &v.table
+        && let Some(t) = &mut v.table
     {
+        t.show_cursor_col(v.width);
         draw_table_grid(frame, t, title, area);
         return;
     }
@@ -3628,6 +3629,25 @@ fn draw_viewer_body(frame: &mut Frame, v: &mut Viewer, title: String, area: Rect
     frame.render_widget(Paragraph::new(lines).block(panel(title, true)), area);
 }
 
+/// How wide a column of the grid is drawn when it starts at `used`: its width,
+/// or None when it does not fit. The first one shown is cut to the screen
+/// instead, so that a column wider than the screen still shows its start.
+fn grid_column_width(
+    grid: &crate::viewer::table::TableGrid,
+    col: usize,
+    used: usize,
+    width: usize,
+) -> Option<usize> {
+    let w = grid.col_widths.get(col).copied().unwrap_or(8);
+    if used + w <= width {
+        Some(w)
+    } else if col == grid.scroll_col && width > used + 1 {
+        Some(width - used - 1)
+    } else {
+        None
+    }
+}
+
 /// Render the tabular grid view for spreadsheets, CSV, DBF and SQLite.
 fn draw_table_grid(
     frame: &mut Frame,
@@ -3644,7 +3664,7 @@ fn draw_table_grid(
     let page_rows = usize::from(inner.height).saturating_sub(viewer::TABLE_CHROME);
     let total_rows = grid.visible_row_count();
     let col_count = grid.headers.len();
-    let row_num_width = (grid.rows.len().max(1)).to_string().len().max(3);
+    let row_num_width = grid.row_number_width();
 
     let mut lines = Vec::new();
 
@@ -3659,10 +3679,9 @@ fn draw_table_grid(
     let max_avail_width = inner.width as usize;
 
     for col_idx in grid.scroll_col..col_count {
-        let w = grid.col_widths.get(col_idx).copied().unwrap_or(8);
-        if current_width + w > max_avail_width {
+        let Some(w) = grid_column_width(grid, col_idx, current_width, max_avail_width) else {
             break;
-        }
+        };
         let header_name = grid.headers.get(col_idx).map(|s| s.as_str()).unwrap_or("");
         let is_selected_col = col_idx == grid.cursor_col;
         let style = if is_selected_col {
@@ -3711,10 +3730,9 @@ fn draw_table_grid(
 
         let mut cur_w = row_num_width + 3;
         for col_idx in grid.scroll_col..col_count {
-            let w = grid.col_widths.get(col_idx).copied().unwrap_or(8);
-            if cur_w + w > max_avail_width {
+            let Some(w) = grid_column_width(grid, col_idx, cur_w, max_avail_width) else {
                 break;
-            }
+            };
             let cell_text = row_data
                 .cells
                 .get(col_idx)
@@ -4462,6 +4480,72 @@ mod tests {
         v.handle_key(KeyEvent::from(KeyCode::Char('x')));
         let text = draw_text(&mut app);
         assert!(text.contains("No sheet has this name"), "{text}");
+    }
+
+    #[test]
+    fn a_wide_table_scrolls_to_the_cursor_column() {
+        use crate::viewer::table::TableRow;
+        use ratatui::{Terminal, backend::TestBackend};
+        // 12 columns of 10 characters: about 5 fit in 60.
+        let headers: Vec<String> = (0..12).map(|i| format!("COLUMN_{i:02}")).collect();
+        let row = TableRow {
+            cells: (0..12).map(|i| format!("value_{i:02}")).collect(),
+        };
+        let mut t = TableGrid::new("t".into(), headers, vec![row]);
+        let draw = |t: &mut TableGrid| {
+            let mut term = Terminal::new(TestBackend::new(60, 8)).unwrap();
+            term.draw(|f| {
+                let area = f.area();
+                t.show_cursor_col(panel("", false).inner(area).width.into());
+                draw_table_grid(f, t, String::new(), area);
+            })
+            .unwrap();
+            let buf = term.backend().buffer();
+            (0..60).map(|x| buf[(x, 1)].symbol()).collect::<String>()
+        };
+        assert!(draw(&mut t).contains("COLUMN_00"));
+        // Right to the last column: the view follows it.
+        for _ in 0..11 {
+            t.handle_key(KeyCode::Right, 4);
+        }
+        let header = draw(&mut t);
+        assert!(header.contains("COLUMN_11"), "{header}");
+        assert!(!header.contains("COLUMN_00"), "{header}");
+        // End and Home too.
+        t.handle_key(KeyCode::Home, 4);
+        assert!(draw(&mut t).contains("COLUMN_00"));
+        t.handle_key(KeyCode::End, 4);
+        assert!(draw(&mut t).contains("COLUMN_11"));
+        // Back left, one column at a time, it stays in view.
+        for _ in 0..11 {
+            t.handle_key(KeyCode::Left, 4);
+            let header = draw(&mut t);
+            assert!(
+                header.contains(&format!("COLUMN_{:02}", t.cursor_col)),
+                "{header}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_column_wider_than_the_screen_still_shows_its_start() {
+        use crate::viewer::table::TableRow;
+        use ratatui::{Terminal, backend::TestBackend};
+        let row = TableRow {
+            cells: vec!["x".repeat(40), "a lot of text here, more than fits".into()],
+        };
+        let mut t = TableGrid::new("t".into(), vec!["A".into(), "B".into()], vec![row]);
+        t.handle_key(KeyCode::Right, 4);
+        let mut term = Terminal::new(TestBackend::new(30, 8)).unwrap();
+        term.draw(|f| {
+            let area = f.area();
+            t.show_cursor_col(panel("", false).inner(area).width.into());
+            draw_table_grid(f, &t, String::new(), area);
+        })
+        .unwrap();
+        let buf = term.backend().buffer();
+        let row: String = (0..30).map(|x| buf[(x, 2)].symbol()).collect();
+        assert!(row.contains("a lot of"), "{row}");
     }
 
     #[test]
