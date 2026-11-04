@@ -134,3 +134,10 @@ postponed by choice (macros, chown).
 - **Symbolic permissions:** A and Ctrl+A take octal only (`755`). They could also
   take `+x` or `u+w`, which change one bit and keep the rest of each tagged file's
   mode, something octal cannot do across files with different modes.
+- **Every drive at a glance:** the statistics panel shows only the disk being
+  browsed. A view listing every mounted drive with its size, free space and how
+  full it is, like a `df` inside Xylem, would show which one is filling up on a
+  machine with many drives, and Enter could log that drive. Suggested in the
+  first comment on the r/rust post (2026-11-03), from someone with a home server
+  of 8 drives. To decide: a view of its own or a page of `?`, and which mounts to
+  leave out (`/proc`, `/sys`, `tmpfs`, snaps).
