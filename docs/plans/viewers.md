@@ -79,7 +79,7 @@ Notas de cada subprojeto:
   (`COPY TO ... SDF`), não o SQL Server Compact. Não é mais tão comum, por
   isso entra como extra. Precisa de um layout, que pode vir da estrutura de
   um DBF ou de um arquivo de layout. O mesmo mecanismo serviria depois para
-  CNAB 240/400.
+  CNAB 240/400. Spec em [sdf.md](sdf.md).
 - **2 — DBF:** o codepage vem do byte 29 do cabeçalho (LDID). Arquivos de
   Clipper costumam ser CP850.
 - **3:** a ideia surgiu porque o limite fixo de 16 MiB é pequeno para
