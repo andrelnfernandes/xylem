@@ -130,7 +130,6 @@ pub fn disk_space(path: &Path) -> Option<DiskSpace> {
     })
 }
 
-/// The mounted file systems, from `/proc/self/mounts`.
 /// Opens `path` for reading without following a link, and without waiting if
 /// it turned into a pipe.
 pub fn open_no_follow(path: &Path) -> io::Result<fs::File> {
@@ -142,22 +141,50 @@ pub fn open_no_follow(path: &Path) -> io::Result<fs::File> {
         .open(path)
 }
 
+/// The mounted file systems, from `/proc/self/mounts`.
 pub fn mounts() -> Vec<Mount> {
-    let text = fs::read_to_string("/proc/self/mounts").unwrap_or_default();
-    text.lines()
+    parse_mounts(&fs::read("/proc/self/mounts").unwrap_or_default())
+}
+
+fn parse_mounts(text: &[u8]) -> Vec<Mount> {
+    use std::os::unix::ffi::OsStringExt;
+    text.split(|&b| b == b'\n')
         .filter_map(|line| {
-            let fields: Vec<&str> = line.split_whitespace().collect();
-            let [source, point, fstype, ..] = fields[..] else {
-                return None;
-            };
-            // "\040" is the space in /proc/mounts names.
+            let mut fields = line
+                .split(|b| b.is_ascii_whitespace())
+                .filter(|f| !f.is_empty());
+            let (source, point, fstype) = (fields.next()?, fields.next()?, fields.next()?);
             Some(Mount {
-                source: source.replace("\\040", " "),
-                point: PathBuf::from(point.replace("\\040", " ")),
-                fstype: fstype.to_string(),
+                source: String::from_utf8_lossy(&unescape_mount(source)).into_owned(),
+                point: PathBuf::from(std::ffi::OsString::from_vec(unescape_mount(point))),
+                fstype: String::from_utf8_lossy(fstype).into_owned(),
             })
         })
         .collect()
+}
+
+/// The kernel writes a space, tab, new line and backslash in a
+/// `/proc/mounts` field as `\NNN` in octal (`\040`, `\134`...). Anything else
+/// that looks like an escape is kept as it is.
+fn unescape_mount(field: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(field.len());
+    let mut i = 0;
+    while i < field.len() {
+        let code = field.get(i + 1..i + 4).filter(|d| {
+            field[i] == b'\\' && d[0] <= b'3' && d.iter().all(|c| (b'0'..=b'7').contains(c))
+        });
+        match code {
+            Some(d) => {
+                out.push(d.iter().fold(0u8, |n, c| n * 8 + (c - b'0')));
+                i += 4;
+            }
+            None => {
+                out.push(field[i]);
+                i += 1;
+            }
+        }
+    }
+    out
 }
 
 /// "user:group" of `path` (not following symlinks), for the Owner display of
@@ -427,6 +454,40 @@ mod tests {
             .map(|ip| ip.to_string())
             .collect();
         assert_eq!(dns, ["10.0.0.53", "::1"]);
+    }
+
+    #[test]
+    fn mounts_are_read_with_their_escapes() {
+        let text = b"/dev/sdc / ext4 rw,relatime 0 0\n\
+            \\134\\13410.51.200.61\\134html$ /mnt/html 9p rw,aname=drvfs;path=UNC\\10.51.200.61\\html$ 0 0\n\
+            C:\\134 /mnt/c 9p rw,aname=drvfs;path=C:\\ 0 0\n\
+            gdrive: /home/a/My\\040Drive fuse.rclone rw 0 0\n\
+            short line\n\n";
+        let mounts = parse_mounts(text);
+        let found: Vec<(&str, &Path, &str)> = mounts
+            .iter()
+            .map(|m| (m.source.as_str(), m.point.as_path(), m.fstype.as_str()))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                ("/dev/sdc", Path::new("/"), "ext4"),
+                (r"\\10.51.200.61\html$", Path::new("/mnt/html"), "9p"),
+                (r"C:\", Path::new("/mnt/c"), "9p"),
+                ("gdrive:", Path::new("/home/a/My Drive"), "fuse.rclone"),
+            ]
+        );
+    }
+
+    #[test]
+    fn only_whole_octal_escapes_are_decoded() {
+        let un = |s: &str| unescape_mount(s.as_bytes());
+        assert_eq!(un(r"a\011b\012c\134d"), b"a\tb\nc\\d");
+        assert_eq!(un(r"\377"), [0xff], "the largest byte");
+        // Over a byte, not octal, cut short: kept as they are.
+        for kept in [r"\400", r"\08", r"\9", r"\04", r"end\", r"\\"] {
+            assert_eq!(un(kept), kept.as_bytes(), "{kept}");
+        }
     }
 
     #[cfg(target_os = "linux")]

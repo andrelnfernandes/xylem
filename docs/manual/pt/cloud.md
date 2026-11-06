@@ -112,6 +112,26 @@ erro 403, mais abaixo.
   vazio pode desaparecer quando desmontado, e renomear ou mover um diretório
   copia e exclui cada arquivo dentro dele.
 
+## Compartilhamentos de rede (SMB, WSL)
+
+A árvore também lê em segundo plano numa pasta compartilhada pela rede: SMB
+(`cifs`), SSHFS, WebDAV (`davfs`) e, no WSL, um compartilhamento do Windows
+montado pelo caminho UNC:
+
+```
+sudo mount -t drvfs '\\servidor\compartilhamento$' /mnt/compartilhamento
+```
+
+Lá, como numa montagem do rclone, a lista de arquivos não mostra as letras do Git
+(Ctrl+G continua funcionando), o que muda em outro lugar aparece depois do F3, e o
+Treespec não espera uma pasta que está sendo lida: o cursor segue o que você
+digita conforme as pastas chegam. `/`, Tab e Enter continuam esperando a sua
+leitura. `*`, Branch e Usage leem pasta por pasta, com progresso e Esc.
+
+Não reconhecido: um compartilhamento mapeado numa letra de unidade no Windows
+(`mount -t drvfs Z: /mnt/z`) parece um disco local visto do Linux; monte-o pelo
+caminho UNC. NFS é lido como disco local.
+
 ## Quando o serviço recusa: erro 403
 
 O Google Drive limita quantos pedidos aceita por minuto. Em um Drive

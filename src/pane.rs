@@ -408,7 +408,7 @@ impl Pane {
     /// Moves the tree cursor to `path`, reading and expanding the path.
     /// Stops at the last existing directory; returns whether it reached the target.
     pub fn goto(&mut self, path: &Path) -> bool {
-        match self.walk(path) {
+        match self.walk(path, true) {
             Some((id, reached)) => {
                 self.show_node(id);
                 reached
@@ -420,14 +420,20 @@ impl Pane {
     /// Finds the directory for `path` in the tree, reading what is missing from disk,
     /// the one it reaches included (Treespec completes from its subdirectories).
     /// Returns the deepest one that exists and whether it got all the way; `None` if
-    /// the path is outside the tree.
-    fn walk(&mut self, path: &Path) -> Option<(NodeId, bool)> {
+    /// the path is outside the tree. Without `wait`, a directory not read yet on a
+    /// slow mount is asked for in the background, and the walk stops there.
+    fn walk(&mut self, path: &Path, wait: bool) -> Option<(NodeId, bool)> {
         let rel = path.strip_prefix(self.tree.path(ROOT)).ok()?;
         let mut cur = ROOT;
         for comp in rel.components() {
             let Component::Normal(name) = comp else {
                 continue;
             };
+            if !wait && !self.tree.node(cur).scanned && self.tree.reads_slowly(&self.tree.path(cur))
+            {
+                self.tree.touch(cur);
+                return Some((cur, false));
+            }
             self.tree.scan(cur);
             let node = self.tree.node(cur);
             match node
@@ -446,7 +452,8 @@ impl Pane {
     /// Puts the tree cursor on `id`, expanding the path to it.
     pub fn show_node(&mut self, id: NodeId) {
         self.tree.reveal(id);
-        self.tree.scan(id);
+        // On a slow mount, in the background: the window says it is reading.
+        self.tree.touch(id);
         if self.current() != id {
             self.refresh_rows(id);
             self.file_state.select(Some(0));
@@ -455,14 +462,26 @@ impl Pane {
     }
 
     /// Treespec: the directory for a half-typed path, where the last
-    /// piece is the start of a name (`/home/an` → `/home/andre`).
-    pub fn treespec_target(&mut self, text: &str) -> Option<NodeId> {
+    /// piece is the start of a name (`/home/an` → `/home/andre`). While typing
+    /// (`wait` false), it stops at a slow directory still being read.
+    pub fn treespec_target(&mut self, text: &str, wait: bool) -> Option<NodeId> {
         let (dir, partial) = split_partial(text);
-        let (node, reached) = self.walk(Path::new(dir))?;
+        let (node, reached) = self.walk(Path::new(dir), wait)?;
         if !reached || partial.is_empty() {
             return Some(node);
         }
+        self.treespec_read(node, wait);
         Some(self.treespec_match(node, partial).unwrap_or(node))
+    }
+
+    /// Reads the directory where the last piece is looked for: on a slow
+    /// mount, without `wait`, in the background (it has no names until then).
+    fn treespec_read(&mut self, dir: NodeId, wait: bool) {
+        if wait {
+            self.tree.scan(dir);
+        } else {
+            self.tree.touch(dir);
+        }
     }
 
     /// First subdirectory of `parent` whose name starts with `partial`
@@ -498,9 +517,10 @@ impl Pane {
         if partial.is_empty() {
             return None;
         }
-        let (parent, true) = self.walk(Path::new(dir))? else {
+        let (parent, true) = self.walk(Path::new(dir), true)? else {
             return None;
         };
+        self.treespec_read(parent, true);
         let target = self.treespec_match(parent, partial)?;
         Some(format!(
             "{dir}{}",
@@ -512,9 +532,10 @@ impl Pane {
     /// level (Tab / Shift+Tab).
     pub fn treespec_sibling(&mut self, text: &str, forward: bool) -> Option<String> {
         let (dir, partial) = split_partial(text);
-        let (parent, true) = self.walk(Path::new(dir))? else {
+        let (parent, true) = self.walk(Path::new(dir), true)? else {
             return None;
         };
+        self.treespec_read(parent, true);
         let choices = self.treespec_choices(parent, partial);
         if choices.is_empty() {
             return None;
@@ -945,18 +966,20 @@ mod tests {
         let mut pane = Pane::new(tmp.path().to_path_buf());
         let name = |pane: &Pane, id| pane.tree.node(id).name.to_string_lossy().into_owned();
 
-        let id = pane.treespec_target(&format!("{root}/do")).unwrap();
+        let id = pane.treespec_target(&format!("{root}/do"), false).unwrap();
         assert_eq!(name(&pane, id), "Docs", "case-insensitive, first in order");
-        let id = pane.treespec_target(&format!("{root}/dow")).unwrap();
+        let id = pane.treespec_target(&format!("{root}/dow"), false).unwrap();
         assert_eq!(name(&pane, id), "downloads");
-        let id = pane.treespec_target(&format!("{root}/Docs/n")).unwrap();
+        let id = pane
+            .treespec_target(&format!("{root}/Docs/n"), false)
+            .unwrap();
         assert_eq!(name(&pane, id), "notes");
-        let id = pane.treespec_target(&format!("{root}/.c")).unwrap();
+        let id = pane.treespec_target(&format!("{root}/.c"), false).unwrap();
         assert_eq!(name(&pane, id), ".config");
         // Nothing matches: stays in the parent directory.
-        let id = pane.treespec_target(&format!("{root}/zz")).unwrap();
+        let id = pane.treespec_target(&format!("{root}/zz"), false).unwrap();
         assert_eq!(id, ROOT);
-        assert!(pane.treespec_target("/fora/da/arvore").is_none());
+        assert!(pane.treespec_target("/fora/da/arvore", false).is_none());
 
         assert_eq!(
             pane.treespec_complete(&format!("{root}/do")),
@@ -1029,6 +1052,25 @@ mod tests {
         assert_eq!(pane.display, FileDisplay::LongNames);
         pane.cycle_display();
         assert_eq!(pane.display, FileDisplay::Names);
+    }
+
+    #[test]
+    fn treespec_does_not_wait_for_a_slow_folder_until_enter() {
+        let tmp = crate::testing::tempdir();
+        create_dir_all(tmp.path().join("Docs/rust")).unwrap();
+        let root = tmp.path().to_string_lossy().into_owned();
+        let mut pane = Pane::slow(tmp.path().to_path_buf());
+        let text = format!("{root}/Docs/ru");
+        // Typing: the root is still on its way, so the cursor stays there.
+        assert_eq!(pane.treespec_target(&text, false), Some(ROOT));
+        assert!(
+            !pane.tree.node(ROOT).scanned,
+            "nothing read on the screen's thread"
+        );
+        assert!(pane.tree.is_reading(ROOT));
+        // Enter: reads what is missing, one folder per level, to the end.
+        let id = pane.treespec_target(&text, true).unwrap();
+        assert_eq!(pane.tree.node(id).name, "rust");
     }
 
     #[test]
