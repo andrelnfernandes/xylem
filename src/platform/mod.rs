@@ -39,6 +39,22 @@ pub struct Mount {
     pub fstype: String,
 }
 
+impl Mount {
+    /// Each read here goes through a network, slow enough to hold the screen:
+    /// a cloud folder (rclone), an SMB, SSH or WebDAV share. Under WSL, `9p` and
+    /// `drvfs` also serve the Windows drives (`C:\`, fast); only a UNC source
+    /// (`\\server\share`) is a share. NFS is left out on purpose: it is often
+    /// `$HOME`, on a LAN, and reading it in the background would turn off the
+    /// automatic Git status there.
+    pub fn reads_slowly(&self) -> bool {
+        match self.fstype.as_str() {
+            "9p" | "drvfs" => self.source.starts_with(r"\\"),
+            "fuse.rclone" | "cifs" | "smb3" | "smbfs" | "fuse.sshfs" | "davfs" => true,
+            _ => false,
+        }
+    }
+}
+
 /// Physical memory or swap, in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Memory {
@@ -435,6 +451,36 @@ mod test_trash {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn network_shares_read_slowly_and_local_drives_do_not() {
+        let mount = |source: &str, fstype: &str| Mount {
+            source: source.into(),
+            point: PathBuf::from("/mnt/x"),
+            fstype: fstype.into(),
+        };
+        for (source, fstype) in [
+            (r"\\10.51.200.61\html$", "9p"),
+            (r"\\server\share", "drvfs"),
+            ("//server/share", "cifs"),
+            ("//server/share", "smb3"),
+            ("gdrive:", "fuse.rclone"),
+            ("user@host:/srv", "fuse.sshfs"),
+            ("https://dav.example/", "davfs"),
+        ] {
+            assert!(mount(source, fstype).reads_slowly(), "{source} {fstype}");
+        }
+        for (source, fstype) in [
+            (r"C:\", "9p"),
+            (r"D:\", "drvfs"),
+            ("drivers", "9p"),
+            ("server:/home", "nfs4"),
+            ("/dev/sda1", "ext4"),
+            ("tmpfs", "tmpfs"),
+        ] {
+            assert!(!mount(source, fstype).reads_slowly(), "{source} {fstype}");
+        }
+    }
 
     #[cfg(unix)]
     #[test]

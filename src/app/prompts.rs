@@ -618,11 +618,15 @@ impl App {
                         .map_err(|e| format!("Cannot create archive: {e}"))
                 }
             }
-            // Navigation already happened while typing; outside the tree,
-            // it becomes a Log.
             PromptKind::ExportDuplicates => self.export_duplicates(&text),
-            PromptKind::Treespec { .. } => match self.treespec_target(&text) {
-                Some(_) => Ok(()),
+            // Navigation already happened while typing; Enter waits for what
+            // was still being read, to get to the end. Outside the tree, it
+            // becomes a Log.
+            PromptKind::Treespec { .. } => match self.treespec_target(&text, true) {
+                Some(id) => {
+                    self.show_node(id);
+                    Ok(())
+                }
                 None => self.log(&text),
             },
             PromptKind::SearchTagged { mut spec } => {

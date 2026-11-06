@@ -678,8 +678,21 @@ impl App {
 
     /// Puts on screen what the windows read in the background.
     pub fn apply_reads(&mut self) {
+        let waiting = self.tree.reading();
         for pane in &mut self.panes {
             pane.apply_reads();
+        }
+        // The Treespec stopped at a folder being read: goes on with what
+        // is typed.
+        if waiting
+            && let Some(Prompt {
+                kind: PromptKind::Treespec { .. },
+                input,
+                ..
+            }) = &self.prompt
+        {
+            let text = input.text.clone();
+            self.treespec_follow(&text);
         }
         if let Some(picker) = &mut self.picker {
             picker.apply_reads();

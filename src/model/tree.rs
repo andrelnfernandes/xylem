@@ -304,12 +304,13 @@ impl Tree {
         tree
     }
 
-    /// Each read here is a request to a service: a folder mounted by rclone.
+    /// Each read here goes through a network: a folder mounted by rclone, an
+    /// SMB share (see [`platform::Mount::reads_slowly`]).
     pub fn reads_slowly(&self, path: &Path) -> bool {
         self.always_slow
             || (self.lister.is_none()
                 && !self.is_virtual
-                && crate::info::mount_of(path).is_some_and(|m| m.fstype == "fuse.rclone"))
+                && crate::info::mount_of(path).is_some_and(|m| m.reads_slowly()))
     }
 
     /// Asks for `id` to be read in the background, first of all.
