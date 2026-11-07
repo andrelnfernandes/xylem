@@ -92,8 +92,8 @@ sur l'erreur 403 plus bas.
   d'autres dossiers que le montage, ils lisent dossier par dossier. Seul `*`
   déplie l'arbre.
 - **L'écran n'attend pas.** L'arbre s'affiche aussitôt et se remplit à mesure que
-  les dossiers arrivent, aussi en ouvrant un dossier (→ ou `+`) ou en y amenant le
-  curseur ; la fenêtre de fichiers indique `reading...` entre-temps. F3 et l'accès
+  les dossiers arrivent, aussi en ouvrant un dossier (→ ou `+`) ; la fenêtre de
+  fichiers indique `reading...` entre-temps. F3 et l'accès
   à un chemin saisi attendent toujours leur lecture.
 - **Les modifications faites ailleurs** (dans le navigateur, sur le téléphone)
   n'apparaissent qu'après F3, et une fois le cache de répertoires expiré

@@ -8,9 +8,9 @@ La ventana de archivos debajo lista los archivos del directorio bajo el cursor.
 | Tecla | Qué hace |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | mover el cursor |
-| → o `+` | expandir el directorio |
+| → o `+` | registrar el directorio, si aún no lo está, y expandirlo: aparecen sus archivos, y sus subdirectorios se listan sin registrar |
 | ← | contraerlo (o ir al directorio padre) |
-| `-` | liberar la rama de la memoria: lo leído debajo se descarta, con las marcas, y el directorio se vuelve a leer |
+| `-` | liberar la rama de la memoria: lo leído en ella se descarta, con las marcas, y el directorio queda sin registrar |
 | Backspace | ir al directorio padre |
 | Space | bajar una línea |
 | Shift+letra, 0–9 | siguiente directorio que empieza por ese carácter |
@@ -18,17 +18,22 @@ La ventana de archivos debajo lista los archivos del directorio bajo el cursor.
 | Enter o Tab | ir a la ventana de archivos (Tab cambia de ventana en [pantalla dividida](split.md)) |
 
 En el árbol, un `+` en el conector (`├─+`) indica un directorio contraído que
-tiene subdirectorios.
+tiene subdirectorios, y un `?` (`├─?`), uno aún sin registrar, del que no se
+sabe si tiene subdirectorios.
 
 ## Registro de directorios
 
-Los directorios se leen a medida que los abres. `*` registra y expande toda la
-rama bajo el cursor; durante una lectura larga, el progreso se muestra en el
-pie de página y `Esc` cancela. **F3** (o F2) vuelve a leer el directorio del
-disco. Xylem también vigila el directorio actual de cada ventana y lo vuelve a
-leer por su cuenta cuando otro programa lo modifica (como máximo una vez cada
-medio segundo, tras cualquier operación en curso); los demás directorios siguen
-necesitando F3.
+Un directorio solo se lee cuando lo pides. Llevar el cursor a uno sin registrar
+muestra `Not logged` en la ventana de archivos, y → o `+` lo registra. Al
+abrir, y con `L`, la raíz se registra y se expande; sus subdirectorios, no. Ir
+a un directorio por su ruta ([Treespec](treespec.md)) también lo registra.
+
+`*` registra y expande toda la rama bajo el cursor; durante una lectura larga,
+el progreso se muestra en el pie de página y `Esc` cancela. **F3** (o F2) vuelve
+a leer el directorio del disco. Xylem también vigila el directorio actual de
+cada ventana y lo vuelve a leer por su cuenta cuando otro programa lo modifica
+(como máximo una vez cada medio segundo, tras cualquier operación en curso); los
+demás directorios siguen necesitando F3.
 
 `L` ([Log](treespec.md)) abre otro directorio en la ventana.
 

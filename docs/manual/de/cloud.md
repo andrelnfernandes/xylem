@@ -95,8 +95,8 @@ Fehler 403 weiter unten.
   unverändert. Schlägt rclone fehl oder zeigt es andere Ordner als die Einhängung,
   lesen sie Ordner für Ordner. Nur `*` klappt den Baum auf.
 - **Der Bildschirm wartet nicht.** Der Baum erscheint sofort und füllt sich, sobald
-  die Ordner eintreffen, auch beim Öffnen (→ oder `+`) oder wenn der Cursor dorthin
-  geht; das Dateifenster zeigt so lange `reading...`. F3 und das Springen zu einem
+  die Ordner eintreffen, auch beim Öffnen (→ oder `+`); das Dateifenster zeigt so
+  lange `reading...`. F3 und das Springen zu einem
   eingetippten Pfad warten weiterhin auf ihren Lesevorgang.
 - **Anderswo vorgenommene Änderungen** (im Browser, auf dem Smartphone)
   erscheinen erst nach F3 und nachdem der Verzeichnis-Cache abgelaufen ist

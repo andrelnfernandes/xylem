@@ -91,6 +91,8 @@ fn filespec_prompt_filters_files() {
 #[test]
 fn showall_lists_logged_files_sorted() {
     let (_tmp, mut app) = sample();
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Char('+')); // sub
     app.apply(Command::Showall);
     assert_eq!(app.focus, Focus::Files);
     // "deep" has not been logged yet.
@@ -429,6 +431,8 @@ fn tag_untag_and_invert() {
 #[test]
 fn ctrl_t_in_tree_tags_all_logged_matching_files() {
     let (_tmp, mut app) = sample();
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Char('+')); // sub
     app.filespec = Filespec::parse("*.rs").unwrap();
     ctrl(&mut app, 't');
     app.apply(Command::Showall);
@@ -460,14 +464,63 @@ fn minus_releases_the_branch_and_its_tags() {
             .ends_with("(2 tags dropped)")
     );
     assert_eq!(app.tree_state.selected(), Some(1), "cursor stays on sub");
-    assert!(tagged(&app).is_empty(), "sub/c.rs was read again");
-    assert_eq!(app.logged_matching_files().len(), 3, "sub/deep unlogged");
+    assert!(app.files.is_empty(), "sub is not logged any more");
+    assert_eq!(
+        app.logged_matching_files().len(),
+        2,
+        "sub and sub/deep unlogged"
+    );
     assert_eq!(logged_tagged(&app), 2, "a.rs and b.txt keep their tags");
 
     // Ctrl+T reaches only what is logged; * logs sub/deep again.
     press(&mut app, KeyCode::Char('*'));
     assert_eq!(app.logged_matching_files().len(), 4);
     assert_eq!(logged_tagged(&app), 2);
+}
+
+#[test]
+fn moving_the_cursor_does_not_log_a_folder() {
+    let (_tmp, mut app) = sample();
+    press(&mut app, KeyCode::Down); // sub
+    let sub = app.current();
+    assert!(!app.tree.node(sub).scanned);
+    assert!(app.files.is_empty());
+
+    // + logs it: its files show, and the folder below it is not logged.
+    press(&mut app, KeyCode::Char('+'));
+    assert_eq!(names(&app), ["c.rs"]);
+    let deep = app.tree.node(sub).children[0];
+    assert!(!app.tree.node(deep).scanned);
+    press(&mut app, KeyCode::Down); // sub/deep
+    assert!(app.files.is_empty());
+}
+
+#[test]
+fn a_folder_not_logged_says_so() {
+    use ratatui::{Terminal, backend::TestBackend};
+    let (_tmp, mut app) = sample();
+    press(&mut app, KeyCode::Down); // sub
+    let screen = |app: &mut App| {
+        let mut term = Terminal::new(TestBackend::new(120, 24)).unwrap();
+        term.draw(|f| crate::ui::draw(f, app)).unwrap();
+        let text: String = term
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect();
+        text
+    };
+    let text = screen(&mut app);
+    assert!(text.contains("Not logged"));
+    assert!(text.contains("└─?"), "nothing known below it");
+    assert!(!text.contains("No matching files"));
+
+    press(&mut app, KeyCode::Char('+'));
+    let text = screen(&mut app);
+    assert!(!text.contains("Not logged"));
+    assert!(text.contains("c.rs"));
 }
 
 #[test]
@@ -521,16 +574,17 @@ fn ctrl_s_in_tree_shows_only_the_tagged_files() {
 #[test]
 fn copy_tagged_files_to_directory() {
     let (tmp, mut app) = sample();
+    let dest = tmp.path().join("sub");
+    let sub = app.tree.find(&dest).unwrap();
+    app.tree.scan(sub);
     press(&mut app, KeyCode::Enter);
     ctrl(&mut app, 't');
     ctrl(&mut app, 'c');
-    let dest = tmp.path().join("sub");
     answer_prompt(&mut app, dest.to_str().unwrap());
 
     assert!(dest.join("a.rs").exists() && dest.join("b.txt").exists());
     assert!(app.message.as_deref().unwrap().starts_with("Copied 2 of 2"));
     // The tree already shows the new files in sub/.
-    let sub = app.tree.find(&dest).unwrap();
     assert_eq!(app.tree.node(sub).files.len(), 3);
     // Tags remain at the source.
     assert_eq!(tagged(&app).len(), 2);
@@ -1075,6 +1129,7 @@ fn copy_defaults_to_other_pane_and_refreshes_both() {
     press(&mut app, KeyCode::F(8));
     press(&mut app, KeyCode::Tab);
     press(&mut app, KeyCode::Down); // window 2 in sub/
+    press(&mut app, KeyCode::Char('+'));
     press(&mut app, KeyCode::Tab);
 
     press(&mut app, KeyCode::Enter);
@@ -2652,6 +2707,8 @@ fn info_avail_and_stats_screens() {
 #[cfg(unix)]
 fn statistics_count_the_disk_as_the_panel_does() {
     let (tmp, mut app) = sample();
+    let sub = app.tree.find(&tmp.path().join("sub")).unwrap();
+    app.tree.scan(sub);
     // One plain disk: the one line, everything.
     let logged = |app: &App| {
         let text = app.stats_text();
