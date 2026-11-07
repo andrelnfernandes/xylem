@@ -552,6 +552,8 @@ fn copy_to_missing_folder_asks_to_create_it() {
     assert!(!dest.exists());
 
     press(&mut app, KeyCode::Char('y'));
+    // The copy may outlast the first tick.
+    finish(&mut app);
     assert!(dest.join("a.rs").exists() && dest.join("b.txt").exists());
     assert!(app.message.as_deref().unwrap().starts_with("Copied 2 of 2"));
 }
