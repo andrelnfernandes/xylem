@@ -8,9 +8,9 @@ file window below it lists the files of the directory under the cursor.
 | Key | What it does |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | move the cursor |
-| → or `+` | expand the directory |
+| → or `+` | log the directory, if it is not yet, and expand it: its files show, and its subdirectories are listed, not logged |
 | ← | collapse it (or go to the parent) |
-| `-` | release the branch from memory: what was read below it is dropped, tags included, and the directory is read again |
+| `-` | release the branch from memory: what was read in it is dropped, tags included, and the directory is left not logged |
 | Backspace | go to the parent directory |
 | Space | down one line |
 | Shift+letter, 0–9 | next directory starting with it |
@@ -18,16 +18,21 @@ file window below it lists the files of the directory under the cursor.
 | Enter or Tab | go to the file window (Tab switches windows in [split screen](split.md)) |
 
 In the tree, a `+` on the connector (`├─+`) marks a collapsed directory that has
-subdirectories.
+subdirectories, and a `?` (`├─?`) one not logged yet, whose subdirectories are
+not known.
 
 ## Logging
 
-Directories are read as you open them. `*` logs and expands the whole branch
-under the cursor; during a long log, progress shows in the footer and `Esc`
-cancels. **F3** (or F2) rereads the directory from disk. Xylem also watches the
-current directory of each window and rereads it on its own when another
-program changes it (at most once every half second, after any operation in
-progress); other directories still need F3.
+A directory is read only when you ask for it. Moving the cursor to one that is
+not logged shows `Not logged` in the file window, and → or `+` logs it. At
+start, and with `L`, the root is logged and expanded; its subdirectories are
+not. Going to a directory by its path ([Treespec](treespec.md)) logs it too.
+
+`*` logs and expands the whole branch under the cursor; during a long log,
+progress shows in the footer and `Esc` cancels. **F3** (or F2) rereads the
+directory from disk. Xylem also watches the current directory of each window
+and rereads it on its own when another program changes it (at most once every
+half second, after any operation in progress); other directories still need F3.
 
 `L` ([Log](treespec.md)) opens another directory in the window.
 

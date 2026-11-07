@@ -9,9 +9,9 @@ dem Cursor auf.
 | Taste | Funktion |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | Cursor bewegen |
-| → oder `+` | Verzeichnis aufklappen |
+| → oder `+` | Verzeichnis einlesen, falls noch nicht geschehen, und aufklappen: seine Dateien erscheinen, und seine Unterverzeichnisse werden aufgelistet, noch nicht eingelesen |
 | ← | Verzeichnis zuklappen (oder zum übergeordneten Verzeichnis) |
-| `-` | Zweig aus dem Speicher freigeben: alles darunter Eingelesene wird verworfen, samt Markierungen, und das Verzeichnis neu eingelesen |
+| `-` | Zweig aus dem Speicher freigeben: alles darin Eingelesene wird verworfen, samt Markierungen, und das Verzeichnis bleibt nicht eingelesen |
 | Backspace | zum übergeordneten Verzeichnis wechseln |
 | Space | eine Zeile nach unten |
 | Shift+Buchstabe, 0–9 | nächstes Verzeichnis mit diesem Anfangsbuchstaben |
@@ -19,17 +19,24 @@ dem Cursor auf.
 | Enter oder Tab | zum Dateifenster wechseln (Tab wechselt das Fenster bei [geteiltem Bildschirm](split.md)) |
 
 Im Baum kennzeichnet ein `+` an der Verbindungslinie (`├─+`) ein zugeklapptes
-Verzeichnis, das Unterverzeichnisse enthält.
+Verzeichnis, das Unterverzeichnisse enthält, und ein `?` (`├─?`) ein noch nicht
+eingelesenes, bei dem unbekannt ist, ob es Unterverzeichnisse hat.
 
 ## Einlesen (Logging)
 
-Verzeichnisse werden beim Öffnen eingelesen. `*` liest den gesamten Zweig unter
-dem Cursor ein und klappt ihn auf; bei einem längeren Einlesevorgang wird der
-Fortschritt in der Fußzeile angezeigt und `Esc` bricht ab. **F3** (oder F2)
-liest das Verzeichnis neu von der Festplatte ein. Xylem überwacht außerdem das
-aktuelle Verzeichnis jedes Fensters und liest es automatisch neu ein, wenn ein
-anderes Programm es ändert (höchstens einmal pro halbe Sekunde, nach Abschluss
-laufender Operationen); andere Verzeichnisse benötigen weiterhin F3.
+Ein Verzeichnis wird nur eingelesen, wenn Sie es verlangen. Steht der Cursor auf
+einem nicht eingelesenen, zeigt das Dateifenster `Not logged`, und → oder `+`
+liest es ein. Beim Start und mit `L` wird das Stammverzeichnis eingelesen und
+aufgeklappt, seine Unterverzeichnisse nicht. Das Springen zu einem Verzeichnis
+über seinen Pfad ([Treespec](treespec.md)) liest es ebenfalls ein.
+
+`*` liest den gesamten Zweig unter dem Cursor ein und klappt ihn auf; bei einem
+längeren Einlesevorgang wird der Fortschritt in der Fußzeile angezeigt und `Esc`
+bricht ab. **F3** (oder F2) liest das Verzeichnis neu von der Festplatte ein.
+Xylem überwacht außerdem das aktuelle Verzeichnis jedes Fensters und liest es
+automatisch neu ein, wenn ein anderes Programm es ändert (höchstens einmal pro
+halbe Sekunde, nach Abschluss laufender Operationen); andere Verzeichnisse
+benötigen weiterhin F3.
 
 `L` ([Log](treespec.md)) öffnet ein anderes Verzeichnis im Fenster.
 
