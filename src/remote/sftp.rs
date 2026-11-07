@@ -849,6 +849,7 @@ pub mod tests {
         std::fs::write(dir.join("f"), "f").unwrap();
         assert!(sftp.rmdir(bytes(&dir)).is_err(), "not empty");
         std::fs::remove_file(dir.join("f")).unwrap();
+        crate::testing::wait_for_nfs(&dir);
         sftp.rmdir(bytes(&dir)).unwrap();
         assert!(!dir.exists());
 

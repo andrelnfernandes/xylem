@@ -25,6 +25,12 @@ const CANCEL: &str = "\u{0}cancel";
 /// How long `xy --askpass` waits for the user.
 const WAIT: Duration = Duration::from_secs(600);
 
+/// How long removing the connection's folder waits for a file still open
+/// elsewhere. On NFS a file removed while open (by a process just forked,
+/// before its `exec`) stays as a `.nfs*` until it is closed, milliseconds
+/// later, and until then the folder is not empty.
+const REMOVE_WAIT: Duration = Duration::from_millis(100);
+
 /// The connection's side: where questions show up and answers go.
 pub struct Askpass {
     dir: PathBuf,
@@ -59,7 +65,20 @@ impl Askpass {
 
 impl Drop for Askpass {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.dir);
+        let _ = while_not_empty(REMOVE_WAIT, || fs::remove_dir_all(&self.dir));
+    }
+}
+
+/// Removes again while the folder is not empty, up to `wait`.
+fn while_not_empty(wait: Duration, mut remove: impl FnMut() -> io::Result<()>) -> io::Result<()> {
+    let deadline = Instant::now() + wait;
+    loop {
+        match remove() {
+            Err(e) if e.kind() == io::ErrorKind::DirectoryNotEmpty && Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            result => return result,
+        }
     }
 }
 
@@ -207,6 +226,36 @@ pub fn one_line(question: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_folder_not_empty_for_a_moment_is_removed_again() {
+        let mut tries = 0;
+        let result = while_not_empty(Duration::from_secs(5), || {
+            tries += 1;
+            if tries < 3 {
+                Err(io::ErrorKind::DirectoryNotEmpty.into())
+            } else {
+                Ok(())
+            }
+        });
+        assert!(result.is_ok());
+        assert_eq!(tries, 3);
+    }
+
+    #[test]
+    fn removing_gives_up_on_other_errors_and_after_the_wait() {
+        let mut tries = 0;
+        let denied = while_not_empty(Duration::from_secs(5), || {
+            tries += 1;
+            Err(io::ErrorKind::PermissionDenied.into())
+        });
+        assert_eq!(denied.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(tries, 1);
+        let full = while_not_empty(Duration::from_millis(20), || {
+            Err(io::ErrorKind::DirectoryNotEmpty.into())
+        });
+        assert_eq!(full.unwrap_err().kind(), io::ErrorKind::DirectoryNotEmpty);
+    }
 
     #[test]
     fn a_question_goes_to_xylem_and_the_answer_comes_back() {
