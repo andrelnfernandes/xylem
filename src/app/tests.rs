@@ -552,6 +552,8 @@ fn copy_to_missing_folder_asks_to_create_it() {
     assert!(!dest.exists());
 
     press(&mut app, KeyCode::Char('y'));
+    // The copy may outlast the first tick.
+    finish(&mut app);
     assert!(dest.join("a.rs").exists() && dest.join("b.txt").exists());
     assert!(app.message.as_deref().unwrap().starts_with("Copied 2 of 2"));
 }
@@ -3928,13 +3930,27 @@ fn duplicates_sample() -> (tempfile::TempDir, App) {
     write(p.join("alone.bin"), vec![2u8; 7000]).unwrap();
     let mut app = App::new(p.to_path_buf());
     alt(&mut app, 'y');
-    finish(&mut app);
+    finish_duplicates(&mut app);
     (tmp, app)
 }
 
 fn finish(app: &mut App) {
     while app.busy() {
         app.tick(Duration::from_millis(5));
+    }
+}
+
+/// Waits for Duplicates to compare. With the home on a network (NFS), the
+/// tests' folder is there too, and Duplicates asks before reading: yes.
+fn finish_duplicates(app: &mut App) {
+    finish(app);
+    if app
+        .confirm
+        .as_ref()
+        .is_some_and(|c| matches!(c.kind, ConfirmKind::ReadThroughNetwork(_)))
+    {
+        press(app, KeyCode::Char('y'));
+        finish(app);
     }
 }
 
@@ -4071,7 +4087,7 @@ fn f3_sees_what_changed_after_the_tree_read_it() {
     let (tmp, mut app) = duplicates_sample();
     write(tmp.path().join("alone-too.bin"), vec![2u8; 7000]).unwrap();
     press(&mut app, KeyCode::F(3));
-    finish(&mut app);
+    finish_duplicates(&mut app);
     assert_eq!(app.duplicates.as_ref().unwrap().files.len(), 2);
 }
 
@@ -4104,7 +4120,7 @@ fn usage_d_goes_to_the_duplicates_of_the_folder() {
     alt(&mut app, 'w');
     finish(&mut app);
     press(&mut app, KeyCode::Char('d'));
-    finish(&mut app);
+    finish_duplicates(&mut app);
     assert!(app.usage.is_none());
     assert!(app.duplicates.is_some());
 }

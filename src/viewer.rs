@@ -4287,8 +4287,11 @@ mod tests {
 
     #[test]
     fn a_reading_that_panics_says_so() {
+        // The panic may come before `reading` returns: then there is nothing
+        // left to poll.
         let mut v = reading(|_| panic!("boom"));
-        while !v.poll_table() || v.reading_table() {
+        while v.reading_table() {
+            v.poll_table();
             std::thread::sleep(Duration::from_millis(1));
         }
         assert_eq!(

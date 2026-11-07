@@ -22,3 +22,20 @@ pub fn hide(path: &std::path::Path) {
     crate::platform::set_mode(path, 0x2).unwrap();
     let _ = path;
 }
+
+/// Waits, up to a second, until `dir` holds no `.nfs*`: on NFS a file removed
+/// while open somewhere (by a process another test just forked, before its
+/// `exec`) stays as one until it is closed.
+#[cfg(unix)]
+pub fn wait_for_nfs(dir: &std::path::Path) {
+    use std::time::{Duration, Instant};
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let left = || {
+        std::fs::read_dir(dir).is_ok_and(|mut entries| {
+            entries.any(|e| e.is_ok_and(|e| e.file_name().to_string_lossy().starts_with(".nfs")))
+        })
+    };
+    while left() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
