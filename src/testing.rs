@@ -26,6 +26,7 @@ pub fn hide(path: &std::path::Path) {
 /// Waits, up to a second, until `dir` holds no `.nfs*`: on NFS a file removed
 /// while open somewhere (by a process another test just forked, before its
 /// `exec`) stays as one until it is closed.
+#[cfg(unix)]
 pub fn wait_for_nfs(dir: &std::path::Path) {
     use std::time::{Duration, Instant};
     let deadline = Instant::now() + Duration::from_secs(1);
