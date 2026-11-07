@@ -118,6 +118,18 @@ A draft, with no date yet: [docs/plans/cockpit.md](docs/plans/cockpit.md). First
 searching the project, a list of `file:line` locations, and opening the editor at
 the right line.
 
+## Tests
+
+- **`term::tests::sync_changes_directory_and_sets_the_tagged_files` failed once
+  in about 50 runs** of the whole suite (2026-11-07, home on NFS). `write_script`
+  failed and `sync` fell back to the plain ` cd --`. Not reproduced in 60 more
+  runs with logging, so the cause is a suspicion: the opener tests remove the
+  `run-<pid>` folder that every test in the process shares (`fs::remove_dir(run)`
+  in `src/app/tests.rs`), and that may happen between `run_dir()` and the
+  `create_dir` of `terminal-<nanos>` in `private_dir`. Two nanosecond names
+  alike, or an NFS error of the moment, would give the same symptom. To fix when
+  it is caught: log the error of `write_script` in the test.
+
 ## To evaluate
 
 Details from an outside list of suggestions (2026-11-01) that the items above do

@@ -491,6 +491,11 @@ dividimos o trabalho em etapas incrementais revisáveis:
    - `src/viewer/multirecord/{mod.rs, xlayout.rs, decode.rs}`, integração em `records.rs` e
      `tabular_loader.rs`, coluna `#line`, abas por registro, `values` no rodapé e em `i`
      (`Structure`), checagens de Trailer/`9900`/`9999`, + suíte `proptest`.
+   - Primeiro layout real do catálogo: `layouts/br/bancario/cnab240-febraban.xlayout.toml`,
+     conferido contra o manual FEBRABAN, como caso de validação do motor (header de arquivo e de
+     lote, segmentos com `match` composto e trailers com contagens), testado com arquivos
+     sintéticos de remessa e retorno, de dados fictícios. O `tests/layouts_catalog.rs` passa a
+     valer desde esta etapa.
 2. **Etapa 2 — Leitor de Código-Fonte COBOL (`.cpy`, `.cob`, `.cbl`):**
    - `src/viewer/multirecord/cobol.rs` cobrindo copybooks e programas completos (`FILE SECTION` /
      `WORKING-STORAGE`), formato fixo e livre, `PIC`, `88`, `REDEFINES`, `OCCURS`, `FILLER`,
@@ -508,8 +513,8 @@ dividimos o trabalho em etapas incrementais revisáveis:
    - **Lote 5a (Fiscal e Trabalhista BR):** SPED ICMS/IPI, Contribuições, ECD, ECF, Genérico,
      Sintegra, DIMOB, DIRF, DMED, MANAD, PAF-ECF, RPS SP/Barueri, AFD 1510/671, AFDT, ACJEF,
      SEFIP, CAGED, RAIS.
-   - **Lote 5b (Bancário, Cartões, Logística, Mercado e Saúde BR):** CNAB 240 FEBRABAN, CNAB 400
-     (Itaú, Bradesco, BB, Santander, Caixa, Sicoob, Sicredi), CNAB 750 PIX, FEBRABAN 150, adquirentes
+   - **Lote 5b (Bancário, Cartões, Logística, Mercado e Saúde BR):** CNAB 400 (Itaú, Bradesco,
+     BB, Santander, Caixa, Sicoob, Sicredi), CNAB 750 PIX, FEBRABAN 150, adquirentes
      com especificação pública verificável, Proceda (NOTAFIS, CONEMB, OCOREN, DOCCOB, PREFAT),
      B3 COTAHIST, ANS SIB, PTU.
    - **Lote 5c (Internacionais + Exemplos COBOL/Mainframe):** NACHA, BAI2, IRS 1099 FIRE,
@@ -536,3 +541,6 @@ dividimos o trabalho em etapas incrementais revisáveis:
 5. **Catálogo `layouts/`:** incluir todos os modelos com especificação pública verificável (validados
    por `tests/layouts_catalog.rs` no CI) e documentar em `layouts/README.md` como a comunidade pode
    apontar correções ou contribuir novos layouts.
+6. **CNAB 240 na Etapa 1:** o `cnab240-febraban.xlayout.toml` sai do Lote 5b e entra na Etapa 1,
+   como primeiro layout real e caso de validação do motor multi-registro, junto com o
+   `tests/layouts_catalog.rs`.
