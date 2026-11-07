@@ -417,7 +417,8 @@ impl Pane {
         }
     }
 
-    /// Finds the directory for `path` in the tree, reading what is missing from disk.
+    /// Finds the directory for `path` in the tree, reading what is missing from disk,
+    /// the one it reaches included (Treespec completes from its subdirectories).
     /// Returns the deepest one that exists and whether it got all the way; `None` if
     /// the path is outside the tree.
     fn walk(&mut self, path: &Path) -> Option<(NodeId, bool)> {
@@ -438,6 +439,7 @@ impl Pane {
                 None => return Some((cur, false)),
             }
         }
+        self.tree.scan(cur);
         Some((cur, true))
     }
 
@@ -568,6 +570,8 @@ impl Pane {
             Command::Expand => {
                 self.tree.expand(cur);
                 self.refresh_rows(cur);
+                // It may have just been logged.
+                self.refresh_files();
             }
             Command::Collapse => {
                 let node = self.tree.node(cur);
@@ -652,8 +656,6 @@ impl Pane {
     pub fn select_row(&mut self, index: usize) {
         if Some(index) != self.tree_state.selected() {
             self.tree_state.select(Some(index));
-            let id = self.current();
-            self.tree.touch(id);
             self.file_state.select(Some(0));
             self.refresh_files();
         }
@@ -869,6 +871,8 @@ mod tests {
         std::fs::write(tmp.path().join("sub/c.rs"), "012").unwrap();
         let mut pane = Pane::new(tmp.path().to_path_buf());
         let count = |files, bytes| Count { files, bytes };
+        pane.tree
+            .scan(pane.tree.find(&tmp.path().join("sub")).unwrap());
 
         pane.filespec = Filespec::parse("*.rs").unwrap();
         let b = pane
@@ -885,8 +889,6 @@ mod tests {
         assert_eq!(stats.tagged, count(1, 5), "tagged, even if not matching");
 
         // Another disk mounted at sub: out of the statistics of this one...
-        pane.tree
-            .scan(pane.tree.find(&tmp.path().join("sub")).unwrap());
         let root = pane.tree.path(ROOT);
         let sub = root.join("sub");
         let points: HashSet<PathBuf> = [root.clone(), sub.clone()].into();

@@ -89,8 +89,8 @@ error 403, más abajo.
   toda leída; Esc deja el árbol como estaba. Si rclone falla o muestra otras carpetas que el montaje,
   leen carpeta por carpeta. Solo `*` expande el árbol.
 - **La pantalla no espera.** El árbol aparece enseguida y se llena a medida que
-  llegan las carpetas, también al abrir una (→ o `+`) o al llevar el cursor a ella;
-  mientras tanto, la ventana de archivos muestra `reading...`. F3 e ir a una ruta
+  llegan las carpetas, también al abrir una (→ o `+`); mientras tanto, la ventana
+  de archivos muestra `reading...`. F3 e ir a una ruta
   escrita todavía esperan su lectura.
 - **Los cambios hechos en otro lugar** (en el navegador, en el teléfono) solo
   aparecen después de pulsar F3 y una vez que expira la caché de directorios

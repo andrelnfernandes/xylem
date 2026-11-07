@@ -9,9 +9,9 @@ curseur.
 | Touche | Action |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | déplacer le curseur |
-| → ou `+` | déplier le répertoire |
+| → ou `+` | lire le répertoire, s'il ne l'est pas encore, et le déplier : ses fichiers s'affichent, et ses sous-répertoires sont listés, pas encore lus |
 | ← | le replier (ou aller au parent) |
-| `-` | libérer la branche de la mémoire : ce qui a été lu en dessous est oublié, marques comprises, et le répertoire est relu |
+| `-` | libérer la branche de la mémoire : ce qui y a été lu est oublié, marques comprises, et le répertoire reste non lu |
 | Backspace | aller au répertoire parent |
 | Space | descendre d'une ligne |
 | Shift+lettre, 0–9 | répertoire suivant commençant par ce caractère |
@@ -19,17 +19,23 @@ curseur.
 | Enter ou Tab | aller à la fenêtre de fichiers (Tab change de fenêtre en [écran partagé](split.md)) |
 
 Dans l'arborescence, un `+` sur le connecteur (`├─+`) signale un répertoire
-replié contenant des sous-répertoires.
+replié contenant des sous-répertoires, et un `?` (`├─?`) un répertoire pas
+encore lu, dont on ne sait pas s'il a des sous-répertoires.
 
 ## Lecture (Logging)
 
-Les répertoires sont lus à mesure que vous les ouvrez. `*` lit et déplie toute
-la branche sous le curseur ; pendant une lecture longue, la progression
-s'affiche dans le pied de page et `Esc` annule. **F3** (ou F2) relit le
-répertoire depuis le disque. Xylem surveille aussi le répertoire courant de
-chaque fenêtre et le relit automatiquement lorsqu'un autre programme le modifie
-(au plus une fois par demi-seconde, après toute opération en cours) ; les
-autres répertoires nécessitent toujours F3.
+Un répertoire n'est lu que lorsque vous le demandez. Amener le curseur sur un
+répertoire non lu affiche `Not logged` dans la fenêtre de fichiers, et → ou `+`
+le lit. Au démarrage, et avec `L`, la racine est lue et dépliée ; ses
+sous-répertoires, non. Aller à un répertoire par son chemin
+([Treespec](treespec.md)) le lit aussi.
+
+`*` lit et déplie toute la branche sous le curseur ; pendant une lecture longue,
+la progression s'affiche dans le pied de page et `Esc` annule. **F3** (ou F2)
+relit le répertoire depuis le disque. Xylem surveille aussi le répertoire
+courant de chaque fenêtre et le relit automatiquement lorsqu'un autre programme
+le modifie (au plus une fois par demi-seconde, après toute opération en cours) ;
+les autres répertoires nécessitent toujours F3.
 
 `L` ([Log](treespec.md)) ouvre un autre répertoire dans la fenêtre.
 

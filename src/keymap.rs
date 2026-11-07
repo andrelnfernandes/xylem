@@ -19,7 +19,7 @@ const COMMANDS: &[(&str, Command, &str)] = &[
     ("page_down", Command::PageDown, "page down"),
     ("home", Command::Home, "first line"),
     ("end", Command::End, "last line"),
-    ("expand", Command::Expand, "expand directory"),
+    ("expand", Command::Expand, "log and expand directory"),
     (
         "collapse",
         Command::Collapse,
