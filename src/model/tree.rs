@@ -318,19 +318,6 @@ impl Tree {
         self.reads.get_or_insert_with(Reads::start).ask(id, path);
     }
 
-    /// The directory is about to be shown: reads it if it was not yet, in
-    /// the background where reading is slow.
-    pub fn touch(&mut self, id: NodeId) {
-        if self.nodes[id].scanned {
-            return;
-        }
-        if self.reads_slowly(&self.path(id)) {
-            self.ask_read(id);
-        } else {
-            self.scan(id);
-        }
-    }
-
     /// `id` was asked for and has not arrived yet.
     pub fn is_reading(&self, id: NodeId) -> bool {
         self.reads.as_ref().is_some_and(|r| r.pending.contains(&id))
@@ -342,8 +329,7 @@ impl Tree {
     }
 
     /// Puts in the tree what was read in the background, saying whether
-    /// anything arrived. An expanded directory has its subdirectories asked
-    /// for in turn, to know which have a `+`.
+    /// anything arrived.
     pub fn apply_reads(&mut self) -> bool {
         let Some(reads) = &mut self.reads else {
             return false;
@@ -360,21 +346,8 @@ impl Tree {
                 Err(e) => self.nodes[id].error = Some(e.to_string()),
             }
             self.nodes[id].scanned = true;
-            if self.nodes[id].expanded {
-                self.ask_children(id);
-            }
         }
         any
-    }
-
-    /// Asks for the subdirectories not read yet, the first on top.
-    fn ask_children(&mut self, id: NodeId) {
-        for i in (0..self.nodes[id].children.len()).rev() {
-            let child = self.nodes[id].children[i];
-            if !self.nodes[child].scanned && !self.is_reading(child) {
-                self.ask_read(child);
-            }
-        }
     }
 
     /// Everything in the branch of `id` has been read.
@@ -632,23 +605,16 @@ impl Tree {
         &mut self.nodes[dir].files[idx]
     }
 
-    /// Expands a node. The children are also read so we know whether
-    /// they have subdirectories (and show the `+` indicator).
+    /// Logs a node, if it was not yet, and expands it. Its subdirectories
+    /// are not logged: what is below them is read when they are expanded.
     pub fn expand(&mut self, id: NodeId) {
+        self.nodes[id].expanded = true;
         if self.reads_slowly(&self.path(id)) {
-            self.nodes[id].expanded = true;
-            if self.nodes[id].scanned {
-                self.ask_children(id);
-            } else if !self.is_reading(id) {
+            if !self.nodes[id].scanned && !self.is_reading(id) {
                 self.ask_read(id);
             }
-            return;
-        }
-        self.scan(id);
-        self.nodes[id].expanded = true;
-        for i in 0..self.nodes[id].children.len() {
-            let child = self.nodes[id].children[i];
-            self.scan(child);
+        } else {
+            self.scan(id);
         }
     }
 
@@ -657,29 +623,26 @@ impl Tree {
     }
 
     /// Releases (unlogs) the branch of `id`, as `-` in ZTreeWin: what was
-    /// read below it is dropped and `id` is read again, as right after a
-    /// Log (its files untagged, its subdirectories not logged). Returns how
-    /// many tags were lost. A virtual tree cannot be read again: there it
-    /// only collapses.
+    /// read in it, `id` included, is dropped, and `id` is left not logged.
+    /// Returns how many tags were lost. A virtual tree cannot be read
+    /// again: there it only collapses.
     pub fn release(&mut self, id: NodeId) -> usize {
         self.nodes[id].expanded = false;
         if self.is_virtual {
             return 0;
         }
+        self.version += 1;
         let mut lost = 0;
         // The nodes below are left loose in the arena, emptied.
         for n in self.subtree(id) {
             let node = &mut self.nodes[n];
             lost += node.files.iter().filter(|f| f.tagged).count();
             node.files = Vec::new();
+            node.children = Vec::new();
             node.scanned = false;
+            node.expanded = false;
             node.error = None;
-            if n != id {
-                node.children = Vec::new();
-            }
         }
-        self.nodes[id].children.clear();
-        self.scan(id);
         lost
     }
 
@@ -882,14 +845,15 @@ impl Tree {
         let children: Vec<NodeId> = self.visible_children(id).collect();
         for (i, &child) in children.iter().enumerate() {
             let last = i + 1 == children.len();
-            let collapsed =
-                !self.nodes[child].expanded && self.visible_children(child).next().is_some();
-            let connector = match (last, collapsed) {
-                (false, false) => "├──",
-                (false, true) => "├─+",
-                (true, false) => "└──",
-                (true, true) => "└─+",
+            // Not logged: whether it has subdirectories is not known.
+            let mark = if !self.nodes[child].scanned {
+                '?'
+            } else if !self.nodes[child].expanded && self.visible_children(child).next().is_some() {
+                '+'
+            } else {
+                '─'
             };
+            let connector = format!("{}─{mark}", if last { '└' } else { '├' });
             rows.push(VisibleRow {
                 id: child,
                 prefix: format!("{indent}{connector}"),
@@ -1039,8 +1003,23 @@ mod tests {
         assert_eq!(files, ["A.txt", "z.txt"]);
     }
 
+    fn prefixes(tree: &Tree) -> Vec<String> {
+        tree.visible_rows().into_iter().map(|r| r.prefix).collect()
+    }
+
     #[test]
-    fn release_drops_the_branch_and_reads_it_again() {
+    fn expanding_reads_the_folder_and_not_the_ones_below() {
+        let (_tmp, tree) = sample();
+        assert!(tree.node(ROOT).scanned && tree.node(ROOT).expanded);
+        for &child in &tree.node(ROOT).children {
+            let node = tree.node(child);
+            assert!(!node.scanned, "{:?} not logged", node.name);
+            assert!(node.files.is_empty() && node.children.is_empty());
+        }
+    }
+
+    #[test]
+    fn release_unlogs_the_folder_too() {
         let (_tmp, mut tree) = sample();
         tree.expand_all(ROOT);
         let b = tree.node(ROOT).children[1];
@@ -1050,16 +1029,19 @@ mod tests {
 
         assert_eq!(tree.release(b), 1);
         let node = tree.node(b);
-        assert!(node.scanned && !node.expanded);
-        assert!(!node.files[0].tagged, "b/inside was read again");
-        let fresh = node.children[0];
-        assert_ne!(fresh, deep, "the old nodes are left loose");
-        assert_eq!(names(&tree, &[fresh]), ["deep"]);
-        assert!(!tree.node(fresh).scanned && tree.node(deep).files.is_empty());
+        assert!(!node.scanned && !node.expanded, "not read again");
+        assert!(node.files.is_empty() && node.children.is_empty());
+        assert!(
+            tree.node(deep).files.is_empty(),
+            "the old nodes are emptied"
+        );
         assert!(tree.node(ROOT).files[0].tagged, "outside the branch");
-        // Collapsed, with the "+" of a directory that has subdirectories.
-        let prefixes: Vec<_> = tree.visible_rows().into_iter().map(|r| r.prefix).collect();
-        assert_eq!(prefixes, ["", "├──", "└─+"]);
+        assert_eq!(prefixes(&tree), ["", "├──", "└─?"]);
+
+        // + logs it again.
+        tree.expand(b);
+        assert_eq!(tree.node(b).files[0].name, "inside");
+        assert_eq!(prefixes(&tree), ["", "├──", "└──", "   └─?"]);
     }
 
     #[test]
@@ -1086,13 +1068,19 @@ mod tests {
     #[test]
     fn visible_rows_follow_expansion() {
         let (_tmp, mut tree) = sample();
-        let prefixes: Vec<_> = tree.visible_rows().into_iter().map(|r| r.prefix).collect();
-        // "b" has children and is collapsed: "+" indicator.
-        assert_eq!(prefixes, ["", "├──", "└─+"]);
+        // "a" and "b" not logged: nothing is known of what is below them.
+        assert_eq!(prefixes(&tree), ["", "├─?", "└─?"]);
+
+        let b = tree.node(ROOT).children[1];
+        tree.expand(b);
+        assert_eq!(prefixes(&tree), ["", "├─?", "└──", "   └─?"]);
 
         tree.expand_all(ROOT);
-        let prefixes: Vec<_> = tree.visible_rows().into_iter().map(|r| r.prefix).collect();
-        assert_eq!(prefixes, ["", "├──", "└──", "   └──", "      └──"]);
+        assert_eq!(prefixes(&tree), ["", "├──", "└──", "   └──", "      └──"]);
+
+        // Logged and collapsed, with subdirectories: "+".
+        tree.collapse(b);
+        assert_eq!(prefixes(&tree), ["", "├──", "└─+"]);
 
         tree.collapse(ROOT);
         assert_eq!(tree.visible_rows().len(), 1);
@@ -1101,13 +1089,13 @@ mod tests {
     #[test]
     fn totals_count_only_logged_dirs() {
         let (_tmp, mut tree) = sample();
-        // root + a + b (children read when the root was expanded)
+        // The root only: its subdirectories are not logged.
         assert_eq!(
             tree.logged_totals(),
             Totals {
-                dirs: 3,
-                files: 3,
-                bytes: 9
+                dirs: 1,
+                files: 2,
+                bytes: 6
             }
         );
         tree.expand_all(ROOT);
@@ -1118,6 +1106,7 @@ mod tests {
     fn a_listing_fills_a_branch_as_reading_it_would() {
         let (_tmp, mut tree) = sample();
         let sub = tree.find(&tree.path(ROOT).join("b")).unwrap();
+        tree.scan(sub);
         tree.nodes[sub].files[0].tagged = true;
         let tagged = tree.nodes[sub].files[0].name.clone();
         let file = |name: &str| FileEntry {
@@ -1381,19 +1370,23 @@ mod tests {
         assert!(tree.is_reading(ROOT));
         apply_until_read(&mut tree);
         assert_eq!(tree.node(ROOT).files[0].name, "top.txt");
-        // The folder below too, for the +, and no deeper than that.
+        // Not the folder below: it is not logged.
         let a = tree.node(ROOT).children[0];
+        assert!(!tree.node(a).scanned && !tree.is_reading(a));
+        assert!(tree.visible_rows()[1].prefix.ends_with('?'));
+
+        tree.expand(a);
+        assert!(tree.is_reading(a));
+        apply_until_read(&mut tree);
         let b = tree.node(a).children[0];
         assert!(tree.node(a).scanned);
-        assert!(!tree.node(b).scanned);
-        assert!(tree.visible_rows()[1].prefix.ends_with('+'));
+        assert!(!tree.node(b).scanned && !tree.is_reading(b));
+        assert!(!tree.branch_read(a));
 
-        tree.touch(b);
-        assert!(tree.is_reading(b));
+        tree.expand(b);
         apply_until_read(&mut tree);
         assert_eq!(tree.node(b).files[0].name, "f.txt");
         assert!(!tree.node(tree.node(b).children[0]).scanned);
-        assert!(!tree.branch_read(a));
     }
 
     #[test]

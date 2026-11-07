@@ -86,9 +86,8 @@ error 403 below.
   other folders than the mount, they read folder by folder. Only `*` expands the
   tree.
 - **The screen does not wait.** The tree shows at once and fills in as folders
-  arrive, also when you open one (→ or `+`) or move the cursor to one; the file
-  window says `reading...` meanwhile. F3 and going to a typed path still wait for
-  their one read.
+  arrive, also when you open one (→ or `+`); the file window says `reading...`
+  meanwhile. F3 and going to a typed path still wait for their one read.
 - **Changes made elsewhere** (in the browser, on the phone) show up only after
   F3, and after the directory cache expires (`--dir-cache-time`).
 - **Delete:** answer `P` (permanently) rather than `T`: on Linux, the trash

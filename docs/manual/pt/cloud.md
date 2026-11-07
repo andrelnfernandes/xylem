@@ -89,8 +89,8 @@ erro 403, mais abaixo.
   lido; Esc deixa a árvore como estava. Se o rclone falhar ou mostrar pastas
   diferentes das da montagem, eles leem pasta por pasta. Só `*` expande a árvore.
 - **A tela não espera.** A árvore aparece na hora e se preenche conforme as pastas
-  chegam, também ao abrir uma (→ ou `+`) ou levar o cursor até ela; enquanto isso,
-  a janela de arquivos mostra `reading...`. F3 e ir a um caminho digitado ainda
+  chegam, também ao abrir uma (→ ou `+`); enquanto isso, a janela de arquivos
+  mostra `reading...`. F3 e ir a um caminho digitado ainda
   esperam a sua leitura.
 - **Alterações feitas em outro lugar** (no navegador, no celular) só aparecem
   após F3 e depois que o cache de diretórios expira (`--dir-cache-time`).

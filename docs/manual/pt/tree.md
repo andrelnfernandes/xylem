@@ -8,9 +8,9 @@ janela de arquivos logo abaixo lista os arquivos do diretório sob o cursor.
 | Tecla | O que faz |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | move o cursor |
-| → ou `+` | expande o diretório |
+| → ou `+` | lê o diretório, se ainda não foi lido, e o expande: os arquivos aparecem, e os subdiretórios são listados, ainda não lidos |
 | ← | recolhe o diretório (ou vai para o diretório pai) |
-| `-` | libera o ramo da memória: o que foi lido abaixo dele é descartado, com as marcas, e o diretório é lido de novo |
+| `-` | libera o ramo da memória: o que foi lido nele é descartado, com as marcas, e o diretório fica não lido |
 | Backspace | vai para o diretório pai |
 | Space | desce uma linha |
 | Shift+letra, 0–9 | próximo diretório começando com essa letra ou dígito |
@@ -18,16 +18,21 @@ janela de arquivos logo abaixo lista os arquivos do diretório sob o cursor.
 | Enter ou Tab | vai para a janela de arquivos (Tab alterna janelas na [tela dividida](split.md)) |
 
 Na árvore, um `+` no conector (`├─+`) indica um diretório recolhido que possui
-subdiretórios.
+subdiretórios, e um `?` (`├─?`), um diretório ainda não lido, do qual não se
+sabe se tem subdiretórios.
 
 ## Leitura de diretórios (Log)
 
-Os diretórios são lidos conforme você os abre. `*` lê e expande todo o ramo sob
-o cursor; durante uma leitura longa, o progresso aparece no rodapé e `Esc`
-cancela. **F3** (ou F2) relê o diretório do disco. O Xylem também monitora o
-diretório atual de cada janela e o relê sozinho quando outro programa o altera
-(no máximo uma vez a cada meio segundo, após qualquer operação em andamento);
-outros diretórios ainda precisam de F3.
+Um diretório só é lido quando você pede. Levar o cursor até um que não foi lido
+mostra `Not logged` na janela de arquivos, e → ou `+` o lê. Na abertura, e com
+`L`, a raiz é lida e expandida; os subdiretórios dela, não. Ir a um diretório
+pelo caminho ([Treespec](treespec.md)) também o lê.
+
+`*` lê e expande todo o ramo sob o cursor; durante uma leitura longa, o
+progresso aparece no rodapé e `Esc` cancela. **F3** (ou F2) relê o diretório do
+disco. O Xylem também monitora o diretório atual de cada janela e o relê sozinho
+quando outro programa o altera (no máximo uma vez a cada meio segundo, após
+qualquer operação em andamento); outros diretórios ainda precisam de F3.
 
 `L` ([Log](treespec.md)) abre outro diretório na janela.
 

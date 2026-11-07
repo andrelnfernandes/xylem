@@ -1082,10 +1082,19 @@ fn draw_files(
         FileView::Dir => pane.tree.node(pane.current()).error.as_ref(),
         _ => None,
     };
+    // Not read until asked for (+ or *): nothing of it is known.
+    let not_logged = pane.view == FileView::Dir
+        && !pane.tree.node(pane.current()).scanned
+        && !pane.tree.is_reading(pane.current());
     let items: Vec<ListItem> = if let Some(err) = error {
         vec![ListItem::new(Span::styled(
             format!("Cannot read directory: {err}"),
             Style::new().fg(theme().error),
+        ))]
+    } else if not_logged {
+        vec![ListItem::new(Span::styled(
+            "Not logged",
+            Style::new().fg(theme().dim),
         ))]
     } else if pane.files.is_empty() {
         vec![ListItem::new(Span::styled(
