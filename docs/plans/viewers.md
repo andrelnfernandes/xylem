@@ -78,8 +78,9 @@ Notas de cada subprojeto:
 - **2 — SDF:** é o SDF do dBase/Clipper, a exportação de largura fixa
   (`COPY TO ... SDF`), não o SQL Server Compact. Não é mais tão comum, por
   isso entra como extra. Precisa de um layout, que pode vir da estrutura de
-  um DBF ou de um arquivo de layout. O mesmo mecanismo serviria depois para
-  CNAB 240/400. Spec em [sdf.md](sdf.md).
+  um DBF ou de um arquivo de layout. O mesmo mecanismo cobre os posicionais
+  multi-registro, como o CNAB 240/400/750: spec em
+  [viewer-positional.md](viewer-positional.md).
 - **2 — DBF:** o codepage vem do byte 29 do cabeçalho (LDID). Arquivos de
   Clipper costumam ser CP850.
 - **3:** a ideia surgiu porque o limite fixo de 16 MiB é pequeno para
