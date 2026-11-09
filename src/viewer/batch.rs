@@ -2853,8 +2853,9 @@ mod tests {
             &out,
         );
         assert_eq!(done.records, 1);
+        // Each line ends as the system's do: \r\n on Windows.
         assert_eq!(
-            fs::read_to_string(&out).unwrap(),
+            fs::read_to_string(&out).unwrap().replace("\r\n", "\n"),
             "FORNECEDOR DOIS;1000.00\n"
         );
     }
