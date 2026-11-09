@@ -30,6 +30,7 @@ proposez une amélioration : `https://github.com/andrelnfernandes/xylem/issues`.
 - [Écran partagé](split.md) : deux fenêtres côte à côte
 - [La visionneuse](viewer.md) : texte et hexadécimal, recherche, coloration syntaxique
 - [Filtrer les lignes](filter.md) : `&` dans la visionneuse, avec un guide des expressions régulières
+- [Layouts](layouts.md) : CNAB, SPED, SDF et autres fichiers à largeur fixe ou multi-enregistrements en tableau ; écrire un layout
 - [Rechercher dans les fichiers marqués](search.md) : Ctrl+S et Ctrl+V
 - [Informations](info.md) : Info, Avail, statistiques et tailles des répertoires
 - [Utilisation du disque](usage.md) : où va l'espace (Alt+W)

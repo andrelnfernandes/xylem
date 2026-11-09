@@ -19,6 +19,7 @@ Spreadsheets, CSV, DBF, SQLite and Parquet open as a table (see Table mode).
 | `E` | edit the file; back in Xylem, the viewer shows the new contents at the same place (binary files only with an editor in [`[editors]`](execute.md)) |
 | `D` | with Git on: what changed since the last commit, and back ([Git](git.md)) |
 | `T` | table or text, in a file that opened as a table; rendered or source, in a Markdown file |
+| `K` | read the file through a layout: bank, tax and other fixed-width or multi-record files as a table ([layouts](layouts.md)) |
 | `U` | in the view of the tagged files (Ctrl+V): untag the file |
 | `y` or Ctrl+Insert | copy the file's path to the clipboard |
 | Esc | close |

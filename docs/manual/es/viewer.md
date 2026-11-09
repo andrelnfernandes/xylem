@@ -20,6 +20,7 @@ Las hojas de cálculo, CSV, DBF, SQLite y Parquet se abren como tabla (véase Mo
 | `E` | editar el archivo; al volver a Xylem, el visor muestra el contenido nuevo en el mismo lugar (archivos binarios solo con un editor en [`[editors]`](execute.md)) |
 | `D` | con Git activado: qué cambió desde el último commit, y volver ([Git](git.md)) |
 | `T` | tabla o texto, en un archivo que se abrió como tabla; renderizado o fuente, en un archivo Markdown |
+| `K` | leer el archivo con un layout: archivos bancarios, fiscales y otros de ancho fijo o multirregistro, como tabla ([layouts](layouts.md)) |
 | `U` | en la vista de los archivos marcados (Ctrl+V): desmarcar el archivo |
 | `y` o Ctrl+Insert | copiar la ruta del archivo al portapapeles |
 | Esc | cerrar |
