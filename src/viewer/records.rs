@@ -975,7 +975,6 @@ fn sqlite_indexes(conn: &rusqlite::Connection, table: &str) -> Vec<String> {
 fn query_structure(stmt: &rusqlite::Statement<'_>, cols: usize) -> Structure {
     let columns = stmt
         .columns()
-        .iter()
         .take(cols)
         .map(|c| {
             vec![
@@ -1008,7 +1007,7 @@ pub fn read_sqlite(
         .to_str()
         .ok_or_else(|| "Invalid UTF-8 in SQLite path".to_string())?;
 
-    let conn = Connection::open_with_flags(path_str, flags)
+    let mut conn = Connection::open_with_flags(path_str, flags)
         .map_err(|e| format!("Failed to open SQLite database: {e}"))?;
 
     // Hardening: Defensive mode + Disable extensions
@@ -1038,7 +1037,9 @@ pub fn read_sqlite(
     // A query can take forever without giving a single row.
     if budget.deadline.is_some() || budget.cancel.is_some() {
         let budget = budget.clone();
-        conn.progress_handler(SQLITE_STEPS, Some(move || budget.over()));
+        // Without it the query has no limit: better not to open the file.
+        conn.progress_handler(SQLITE_STEPS, Some(move || budget.over()))
+            .map_err(|e| format!("Failed to limit the time of the query: {e}"))?;
     }
 
     // List user tables, then views (bounded to prevent DoS from DB with millions of tables)
@@ -1109,7 +1110,6 @@ pub fn read_sqlite(
     let total = stmt.column_count();
     let names: Vec<String> = stmt
         .column_names()
-        .into_iter()
         .take(MAX_COLS)
         .map(str::to_string)
         .collect();
