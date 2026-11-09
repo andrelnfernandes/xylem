@@ -544,3 +544,67 @@ dividimos o trabalho em etapas incrementais revisáveis:
 6. **CNAB 240 na Etapa 1:** o `cnab240-febraban.xlayout.toml` sai do Lote 5b e entra na Etapa 1,
    como primeiro layout real e caso de validação do motor multi-registro, junto com o
    `tests/layouts_catalog.rs`.
+
+---
+
+## 10. Etapas 1a, 1b e 1c (2026-11-09)
+
+Aprovado pelo autor em 2026-11-09: implementar as fatias 1a, 1b e 1c (abaixo), **só com
+layouts de manual público**; os layouts de banco cujo manual não é público ficam
+documentados em `layouts/README*.md` para a comunidade. Feito na branch `positional-viewer`.
+
+### 10.1. Fatias
+
+As etapas 1 e 3 da seção 8 foram refatiadas para que cada fatia funcione sozinha no `main`:
+
+| Fatia | O que entrou |
+|---|---|
+| 1a | Motor posicional e validador do `.xlayout.toml` (`src/viewer/multirecord/{xlayout,decode,mod}.rs`), catálogo embutido com detecção pela primeira linha, abas por registro, `#line`, `i`, significado dos códigos no rodapé, conferências. Primeiro layout: CNAB 240 FEBRABAN |
+| 1b | Formato delimitado (SPED): registros não declarados com abas dinâmicas (`CAMPO_nn`), `9900`/`9990`/`x990`/`9999`, parada no trailer com aviso dos bytes seguintes (assinatura PKCS#7). Layout: SPED genérico |
+| 1c | Tecla `K` com a janela `LAYOUT` (seções Here, Mine, Brazil, World; F2 para caminho livre), pasta do usuário, SDF a partir do cabeçalho de um `.dbf`, `T` levando à linha do registro |
+
+### 10.2. Decisões
+
+1. **Catálogo embutido, e só duas fontes confiáveis.** O `build.rs` embute todo
+   `layouts/**/*.xlayout.toml` (`CATALOG`), e confiáveis são só ele e
+   `~/.config/xylem/layouts/` (até 3 níveis, 256 arquivos). Saíram `<dir_do_exe>/layouts/` e
+   `/usr/share/xylem-fm/layouts/`: um `xy` rodado de dentro de `Downloads/` tornaria a pasta
+   confiável, e o catálogo nunca difere da versão em uso. Nada muda no empacotamento; o
+   `Cargo.toml` inclui `layouts/` para o crates.io. Contribuir com um layout não exige Rust.
+2. **`decimal` é texto com as casas exatas** (`1234.50`), nunca `f64`; o filtro SQL o lê como
+   número. As somas das conferências são inteiros `i128` na escala de 9 casas.
+3. **Uma passada pelo arquivo inteiro** guarda só as linhas da aba pedida (até 50.000) e conta
+   todas, para os nomes das abas e as conferências. Trocar de aba relê o arquivo. As abas
+   vêm na ordem da primeira aparição. Se a leitura parar (tempo ou Esc), as contagens levam
+   `+` e as conferências não são feitas. O Batch para quando tem as suas linhas.
+4. **Novidades no esquema:** `batch_match` (condições sobre a linha do header do lote, para
+   separar o segmento A de pagamento do de débito no CNAB 240); conferências `batch_lines`,
+   `batch_sum`, `block_lines` (o x990 do SPED conta o 0000 e o 9999, como manda o Guia
+   Prático); `*` como prefixo e `+` para somar ids ou termos; `status = "verified" | "draft"`.
+5. **Ainda recusado com mensagem clara:** `copybook` (etapa 2), `quote` diferente de `""`,
+   UTF-16. O `[[layouts]]` no `config.toml` ficou de fora: a pasta do usuário com `[detect]`
+   cobre o mesmo uso com menos superfície.
+6. **`T`** leva da linha da grade à linha do texto, dentro do que o visualizador leu (16 MiB
+   hoje); além disso, uma nota explica. A régua/inspetor de campos no modo texto fica para
+   depois, junto com o viewer em janelas (subprojeto 3 de [viewers.md](viewers.md)).
+7. **Teste do catálogo** é um teste unitário (`catalog::tests`), não `tests/layouts_catalog.rs`:
+   o crate só tem binário. Ele confere que todo arquivo de `layouts/` é válido, estrito, tem
+   `id` igual ao caminho, metadados e `[detect]`.
+8. **Textos da interface em inglês**, como o resto do Xylem (`! No record type`, `K layout`);
+   os layouts brasileiros têm nomes e descrições em português. `CAMPO_nn` segue o spec.
+
+### 10.3. Fontes conferidas
+
+- **CNAB 240:** "Layout Padrão FEBRABAN 240 posições", versão 11.0, de 11/09/2026, da página
+  "Layouts" do portal da FEBRABAN. As tabelas foram extraídas do PDF e convertidas em TOML; o
+  validador confirmou que cada registro cobre 1..240. Ficou de fora o J-52 para o Pix: o PDF
+  não deixou extrair o código de forma de lançamento que o distingue do J-52 comum.
+- **SPED:** Guia Prático da EFD ICMS/IPI, versão 3.2.2 (11/02/2026), Capítulo III, registros
+  0001, 0990, 9001, 9900, 9990 e 9999.
+
+### 10.4. Próximo
+
+O resto do plano (régua no modo texto, COBOL, mainframe, o catálogo em lotes, a documentação
+completa) segue as etapas da seção 8, sem data; a ordem em relação ao resto do
+[roadmap](roadmap.md) ainda será decidida. O catálogo e o que fica para a comunidade estão
+em `layouts/README.pt-BR.md`.

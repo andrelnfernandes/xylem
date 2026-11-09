@@ -1,0 +1,574 @@
+# FEBRABAN CNAB 240: o padrão geral de intercâmbio entre bancos e empresas.
+#
+# Transcrito do manual "Layout Padrão FEBRABAN 240 posições", versão 11.0, de
+# 11/09/2026, publicado em https://portal.febraban.org.br/ (página "Layouts").
+# As posições, os tamanhos, os formatos e os códigos de nota (G001, P007...) de
+# cada campo vêm das tabelas do manual; a nota de cada campo está na descrição.
+#
+# Cobre o header e o trailer de arquivo, o pagamento por crédito em conta,
+# cheque, OP, TED e Pix (segmentos A, B, C e Z), o pagamento de títulos de
+# cobrança (J e J-52) e os títulos em cobrança (P, Q, R na remessa; T e U no
+# retorno). Os demais serviços do manual (tributos, débito em conta, extrato,
+# custódia, vendor, compror...) e os segmentos opcionais X e Y ainda não estão
+# aqui: suas linhas aparecem na aba "! No record type". O README desta pasta
+# diz como contribuir com eles.
+#
+# Cada banco publica as suas particularidades (campos de uso do banco, códigos de
+# ocorrência). Este é o padrão FEBRABAN, sem elas.
+
+schema = 1
+id = "br/bancario/cnab240-febraban"
+name = "FEBRABAN CNAB 240 — Padrão Geral"
+description = "Remessa e retorno de pagamentos e de cobrança, 240 posições"
+country = "BR"
+category = "banking"
+status = "verified"
+spec_source = "FEBRABAN — Layout Padrão FEBRABAN 240 posições"
+spec_version = "11.0 (11/09/2026)"
+spec_url = "https://portal.febraban.org.br/pagina/3425/33/pt-br/layout-febraban"
+
+format = "positional"
+encoding = "auto"
+offset_unit = "chars"
+line_length = 240
+strict_positions = true
+hide_filler = true
+
+[detect]
+line_length = 240
+first_line = [
+  { pos = [4, 7], value = "0000" },
+  { pos = [8, 8], value = "0" },
+  { pos = [143, 143], in = ["1", "2"] },
+  { pos = [164, 166], regex = "^[0-9]{3}$" },
+]
+
+[[records]]
+id = "0"
+name = "Header de Arquivo"
+role = "header"
+desc = "Seção 2.2"
+match = [{ pos = [4, 7], value = "0000" }, { pos = [8, 8], value = "0" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "cnab_9", pos = [9, 17], type = "filler", desc = "Uso Exclusivo FEBRABAN / CNAB (G004)" },
+  { name = "tipo_inscricao", pos = [18, 18], type = "code", desc = "Tipo de Inscrição da Empresa (G005)", values = { "0" = "Isento / Não Informado", "1" = "CPF", "2" = "CGC / CNPJ", "3" = "PIS / PASEP", "9" = "Outros" } },
+  { name = "numero_inscricao", pos = [19, 32], type = "text", desc = "Número de Inscrição da Empresa (G006)" },
+  { name = "convenio", pos = [33, 52], type = "text", desc = "Código do Convênio no Banco (G007)" },
+  { name = "agencia", pos = [53, 57], type = "code", desc = "Agência Mantenedora da Conta (G008)" },
+  { name = "dv_agencia", pos = [58, 58], type = "text", desc = "Dígito Verificador da Agência (G009)" },
+  { name = "conta", pos = [59, 70], type = "code", desc = "Número da Conta Corrente (G010)" },
+  { name = "dv_conta", pos = [71, 71], type = "text", desc = "Dígito Verificador da Conta (G011)" },
+  { name = "dv_agencia_conta", pos = [72, 72], type = "text", desc = "Dígito Verificador da Ag/Conta (G012)" },
+  { name = "nome", pos = [73, 102], type = "text", desc = "Nome da Empresa (G013)" },
+  { name = "nome_banco", pos = [103, 132], type = "text", desc = "Nome do Banco (G014)" },
+  { name = "cnab_133", pos = [133, 142], type = "filler", desc = "Uso Exclusivo FEBRABAN / CNAB (G004)" },
+  { name = "codigo_remessa_retorno", pos = [143, 143], type = "code", desc = "Código Remessa / Retorno (G015)", values = { "1" = "Remessa (Cliente → Banco)", "2" = "Retorno (Banco → Cliente)" } },
+  { name = "data_geracao", pos = [144, 151], type = "date", format = "DDMMYYYY", desc = "Data de Geração do Arquivo (G016)" },
+  { name = "hora_geracao", pos = [152, 157], type = "time", format = "HHMMSS", desc = "Hora de Geração do Arquivo (G017)" },
+  { name = "nsa", pos = [158, 163], type = "int", desc = "Número Seqüencial do Arquivo (G018)" },
+  { name = "versao_layout_arquivo", pos = [164, 166], type = "code", desc = "Nº da Versão do Layout do Arquivo (G019)" },
+  { name = "densidade", pos = [167, 171], type = "code", desc = "Densidade de Gravação do Arquivo (G020)" },
+  { name = "reservado_banco", pos = [172, 191], type = "text", desc = "Para Uso Reservado do Banco (G021)" },
+  { name = "reservado_empresa", pos = [192, 211], type = "text", desc = "Para Uso Reservado da Empresa (G022)" },
+  { name = "cnab_212", pos = [212, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN / CNAB (G004)" },
+]
+
+[[records]]
+id = "1C"
+name = "Header de Lote — Pagamentos"
+role = "batch_header"
+desc = "Seções 3.1.2 e 3.1.3 (operação C). As posições 223-224 indicam a forma de pagamento em crédito em conta, cheque, OP, TED e Pix; no pagamento de títulos são brancos"
+match = [{ pos = [8, 8], value = "1" }, { pos = [9, 9], value = "C" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "tipo_operacao", pos = [9, 9], type = "text", desc = "Tipo da Operação (G028)", values = { "C" = "Lançamento a Crédito", "D" = "Lançamento a Débito", "E" = "Extrato para Conciliação", "G" = "Extrato para Gestão de Caixa", "I" = "Informações de Títulos Capturados do Próprio Banco", "R" = "Arquivo Remessa", "T" = "Arquivo Retorno" } },
+  { name = "tipo_servico", pos = [10, 11], type = "code", desc = "Tipo do Serviço (G025)", values = { "01" = "Cobrança", "03" = "Boleto de Pagamento Eletrônico", "04" = "Conciliação Bancária", "05" = "Débitos", "06" = "Custódia de Cheques", "07" = "Gestão de Caixa", "08" = "Consulta/Informação Margem", "09" = "Averbação da Consignação/Retenção", "10" = "Pagamento Dividendos", "20" = "Pagamento Fornecedor", "29" = "Alegação do Pagador", "30" = "Pagamento Salários", "40" = "Vendor", "41" = "Vendor a Termo", "50" = "Pagamento Sinistros Segurados", "60" = "Pagamento Despesas Viajante em Trânsito", "70" = "Pagamento Autorizado", "75" = "Pagamento Credenciados", "80" = "Pagamento Representantes / Vendedores Autorizados", "90" = "Pagamento Benefícios", "98" = "Pagamentos Diversos" } },
+  { name = "forma_lancamento", pos = [12, 13], type = "code", desc = "Forma de Lançamento" },
+  { name = "versao_layout_lote", pos = [14, 16], type = "code", desc = "Nº da Versão do Layout do Lote (G030)" },
+  { name = "cnab_17", pos = [17, 17], type = "filler", desc = "Uso Exclusivo da FEBRABAN/CNAB (G004)" },
+  { name = "tipo_inscricao", pos = [18, 18], type = "code", desc = "Tipo de Inscrição da Empresa (G005)", values = { "0" = "Isento / Não Informado", "1" = "CPF", "2" = "CGC / CNPJ", "3" = "PIS / PASEP", "9" = "Outros" } },
+  { name = "numero_inscricao", pos = [19, 32], type = "text", desc = "Número de Inscrição da Empresa (G006)" },
+  { name = "convenio", pos = [33, 52], type = "text", desc = "Código do Convênio no Banco (G007)" },
+  { name = "agencia", pos = [53, 57], type = "code", desc = "Agência Mantenedora da Conta (G008)" },
+  { name = "dv_agencia", pos = [58, 58], type = "text", desc = "Dígito Verificador da Agência (G009)" },
+  { name = "conta", pos = [59, 70], type = "code", desc = "Número da Conta Corrente (G010)" },
+  { name = "dv_conta", pos = [71, 71], type = "text", desc = "Dígito Verificador da Conta (G011)" },
+  { name = "dv_agencia_conta", pos = [72, 72], type = "text", desc = "Dígito Verificador da Ag/Conta (G012)" },
+  { name = "nome", pos = [73, 102], type = "text", desc = "Nome da Empresa (G013)" },
+  { name = "mensagem", pos = [103, 142], type = "text", desc = "Mensagem (G031)" },
+  { name = "logradouro", pos = [143, 172], type = "text", desc = "Nome da Rua, Av, Pça, Etc (G032)" },
+  { name = "numero_local", pos = [173, 177], type = "code", desc = "Número do Local (G032)" },
+  { name = "complemento", pos = [178, 192], type = "text", desc = "Casa, Apto, Sala, Etc (G032)" },
+  { name = "cidade", pos = [193, 212], type = "text", desc = "Nome da Cidade (G033)" },
+  { name = "cep", pos = [213, 217], type = "code", desc = "CEP (G034)" },
+  { name = "sufixo_cep", pos = [218, 220], type = "text", desc = "Complemento do CEP (G035)" },
+  { name = "uf", pos = [221, 222], type = "text", desc = "Sigla do Estado (G036)" },
+  { name = "indicativo_forma_pagamento", pos = [223, 224], type = "code", desc = "Indicativo da Forma de Pagamento do (P014)" },
+  { name = "cnab_225", pos = [225, 230], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "ocorrencias", pos = [231, 240], type = "text", desc = "Códigos das Ocorrências p/ Retorno (G059)" },
+]
+
+[[records]]
+id = "3A"
+name = "Segmento A — Crédito em conta, cheque, OP, TED, Pix"
+role = "detail"
+desc = "Seção 3.1.2"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "A" }]
+batch_match = [{ pos = [9, 9], value = "C" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Seqüencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Código de Segmento do Reg. Detalhe (G039)" },
+  { name = "tipo_movimento", pos = [15, 15], type = "code", desc = "Tipo de Movimento (G060)", values = { "0" = "Inclusão", "3" = "Estorno (somente para retorno)", "5" = "Alteração", "9" = "Exclusão" } },
+  { name = "codigo_instrucao_movimento", pos = [16, 17], type = "code", desc = "Código da Instrução p/ Movimento (G061)" },
+  { name = "camara", pos = [18, 20], type = "code", desc = "Código da Câmara Centralizadora (P001)" },
+  { name = "banco_favorecido", pos = [21, 23], type = "code", desc = "Código do Banco do Favorecido (P002)" },
+  { name = "agencia_favorecido", pos = [24, 28], type = "code", desc = "Ag. Mantenedora da Cta do Favor. (G008)" },
+  { name = "dv_agencia_favorecido", pos = [29, 29], type = "text", desc = "Dígito Verificador da Agência (G009)" },
+  { name = "conta_favorecido", pos = [30, 41], type = "code", desc = "Número da Conta Corrente (G010)" },
+  { name = "dv_conta_favorecido", pos = [42, 42], type = "text", desc = "Dígito Verificador da Conta (G011)" },
+  { name = "dv_agencia_conta_favorecido", pos = [43, 43], type = "text", desc = "Dígito Verificador da AG/Conta (G012)" },
+  { name = "nome_favorecido", pos = [44, 73], type = "text", desc = "Nome do Favorecido (G013)" },
+  { name = "seu_numero", pos = [74, 93], type = "text", desc = "Nº do Docum. Atribuído p/ Empresa (G064)" },
+  { name = "data_pagamento", pos = [94, 101], type = "date", format = "DDMMYYYY", desc = "Data do Pagamento (P009)" },
+  { name = "tipo_moeda", pos = [102, 104], type = "text", desc = "Tipo da Moeda (G040)" },
+  { name = "quantidade_moeda", pos = [105, 119], type = "decimal", decimals = 5, desc = "Quantidade da Moeda (G041)" },
+  { name = "valor_pagamento", pos = [120, 134], type = "decimal", decimals = 2, desc = "Valor do Pagamento (P010)" },
+  { name = "nosso_numero", pos = [135, 154], type = "text", desc = "Nº do Docum. Atribuído pelo Banco (G043)" },
+  { name = "data_real_pagamento", pos = [155, 162], type = "date", format = "DDMMYYYY", desc = "Data Real da Efetivação Pagto (P003)" },
+  { name = "valor_real_pagamento", pos = [163, 177], type = "decimal", decimals = 2, desc = "Valor Real da Efetivação do Pagto (P004)" },
+  { name = "mensagem", pos = [178, 217], type = "text", desc = "Vide formatação (G031)" },
+  { name = "finalidade_doc", pos = [218, 219], type = "text", desc = "Compl. Tipo Serviço (P005)" },
+  { name = "finalidade_ted", pos = [220, 224], type = "text", desc = "Codigo finalidade da TED (P011)" },
+  { name = "finalidade_complementar", pos = [225, 226], type = "text", desc = "Complemento de finalidade pagto. (P013)" },
+  { name = "cnab_227", pos = [227, 229], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "aviso_favorecido", pos = [230, 230], type = "code", desc = "Aviso ao Favorecido (P006)" },
+  { name = "ocorrencias", pos = [231, 240], type = "text", desc = "Códigos das Ocorrências p/ Retorno (G059)" },
+]
+
+[[records]]
+id = "3B"
+name = "Segmento B — Dados do favorecido"
+role = "detail"
+desc = "Seção 3.1.2"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "B" }]
+batch_match = [{ pos = [9, 9], value = "C" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo do Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Seqüencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Código de Segmento do Reg. Detalhe (G039)" },
+  { name = "forma_iniciacao", pos = [15, 17], type = "text", desc = "Forma de Iniciação (G100)" },
+  { name = "tipo_inscricao_favorecido", pos = [18, 18], type = "code", desc = "Tipo de Inscrição do Favorecido" },
+  { name = "numero_inscricao_favorecido", pos = [19, 32], type = "text", desc = "Nº de Inscrição do Favorecido" },
+  { name = "informacao_10", pos = [33, 67], type = "text", desc = "Informação 10" },
+  { name = "informacao_11", pos = [68, 127], type = "text", desc = "Informação 11" },
+  { name = "informacao_12", pos = [128, 226], type = "text", desc = "Informão 12" },
+  { name = "codigo_ug_centralizadora", pos = [227, 232], type = "code", desc = "Uso Exclusivo para o SIAPE" },
+  { name = "ispb", pos = [233, 240], type = "code", desc = "Código ISPB" },
+]
+
+[[records]]
+id = "3C"
+name = "Segmento C — Valores e conta complementares"
+role = "detail"
+desc = "Seção 3.1.2 (opcional)"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "C" }]
+batch_match = [{ pos = [9, 9], value = "C" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Seqüencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Código de Segmento do Reg. Detalhe (G039)" },
+  { name = "cnab_15", pos = [15, 17], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "valor_ir", pos = [18, 32], type = "decimal", decimals = 2, desc = "Valor do IR (G050)" },
+  { name = "valor_iss", pos = [33, 47], type = "decimal", decimals = 2, desc = "Valor do ISS (G051)" },
+  { name = "valor_iof", pos = [48, 62], type = "decimal", decimals = 2, desc = "Valor do IOF (G052)" },
+  { name = "valor_outras_deducoes", pos = [63, 77], type = "decimal", decimals = 2, desc = "Valor Outras Deduções (G053)" },
+  { name = "valor_outros_acrescimos", pos = [78, 92], type = "decimal", decimals = 2, desc = "Valor Outros Acréscimos (G054)" },
+  { name = "agencia_favorecido", pos = [93, 97], type = "code", desc = "Agência do Favorecido (G008)" },
+  { name = "dv_agencia_favorecido", pos = [98, 98], type = "text", desc = "Dígito Verificador da Agência (G009)" },
+  { name = "conta_favorecido", pos = [99, 110], type = "code", desc = "Número Conta Corrente (G010)" },
+  { name = "dv_conta_favorecido", pos = [111, 111], type = "text", desc = "Dígito Verificador da Conta (G011)" },
+  { name = "dv_agencia_conta_favorecido", pos = [112, 112], type = "text", desc = "Dígito Verificador Agência/Conta (G012)" },
+  { name = "valor_inss", pos = [113, 127], type = "decimal", decimals = 2, desc = "Valor do INSS (G055)" },
+  { name = "numero_conta_pagamento", pos = [128, 147], type = "code", desc = "Número Conta Pagamento Creditada (P016)" },
+  { name = "cnab_148", pos = [148, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+]
+
+[[records]]
+id = "3J52"
+name = "Segmento J-52 — Pagador e beneficiários"
+role = "detail"
+desc = "Seção 3.1.3. Atenção: o J-52 para o Pix tem as mesmas posições até 131, e de 132 a 240 traz a chave Pix (132-210) e o TXID (211-240); este layout ainda não o separa do J-52 comum"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "J" }, { pos = [18, 19], value = "52" }]
+batch_match = [{ pos = [9, 9], value = "C" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Sequencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Cód. Segmento do Registro Detalhe (G039)" },
+  { name = "cnab_15", pos = [15, 15], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "codigo_movimento", pos = [16, 17], type = "code", desc = "Código de Movimento Remessa (C004)" },
+  { name = "registro_opcional", pos = [18, 19], type = "code", desc = "Identificação Registro Opcional (G067)" },
+  { name = "tipo_inscricao_pagador", pos = [20, 20], type = "code", desc = "Tipo de Inscrição (G005)", values = { "0" = "Isento / Não Informado", "1" = "CPF", "2" = "CGC / CNPJ", "3" = "PIS / PASEP", "9" = "Outros" } },
+  { name = "numero_inscricao_pagador", pos = [21, 35], type = "text", desc = "Número de Inscrição (G006)" },
+  { name = "nome_pagador", pos = [36, 75], type = "text", desc = "Nome (G013)" },
+  { name = "tipo_inscricao_beneficiario", pos = [76, 76], type = "code", desc = "Tipo de Inscrição (G005)", values = { "0" = "Isento / Não Informado", "1" = "CPF", "2" = "CGC / CNPJ", "3" = "PIS / PASEP", "9" = "Outros" } },
+  { name = "numero_inscricao_beneficiario", pos = [77, 91], type = "text", desc = "Número de Inscrição (G006)" },
+  { name = "nome_beneficiario", pos = [92, 131], type = "text", desc = "Nome (G013)" },
+  { name = "tipo_inscricao_beneficiario_final", pos = [132, 132], type = "code", desc = "Tipo de Inscrição (G005)", values = { "0" = "Isento / Não Informado", "1" = "CPF", "2" = "CGC / CNPJ", "3" = "PIS / PASEP", "9" = "Outros" } },
+  { name = "numero_inscricao_beneficiario_final", pos = [133, 147], type = "text", desc = "Número de Inscrição (G006)" },
+  { name = "nome_beneficiario_final", pos = [148, 187], type = "text", desc = "Nome (G013)" },
+  { name = "cnab_188", pos = [188, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+]
+
+[[records]]
+id = "3J"
+name = "Segmento J — Pagamento de títulos de cobrança"
+role = "detail"
+desc = "Seção 3.1.3"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "J" }]
+batch_match = [{ pos = [9, 9], value = "C" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código no Banco da Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Seqüencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Código de Segmento no Reg. Detalhe (G039)" },
+  { name = "tipo_movimento", pos = [15, 15], type = "code", desc = "Tipo de Movimento (G060)", values = { "0" = "Inclusão", "3" = "Estorno (somente para retorno)", "5" = "Alteração", "9" = "Exclusão" } },
+  { name = "codigo_instrucao_movimento", pos = [16, 17], type = "code", desc = "Código da Instrução p/ Movimento (G061)" },
+  { name = "codigo_barras", pos = [18, 61], type = "code", desc = "Código de Barras (G063)" },
+  { name = "nome_beneficiario", pos = [62, 91], type = "text", desc = "Nome do Beneficiário (G013)" },
+  { name = "data_vencimento", pos = [92, 99], type = "date", format = "DDMMYYYY", desc = "Data do Vencimento (Nominal) (G044)" },
+  { name = "valor_titulo", pos = [100, 114], type = "decimal", decimals = 2, desc = "Valor do Título (Nominal) (G042)" },
+  { name = "valor_desconto_abatimento", pos = [115, 129], type = "decimal", decimals = 2, desc = "Valor do Desconto + Abatimento (L002)" },
+  { name = "valor_mora_multa", pos = [130, 144], type = "decimal", decimals = 2, desc = "Valor da Mora + Multa (L003)" },
+  { name = "data_pagamento", pos = [145, 152], type = "date", format = "DDMMYYYY", desc = "Data do Pagamento (P009)" },
+  { name = "valor_pagamento", pos = [153, 167], type = "decimal", decimals = 2, desc = "Valor do Pagamento (P010)" },
+  { name = "quantidade_moeda", pos = [168, 182], type = "decimal", decimals = 5, desc = "Quantidade da Moeda (G041)" },
+  { name = "seu_numero", pos = [183, 202], type = "text", desc = "Nº do Docto Atribuído pela Empresa (G064)" },
+  { name = "nosso_numero", pos = [203, 222], type = "text", desc = "Nº do Docto Atribuído pelo Banco (G043)" },
+  { name = "codigo_moeda", pos = [223, 224], type = "code", desc = "Código de Moeda (G065)" },
+  { name = "cnab_225", pos = [225, 230], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "ocorrencias", pos = [231, 240], type = "text", desc = "Códigos das Ocorrências p/ Retorno (G059)" },
+]
+
+[[records]]
+id = "3Z"
+name = "Segmento Z — Autenticação do pagamento"
+role = "detail"
+desc = "Seção 3.1.2 (opcional, retorno)"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "Z" }]
+batch_match = [{ pos = [9, 9], value = "C" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código no Banco da Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Sequencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Código de Segmento no Reg. Detalhe (G039)" },
+  { name = "autenticacao", pos = [15, 78], type = "text", desc = "Autenticação para atender Legislação (Z001)" },
+  { name = "controle_bancario", pos = [79, 103], type = "text", desc = "Autenticação Bancária / Protocolo (Z002)" },
+  { name = "cnab_104", pos = [104, 230], type = "filler", desc = "Uso CNAB/FEBRABAN (G004)" },
+  { name = "ocorrencias", pos = [231, 240], type = "text", desc = "Códigos das Ocorrências p/ Retorno (G059)" },
+]
+
+[[records]]
+id = "5C"
+name = "Trailer de Lote — Pagamentos"
+role = "batch_trailer"
+desc = "Seções 3.1.2 e 3.1.3"
+match = [{ pos = [8, 8], value = "5" }]
+batch_match = [{ pos = [9, 9], value = "C" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "cnab_9", pos = [9, 17], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "quantidade_registros_lote", pos = [18, 23], type = "int", desc = "Quantidade de Registros do Lote (G057)", check = "batch_lines" },
+  { name = "soma_valores", pos = [24, 41], type = "decimal", decimals = 2, desc = "Somatória dos Valores (P007)", check = "batch_sum:3A.valor_pagamento+3J.valor_pagamento" },
+  { name = "soma_quantidade_moeda", pos = [42, 59], type = "decimal", decimals = 5, desc = "Somatória de Quantidade de Moedas (G058)" },
+  { name = "numero_aviso_debito", pos = [60, 65], type = "code", desc = "Número Aviso de Débito (G066)" },
+  { name = "cnab_66", pos = [66, 230], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "ocorrencias", pos = [231, 240], type = "text", desc = "Códigos das Ocorrências para Retorno (G059)" },
+]
+
+[[records]]
+id = "1R"
+name = "Header de Lote — Cobrança"
+role = "batch_header"
+desc = "Seção 3.2.2 (títulos em cobrança)"
+match = [{ pos = [8, 8], value = "1" }, { pos = [9, 9], in = ["R", "T"] }, { pos = [10, 11], value = "01" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "tipo_operacao", pos = [9, 9], type = "text", desc = "Tipo de Operação (G028)", values = { "C" = "Lançamento a Crédito", "D" = "Lançamento a Débito", "E" = "Extrato para Conciliação", "G" = "Extrato para Gestão de Caixa", "I" = "Informações de Títulos Capturados do Próprio Banco", "R" = "Arquivo Remessa", "T" = "Arquivo Retorno" } },
+  { name = "tipo_servico", pos = [10, 11], type = "code", desc = "Tipo de Serviço (G025)", values = { "01" = "Cobrança", "03" = "Boleto de Pagamento Eletrônico", "04" = "Conciliação Bancária", "05" = "Débitos", "06" = "Custódia de Cheques", "07" = "Gestão de Caixa", "08" = "Consulta/Informação Margem", "09" = "Averbação da Consignação/Retenção", "10" = "Pagamento Dividendos", "20" = "Pagamento Fornecedor", "29" = "Alegação do Pagador", "30" = "Pagamento Salários", "40" = "Vendor", "41" = "Vendor a Termo", "50" = "Pagamento Sinistros Segurados", "60" = "Pagamento Despesas Viajante em Trânsito", "70" = "Pagamento Autorizado", "75" = "Pagamento Credenciados", "80" = "Pagamento Representantes / Vendedores Autorizados", "90" = "Pagamento Benefícios", "98" = "Pagamentos Diversos" } },
+  { name = "cnab_12", pos = [12, 13], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "versao_layout_lote", pos = [14, 16], type = "code", desc = "Nº da Versão do Layout do Lote (G030)" },
+  { name = "cnab_17", pos = [17, 17], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "tipo_inscricao", pos = [18, 18], type = "code", desc = "Tipo de Inscrição da Empresa (G005)", values = { "0" = "Isento / Não Informado", "1" = "CPF", "2" = "CGC / CNPJ", "3" = "PIS / PASEP", "9" = "Outros" } },
+  { name = "numero_inscricao", pos = [19, 33], type = "text", desc = "Nº de Inscrição da Empresa (G006)" },
+  { name = "convenio", pos = [34, 53], type = "text", desc = "Código do Convênio no Banco (G007)" },
+  { name = "agencia", pos = [54, 58], type = "code", desc = "Agência Mantenedora da Conta (G008)" },
+  { name = "dv_agencia", pos = [59, 59], type = "text", desc = "Dígito Verificador da Conta (G009)" },
+  { name = "conta", pos = [60, 71], type = "code", desc = "Número da Conta Corrente (G010)" },
+  { name = "dv_conta", pos = [72, 72], type = "text", desc = "Dígito Verificador da Conta (G011)" },
+  { name = "dv_agencia_conta", pos = [73, 73], type = "text", desc = "Dígito Verificador da Ag/Conta (G012)" },
+  { name = "nome", pos = [74, 103], type = "text", desc = "Nome da Empresa (G013)" },
+  { name = "mensagem_1", pos = [104, 143], type = "text", desc = "Mensagem 1 (C073)" },
+  { name = "mensagem_2", pos = [144, 183], type = "text", desc = "Mensagem 2 (C073)" },
+  { name = "numero_remessa_retorno", pos = [184, 191], type = "int", desc = "Número Remessa/Retorno (G079)" },
+  { name = "data_gravacao", pos = [192, 199], type = "date", format = "DDMMYYYY", desc = "Data de Gravação Remessa/Retorno (G068)" },
+  { name = "data_credito", pos = [200, 207], type = "date", format = "DDMMYYYY", desc = "Data do Crédito (C003)" },
+  { name = "cnab_208", pos = [208, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+]
+
+[[records]]
+id = "3P"
+name = "Segmento P — Título (remessa)"
+role = "detail"
+desc = "Seção 3.2.2"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "P" }]
+batch_match = [{ pos = [9, 9], in = ["R", "T"] }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Sequencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Cód. Segmento do Registro Detalhe (G039)" },
+  { name = "cnab_15", pos = [15, 15], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "codigo_movimento", pos = [16, 17], type = "code", desc = "Código de Movimento Remessa (C004)" },
+  { name = "agencia", pos = [18, 22], type = "code", desc = "Agência Mantenedora da Conta (G008)" },
+  { name = "dv_agencia", pos = [23, 23], type = "text", desc = "Dígito Verificador da Agência (G009)" },
+  { name = "conta", pos = [24, 35], type = "code", desc = "Número da Conta Corrente (G010)" },
+  { name = "dv_conta", pos = [36, 36], type = "text", desc = "Dígito Verificador da Conta (G011)" },
+  { name = "dv_agencia_conta", pos = [37, 37], type = "text", desc = "Dígito Verificador da Ag/Conta (G012)" },
+  { name = "nosso_numero", pos = [38, 57], type = "text", desc = "Identificação do Título no Banco (G069)" },
+  { name = "carteira", pos = [58, 58], type = "code", desc = "Código da Carteira (C006)" },
+  { name = "forma_cadastramento", pos = [59, 59], type = "code", desc = "Forma de Cadastr. do Título no Banco (C007)" },
+  { name = "tipo_documento", pos = [60, 60], type = "text", desc = "Tipo de Documento (C008)" },
+  { name = "emissao_boleto", pos = [61, 61], type = "code", desc = "Id da Emissão do Boleto de Pagamento (C009)" },
+  { name = "distribuicao", pos = [62, 62], type = "text", desc = "Identificação da Distribuição (C010)" },
+  { name = "numero_documento", pos = [63, 77], type = "text", desc = "Número do Documento de Cobrança (C011)" },
+  { name = "data_vencimento", pos = [78, 85], type = "date", format = "DDMMYYYY", desc = "Data de Vencimento do Título (C012)" },
+  { name = "valor_titulo", pos = [86, 100], type = "decimal", decimals = 2, desc = "Valor Nominal do Título (G070)" },
+  { name = "agencia_cobradora", pos = [101, 105], type = "code", desc = "Agência Encarregada da Cobrança (C014)" },
+  { name = "dv_agencia_cobradora", pos = [106, 106], type = "text", desc = "Dígito Verificador da Agência (G009)" },
+  { name = "especie_titulo", pos = [107, 108], type = "code", desc = "Espécie do Título (C015)" },
+  { name = "aceite", pos = [109, 109], type = "text", desc = "Identific. de Título Aceito/Não Aceito (C016)" },
+  { name = "data_emissao", pos = [110, 117], type = "date", format = "DDMMYYYY", desc = "Data da Emissão do Título (G071)" },
+  { name = "codigo_juros_mora", pos = [118, 118], type = "code", desc = "Código do Juros de Mora (C018)" },
+  { name = "data_juros_mora", pos = [119, 126], type = "date", format = "DDMMYYYY", desc = "Data do Juros de Mora (C019)" },
+  { name = "juros_mora", pos = [127, 141], type = "decimal", decimals = 2, desc = "Juros de Mora por Dia/Taxa (C020)" },
+  { name = "codigo_desconto_1", pos = [142, 142], type = "code", desc = "Código do Desconto 1 (C021)" },
+  { name = "data_desconto_1", pos = [143, 150], type = "date", format = "DDMMYYYY", desc = "Data do Desconto 1 (C022)" },
+  { name = "desconto_1", pos = [151, 165], type = "decimal", decimals = 2, desc = "Valor/Percentual a ser Concedido (C023)" },
+  { name = "valor_iof", pos = [166, 180], type = "decimal", decimals = 2, desc = "Valor do IOF a ser Recolhido (C024)" },
+  { name = "valor_abatimento", pos = [181, 195], type = "decimal", decimals = 2, desc = "Valor do Abatimento (G045)" },
+  { name = "uso_empresa", pos = [196, 220], type = "text", desc = "Identificação do Título na Empresa (G072)" },
+  { name = "codigo_protesto", pos = [221, 221], type = "code", desc = "Código para Protesto (C026)" },
+  { name = "prazo_protesto", pos = [222, 223], type = "code", desc = "Número de Dias para Protesto (C027)" },
+  { name = "codigo_baixa", pos = [224, 224], type = "code", desc = "Código para Baixa/Devolução (C028)" },
+  { name = "prazo_baixa", pos = [225, 227], type = "text", desc = "Número de Dias para Baixa/Devolução (C029)" },
+  { name = "codigo_moeda", pos = [228, 229], type = "code", desc = "Código da Moeda (G065)" },
+  { name = "numero_contrato", pos = [230, 239], type = "code", desc = "Nº do Contrato da Operação de Créd. (C030)" },
+  { name = "uso_livre", pos = [240, 240], type = "text", desc = "Uso livre banco/empresa ou autorização (C077)" },
+]
+
+[[records]]
+id = "3Q"
+name = "Segmento Q — Pagador (remessa)"
+role = "detail"
+desc = "Seção 3.2.2"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "Q" }]
+batch_match = [{ pos = [9, 9], in = ["R", "T"] }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Sequencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Cód. Segmento do Registro Detalhe (G039)" },
+  { name = "cnab_15", pos = [15, 15], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "codigo_movimento", pos = [16, 17], type = "code", desc = "Código de Movimento Remessa (C004)" },
+  { name = "tipo_inscricao_pagador", pos = [18, 18], type = "code", desc = "Tipo de Inscrição (G005)", values = { "0" = "Isento / Não Informado", "1" = "CPF", "2" = "CGC / CNPJ", "3" = "PIS / PASEP", "9" = "Outros" } },
+  { name = "numero_inscricao_pagador", pos = [19, 33], type = "text", desc = "Número de Inscrição (G006)" },
+  { name = "nome_pagador", pos = [34, 73], type = "text", desc = "Nome (G013)" },
+  { name = "endereco", pos = [74, 113], type = "text", desc = "Endereço (G032)" },
+  { name = "bairro", pos = [114, 128], type = "text", desc = "Bairro (G032)" },
+  { name = "cep", pos = [129, 133], type = "code", desc = "CEP (G034)" },
+  { name = "sufixo_cep", pos = [134, 136], type = "code", desc = "Sufixo do CEP (G035)" },
+  { name = "cidade", pos = [137, 151], type = "text", desc = "Cidade (G033)" },
+  { name = "uf", pos = [152, 153], type = "text", desc = "Unidade da Federação (G036)" },
+  { name = "tipo_inscricao_beneficiario_final", pos = [154, 154], type = "code", desc = "Tipo de Inscrição (G005)", values = { "0" = "Isento / Não Informado", "1" = "CPF", "2" = "CGC / CNPJ", "3" = "PIS / PASEP", "9" = "Outros" } },
+  { name = "numero_inscricao_beneficiario_final", pos = [155, 169], type = "text", desc = "Número de Inscrição (G006)" },
+  { name = "nome_beneficiario_final", pos = [170, 209], type = "text", desc = "Nome do Beneficiário Final (G013)" },
+  { name = "banco_correspondente", pos = [210, 212], type = "code", desc = "Cód. Bco. Corresp. na Compensação (C031)" },
+  { name = "nosso_numero_correspondente", pos = [213, 232], type = "text", desc = "Nosso Nº no Banco Correspondente (C032)" },
+  { name = "cnab_233", pos = [233, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+]
+
+[[records]]
+id = "3R"
+name = "Segmento R — Descontos, multa e débito (remessa)"
+role = "detail"
+desc = "Seção 3.2.2 (opcional)"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "R" }]
+batch_match = [{ pos = [9, 9], in = ["R", "T"] }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Sequencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Cód. Segmento do Registro Detalhe (G039)" },
+  { name = "cnab_15", pos = [15, 15], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "codigo_movimento", pos = [16, 17], type = "code", desc = "Código de Movimento Remessa (C004)" },
+  { name = "codigo_desconto_2", pos = [18, 18], type = "code", desc = "Código do Desconto 2 (C021)" },
+  { name = "data_desconto_2", pos = [19, 26], type = "date", format = "DDMMYYYY", desc = "Data do Desconto 2 (C022)" },
+  { name = "desconto_2", pos = [27, 41], type = "decimal", decimals = 2, desc = "Valor/Percentual a ser Concedido (C023)" },
+  { name = "codigo_desconto_3", pos = [42, 42], type = "code", desc = "Código do Desconto 3 (C021)" },
+  { name = "data_desconto_3", pos = [43, 50], type = "date", format = "DDMMYYYY", desc = "Data do Desconto 3 (C022)" },
+  { name = "desconto_3", pos = [51, 65], type = "decimal", decimals = 2, desc = "Valor/Percentual a Ser Concedido (C023)" },
+  { name = "codigo_multa", pos = [66, 66], type = "text", desc = "Código da Multa (G073)" },
+  { name = "data_multa", pos = [67, 74], type = "date", format = "DDMMYYYY", desc = "Data da Multa (G074)" },
+  { name = "multa", pos = [75, 89], type = "decimal", decimals = 2, desc = "Valor/Percentual a Ser Aplicado (G075)" },
+  { name = "informacao_pagador", pos = [90, 99], type = "text", desc = "Informação ao Pagador (C036)" },
+  { name = "mensagem_3", pos = [100, 139], type = "text", desc = "Mensagem 3 (C037)" },
+  { name = "mensagem_4", pos = [140, 179], type = "text", desc = "Mensagem 4 (C037)" },
+  { name = "cnab_180", pos = [180, 199], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "ocorrencia_pagador", pos = [200, 207], type = "code", desc = "Cód. Ocor. do Pagador (C038)" },
+  { name = "banco_debito", pos = [208, 210], type = "code", desc = "Cód. do Banco na Conta do Débito (G001)" },
+  { name = "agencia_debito", pos = [211, 215], type = "code", desc = "Código da Agência do Débito (G008)" },
+  { name = "dv_agencia_debito", pos = [216, 216], type = "text", desc = "Dígito Verificador da Agência (G009)" },
+  { name = "conta_debito", pos = [217, 228], type = "code", desc = "Conta Corrente para Débito (G010)" },
+  { name = "dv_conta_debito", pos = [229, 229], type = "text", desc = "Dígito Verificador da Conta (G011)" },
+  { name = "dv_agencia_conta_debito", pos = [230, 230], type = "text", desc = "Dígito Verificador Ag/Conta (G012)" },
+  { name = "aviso_debito_automatico", pos = [231, 231], type = "code", desc = "Aviso para Débito Automático (C039)" },
+  { name = "cnab_232", pos = [232, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+]
+
+[[records]]
+id = "3T"
+name = "Segmento T — Título (retorno)"
+role = "detail"
+desc = "Seção 3.2.2"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "T" }]
+batch_match = [{ pos = [9, 9], in = ["R", "T"] }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Número Sequencial Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Código Segmento do Registro Detalhe (G039)" },
+  { name = "cnab_15", pos = [15, 15], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "codigo_movimento", pos = [16, 17], type = "code", desc = "Código de Movimento Retorno (C044)" },
+  { name = "agencia", pos = [18, 22], type = "code", desc = "Agência Mantenedora da Conta (G008)" },
+  { name = "dv_agencia", pos = [23, 23], type = "code", desc = "Dígito Verificador da Agência (G009)" },
+  { name = "conta", pos = [24, 35], type = "code", desc = "Número da Conta Corrente (G010)" },
+  { name = "dv_conta", pos = [36, 36], type = "code", desc = "Dígito Verificador da Conta (G011)" },
+  { name = "dv_agencia_conta", pos = [37, 37], type = "code", desc = "Dígito Verificador da Ag/Conta (G012)" },
+  { name = "nosso_numero", pos = [38, 57], type = "text", desc = "Identificação do Título (G069)" },
+  { name = "carteira", pos = [58, 58], type = "code", desc = "Código da Carteira (C006)" },
+  { name = "numero_documento", pos = [59, 73], type = "text", desc = "Número do Documento de Cobrança (C011)" },
+  { name = "data_vencimento", pos = [74, 81], type = "date", format = "DDMMYYYY", desc = "Data do Vencimento do Título (C012)" },
+  { name = "valor_titulo", pos = [82, 96], type = "decimal", decimals = 2, desc = "Valor Nominal do Título (G070)" },
+  { name = "banco_cobrador", pos = [97, 99], type = "code", desc = "Número do Banco (C045)" },
+  { name = "agencia_cobradora", pos = [100, 104], type = "code", desc = "Agência Cobradora/Recebedora (G008)" },
+  { name = "dv_agencia_cobradora", pos = [105, 105], type = "code", desc = "Dígito Verificador da Agência (G009)" },
+  { name = "uso_empresa", pos = [106, 130], type = "text", desc = "Identificação do Título na Empresa (G072)" },
+  { name = "codigo_moeda", pos = [131, 132], type = "code", desc = "Código da Moeda (G065)" },
+  { name = "tipo_inscricao_pagador", pos = [133, 133], type = "code", desc = "Tipo de Inscrição (G005)", values = { "0" = "Isento / Não Informado", "1" = "CPF", "2" = "CGC / CNPJ", "3" = "PIS / PASEP", "9" = "Outros" } },
+  { name = "numero_inscricao_pagador", pos = [134, 148], type = "text", desc = "Número de Inscrição (G006)" },
+  { name = "nome_pagador", pos = [149, 188], type = "text", desc = "Nome (G013)" },
+  { name = "numero_contrato", pos = [189, 198], type = "code", desc = "Nº do Contr. da Operação de Crédito (C030)" },
+  { name = "valor_tarifa", pos = [199, 213], type = "decimal", decimals = 2, desc = "Valor da Tarifa / Custas (G076)" },
+  { name = "motivo_ocorrencia", pos = [214, 223], type = "text", desc = "Identificação para Rejeições, Tarifas, (C047)" },
+  { name = "cnab_224", pos = [224, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+]
+
+[[records]]
+id = "3U"
+name = "Segmento U — Valores e ocorrências (retorno)"
+role = "detail"
+desc = "Seção 3.2.2"
+match = [{ pos = [8, 8], value = "3" }, { pos = [14, 14], value = "U" }]
+batch_match = [{ pos = [9, 9], in = ["R", "T"] }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "numero_registro", pos = [9, 13], type = "int", desc = "Nº Sequencial do Registro no Lote (G038)" },
+  { name = "segmento", pos = [14, 14], type = "text", desc = "Cód. Segmento do Registro Detalhe (G039)" },
+  { name = "cnab_15", pos = [15, 15], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "codigo_movimento", pos = [16, 17], type = "code", desc = "Código de Movimento Retorno (C044)" },
+  { name = "valor_acrescimos", pos = [18, 32], type = "decimal", decimals = 2, desc = "Juros / Multa / Encargos (C048)" },
+  { name = "valor_desconto", pos = [33, 47], type = "decimal", decimals = 2, desc = "Valor do Desconto Concedido (C049)" },
+  { name = "valor_abatimento", pos = [48, 62], type = "decimal", decimals = 2, desc = "Valor do Abat. Concedido/Cancel. (C050)" },
+  { name = "valor_iof", pos = [63, 77], type = "decimal", decimals = 2, desc = "Valor do IOF Recolhido (G077)" },
+  { name = "valor_pago", pos = [78, 92], type = "decimal", decimals = 2, desc = "Valor Pago pelo Pagador (C052)" },
+  { name = "valor_liquido", pos = [93, 107], type = "decimal", decimals = 2, desc = "Valor Líquido a ser Creditado (G078)" },
+  { name = "outras_despesas", pos = [108, 122], type = "decimal", decimals = 2, desc = "Valor de Outras Despesas (C054)" },
+  { name = "outros_creditos", pos = [123, 137], type = "decimal", decimals = 2, desc = "Valor de Outros Créditos (C055)" },
+  { name = "data_ocorrencia", pos = [138, 145], type = "date", format = "DDMMYYYY", desc = "Data da Ocorrência (C056)" },
+  { name = "data_credito", pos = [146, 153], type = "date", format = "DDMMYYYY", desc = "Data da Efetivação do Crédito (C057)" },
+  { name = "codigo_ocorrencia_pagador", pos = [154, 157], type = "text", desc = "Código da Ocorrência (A001)" },
+  { name = "data_ocorrencia_pagador", pos = [158, 165], type = "text", desc = "Data da Ocorrência (C058)" },
+  { name = "valor_ocorrencia_pagador", pos = [166, 180], type = "decimal", decimals = 2, desc = "Valor da Ocorrência (C059)" },
+  { name = "complemento_ocorrencia_pagador", pos = [181, 210], type = "text", desc = "Complem. da Ocorrência (A002)" },
+  { name = "banco_correspondente", pos = [211, 213], type = "code", desc = "Cód. Banco Correspondente (C031)" },
+  { name = "nosso_numero_correspondente", pos = [214, 233], type = "code", desc = "Nosso Nº Banco Correspondente (C032)" },
+  { name = "cnab_234", pos = [234, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+]
+
+[[records]]
+id = "5R"
+name = "Trailer de Lote — Cobrança"
+role = "batch_trailer"
+desc = "Seção 3.2.2. Os totais por carteira só vêm no retorno"
+match = [{ pos = [8, 8], value = "5" }]
+batch_match = [{ pos = [9, 9], in = ["R", "T"] }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "cnab_9", pos = [9, 17], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "quantidade_registros_lote", pos = [18, 23], type = "int", desc = "Quantidade de Registros no Lote (G057)", check = "batch_lines" },
+  { name = "quantidade_titulos_simples", pos = [24, 29], type = "int", desc = "Quantidade de Títulos em Cobrança (C070)" },
+  { name = "valor_titulos_simples", pos = [30, 46], type = "decimal", decimals = 2, desc = "Valor Total dosTítulos em Carteiras (C071)" },
+  { name = "quantidade_titulos_vinculada", pos = [47, 52], type = "int", desc = "Quantidade de Títulos em Cobrança (C070)" },
+  { name = "valor_titulos_vinculada", pos = [53, 69], type = "decimal", decimals = 2, desc = "Valor Total dosTítulos em Carteiras (C071)" },
+  { name = "quantidade_titulos_caucionada", pos = [70, 75], type = "int", desc = "Quantidade de Títulos em Cobrança (C070)" },
+  { name = "valor_titulos_caucionada", pos = [76, 92], type = "decimal", decimals = 2, desc = "Quantidade de Títulos em Carteiras (C071)" },
+  { name = "quantidade_titulos_descontada", pos = [93, 98], type = "int", desc = "Quantidade de Títulos em Cobrança (C070)" },
+  { name = "valor_titulos_descontada", pos = [99, 115], type = "decimal", decimals = 2, desc = "Valor Total dosTítulos em Carteiras (C071)" },
+  { name = "numero_aviso", pos = [116, 123], type = "text", desc = "Número do Aviso de Lançamento (C072)" },
+  { name = "cnab_124", pos = [124, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+]
+
+[[records]]
+id = "9"
+name = "Trailer de Arquivo"
+role = "trailer"
+desc = "Seção 2.2"
+match = [{ pos = [4, 7], value = "9999" }, { pos = [8, 8], value = "9" }]
+fields = [
+  { name = "banco", pos = [1, 3], type = "code", desc = "Código do Banco na Compensação (G001)" },
+  { name = "lote", pos = [4, 7], type = "int", desc = "Lote de Serviço (G002)" },
+  { name = "registro", pos = [8, 8], type = "code", desc = "Tipo de Registro (G003)", values = { "0" = "Header de Arquivo", "1" = "Header de Lote", "2" = "Registros Iniciais do Lote", "3" = "Detalhe", "4" = "Registros Finais do Lote", "5" = "Trailer de Lote", "9" = "Trailer de Arquivo" } },
+  { name = "cnab_9", pos = [9, 17], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+  { name = "quantidade_lotes", pos = [18, 23], type = "int", desc = "Quantidade de Lotes do Arquivo (G049)", check = "record_count:1*" },
+  { name = "quantidade_registros", pos = [24, 29], type = "int", desc = "Quantidade de Registros do Arquivo (G056)", check = "total_lines" },
+  { name = "quantidade_contas_conciliacao", pos = [30, 35], type = "int", desc = "Qtde de Contas p/ Conc. (Lotes) (G037)" },
+  { name = "cnab_36", pos = [36, 240], type = "filler", desc = "Uso Exclusivo FEBRABAN/CNAB (G004)" },
+]

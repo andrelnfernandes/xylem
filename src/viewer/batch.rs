@@ -1866,9 +1866,19 @@ impl Row<'_> {
 }
 
 /// What a Batch reads: everything is read again, or kept, away from the screen.
+/// The sheet of a file read through a layout, for a Batch.
+#[derive(Debug, Clone)]
+pub struct LayoutSheet {
+    pub layout: std::sync::Arc<super::multirecord::xlayout::Layout>,
+    pub key: String,
+    pub charset: crate::charset::Charset,
+}
+
 pub enum Source {
     Table {
         path: PathBuf,
+        /// The layout the file is read through, and which of its sheets.
+        layout: Option<LayoutSheet>,
         /// The sheet of a spreadsheet.
         sheet: usize,
         /// The table of a database.
@@ -2045,6 +2055,7 @@ impl Source {
         match self {
             Source::Table {
                 path,
+                layout,
                 sheet,
                 table,
                 query,
@@ -2066,6 +2077,16 @@ impl Source {
                     (None, Some(table)) => records::SqlitePart::Table(table),
                     (None, None) => records::SqlitePart::First,
                 };
+                if let Some(l) = layout {
+                    let target = super::multirecord::Target::Key(l.key.clone());
+                    let reading = super::multirecord::Reading {
+                        target: &target,
+                        charset: Some(l.charset),
+                        count_all: false,
+                    };
+                    return super::multirecord::read(path, &l.layout, reading, budget, &mut sink)
+                        .map(|scan| scan.end);
+                }
                 records::read_table(path, *sheet, part, budget, &mut sink)
             }
             Source::Text {
@@ -2757,6 +2778,7 @@ mod tests {
     fn table_source(path: &Path, filter: Option<&str>) -> Source {
         Source::Table {
             path: path.to_path_buf(),
+            layout: None,
             sheet: 0,
             table: None,
             query: None,
@@ -2795,6 +2817,47 @@ mod tests {
         let text = fs::read_to_string(&out).unwrap();
         assert_eq!(text.lines().count(), 60_000);
         assert_eq!(text.lines().last(), Some("60000 n60000"));
+    }
+
+    #[test]
+    fn a_batch_of_a_layout_sheet_writes_its_records_with_exact_values() {
+        let tmp = crate::testing::tempdir();
+        let data = tmp.path().join("pay.rem");
+        let text = crate::viewer::multirecord::tests::payments("000006", "000000000000112345");
+        fs::write(&data, text).unwrap();
+        let layout = crate::viewer::multirecord::catalog::detect(
+            &data,
+            &fs::read(&data).unwrap(),
+            crate::charset::Charset::Utf8,
+        )
+        .unwrap()
+        .layout;
+        let source = Source::Table {
+            path: data,
+            layout: Some(LayoutSheet {
+                layout,
+                key: "r:3A".into(),
+                charset: crate::charset::Charset::Utf8,
+            }),
+            sheet: 2,
+            table: None,
+            query: None,
+            filter: Some(sql_filter::SqlFilter::parse("valor_pagamento > 500").unwrap()),
+            unpacked: u64::MAX,
+            marked: Default::default(),
+        };
+        let out = tmp.path().join("out.txt");
+        let done = run_to_file(
+            source,
+            mask("%{nome_favorecido};%{valor_pagamento}", Escape::Line),
+            &out,
+        );
+        assert_eq!(done.records, 1);
+        // Each line ends as the system's do: \r\n on Windows.
+        assert_eq!(
+            fs::read_to_string(&out).unwrap().replace("\r\n", "\n"),
+            "FORNECEDOR DOIS;1000.00\n"
+        );
     }
 
     #[test]
@@ -3728,6 +3791,7 @@ mod tests {
         drop(db);
         let source = Source::Table {
             path: source_db.clone(),
+            layout: None,
             sheet: 0,
             table: Some("t".to_string()),
             query: None,
@@ -3760,6 +3824,7 @@ mod tests {
             .unwrap();
         let source = Source::Table {
             path: source_db.clone(),
+            layout: None,
             sheet: 0,
             table: Some("a".to_string()),
             query: Some("SELECT name, item FROM a JOIN b ON who = id ORDER BY id".to_string()),
@@ -3902,6 +3967,7 @@ mod tests {
         };
         let source = Source::Table {
             path,
+            layout: None,
             sheet,
             table,
             query,

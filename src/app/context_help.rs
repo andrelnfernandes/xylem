@@ -71,7 +71,8 @@ impl App {
                 PromptKind::SearchTagged { .. } => "search",
                 PromptKind::ViewerSearch { .. }
                 | PromptKind::ViewerGoto
-                | PromptKind::ViewerSqlFilter => "viewer",
+                | PromptKind::ViewerSqlFilter
+                | PromptKind::ViewerLayoutPath => "viewer",
                 PromptKind::ViewerLineFilter { .. } => "filter",
                 PromptKind::ViewerBatchFile | PromptKind::ViewerBatchMask { .. } => "execute",
                 PromptKind::CreateArchive(_) => "archives",
