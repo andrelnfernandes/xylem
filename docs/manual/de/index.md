@@ -31,6 +31,7 @@ Stelle finden, schlagen Sie bitte eine Verbesserung vor: `https://github.com/and
 - [Geteilter Bildschirm](split.md): zwei Fenster nebeneinander
 - [Der Betrachter](viewer.md): Text und Hex, Suche, Syntaxfarben
 - [Zeilen filtern](filter.md): `&` im Betrachter, mit einer Anleitung zu regulären Ausdrücken
+- [Layouts](layouts.md): CNAB, SPED, SDF und andere Dateien mit fester Breite oder mehreren Satzarten als Tabelle; ein Layout schreiben
 - [Markierte Dateien durchsuchen](search.md): Ctrl+S und Ctrl+V
 - [Informationen](info.md): Info, Avail, Statistiken und Verzeichnisgrößen
 - [Speicherplatzbelegung](usage.md): wohin der Platz geht (Alt+W)

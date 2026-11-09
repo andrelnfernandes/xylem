@@ -195,21 +195,25 @@ pub trait RecordSink {
     fn columns_cut(&mut self);
     /// What the file declares of the columns, when it declares something.
     fn structure(&mut self, _structure: Structure) {}
+    /// What each column's values mean, when the file's layout says: `(value, meaning)`.
+    fn domains(&mut self, _domains: &[Vec<(String, String)>]) {}
+    /// Something about the whole file that should be seen without asking (`i` has more).
+    fn notice(&mut self, _text: &str) {}
     fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()>;
 }
 
 /// Looks at the clock every so many records.
-struct Pace {
+pub(crate) struct Pace {
     budget: Budget,
     count: u32,
 }
 
 impl Pace {
-    fn new(budget: Budget) -> Self {
+    pub(crate) fn new(budget: Budget) -> Self {
         Pace { budget, count: 0 }
     }
 
-    fn over(&mut self) -> bool {
+    pub(crate) fn over(&mut self) -> bool {
         self.count = self.count.wrapping_add(1);
         self.count & 0xFF == 0 && self.budget.over()
     }

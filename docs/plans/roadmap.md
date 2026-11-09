@@ -64,6 +64,11 @@ Decisões já tomadas:
 - **Escrita remota trata o servidor como hostil,** como já faz a leitura: cada spec
   dessa frente traz o seu modelo de ameaça.
 
+Fora da tabela, aprovado em 2026-11-09: **layouts de arquivos posicionais e multi-registro**,
+etapas 1a a 1c ([viewer-positional.md](viewer-positional.md), seção 10): CNAB 240, SPED e SDF
+como tabela, com a tecla `K`. Na branch `positional-viewer`; entra num release quando o autor
+aprovar o PR. O resto desse plano ainda não tem lugar na ordem.
+
 ## Parte 2: o que é novo
 
 Depois da Parte 1, nesta ordem:

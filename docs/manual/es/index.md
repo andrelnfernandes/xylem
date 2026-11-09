@@ -30,6 +30,7 @@ mejora: `https://github.com/andrelnfernandes/xylem/issues`.
 - [Pantalla dividida](split.md): dos ventanas lado a lado
 - [El visor](viewer.md): texto y hexadecimal, búsqueda, colores de sintaxis
 - [Filtrar líneas](filter.md): `&` en el visor, con una guía de expresiones regulares
+- [Layouts](layouts.md): CNAB, SPED, SDF y otros archivos de ancho fijo o multirregistro como tabla; cómo escribir un layout
 - [Buscar en archivos marcados](search.md): Ctrl+S y Ctrl+V
 - [Información](info.md): Info, Avail, estadísticas y tamaños de directorios
 - [Uso de disco](usage.md): adónde va el espacio (Alt+W)

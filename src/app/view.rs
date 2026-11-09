@@ -328,6 +328,19 @@ impl App {
                 self.open_prompt(PromptKind::ViewerSqlFilter, label.to_string(), &current);
             }
             ViewerAction::Batch => self.viewer_batch(),
+            ViewerAction::LayoutPath => {
+                let Some(v) = &self.viewer else { return };
+                let dir = v
+                    .path
+                    .parent()
+                    .map(|d| format!("{}/", d.display()))
+                    .unwrap_or_default();
+                self.open_prompt(
+                    PromptKind::ViewerLayoutPath,
+                    "Layout (.xlayout.toml, or a .dbf for its SDF): ".to_string(),
+                    &dir,
+                );
+            }
             ViewerAction::FilterLines => {
                 let Some(v) = &self.viewer else { return };
                 let spec = v.line_filter().cloned().unwrap_or_else(|| LineFilterSpec {
