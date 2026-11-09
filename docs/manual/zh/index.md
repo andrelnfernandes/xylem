@@ -15,6 +15,7 @@ Xylem 将不可信的文件视为恶意文件：绝不应因文件内容或文�
 - [分屏](split.md)：并排显示两个窗口
 - [查看器](viewer.md)：文本与十六进制、搜索、语法高亮
 - [筛选行](filter.md)：查看器中的 `&`，附正则表达式指南
+- [布局](layouts.md)：将 CNAB、SPED、SDF 等定宽或多记录类型的文件显示为表格；如何编写布局
 - [搜索已标记的文件](search.md)：Ctrl+S 与 Ctrl+V
 - [信息](info.md)：Info、Avail、统计信息与目录大小
 - [磁盘用量](usage.md)：查看空间去向（Alt+W）

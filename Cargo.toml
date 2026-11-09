@@ -13,7 +13,7 @@ categories = ["command-line-utilities", "filesystem"]
 # What goes to crates.io: the code, the demo files (which its tests read), the
 # Windows icon (build.rs), the license and the READMEs (the screenshots stay on GitHub, where the
 # READMEs' images point).
-include = ["/src/**/*.rs", "/build.rs", "/docs/icons/xylem.ico", "/docs/manual/**/*.md", "/demo/**", "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/README.md", "/README.pt-BR.md"]
+include = ["/src/**/*.rs", "/build.rs", "/docs/icons/xylem.ico", "/docs/manual/**/*.md", "/layouts/**/*.xlayout.toml", "/demo/**", "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/README.md", "/README.pt-BR.md"]
 
 [[bin]]
 name = "xy"
@@ -36,7 +36,7 @@ notify = { version = "8.2.0", default-features = false }
 portable-pty = "0.9.0"
 ratatui = "0.30.2"
 regex = "1.13"
-rusqlite = { version = "0.33", features = ["bundled", "hooks", "column_decltype"] }
+rusqlite = { version = "0.41", features = ["bundled", "hooks", "column_decltype"] }
 ruzstd = "0.9"
 parquet = { version = "60.1", default-features = false, features = ["arrow", "snap", "flate2-zlib-rs", "lz4_flex", "zstd"] }
 arrow-array = "60.1"

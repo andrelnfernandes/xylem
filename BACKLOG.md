@@ -96,7 +96,15 @@ as a link is what `cp -a` and `rsync -l` do).
   files, the size limit; PRs #44 to #49), and the table mode with SQLite and the
   SQL filter (subprojects 2 and 5; PR #63), documented in
   [the manual](docs/manual/viewer.md). Still to do: the windowed viewer (3); logs
-  (4), of which the line filter is done; SDF in the table mode, as an extra.
+  (4), of which the line filter is done. SDF is read through layouts (below).
+- **Layouts: fixed-width and multi-record files**
+  ([docs/plans/viewer-positional.md](docs/plans/viewer-positional.md);
+  [the manual](docs/manual/layouts.md)): stages 1a to 1c done on the branch
+  `positional-viewer` (positional and delimited engine, CNAB 240 and SPED in the
+  catalog, `K`, SDF from a `.dbf`). Still to do: J-52 for Pix and the other services of
+  CNAB 240; the ruler of fields in text mode; COBOL copybooks; EBCDIC and `COMP-3`; the
+  rest of the catalog, public manuals only ([layouts/README.md](layouts/README.md) lists
+  it, and what is left to the community).
 - **Rendered Markdown in the viewer**
   ([docs/plans/markdown.md](docs/plans/markdown.md)): done, on `.md` and
   `.markdown`. Still open: the help's small parser could move to the same

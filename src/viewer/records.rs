@@ -195,21 +195,25 @@ pub trait RecordSink {
     fn columns_cut(&mut self);
     /// What the file declares of the columns, when it declares something.
     fn structure(&mut self, _structure: Structure) {}
+    /// What each column's values mean, when the file's layout says: `(value, meaning)`.
+    fn domains(&mut self, _domains: &[Vec<(String, String)>]) {}
+    /// Something about the whole file that should be seen without asking (`i` has more).
+    fn notice(&mut self, _text: &str) {}
     fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()>;
 }
 
 /// Looks at the clock every so many records.
-struct Pace {
+pub(crate) struct Pace {
     budget: Budget,
     count: u32,
 }
 
 impl Pace {
-    fn new(budget: Budget) -> Self {
+    pub(crate) fn new(budget: Budget) -> Self {
         Pace { budget, count: 0 }
     }
 
-    fn over(&mut self) -> bool {
+    pub(crate) fn over(&mut self) -> bool {
         self.count = self.count.wrapping_add(1);
         self.count & 0xFF == 0 && self.budget.over()
     }
@@ -971,7 +975,6 @@ fn sqlite_indexes(conn: &rusqlite::Connection, table: &str) -> Vec<String> {
 fn query_structure(stmt: &rusqlite::Statement<'_>, cols: usize) -> Structure {
     let columns = stmt
         .columns()
-        .iter()
         .take(cols)
         .map(|c| {
             vec![
@@ -1004,7 +1007,7 @@ pub fn read_sqlite(
         .to_str()
         .ok_or_else(|| "Invalid UTF-8 in SQLite path".to_string())?;
 
-    let conn = Connection::open_with_flags(path_str, flags)
+    let mut conn = Connection::open_with_flags(path_str, flags)
         .map_err(|e| format!("Failed to open SQLite database: {e}"))?;
 
     // Hardening: Defensive mode + Disable extensions
@@ -1034,7 +1037,9 @@ pub fn read_sqlite(
     // A query can take forever without giving a single row.
     if budget.deadline.is_some() || budget.cancel.is_some() {
         let budget = budget.clone();
-        conn.progress_handler(SQLITE_STEPS, Some(move || budget.over()));
+        // Without it the query has no limit: better not to open the file.
+        conn.progress_handler(SQLITE_STEPS, Some(move || budget.over()))
+            .map_err(|e| format!("Failed to limit the time of the query: {e}"))?;
     }
 
     // List user tables, then views (bounded to prevent DoS from DB with millions of tables)
@@ -1105,7 +1110,6 @@ pub fn read_sqlite(
     let total = stmt.column_count();
     let names: Vec<String> = stmt
         .column_names()
-        .into_iter()
         .take(MAX_COLS)
         .map(str::to_string)
         .collect();
