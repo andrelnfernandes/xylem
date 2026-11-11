@@ -8,7 +8,6 @@ use ratatui::text::Span;
 use std::collections::BTreeSet;
 use std::time::SystemTime;
 
-use super::multirecord::catalog::Choice;
 use super::records::Structure;
 use super::sql_filter::{self, Expr, RowContext, SqlFilter, Value};
 use crate::bidi;
@@ -74,66 +73,6 @@ impl SheetList {
     }
 }
 
-/// The layouts a file can be read through (K), with what the typed text left of them.
-#[derive(Debug, Clone)]
-pub struct LayoutList {
-    pub choices: Vec<Choice>,
-    pub query: String,
-    /// Indices of the choices kept by `query`.
-    pub shown: Vec<usize>,
-    /// The cursor, in `shown`.
-    pub cursor: usize,
-    pub scroll: usize,
-}
-
-impl LayoutList {
-    const MAX_QUERY_CHARS: usize = 256;
-
-    pub fn new(choices: Vec<Choice>) -> Self {
-        Self {
-            shown: (0..choices.len()).collect(),
-            choices,
-            query: String::new(),
-            cursor: 0,
-            scroll: 0,
-        }
-    }
-
-    pub fn chosen(&self) -> Option<&Choice> {
-        self.choices.get(*self.shown.get(self.cursor)?)
-    }
-
-    pub fn push(&mut self, c: char) {
-        if self.query.chars().count() < Self::MAX_QUERY_CHARS {
-            self.query.push(c);
-            self.narrow();
-        }
-    }
-
-    pub fn pop(&mut self) {
-        if self.query.pop().is_some() {
-            self.narrow();
-        }
-    }
-
-    fn narrow(&mut self) {
-        let query = self.query.to_lowercase();
-        self.shown = self
-            .choices
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| {
-                [c.label.as_str(), c.detail.as_str(), c.section.label()]
-                    .iter()
-                    .any(|t| t.to_lowercase().contains(&query))
-            })
-            .map(|(i, _)| i)
-            .collect();
-        self.cursor = 0;
-        self.scroll = 0;
-    }
-}
-
 /// The structure of the table on screen, while it is open (`i`).
 #[derive(Debug, Clone)]
 pub struct StructureView {
@@ -181,17 +120,6 @@ pub struct TableGrid {
 
     /// What the file declares of its columns, made safe when it was read.
     pub structure: Option<Structure>,
-    /// What the values of each column mean, when the layout says, made safe.
-    pub domains: Vec<Vec<(String, String)>>,
-    /// The layout the file is read through, and the keys of its sheets.
-    pub layout: Option<LayoutSheets>,
-}
-
-/// A file read through a layout: what to read it with again, and which sheet is which.
-#[derive(Debug, Clone)]
-pub struct LayoutSheets {
-    pub loaded: super::multirecord::catalog::Loaded,
-    pub keys: Vec<String>,
 }
 
 struct GridRowContext<'a> {
@@ -247,8 +175,6 @@ impl TableGrid {
             marked: BTreeSet::new(),
             marked_stamp: None,
             structure: None,
-            domains: Vec::new(),
-            layout: None,
         };
         grid.recalculate_widths();
         grid
@@ -411,26 +337,6 @@ impl TableGrid {
             return row.cells.get(self.cursor_col).map(|s| s.as_str());
         }
         None
-    }
-
-    /// What the active cell's value means, when the layout says.
-    pub fn active_meaning(&self) -> Option<&str> {
-        let value = self.active_cell()?;
-        self.domains
-            .get(self.cursor_col)?
-            .iter()
-            .find(|(v, _)| v == value)
-            .map(|(_, m)| m.as_str())
-    }
-
-    /// The line of the file the cursor's row came from, when the file was read
-    /// through a layout (its first column, `#line`).
-    pub fn cursor_line(&self) -> Option<usize> {
-        self.layout.as_ref()?;
-        let row = self
-            .rows
-            .get(*self.filtered_indices.get(self.cursor_row)?)?;
-        row.cells.first()?.parse().ok()
     }
 
     /// Sanitize cell text for safe display (control chars and bidi to '·', truncated at max length).

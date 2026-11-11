@@ -504,7 +504,6 @@ const TEMPLATES: [(&str, &str); 10] = [
 fn table(name: &str) -> Source {
     Source::Table {
         path: demo().join("data").join(name),
-        layout: None,
         sheet: 0,
         table: name.ends_with(".db").then(|| "customers".to_string()),
         query: None,
@@ -746,7 +745,6 @@ fn first_lines(source: &Source, text: &str) -> (u64, Vec<String>) {
 fn a_spreadsheet_has_a_sheet_for_each_kind_of_data_and_goes_by_letters() {
     let sheet = |sheet: usize| Source::Table {
         path: demo().join("data/customers.xlsx"),
-        layout: None,
         sheet,
         table: None,
         query: None,
@@ -769,7 +767,6 @@ fn a_spreadsheet_has_a_sheet_for_each_kind_of_data_and_goes_by_letters() {
 fn a_database_has_a_table_for_each_kind_of_data() {
     let table = |table: &str| Source::Table {
         path: demo().join("data/customers.db"),
-        layout: None,
         sheet: 0,
         table: Some(table.to_string()),
         query: None,

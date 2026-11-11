@@ -3,7 +3,15 @@
 Origem: conversa de 2026-11-04, expandindo a nota de SDF/CNAB do Subprojeto 2 de
 [docs/plans/viewers.md](viewers.md) e [docs/plans/viewer-tables.md](viewer-tables.md).
 
-Estado: aprovado pelo autor em 2026-11-04 (pronto para implementação por etapas).
+Estado: **retirado do Xylem em 2026-11-11, por decisão do autor.** O plano foi além do
+escopo de um gerenciador de arquivos: catálogo de layouts, COBOL e mainframe interessam a
+pouca gente e custariam código e manutenção ao núcleo. O visualizador posicional será um
+produto separado, que talvez venha a ser integrado ao Xylem sem fazer parte dele. As
+etapas 1a a 1c (seção 10) chegaram ao `main` pelo PR #103 e saíram antes de qualquer
+release; o código está guardado na branch `positional-viewer` (commit `a3330ab`), como
+ponto de partida do produto novo. Este arquivo fica como registro.
+
+Estado anterior: aprovado pelo autor em 2026-11-04 (pronto para implementação por etapas).
 
 ---
 

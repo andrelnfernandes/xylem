@@ -29,7 +29,6 @@ odd, please suggest an improvement: `https://github.com/andrelnfernandes/xylem/i
 - [Split screen](split.md): two windows side by side
 - [The viewer](viewer.md): text and hex, search, syntax colors
 - [Filtering lines](filter.md): `&` in the viewer, with a regular expression guide
-- [Layouts](layouts.md): CNAB, SPED, SDF and other fixed-width or multi-record files as a table; writing a layout
 - [Searching tagged files](search.md): Ctrl+S and Ctrl+V
 - [Information](info.md): Info, Avail, statistics and directory sizes
 - [Disk usage](usage.md): where the space goes (Alt+W)

@@ -6,10 +6,8 @@
 use std::ops::ControlFlow;
 use std::path::Path;
 
-use super::multirecord::{self, Reading, Target, catalog::Loaded};
 use super::records::{self, Budget, Cell, End, MAX_COLS, RecordSink, SqlitePart, Structure};
-use super::table::{LayoutSheets, TableGrid, TableRow};
-use crate::charset::Charset;
+use super::table::{TableGrid, TableRow};
 
 pub use super::records::column_letter;
 
@@ -120,8 +118,6 @@ struct GridSink {
     rows_cut: bool,
     columns_cut: bool,
     structure: Option<Structure>,
-    domains: Vec<Vec<(String, String)>>,
-    notices: Vec<String>,
 }
 
 impl RecordSink for GridSink {
@@ -154,21 +150,6 @@ impl RecordSink for GridSink {
                 .collect(),
             about: clean(&structure.about),
         });
-    }
-
-    fn domains(&mut self, domains: &[Vec<(String, String)>]) {
-        let clean = |s: &String| TableGrid::sanitize_cell(s);
-        self.domains = domains
-            .iter()
-            .take(MAX_COLS)
-            .map(|d| d.iter().map(|(v, m)| (clean(v), clean(m))).collect())
-            .collect();
-    }
-
-    fn notice(&mut self, text: &str) {
-        if self.notices.len() < 4 {
-            self.notices.push(TableGrid::sanitize_cell(text));
-        }
     }
 
     fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()> {
@@ -216,14 +197,12 @@ impl GridSink {
         if self.columns_cut {
             cut.push(format!("showing first {MAX_COLS} columns"));
         }
-        cut.append(&mut self.notices);
         let mut grid = TableGrid::new(path.display().to_string(), self.headers, self.rows);
         grid.sheets = self.sheets;
         grid.current_sheet = self.current_sheet;
         grid.first_view = self.first_view.unwrap_or(usize::MAX);
         grid.cut = (!cut.is_empty()).then(|| cut.join(", "));
         grid.structure = self.structure;
-        grid.domains = self.domains;
         grid
     }
 }
@@ -271,36 +250,6 @@ pub fn load_sqlite(path: &Path, part: SqlitePart<'_>, budget: Budget) -> Result<
     load(path, budget, |budget, sink| {
         records::read_sqlite(path, part, budget, sink)
     })
-}
-
-/// Load one sheet of a file read through a layout (see `multirecord`).
-pub fn load_layout(
-    path: &Path,
-    loaded: Loaded,
-    target: Target,
-    charset: Option<Charset>,
-    budget: Budget,
-) -> Result<TableGrid, String> {
-    let mut sink = GridSink::default();
-    let reading = Reading {
-        target: &target,
-        charset,
-        count_all: true,
-    };
-    let scan = multirecord::read(path, &loaded.layout, reading, budget.clone(), &mut sink)?;
-    let mut grid = sink.finish(path, scan.end, budget.cancelled());
-    if let Some(structure) = &mut grid.structure {
-        let mut origin = format!("Layout file: {}", loaded.origin.describe());
-        if !loaded.layout.id.is_empty() {
-            origin.push_str(&format!(" ({})", loaded.layout.id));
-        }
-        structure.about.insert(1, TableGrid::sanitize_cell(&origin));
-    }
-    grid.layout = Some(LayoutSheets {
-        loaded,
-        keys: scan.keys,
-    });
-    Ok(grid)
 }
 
 /// Load an Apache Parquet file (.parquet).
