@@ -20,7 +20,6 @@ Les feuilles de calcul, CSV, DBF, SQLite et Parquet s'ouvrent en tableau (voir M
 | `E` | éditer le fichier ; de retour dans Xylem, la visionneuse affiche le nouveau contenu au même endroit (fichiers binaires uniquement avec un éditeur dans [`[editors]`](execute.md)) |
 | `D` | avec Git activé : ce qui a changé depuis le dernier commit, et retour ([Git](git.md)) |
 | `T` | tableau ou texte, dans un fichier ouvert en tableau ; rendu ou source, dans un fichier Markdown |
-| `K` | lire le fichier selon un layout : fichiers bancaires, fiscaux et autres à largeur fixe ou multi-enregistrements, en tableau ([layouts](layouts.md)) |
 | `U` | dans la vue des fichiers marqués (Ctrl+V) : démarquer le fichier |
 | `y` ou Ctrl+Insert | copier le chemin du fichier dans le presse-papiers |
 | Esc | fermer |

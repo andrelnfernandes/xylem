@@ -5,7 +5,7 @@ Origem: conversa de 2026-10-30, desdobramento do Subprojeto 2 de
 
 Estado: implementado (PR #63), com duas diferenças em relação ao que está abaixo:
 SQLite e Parquet só abrem com `V`, nunca no Autoview, por serem lidos por código em C
-([viewers.md](viewers.md)), e o SDF ficou para depois.
+([viewers.md](viewers.md)), e o SDF saiu do escopo (2026-11-11; [viewer-positional.md](viewer-positional.md)).
 
 ## 1. Objetivo
 

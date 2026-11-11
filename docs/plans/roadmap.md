@@ -64,11 +64,6 @@ Decisões já tomadas:
 - **Escrita remota trata o servidor como hostil,** como já faz a leitura: cada spec
   dessa frente traz o seu modelo de ameaça.
 
-Fora da tabela, aprovado em 2026-11-09: **layouts de arquivos posicionais e multi-registro**,
-etapas 1a a 1c ([viewer-positional.md](viewer-positional.md), seção 10): CNAB 240, SPED e SDF
-como tabela, com a tecla `K`. Na branch `positional-viewer`; entra num release quando o autor
-aprovar o PR. O resto desse plano ainda não tem lugar na ordem.
-
 ## Parte 2: o que é novo
 
 Depois da Parte 1, nesta ordem:
@@ -106,7 +101,7 @@ Não concorre com as frentes acima, e cada item é pequeno:
   ([git-graph.md](git-graph.md)); `+` sem logar os arquivos das subpastas
   ([release-branch.md](release-branch.md)); Tags-Only fora do Showall
   ([showall-tagged.md](showall-tagged.md)).
-- **Extras:** SDF no modo tabela; pastas inteiras nos duplicados da nuvem; o parser do
+- **Extras:** pastas inteiras nos duplicados da nuvem; o parser do
   help no `pulldown-cmark`; Parquet e XLSX como saída do Batch.
 
 ## Fora, por decisão
@@ -114,3 +109,9 @@ Não concorre com as frentes acima, e cada item é pequeno:
 Conversores externos (o mais arriscado, e `O` e `X` já cobrem o uso), Xylem em janela
 própria, HTML no viewer, treemap, mouse e o resto da lista do ZTreeWin que serve mais à
 paridade do que ao uso (Wash, Volume, Hide, comandos de vídeo).
+
+**Arquivos posicionais e multi-registro (SDF, CNAB, SPED, COBOL), desde 2026-11-11:**
+chegaram ao `main` pelo PR #103 e foram retirados antes de qualquer release. Vão para um
+produto separado; o registro está em [viewer-positional.md](viewer-positional.md). As
+tabelas que o viewer já lê (DBF, CSV, SQLite, planilhas, Parquet) cobrem o que o público
+do Xylem precisa.

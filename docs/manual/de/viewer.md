@@ -20,7 +20,6 @@ Tabellenkalkulationen, CSV, DBF, SQLite und Parquet öffnen sich als Tabelle (si
 | `E` | Datei bearbeiten; zurück in Xylem zeigt der Betrachter den neuen Inhalt an derselben Stelle (Binärdateien nur mit einem Editor unter [`[editors]`](execute.md)) |
 | `D` | bei aktiviertem Git: Änderungen seit dem letzten Commit und zurück ([Git](git.md)) |
 | `T` | Tabelle oder Text, bei einer Datei, die sich als Tabelle geöffnet hat; gerendert oder Quelltext, bei einer Markdown-Datei |
-| `K` | die Datei über ein Layout lesen: Bank-, Steuer- und andere Dateien mit fester Breite oder mehreren Satzarten als Tabelle ([Layouts](layouts.md)) |
 | `U` | in der Ansicht der markierten Dateien (Ctrl+V): Markierung der Datei aufheben |
 | `y` oder Ctrl+Insert | Dateipfad in die Zwischenablage kopieren |
 | Esc | schließen |

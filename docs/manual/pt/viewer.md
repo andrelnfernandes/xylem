@@ -20,7 +20,6 @@ Planilhas, CSV, DBF, SQLite e Parquet abrem como tabela (veja Modo tabela).
 | `E` | edita o arquivo; de volta ao Xylem, o visualizador mostra o novo conteúdo na mesma posição (arquivos binários somente com um editor em [`[editors]`](execute.md)) |
 | `D` | com Git ativo: mostra o que mudou desde o último commit, e volta ([Git](git.md)) |
 | `T` | tabela ou texto, num arquivo que abriu como tabela; renderizado ou fonte, num arquivo Markdown |
-| `K` | ler o arquivo por um layout: arquivos bancários, fiscais e outros de largura fixa ou multi-registro, como tabela ([layouts](layouts.md)) |
 | `U` | na visão dos arquivos marcados (Ctrl+V): desmarca o arquivo |
 | `y` ou Ctrl+Insert | copia o caminho do arquivo para a área de transferência |
 | Esc | fecha |
