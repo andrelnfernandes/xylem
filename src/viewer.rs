@@ -4,7 +4,6 @@
 pub mod batch;
 pub mod line_filter;
 pub mod markdown;
-pub mod multirecord;
 mod parquet_pages;
 pub mod records;
 pub mod sql_filter;
@@ -93,8 +92,6 @@ pub enum Action {
     FilterLines,
     /// Ctrl+B: a line of output per record of what is shown.
     Batch,
-    /// F2 in the list of layouts (K): asks for the path of one.
-    LayoutPath,
 }
 
 /// How a file is read: how much of it, and whether a compressed file is
@@ -300,8 +297,6 @@ pub struct Viewer {
     pub sheet_list: Option<table::SheetList>,
     /// The structure of the table, while it is open (`i`).
     pub structure_view: Option<table::StructureView>,
-    /// The list of layouts to read the file through, while it is open (K).
-    pub layout_list: Option<table::LayoutList>,
     /// Text mode shows only the lines this filter kept. `lines` stays whole:
     /// the margin keeps each line's number, and the colors their context.
     filter: Option<LineFilter>,
@@ -362,11 +357,10 @@ impl Viewer {
     /// here (the same path could even be another file on this machine).
     fn load_table(&mut self) {
         let path = self.path.clone();
-        if self.compression.is_some() || self.problem.is_some() {
-            return;
-        }
-        if !tabular_loader::is_tabular_candidate(&path) {
-            self.detect_layout();
+        if !tabular_loader::is_tabular_candidate(&path)
+            || self.compression.is_some()
+            || self.problem.is_some()
+        {
             return;
         }
         // Autoview runs on whatever the cursor passes over, so it never
@@ -403,139 +397,6 @@ impl Viewer {
             "parquet" => tabular_loader::load_parquet(&path, budget),
             _ => Err("Not supported".to_string()),
         });
-    }
-
-    /// A text file whose first line one of the trusted layouts recognizes (CNAB,
-    /// SPED...) opens as a table through it. Only the trusted ones: what lies in
-    /// the folder being browsed is never read without K.
-    fn detect_layout(&mut self) {
-        if self.mode == ViewMode::Hex || self.data.is_empty() {
-            return;
-        }
-        let Some(loaded) = multirecord::catalog::detect(&self.path, &self.data, self.charset)
-        else {
-            return;
-        };
-        if self.note.is_none() {
-            self.note = Some(format!("Layout: {}  ·  K changes it", loaded.layout.name));
-        }
-        let purpose = TableRead::Open {
-            show: true,
-            from: self.mode,
-        };
-        self.read_layout(loaded, multirecord::Target::First, purpose);
-    }
-
-    /// Reads a sheet of the file through a layout.
-    fn read_layout(
-        &mut self,
-        loaded: multirecord::catalog::Loaded,
-        target: multirecord::Target,
-        purpose: TableRead,
-    ) {
-        let path = self.path.clone();
-        let charset = Some(self.charset);
-        self.read_table(purpose, move |budget| {
-            tabular_loader::load_layout(&path, loaded, target, charset, budget)
-        });
-    }
-
-    /// K: the layouts the file can be read through.
-    fn open_layout_list(&mut self) {
-        if !self.on_disk || self.compression.is_some() {
-            self.note = Some("Layouts read files on this disk, not compressed".into());
-            return;
-        }
-        let active = self.table.as_ref().is_some_and(|t| t.layout.is_some());
-        let choices = multirecord::catalog::choices(&self.path, active);
-        self.layout_list = Some(table::LayoutList::new(choices));
-    }
-
-    /// A key in the list of layouts: it takes them all, since typing narrows it.
-    fn layout_list_key(&mut self, key: KeyEvent) -> Action {
-        let Some(list) = &mut self.layout_list else {
-            return Action::None;
-        };
-        let last = list.shown.len().saturating_sub(1);
-        let page = self.page.max(1);
-        let plain = !key
-            .modifiers
-            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
-        match key.code {
-            KeyCode::Up => list.cursor = list.cursor.saturating_sub(1),
-            KeyCode::Down => list.cursor = (list.cursor + 1).min(last),
-            KeyCode::PageUp => list.cursor = list.cursor.saturating_sub(page),
-            KeyCode::PageDown => list.cursor = (list.cursor + page).min(last),
-            KeyCode::Home => list.cursor = 0,
-            KeyCode::End => list.cursor = last,
-            KeyCode::Backspace => list.pop(),
-            KeyCode::Char(c) if plain => list.push(c),
-            KeyCode::Esc => self.layout_list = None,
-            KeyCode::F(2) => {
-                self.layout_list = None;
-                return Action::LayoutPath;
-            }
-            KeyCode::Enter => {
-                let Some(choice) = list.chosen().cloned() else {
-                    return Action::None;
-                };
-                self.layout_list = None;
-                match multirecord::catalog::load(&choice.source) {
-                    Ok(loaded) => self.apply_layout(loaded),
-                    Err(e) => {
-                        self.note = Some(table::TableGrid::sanitize_cell(&format!("Layout: {e}")))
-                    }
-                }
-            }
-            _ => {}
-        }
-        Action::None
-    }
-
-    /// Reads the file through a layout, or (`None`) goes back to its text.
-    pub fn apply_layout(&mut self, loaded: Option<multirecord::catalog::Loaded>) {
-        let Some(loaded) = loaded else {
-            if self.table.as_ref().is_some_and(|t| t.layout.is_some()) {
-                self.table = None;
-                self.structure_view = None;
-                if self.mode == ViewMode::Table {
-                    self.mode = ViewMode::Text;
-                }
-            }
-            self.note = Some("No layout: the file as text".into());
-            return;
-        };
-        self.note = Some(table::TableGrid::sanitize_cell(&format!(
-            "Layout: {}",
-            loaded.layout.name
-        )));
-        let purpose = TableRead::Open {
-            show: true,
-            from: self.mode,
-        };
-        self.read_layout(loaded, multirecord::Target::First, purpose);
-    }
-
-    /// F2 in K: a layout by its path, relative to the file's folder.
-    pub fn apply_layout_path(&mut self, text: &str) {
-        let text = text.trim();
-        if text.is_empty() {
-            return;
-        }
-        let typed = Path::new(text);
-        let path = if typed.is_absolute() {
-            typed.to_path_buf()
-        } else if let Some(rest) = text.strip_prefix("~/")
-            && let Some(home) = std::env::var_os("HOME")
-        {
-            PathBuf::from(home).join(rest)
-        } else {
-            self.path.parent().unwrap_or(Path::new(".")).join(typed)
-        };
-        match multirecord::catalog::load_path(&path) {
-            Ok(loaded) => self.apply_layout(Some(loaded)),
-            Err(e) => self.note = Some(table::TableGrid::sanitize_cell(&format!("Layout: {e}"))),
-        }
     }
 
     /// Reads a table, here or in another thread as the options say. Whatever was
@@ -709,16 +570,8 @@ impl Viewer {
                             .into(),
                     );
                 }
-                let layout = t.layout.as_ref().and_then(|l| {
-                    Some(batch::LayoutSheet {
-                        layout: l.loaded.layout.clone(),
-                        key: l.keys.get(t.current_sheet)?.clone(),
-                        charset: self.charset,
-                    })
-                });
                 Ok(batch::Source::Table {
                     path: self.path.clone(),
-                    layout,
                     sheet: t.current_sheet,
                     table: t.sheets.get(t.current_sheet).cloned(),
                     query: t.query.clone(),
@@ -786,14 +639,6 @@ impl Viewer {
     /// is, saying why, if that one cannot be read.
     fn open_sheet(&mut self, target: usize) {
         let Some(t) = &self.table else { return };
-        if let Some(sheets) = &t.layout {
-            let Some(key) = sheets.keys.get(target).cloned() else {
-                return;
-            };
-            let loaded = sheets.loaded.clone();
-            self.read_layout(loaded, multirecord::Target::Key(key), TableRead::Sheet);
-            return;
-        }
         let path = self.path.clone();
         let table = t.sheets[target].clone();
         self.read_table(TableRead::Sheet, move |budget| {
@@ -936,24 +781,6 @@ impl Viewer {
             ViewMode::Table if self.table.is_none() => self.mode,
             mode => mode,
         };
-        // A layout picked with K stays, on the same sheet.
-        let detected = |o: &multirecord::catalog::Origin| {
-            matches!(
-                o,
-                multirecord::catalog::Origin::Catalog(_) | multirecord::catalog::Origin::User(_)
-            )
-        };
-        if let Some(sheets) = old.table.as_ref().and_then(|t| {
-            let l = t.layout.as_ref()?;
-            Some((l.loaded.clone(), l.keys.get(t.current_sheet)?.clone()))
-        }) && (!detected(&sheets.0.origin) || self.table_task.is_some() || self.table.is_some())
-        {
-            let purpose = TableRead::Open {
-                show: old.mode == ViewMode::Table,
-                from: self.mode,
-            };
-            self.read_layout(sheets.0, multirecord::Target::Key(sheets.1), purpose);
-        }
         // A table still being read arrives by itself, if it was what was on screen.
         if let Some(task) = &mut self.table_task {
             task.purpose = TableRead::Open {
@@ -1179,7 +1006,6 @@ impl Viewer {
             table: None,
             sheet_list: None,
             structure_view: None,
-            layout_list: None,
             filter: None,
             md: None,
             md_file: false,
@@ -1760,9 +1586,6 @@ impl Viewer {
             self.sheet_list_key(key);
             return Action::None;
         }
-        if self.layout_list.is_some() {
-            return self.layout_list_key(key);
-        }
         // Route movement keys to table when in Table mode; with Alt, Home and
         // End are the first and last tagged file.
         let edge = matches!(key.code, KeyCode::Home | KeyCode::End);
@@ -1861,24 +1684,11 @@ impl Viewer {
             }
             KeyCode::Char('g' | 'G' | ':') => Action::GotoLine,
             KeyCode::Char('t' | 'T') => {
-                if let Some(t) = &self.table {
-                    let line = (self.mode == ViewMode::Table)
-                        .then(|| t.cursor_line())
-                        .flatten();
+                if self.table.is_some() {
                     self.mode = match self.mode {
                         ViewMode::Table => ViewMode::Text,
                         _ => ViewMode::Table,
                     };
-                    // From a record to its line in the file.
-                    if let Some(line) = line {
-                        if line <= self.lines.len() {
-                            self.goto_line(line);
-                        } else {
-                            self.note = Some(format!(
-                                "Line {line} is past the part of the file the viewer read"
-                            ));
-                        }
-                    }
                 } else if self.md.is_some() {
                     match self.mode {
                         ViewMode::Rendered => self.rendered_to_text(),
@@ -1925,10 +1735,6 @@ impl Viewer {
             }
             KeyCode::Char('[') => {
                 self.switch_sheet(false);
-                Action::None
-            }
-            KeyCode::Char('k' | 'K') if !ctrl && !alt => {
-                self.open_layout_list();
                 Action::None
             }
             KeyCode::Char('i' | 'I') if self.mode == ViewMode::Table => {
@@ -2965,112 +2771,6 @@ mod tests {
         assert_eq!(v.mode, ViewMode::Table);
         v.page = 10;
         v
-    }
-
-    fn cnab_viewer(load: LoadOptions) -> (tempfile::TempDir, Viewer) {
-        let tmp = crate::testing::tempdir();
-        let path = tmp.path().join("PAG0911.REM");
-        let text = multirecord::tests::payments("000006", "000000000000112345");
-        std::fs::write(&path, text).unwrap();
-        let mut v = Viewer::open(path, load).unwrap();
-        v.page = 10;
-        (tmp, v)
-    }
-
-    #[test]
-    fn a_file_a_trusted_layout_recognizes_opens_as_its_records() {
-        for load in [LOAD, LoadOptions::autoview()] {
-            let (_tmp, v) = cnab_viewer(load);
-            assert_eq!(v.mode, ViewMode::Table);
-            let t = v.table.as_ref().unwrap();
-            assert_eq!(t.sheets.len(), 6);
-            assert_eq!(t.headers[0], "#line");
-            assert!(
-                v.note
-                    .as_deref()
-                    .unwrap()
-                    .starts_with("Layout: FEBRABAN CNAB 240")
-            );
-        }
-    }
-
-    #[test]
-    fn sheets_of_a_layout_change_with_brackets_and_t_goes_to_the_line() {
-        let (_tmp, mut v) = cnab_viewer(LOAD);
-        press(&mut v, KeyCode::Char(']'));
-        press(&mut v, KeyCode::Char(']'));
-        let t = v.table.as_ref().unwrap();
-        assert_eq!(t.current_sheet, 2);
-        assert_eq!(t.rows.len(), 2, "only the A segments");
-        let col = t.headers.iter().position(|h| h == "registro").unwrap();
-        press(&mut v, KeyCode::Down);
-        v.table.as_mut().unwrap().cursor_col = col;
-        assert_eq!(v.table.as_ref().unwrap().active_meaning(), Some("Detalhe"));
-        // A page smaller than the file, so that the line goes to the top.
-        v.page = 3;
-        press(&mut v, KeyCode::Char('t'));
-        assert_eq!(v.mode, ViewMode::Text);
-        assert_eq!(v.top_line() + 1, 5, "the line of the second A segment");
-        // Batch reads the same sheet through the layout.
-        press(&mut v, KeyCode::Char('t'));
-        let batch::Source::Table { layout, .. } = v.batch_source().unwrap() else {
-            panic!("a table");
-        };
-        assert_eq!(layout.unwrap().key, "r:3A");
-    }
-
-    #[test]
-    fn k_lists_the_layouts_and_can_go_back_to_the_text() {
-        let (tmp, mut v) = cnab_viewer(LOAD);
-        std::fs::write(
-            tmp.path().join("PAG0911.xlayout.toml"),
-            "schema = 1\nname = \"Mine\"\n[[records]]\nname = \"Line\"\nfields = [{ name = \"start\", pos = [1, 8], type = \"text\" }]\n",
-        )
-        .unwrap();
-        press(&mut v, KeyCode::Char('k'));
-        let list = v.layout_list.as_ref().unwrap();
-        assert_eq!(list.choices[0].section, multirecord::catalog::Section::Off);
-        assert_eq!(list.choices[1].label, "PAG0911.xlayout.toml");
-        for c in "pag0911".chars() {
-            press(&mut v, KeyCode::Char(c));
-        }
-        assert_eq!(v.layout_list.as_ref().unwrap().shown, [1]);
-        press(&mut v, KeyCode::Enter);
-        let t = v.table.as_ref().unwrap();
-        assert_eq!(t.headers, ["#line", "start"]);
-        assert_eq!(t.rows[0].cells, ["1", "34100000"]);
-        assert_eq!(t.rows.len(), 8);
-        // Off: the text again.
-        press(&mut v, KeyCode::Char('k'));
-        press(&mut v, KeyCode::Enter);
-        assert!(v.table.is_none());
-        assert_eq!(v.mode, ViewMode::Text);
-        // F2 asks for a path, which the app prompts for.
-        press(&mut v, KeyCode::Char('k'));
-        assert_eq!(press(&mut v, KeyCode::F(2)), Action::LayoutPath);
-        v.apply_layout_path("no-such.xlayout.toml");
-        assert!(
-            v.note
-                .as_deref()
-                .unwrap()
-                .starts_with("Layout: cannot open")
-        );
-        v.apply_layout_path("PAG0911.xlayout.toml");
-        assert_eq!(v.table.as_ref().unwrap().headers, ["#line", "start"]);
-    }
-
-    #[test]
-    fn a_hostile_layout_is_refused_with_a_safe_note() {
-        let (tmp, mut v) = cnab_viewer(LOAD);
-        std::fs::write(
-            tmp.path().join("evil.xlayout.toml"),
-            "schema = 1\nname = \"x\\u001b]52;c;AAAA\\u0007\"\n",
-        )
-        .unwrap();
-        v.apply_layout_path("evil.xlayout.toml");
-        let note = v.note.clone().unwrap();
-        assert!(!note.chars().any(|c| c.is_control()), "{note:?}");
-        assert!(note.contains("control characters"), "{note}");
     }
 
     #[test]

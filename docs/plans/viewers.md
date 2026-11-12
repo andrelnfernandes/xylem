@@ -67,20 +67,19 @@ externos vêm por último, como opção.
 | # | Subprojeto | Quem lê o arquivo | Depende de | Status |
 |---|---|---|---|---|
 | 1 | Codificações (UTF-8, UTF-16, CP850, CP437, 1252), `.gz/.xz/.zst/.bz2` soltos, limite de tamanho configurável | Rust, dentro do Xylem | — | **feito** (PRs #44 a #49); spec em [viewer-encoding.md](viewer-encoding.md) |
-| 2 | Modo tabela + planilhas (XLSX, ODS), bancos (SQLite), DBF, CSV, JSONL, Parquet com busca e SQL | Rust (+ SQLite defensivo) | 1 | **feito** (PR #63), menos o SDF; spec em [viewer-tables.md](viewer-tables.md) |
+| 2 | Modo tabela + planilhas (XLSX, ODS), bancos (SQLite), DBF, CSV, JSONL, Parquet com busca e SQL | Rust (+ SQLite defensivo) | 1 | **feito** (PR #63); o SDF saiu do escopo; spec em [viewer-tables.md](viewer-tables.md) |
 | 3 | Viewer em janelas, como o `less`: lê sob demanda, monta o índice de linhas em segundo plano, carrega de forma assíncrona e Esc cancela | — | 1 | não iniciado |
 | 4 | Logs: follow, ir para o fim, filtro de linhas, cor por nível, ANSI só SGR | Rust, dentro do Xylem | 3 | só o filtro de linhas está feito (`&`, antes do Batch); o resto não iniciado |
 | 5 | SQLite | `rusqlite` com `bundled`, em modo defensivo | 2 | **feito** junto com o subprojeto 2 (PR #63) |
-| 6 | `[viewers]`: programas externos (`pdftotext`, `exiftool`, `ffprobe`...) | programa externo | — | não iniciado |
+| 6 | `[viewers]`: programas externos (`pdftotext`, `exiftool`, `ffprobe`...) | programa externo | — | fora, por decisão ([roadmap.md](roadmap.md)) |
 
 Notas de cada subprojeto:
 
 - **2 — SDF:** é o SDF do dBase/Clipper, a exportação de largura fixa
-  (`COPY TO ... SDF`), não o SQL Server Compact. Não é mais tão comum, por
-  isso entra como extra. Precisa de um layout, que pode vir da estrutura de
-  um DBF ou de um arquivo de layout. O mesmo mecanismo cobre os posicionais
-  multi-registro, como o CNAB 240/400/750: spec em
-  [viewer-positional.md](viewer-positional.md).
+  (`COPY TO ... SDF`), não o SQL Server Compact. Precisa de um layout, e o
+  mesmo mecanismo cobriria os posicionais multi-registro, como o CNAB.
+  **Fora do Xylem desde 2026-11-11:** vai para um produto separado, como
+  registrado em [viewer-positional.md](viewer-positional.md).
 - **2 — DBF:** o codepage vem do byte 29 do cabeçalho (LDID). Arquivos de
   Clipper costumam ser CP850.
 - **3:** a ideia surgiu porque o limite fixo de 16 MiB é pequeno para
@@ -136,9 +135,10 @@ es, de, fr e zh) e precisa acompanhar cada mudança.
   [viewer-encoding.md](viewer-encoding.md) e o plano executado,
   [viewer-encoding-plan.md](viewer-encoding-plan.md). A declaração de segurança
   está no `main` (PR #50). Subprojetos 2 e 5 (modo tabela e SQLite) no `main` pelo
-  PR #63, menos o SDF, e descritos no [manual](../manual/viewer.md). O filtro de
+  PR #63, e descritos no [manual](../manual/viewer.md). O filtro de
   linhas do subprojeto 4 também já está no `main`.
-- **Falta:** o SDF, o subprojeto 3, o resto do 4 (que depende do 3) e o 6.
+- **Falta:** o subprojeto 3 e o resto do 4 (que depende do 3). O 6 está fora, por
+  decisão ([roadmap.md](roadmap.md)), e o SDF também (nota do subprojeto 2).
 - **Decisão em aberto para o autor:** RUSTSEC-2025-0141 (`bincode` sem
   manutenção, via `syntect`). Ele só lê os dumps embutidos do próprio
   `syntect`, nunca arquivos do usuário; hoje é um aviso, não falha o CI.

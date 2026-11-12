@@ -71,8 +71,6 @@ pub(crate) enum PromptKind {
     ViewerGoto,
     /// SQL filter in the viewer (WHERE ... / query).
     ViewerSqlFilter,
-    /// The path of a layout to read the viewed file through (F2 in K).
-    ViewerLayoutPath,
     /// Batch in the viewer: first the file to create, then the line mask.
     ViewerBatchFile,
     ViewerBatchMask {
@@ -109,7 +107,6 @@ impl PromptKind {
             PromptKind::SearchTagged { .. } | PromptKind::ViewerSearch { .. } => "search",
             PromptKind::ViewerGoto => "goto",
             PromptKind::ViewerSqlFilter => "sql_filter",
-            PromptKind::ViewerLayoutPath => "layout_path",
             PromptKind::ViewerLineFilter { .. } => "line_filter",
             PromptKind::Chmod(_) => "chmod",
             PromptKind::RenameFile(_)
@@ -674,12 +671,6 @@ impl App {
             PromptKind::ViewerSqlFilter => {
                 if let Some(v) = &mut self.viewer {
                     v.sql_prompt(&text);
-                }
-                Ok(())
-            }
-            PromptKind::ViewerLayoutPath => {
-                if let Some(v) = &mut self.viewer {
-                    v.apply_layout_path(&text);
                 }
                 Ok(())
             }
