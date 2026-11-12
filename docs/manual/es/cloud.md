@@ -113,6 +113,26 @@ error 403, más abajo.
   directorio vacío puede desaparecer al desmontar, y renombrar o mover un
   directorio copia y elimina cada archivo que contiene.
 
+## Recursos compartidos de red (SMB, WSL)
+
+El árbol también se lee en segundo plano en una carpeta compartida por la red: SMB
+(`cifs`), SSHFS, WebDAV (`davfs`) y, en WSL, un recurso compartido de Windows
+montado por su ruta UNC:
+
+```
+sudo mount -t drvfs '\\servidor\recurso$' /mnt/recurso
+```
+
+Allí, como en un montaje de rclone, la lista de archivos no muestra las letras de Git
+(Ctrl+G sigue funcionando), lo que cambia en otro lugar aparece después de F3, y el
+Treespec no espera una carpeta que se está leyendo: el cursor sigue lo que usted
+escribe a medida que llegan las carpetas. `/`, Tab y Enter siguen esperando su
+lectura. `*`, Branch y Usage leen carpeta por carpeta, con progreso y Esc.
+
+No reconocido: un recurso compartido asignado a una letra de unidad en Windows
+(`mount -t drvfs Z: /mnt/z`) parece un disco local visto desde Linux; móntelo por
+su ruta UNC. NFS se lee como un disco local.
+
 ## Cuando el servicio rechaza: error 403
 
 Google Drive limita cuántas peticiones acepta por minuto. En un Drive saturado de

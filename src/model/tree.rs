@@ -319,6 +319,19 @@ impl Tree {
         self.reads.get_or_insert_with(Reads::start).ask(id, path);
     }
 
+    /// Logs `id` because the user went to it (a typed path, a bookmark): at
+    /// once on a local disk, in the background where reading is slow.
+    pub fn touch(&mut self, id: NodeId) {
+        if self.nodes[id].scanned {
+            return;
+        }
+        if self.reads_slowly(&self.path(id)) {
+            self.ask_read(id);
+        } else {
+            self.scan(id);
+        }
+    }
+
     /// `id` was asked for and has not arrived yet.
     pub fn is_reading(&self, id: NodeId) -> bool {
         self.reads.as_ref().is_some_and(|r| r.pending.contains(&id))

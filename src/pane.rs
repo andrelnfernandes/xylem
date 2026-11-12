@@ -421,7 +421,8 @@ impl Pane {
     /// the one it reaches included (Treespec completes from its subdirectories).
     /// Returns the deepest one that exists and whether it got all the way; `None` if
     /// the path is outside the tree. Without `wait`, a directory not read yet on a
-    /// slow mount is asked for in the background, and the walk stops there.
+    /// slow mount is asked for in the background: the walk stops there, and the
+    /// one it reaches has no names until it arrives.
     fn walk(&mut self, path: &Path, wait: bool) -> Option<(NodeId, bool)> {
         let rel = path.strip_prefix(self.tree.path(ROOT)).ok()?;
         let mut cur = ROOT;
@@ -445,7 +446,11 @@ impl Pane {
                 None => return Some((cur, false)),
             }
         }
-        self.tree.scan(cur);
+        if wait {
+            self.tree.scan(cur);
+        } else {
+            self.tree.touch(cur);
+        }
         Some((cur, true))
     }
 
@@ -470,18 +475,7 @@ impl Pane {
         if !reached || partial.is_empty() {
             return Some(node);
         }
-        self.treespec_read(node, wait);
         Some(self.treespec_match(node, partial).unwrap_or(node))
-    }
-
-    /// Reads the directory where the last piece is looked for: on a slow
-    /// mount, without `wait`, in the background (it has no names until then).
-    fn treespec_read(&mut self, dir: NodeId, wait: bool) {
-        if wait {
-            self.tree.scan(dir);
-        } else {
-            self.tree.touch(dir);
-        }
     }
 
     /// First subdirectory of `parent` whose name starts with `partial`
@@ -520,7 +514,6 @@ impl Pane {
         let (parent, true) = self.walk(Path::new(dir), true)? else {
             return None;
         };
-        self.treespec_read(parent, true);
         let target = self.treespec_match(parent, partial)?;
         Some(format!(
             "{dir}{}",
@@ -535,7 +528,6 @@ impl Pane {
         let (parent, true) = self.walk(Path::new(dir), true)? else {
             return None;
         };
-        self.treespec_read(parent, true);
         let choices = self.treespec_choices(parent, partial);
         if choices.is_empty() {
             return None;
