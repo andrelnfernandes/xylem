@@ -5,8 +5,9 @@ O autor quer dar nome a endereços difíceis de lembrar ("Servidor do Oracle", "
 Postgres Amb 1") e chegar a eles a partir do `L`.
 
 **Estado: aprovado pelo autor em 2026-11-12, com as teclas sugeridas (F2 para o nome,
-F11 nos prompts).** Ainda não implementado; a posição no [roteiro](roadmap.md) está por
-decidir.
+F11 nos prompts), para entrar na 0.7.0. Implementado na branch `named-bookmarks`, as três
+fatias juntas;** as diferenças em relação ao texto abaixo estão em "O que a implementação
+mudou", no fim.
 
 ## O que existe hoje
 
@@ -136,5 +137,33 @@ Ao fim de cada uma: `docs/manual/bookmarks.md` (e `treespec.md`, `copy-move.md`,
    em muitos programas. A alternativa era `=`.
 2. **F11 dentro dos prompts** abre a lista (fatia 3).
 
-Por decidir: **a ordem das fatias no [roteiro](roadmap.md),** antes ou depois do release
-0.7.0 e da fase 4 do SSH.
+3. **Entra na 0.7.0** (2026-11-12), antes do release e da fase 4 do SSH.
+
+## O que a implementação mudou
+
+1. **O endereço fica no `path`, não num campo `address`.** O formato proposto acima perdia
+   o endereço numa versão anterior do Xylem: ela lê o favorito sem conhecer o campo e, ao
+   salvar o histórico (o que acontece a cada prompt confirmado), grava o arquivo de novo sem
+   ele. Com o endereço no próprio `path`, a versão antiga lê e grava de volta um caminho que
+   não abre, e nada se perde:
+
+   ```toml
+   [bookmarks]
+   p = "/home/andre/projetos"
+   o = { path = "ssh://oracle@db01/u01/app", label = "Servidor do Oracle" }
+   ```
+
+   Um favorito é remoto quando o `path` começa com `ssh://` ou `docker://`. Um caminho local
+   de favorito é sempre absoluto (`/x`, `C:\x`), então nunca começa assim. O endereço é
+   gravado sempre na forma `ssh://` (que aceita porta) ou `docker://`, e só se
+   `Address::parse` o lê de volta igual.
+2. **Pasta com espaço no caminho não vira favorito remoto:** `Address::parse` recusa espaço,
+   como no `L`. O Xylem avisa e não salva.
+3. **"Uma janela nessa máquina" é a janela ativa.** Se ela está na mesma máquina (mesmo
+   tipo de acesso, usuário, host e porta) e a pasta está na árvore dela, só o cursor se
+   move; senão, conecta nela, como o `L`.
+4. **A conferência das pastas** é feita uma vez, ao abrir a lista, e não a cada desenho;
+   remotas e as de montagem lenta não são conferidas.
+5. **A lista aberta por F11 num prompt só escolhe:** Del, F2 e Ins não fazem nada ali.
+6. **O nome vindo do arquivo** é mostrado com no máximo 60 caracteres e com controle e
+   bidi trocados por `·`, além do filtro final de `ui::draw`.

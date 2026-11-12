@@ -13,6 +13,11 @@ use crate::platform;
 pub type History = HashMap<String, Vec<String>>;
 
 /// A directory bookmark, optionally annotated with a friendly label.
+///
+/// A folder on a remote machine or in a container keeps its address in
+/// `path` (`ssh://user@host/dir`, `docker://name/dir`): a version of Xylem that
+/// does not know them reads and writes it back as a path that does not open,
+/// and nothing is lost.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Bookmark {
     pub path: PathBuf,
@@ -20,7 +25,15 @@ pub struct Bookmark {
     pub label: Option<String>,
 }
 
+/// The longest name a bookmark can be given.
+pub const LABEL_MAX: usize = 60;
+
+/// How the address of a remote bookmark starts. A local path never does:
+/// bookmarks are absolute paths (`/x`, `C:\x`).
+const REMOTE_PREFIXES: [&str; 2] = ["ssh://", "docker://"];
+
 impl Bookmark {
+    #[cfg(test)]
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
@@ -28,13 +41,63 @@ impl Bookmark {
         }
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn with_label(path: impl Into<PathBuf>, label: impl Into<String>) -> Self {
         Self {
             path: path.into(),
             label: Some(label.into()),
         }
     }
+
+    /// The address of a remote bookmark, as saved; it is checked only when
+    /// the bookmark is used (`remote::Address::parse`).
+    pub fn address(&self) -> Option<&str> {
+        let text = self.path.to_str()?;
+        REMOTE_PREFIXES
+            .iter()
+            .any(|p| text.starts_with(p))
+            .then_some(text)
+    }
+
+    /// The name to show: whatever the file says, without control or
+    /// direction characters and at most [`LABEL_MAX`] long.
+    pub fn label(&self) -> Option<String> {
+        let label = self.label.as_deref()?.trim();
+        (!label.is_empty()).then(|| {
+            label
+                .chars()
+                .take(LABEL_MAX)
+                .map(|c| {
+                    if c.is_control() || crate::bidi::is_bidi(c) {
+                        '·'
+                    } else {
+                        c
+                    }
+                })
+                .collect()
+        })
+    }
+}
+
+/// A name typed for a bookmark: `None` to remove it, an error for what a
+/// name cannot have.
+pub fn check_label(text: &str) -> Result<Option<String>, String> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(None);
+    }
+    if text.chars().count() > LABEL_MAX {
+        return Err(format!(
+            "A bookmark's name has at most {LABEL_MAX} characters"
+        ));
+    }
+    if text
+        .chars()
+        .any(|c| c.is_control() || crate::bidi::is_bidi(c))
+    {
+        return Err("A bookmark's name cannot have control or text direction characters".into());
+    }
+    Ok(Some(text.to_string()))
 }
 
 #[derive(Deserialize)]
@@ -196,6 +259,51 @@ mod tests {
             state.bookmarks.get("p"),
             Some(&Bookmark::with_label("/home/user/full", "Projects"))
         );
+    }
+
+    #[test]
+    fn a_remote_bookmark_is_kept_in_its_path() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("history.toml");
+        let mut bookmarks = Bookmarks::new();
+        bookmarks.insert(
+            "o".into(),
+            Bookmark::with_label("ssh://oracle@db01:2222/u01/app", "Servidor do Oracle"),
+        );
+        bookmarks.insert("p".into(), Bookmark::new("docker://pg-amb1/var/lib"));
+        save_bookmarks(&path, &bookmarks).unwrap();
+        // Read as an older Xylem reads it: a path and a label, nothing else.
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("path = \"ssh://oracle@db01:2222/u01/app\""),
+            "{text}"
+        );
+        let back = load_bookmarks(&path);
+        assert_eq!(back, bookmarks);
+        assert_eq!(back["o"].address(), Some("ssh://oracle@db01:2222/u01/app"));
+        assert_eq!(back["p"].address(), Some("docker://pg-amb1/var/lib"));
+        assert_eq!(Bookmark::new("/home/a@b:c").address(), None);
+        assert_eq!(Bookmark::new(r"C:\ssh\x").address(), None);
+    }
+
+    #[test]
+    fn a_name_is_checked_when_typed_and_cleaned_when_read() {
+        assert_eq!(check_label("  "), Ok(None));
+        assert_eq!(
+            check_label(" Docker do Postgres Amb 1 "),
+            Ok(Some("Docker do Postgres Amb 1".into()))
+        );
+        assert!(check_label(&"x".repeat(LABEL_MAX)).is_ok());
+        assert!(check_label(&"x".repeat(LABEL_MAX + 1)).is_err());
+        assert!(check_label("a\u{1b}[31mb").is_err());
+        assert!(check_label("fatura\u{202E}fdp").is_err());
+
+        // From the file, as it may have been edited by hand.
+        let bm = Bookmark::with_label("/x", "a\u{1b}b\u{202E}c");
+        assert_eq!(bm.label().as_deref(), Some("a·b·c"));
+        let long = Bookmark::with_label("/x", "y".repeat(500));
+        assert_eq!(long.label().unwrap().chars().count(), LABEL_MAX);
+        assert_eq!(Bookmark::with_label("/x", "  ").label(), None);
     }
 
     #[test]

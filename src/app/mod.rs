@@ -69,6 +69,12 @@ pub use view::TaggedView;
 #[derive(Debug, Clone, Default)]
 pub struct BookmarksView {
     pub selected: usize,
+    /// Opened with F11 from the Log, Copy or Move prompt: choosing puts the
+    /// place in it, and nothing is changed here.
+    pub pick: bool,
+    /// The keys of local bookmarks whose folder is gone, checked once when
+    /// the list opens (never on a slow mount, nor on a remote machine).
+    pub missing: std::collections::BTreeSet<String>,
 }
 
 /// An editor running inside Xylem's frame (`editor_in_frame = true`).

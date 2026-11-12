@@ -20,6 +20,9 @@ Schlüssel, der SSH-Agent und `known_hosts`. Auf dem entfernten Rechner muss
 nichts installiert werden: Xylem spricht SFTP, was jeder SSH-Server beherrscht
 (Linux, BSD, macOS, Windows).
 
+Um zurückzukehren, ohne die Adresse erneut einzutippen, speichern Sie den Ordner
+als [Lesezeichen](bookmarks.md) (Ctrl+F11) und geben ihm einen Namen.
+
 ## Passwörter und Rückfragen
 
 Wenn ssh etwas abfragt, erscheint die Frage in der Fußzeile:

@@ -19,6 +19,9 @@ chaves, o agente e `known_hosts`. Não é preciso instalar nada na outra máquin
 o Xylem fala SFTP, que todo servidor SSH já possui (Linux, BSD, macOS,
 Windows).
 
+Para voltar sem digitar o endereço de novo, salve a pasta como
+[favorito](bookmarks.md) (Ctrl+F11) e dê um nome a ele.
+
 ## Senhas e perguntas
 
 Quando o ssh pergunta algo, a pergunta aparece no rodapé:
