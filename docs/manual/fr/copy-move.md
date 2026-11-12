@@ -16,6 +16,8 @@ Sans écran partagé, l'invite s'ouvre vide, comme pour [Log](treespec.md), et *
 parcourt les mêmes lieux : les dossiers où l'on a copié ou déplacé et ceux ouverts
 avec Log, du dernier au plus ancien. Entrée sur une invite vide ne fait rien.
 
+**F11** amène un [signet](bookmarks.md) dans l'invite.
+
 Un dossier de destination qui n'existe pas encore est créé après confirmation.
 
 ## Avec ou sans chemins

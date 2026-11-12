@@ -31,4 +31,7 @@ Die Eingabe öffnet sich leer. ↑ geht durch die zuvor benutzten Orte, der letz
 zuerst: die mit Log geöffneten und die Ordner, in die Dateien kopiert oder
 verschoben wurden.
 
+**F11** holt ein [Lesezeichen](bookmarks.md) über seinen Namen in die Eingabe:
+praktisch für lange Adressen entfernter Rechner und Container.
+
 Siehe auch: [das Baumfenster](tree.md), [Lesezeichen](bookmarks.md).

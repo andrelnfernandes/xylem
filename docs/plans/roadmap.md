@@ -72,9 +72,8 @@ Depois da Parte 1, nesta ordem:
 2. **Salvar e recarregar o log (Zlist):** a árvore de um disco ou Drive abre na hora e é
    atualizada depois. O arquivo salvo também é lido como hostil.
 
-Sem posição decidida ainda: **favoritos com nome, e de máquinas remotas**
-([named-bookmarks.md](named-bookmarks.md)), aprovados em 2026-11-12, em três fatias
-pequenas. A ordem em relação ao release 0.7.0 e à fase 4 do SSH fica para o autor.
+**Favoritos com nome, e de máquinas remotas** ([named-bookmarks.md](named-bookmarks.md)),
+aprovados em 2026-11-12: entram na 0.7.0, antes da fase 4 do SSH.
 
 ## Em paralelo: divulgação
 

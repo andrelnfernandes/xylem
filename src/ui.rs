@@ -2214,6 +2214,8 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
         ]
     } else if prompt.is_bookmark_set() {
         vec![("0-9, a-z", "assign key"), ("Esc", "cancel")]
+    } else if prompt.is_bookmark_name() {
+        vec![("Enter", "save"), ("Esc", "cancel"), ("Ctrl+U", "clear")]
     } else if let Some(guide) = prompt.batch_guide() {
         if guide.reading.is_some() {
             vec![
@@ -2251,6 +2253,10 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
         let mut help = vec![("Enter", "accept"), ("Esc", "cancel"), ("Ctrl+U", "clear")];
         if prompt.picks_folder() {
             help.push(("F2", "tree"));
+        }
+        if prompt.picks_bookmark() {
+            help.push(("F11", "bookmarks"));
+            help.push(("↑↓", "history"));
         }
         if prompt.toggles_paths() {
             help.push(("F6", "with/without paths"));
@@ -2583,7 +2589,12 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
         header,
     );
 
-    let block = panel(" Directory Bookmarks (Alt+B / F11) ", true);
+    let title = if view.pick {
+        " Bookmarks: choose a place for the prompt (F11) "
+    } else {
+        " Directory Bookmarks (Alt+B / F11) "
+    };
+    let block = panel(title, true);
     let inner = block.inner(body);
     frame.render_widget(block, body);
 
@@ -2597,6 +2608,12 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
             p.display().to_string()
         }
     };
+    // Where a bookmark goes, always shown next to its name: the folder, or
+    // the address of a remote one.
+    let place = |bm: &crate::state::Bookmark| match bm.address() {
+        Some(address) => address.to_string(),
+        None => format_path(&bm.path),
+    };
 
     let mut lines: Vec<Line> = Vec::new();
     if app.bookmarks.is_empty() {
@@ -2606,45 +2623,63 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
             bold,
         )));
         lines.push(Line::default());
-        lines.push(Line::from(vec![
-            Span::raw("  Press "),
-            key("Ins"),
-            Span::raw(", "),
-            key("+"),
-            Span::raw(" or "),
-            key("m"),
-            Span::raw(" to bookmark the current directory:"),
-        ]));
-        lines.push(Line::from(vec![
-            Span::raw("    "),
-            Span::styled(
-                format_path(&app.current_path()),
-                Style::new().fg(theme().key).add_modifier(Modifier::BOLD),
-            ),
-        ]));
+        if view.pick {
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                key("Ctrl+F11"),
+                Span::raw(" saves the current directory as one, once this prompt is closed."),
+            ]));
+        } else {
+            lines.push(Line::from(vec![
+                Span::raw("  Press "),
+                key("Ins"),
+                Span::raw(", "),
+                key("+"),
+                Span::raw(" or "),
+                key("m"),
+                Span::raw(" to bookmark the current directory:"),
+            ]));
+            lines.push(Line::from(vec![
+                Span::raw("    "),
+                Span::styled(
+                    format_path(&app.current_path()),
+                    Style::new().fg(theme().key).add_modifier(Modifier::BOLD),
+                ),
+            ]));
+        }
     } else {
-        let width = inner.width as usize;
-        for (i, (k, bm)) in app.bookmarks.iter().enumerate() {
-            let exists = bm.path.is_dir();
-            let path_str = format_path(&bm.path);
-            let label_part = match &bm.label {
-                Some(lbl) => format!(" ({lbl})"),
-                None => String::new(),
-            };
+        // "▶ [k] " before each one.
+        let width = (inner.width as usize).saturating_sub(6);
+        let labels: Vec<Option<String>> = app.bookmarks.values().map(|b| b.label()).collect();
+        // The names in a column, which never takes more than half the line:
+        // the place always shows, cut at the end if it must be.
+        let name_width = labels
+            .iter()
+            .flatten()
+            .map(|l| l.chars().count())
+            .max()
+            .map_or(0, |w| w.min(width / 2));
+        for (i, ((k, bm), label)) in app.bookmarks.iter().zip(&labels).enumerate() {
+            let missing = view.missing.contains(k);
             let cursor = if i == view.selected { "▶ " } else { "  " };
-            let status = if !exists { " [not found]" } else { "" };
-
-            let full_text = format!("{path_str}{label_part}{status}");
-            let text_fitted = fit(&full_text, width.saturating_sub(10));
-
-            let mut spans = vec![
-                Span::raw(cursor),
-                key(&format!("[{k}]")),
-                Span::raw(" "),
-                Span::raw(text_fitted),
-            ];
-            if !exists {
-                spans.push(Span::styled(" [invalid]", Style::new().fg(theme().message)));
+            let mut spans = vec![Span::raw(cursor), key(&format!("[{k}]")), Span::raw(" ")];
+            let mut room = width;
+            if name_width > 0 {
+                let name = label.as_deref().unwrap_or("");
+                spans.push(Span::styled(fit(name, name_width), bold));
+                spans.push(Span::raw("  "));
+                room = room.saturating_sub(name_width + 2);
+            }
+            let status = if missing { " [not found]" } else { "" };
+            let place = place(bm);
+            let place_width = room.saturating_sub(status.chars().count());
+            spans.push(Span::raw(if place.chars().count() > place_width {
+                fit(&place, place_width)
+            } else {
+                place
+            }));
+            if missing {
+                spans.push(Span::styled(status, Style::new().fg(theme().message)));
             }
             let line = Line::from(spans);
             if i == view.selected {
@@ -2662,19 +2697,29 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
 
     frame.render_widget(Paragraph::new(lines), inner);
 
-    frame.render_widget(
-        menu_line(
-            "",
-            &[
-                ("Enter / key", "jump"),
-                ("Ins / +", "add current dir"),
-                ("Del / d", "remove"),
-                ("↑↓ / j k", "navigate"),
-                ("Esc", "exit"),
-            ],
-        ),
-        menu,
-    );
+    // The name of a bookmark is typed here, over the list.
+    if let Some(prompt) = app.prompt.as_ref().filter(|p| p.is_bookmark_name()) {
+        let lines = prompt_lines(frame, prompt, menu);
+        frame.render_widget(Paragraph::new(lines), menu);
+        return;
+    }
+    let keys: &[(&str, &str)] = if view.pick {
+        &[
+            ("Enter / key", "put it in the prompt"),
+            ("↑↓ / j k", "navigate"),
+            ("Esc", "back"),
+        ]
+    } else {
+        &[
+            ("Enter / key", "jump"),
+            ("F2", "name"),
+            ("Ins / +", "add current dir"),
+            ("Del / d", "remove"),
+            ("↑↓ / j k", "navigate"),
+            ("Esc", "exit"),
+        ]
+    };
+    frame.render_widget(menu_line("", keys), menu);
 }
 
 /// The help key to show in the footer: F1, unless the terminal is one of
@@ -4365,7 +4410,7 @@ mod tests {
         let mut app = App::new(tmp.path().to_path_buf());
 
         // Empty bookmarks view
-        app.bookmarks_view = Some(BookmarksView { selected: 0 });
+        app.bookmarks_view = Some(BookmarksView::default());
         let mut term = Terminal::new(TestBackend::new(100, 30)).unwrap();
         term.draw(|f| draw(f, &mut app)).unwrap();
         let screen = format!("{:?}", term.backend().buffer());
@@ -4380,6 +4425,54 @@ mod tests {
         assert!(screen.contains("[1]"));
         assert!(screen.contains("[x]"));
         assert!(screen.contains("2 bookmarks"));
+
+        // A name before the place, which always shows; a folder that is gone
+        // is marked, a remote one is never checked.
+        app.set_bookmark("o".into(), "ssh://oracle@db01/u01/app".into());
+        app.name_bookmark("o", "Servidor do Oracle").unwrap();
+        app.bookmarks.get_mut("x").unwrap().label = Some("ev\u{202E}il".into());
+        app.open_bookmarks();
+        let text = |term: &Terminal<TestBackend>| {
+            let buf = term.backend().buffer();
+            (0..buf.area.height)
+                .map(|y| {
+                    (0..buf.area.width)
+                        .map(|x| buf[(x, y)].symbol().to_string())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+        };
+        term.draw(|f| draw(f, &mut app)).unwrap();
+        let rows = text(&term);
+        let row = |k: &str| rows.iter().find(|r| r.contains(k)).unwrap().clone();
+        let oracle = row("[o]");
+        assert!(
+            oracle.contains("Servidor do Oracle  ssh://oracle@db01/u01/app"),
+            "{oracle}"
+        );
+        assert!(!oracle.contains("[not found]"), "{oracle}");
+        assert!(row("[x]").contains("ev·il"), "{}", row("[x]"));
+        assert!(row("[x]").contains("[not found]"), "{}", row("[x]"));
+        assert!(!row("[1]").contains("[not found]"), "{}", row("[1]"));
+
+        // Narrow: the place is cut at its end, never left out.
+        let mut narrow = Terminal::new(TestBackend::new(40, 30)).unwrap();
+        narrow.draw(|f| draw(f, &mut app)).unwrap();
+        let oracle = text(&narrow)
+            .into_iter()
+            .find(|r| r.contains("[o]"))
+            .unwrap();
+        assert!(oracle.contains("ssh://"), "{oracle}");
+        assert!(oracle.contains('…'), "{oracle}");
+
+        // The name is typed over the list.
+        app.handle_key(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE));
+        term.draw(|f| draw(f, &mut app)).unwrap();
+        assert!(
+            text(&term)
+                .iter()
+                .any(|r| r.contains("NAME of bookmark '1'"))
+        );
     }
 
     #[test]

@@ -130,6 +130,32 @@ impl Address {
         }
     }
 
+    /// The same machine: the one a window is connected to, whatever the
+    /// path.
+    pub fn same_machine(&self, other: &Address) -> bool {
+        self.via == other.via
+            && self.user == other.user
+            && self.host == other.host
+            && self.port == other.port
+    }
+
+    /// The address as `parse` reads it back, in the form that also takes a
+    /// port (`ssh://user@host:2222/dir`, `docker://user@name/dir`). `None`
+    /// when the path cannot be written in it (a space, a path that does not
+    /// start with `/`).
+    pub fn text(&self) -> Option<String> {
+        let at = match &self.user {
+            Some(user) => format!("{user}@{}", self.host),
+            None => self.host.clone(),
+        };
+        let text = match (self.via, self.port) {
+            (Via::Ssh, Some(port)) => format!("ssh://{at}:{port}{}", self.path),
+            (Via::Ssh, None) => format!("ssh://{at}{}", self.path),
+            (Via::Docker, _) => format!("docker://{at}{}", self.path),
+        };
+        (Address::parse(&text).as_ref() == Some(self)).then_some(text)
+    }
+
     /// `docker exec` into the container, with `options` before its name
     /// and `command` after it.
     fn docker(&self, options: &[&str], command: &[&str]) -> Command {
@@ -428,6 +454,18 @@ impl Remote {
         let mut path = self.root.clone();
         path.extend(rel.split('/').filter(|c| !c.is_empty()));
         Some(path)
+    }
+
+    /// The address that connects to `path`, a folder of the window's tree,
+    /// for a bookmark: `None` if its remote path is not text that an address
+    /// can hold.
+    pub fn address_of(&self, path: &Path) -> Option<String> {
+        let remote = String::from_utf8(self.remote_path(path)).ok()?;
+        Address {
+            path: remote,
+            ..self.address.clone()
+        }
+        .text()
     }
 
     /// A Windows machine: its paths start with a drive (`/C:/Users`).
@@ -953,6 +991,65 @@ mod tests {
         ] {
             assert_eq!(Address::parse(bad), None, "{bad}");
         }
+    }
+
+    #[test]
+    fn an_address_is_written_back_as_it_is_read() {
+        for (typed, written) in [
+            ("andre@10.0.0.5:/srv/www", "ssh://andre@10.0.0.5/srv/www"),
+            ("andre@host:", "ssh://andre@host"),
+            (
+                "ssh://andre@host.lan:2222/tmp",
+                "ssh://andre@host.lan:2222/tmp",
+            ),
+            ("ssh://myserver", "ssh://myserver"),
+            (
+                "docker://root@my_app.1/srv/www",
+                "docker://root@my_app.1/srv/www",
+            ),
+            ("docker://web", "docker://web"),
+        ] {
+            let a = Address::parse(typed).unwrap();
+            assert_eq!(a.text().as_deref(), Some(written), "{typed}");
+            assert!(a.same_machine(&Address::parse(written).unwrap()));
+        }
+        // What an address cannot hold.
+        let at = |path: &str| Address {
+            path: path.into(),
+            ..Address::parse("ssh://db01").unwrap()
+        };
+        assert_eq!(at("/u01/a b").text(), None);
+        assert_eq!(at("relative").text(), None);
+        assert_eq!(at("/u01/app").text().as_deref(), Some("ssh://db01/u01/app"));
+        // Another port, user or way in is another machine.
+        let a = Address::parse("ssh://andre@host:2222").unwrap();
+        for other in [
+            "ssh://andre@host",
+            "ssh://root@host:2222",
+            "docker://andre@host",
+        ] {
+            assert!(!a.same_machine(&Address::parse(other).unwrap()), "{other}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_remote_folder_gives_the_address_that_opens_it() {
+        let tmp = crate::testing::tempdir();
+        std::fs::create_dir_all(tmp.path().join("sub/a b")).unwrap();
+        let Some(remote) = for_tests(tmp.path()) else {
+            return;
+        };
+        let real = tmp.path().canonicalize().unwrap();
+        assert_eq!(
+            remote.address_of(&remote.root.join("sub")),
+            Some(format!("ssh://test@testhost{}/sub", real.display()))
+        );
+        // A space cannot be typed in an address, so it cannot be saved in one.
+        assert_eq!(
+            remote.address_of(&remote.root.join("sub").join("a b")),
+            None
+        );
     }
 
     #[test]

@@ -75,7 +75,9 @@ impl App {
                 PromptKind::ViewerLineFilter { .. } => "filter",
                 PromptKind::ViewerBatchFile | PromptKind::ViewerBatchMask { .. } => "execute",
                 PromptKind::CreateArchive(_) => "archives",
-                PromptKind::BookmarkJump | PromptKind::BookmarkSet => "bookmarks",
+                PromptKind::BookmarkJump
+                | PromptKind::BookmarkSet
+                | PromptKind::BookmarkName(_) => "bookmarks",
                 PromptKind::MakeDir(_) => "tree",
                 PromptKind::Askpass { .. } => "remote",
             };

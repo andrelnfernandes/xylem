@@ -17,6 +17,9 @@ igual: `~/.ssh/config` (alias de hosts, puertos, ProxyJump), claves, el agente y
 `known_hosts`. No hace falta instalar nada en la otra máquina: Xylem habla SFTP,
 que viene en cualquier servidor SSH (Linux, BSD, macOS, Windows).
 
+Para volver sin escribir de nuevo la dirección, guarda la carpeta como
+[marcador](bookmarks.md) (Ctrl+F11) y ponle un nombre.
+
 ## Contraseñas y preguntas
 
 Cuando ssh pide algo, la pregunta aparece en el pie de página:

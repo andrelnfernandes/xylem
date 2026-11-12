@@ -15,6 +15,8 @@ Sem a tela dividida, o prompt abre vazio, como no [Log](treespec.md), e **↑**
 percorre os mesmos lugares: as pastas para onde se copiou ou moveu e as que foram
 logadas, do último para o mais antigo. Enter com o prompt vazio não faz nada.
 
+**F11** traz um [favorito](bookmarks.md) para o prompt.
+
 Uma pasta de destino que ainda não exista é criada após a confirmação.
 
 ## Com ou sem caminhos

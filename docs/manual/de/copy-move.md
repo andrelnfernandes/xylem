@@ -17,6 +17,8 @@ und **↑** geht durch dieselben Orte: die Ordner, in die kopiert oder verschobe
 wurde, und die mit Log geöffneten, der letzte zuerst. Enter bei leerer Eingabe tut
 nichts.
 
+**F11** holt ein [Lesezeichen](bookmarks.md) in die Eingabe.
+
 Ein Zielordner, der noch nicht existiert, wird nach Ihrer Bestätigung erstellt.
 
 ## Mit oder ohne Pfade
