@@ -11,6 +11,10 @@ Um diretório (relativo ao diretório sob o cursor da árvore, absoluto ou com
 [dividida](split.md), o diretório da outra janela é sugerido. **F2** abre uma
 árvore para [escolher a pasta](picker.md); **↑** traz destinos anteriores.
 
+Sem a tela dividida, o prompt abre vazio, como no [Log](treespec.md), e **↑**
+percorre os mesmos lugares: as pastas para onde se copiou ou moveu e as que foram
+logadas, do último para o mais antigo. Enter com o prompt vazio não faz nada.
+
 Uma pasta de destino que ainda não exista é criada após a confirmação.
 
 ## Com ou sem caminhos

@@ -11,6 +11,10 @@ A directory (relative to the directory under the tree cursor, absolute, or with
 [split](split.md), the other window's directory is suggested. **F2** opens a
 tree to [pick the folder](picker.md); **↑** brings up earlier destinations.
 
+Without a split, the prompt opens empty, as in [Log](treespec.md), and **↑** goes
+through the same places: the folders copied or moved to and those logged, the
+last one first. Enter on an empty prompt does nothing.
+
 A destination folder that does not exist yet is created after you confirm.
 
 ## With or without paths

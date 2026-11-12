@@ -12,6 +12,11 @@ Un directorio (relativo al directorio bajo el cursor del árbol, absoluto o con
 un árbol para [elegir la carpeta](picker.md); **↑** recupera destinos
 anteriores.
 
+Sin la pantalla dividida, el prompt se abre vacío, como en [Log](treespec.md), y
+**↑** recorre los mismos lugares: las carpetas a las que se copió o movió y las
+registradas con Log, del último al más antiguo. Enter con el prompt vacío no hace
+nada.
+
 Una carpeta de destino que aún no exista se crea después de confirmar.
 
 ## Con o sin rutas

@@ -12,6 +12,11 @@ mit `~`) oder, bei einer einzelnen Datei, ein neuer Name. Bei
 vorgeschlagen. **F2** öffnet einen Baum zur [Ordnerauswahl](picker.md); **↑**
 ruft frühere Ziele auf.
 
+Ohne geteilten Bildschirm öffnet sich die Eingabe leer, wie bei [Log](treespec.md),
+und **↑** geht durch dieselben Orte: die Ordner, in die kopiert oder verschoben
+wurde, und die mit Log geöffneten, der letzte zuerst. Enter bei leerer Eingabe tut
+nichts.
+
 Ein Zielordner, der noch nicht existiert, wird nach Ihrer Bestätigung erstellt.
 
 ## Mit oder ohne Pfade

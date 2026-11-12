@@ -27,4 +27,8 @@ kann absolut, relativ zum aktuellen Verzeichnis sein oder mit `~` beginnen;
 Neue Fenster behalten die aktuelle [Sortierreihenfolge](sort.md) und den
 Anzeigemodus bei.
 
+Die Eingabe öffnet sich leer. ↑ geht durch die zuvor benutzten Orte, der letzte
+zuerst: die mit Log geöffneten und die Ordner, in die Dateien kopiert oder
+verschoben wurden.
+
 Siehe auch: [das Baumfenster](tree.md), [Lesezeichen](bookmarks.md).

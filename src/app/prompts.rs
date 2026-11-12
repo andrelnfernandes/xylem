@@ -93,9 +93,9 @@ impl PromptKind {
     fn history_key(&self) -> Option<&'static str> {
         Some(match self {
             PromptKind::Filespec => "filespec",
-            PromptKind::ExportDuplicates => "destination",
-            PromptKind::Transfer { .. } => "destination",
-            PromptKind::Log => "log",
+            PromptKind::ExportDuplicates => "export",
+            // One list of places: those logged and those copied or moved to.
+            PromptKind::Transfer { .. } | PromptKind::Log => PLACES,
             PromptKind::Treespec { .. } => "treespec",
             PromptKind::NewDate(_) => "date",
             PromptKind::BatchFile | PromptKind::ViewerBatchFile => "batch_file",
@@ -148,6 +148,11 @@ impl PromptKind {
 
 /// Entries kept per prompt kind.
 const HISTORY_SIZE: usize = 100;
+
+/// The history of places: those logged and those copied or moved to.
+const PLACES: &str = "log";
+/// The history Copy and Move kept before they shared [`PLACES`].
+const OLD_DESTINATIONS: &str = "destination";
 
 impl PromptKind {
     /// Asks for a folder (F2 picks it in a tree): `Some(true)` when the
@@ -523,10 +528,23 @@ impl App {
     }
 
     pub(crate) fn open_prompt(&mut self, kind: PromptKind, label: String, text: &str) {
-        let history = kind
+        let mut history = kind
             .history_key()
             .and_then(|k| self.history.get(k).cloned())
             .unwrap_or_default();
+        // Copy and Move had a list of their own (`destination`): what is in it
+        // stays within reach, as the oldest places.
+        if kind.history_key() == Some(PLACES)
+            && let Some(old) = self.history.get(OLD_DESTINATIONS)
+        {
+            let mut all: Vec<String> = old
+                .iter()
+                .filter(|d| !history.contains(d))
+                .cloned()
+                .collect();
+            all.append(&mut history);
+            history = all;
+        }
         self.prompt = Some(Prompt {
             label,
             input: LineInput::new(text).with_history(history),
@@ -535,9 +553,23 @@ impl App {
     }
 
     pub(crate) fn remember(&mut self, kind: &PromptKind, text: &str) {
-        let Some(key) = kind.history_key() else {
+        // A destination is kept by `remember_place`, resolved, and only a folder.
+        if matches!(kind, PromptKind::Transfer { .. }) {
             return;
-        };
+        }
+        if let Some(key) = kind.history_key() {
+            self.remember_in(key, text);
+        }
+    }
+
+    /// A folder files were copied or moved to: the Log, Copy and Move prompts
+    /// offer it (↑) among the places logged. Absolute: a relative path would
+    /// change meaning next time, from another directory.
+    fn remember_place(&mut self, place: &str) {
+        self.remember_in(PLACES, place);
+    }
+
+    fn remember_in(&mut self, key: &str, text: &str) {
         if text.trim().is_empty() {
             return;
         }
@@ -732,17 +764,26 @@ impl App {
                 ..
             } => {
                 match self.typed_remote_dest(&text) {
+                    // Nothing typed: no destination, nothing to do.
+                    _ if text.trim().is_empty() => Ok(()),
                     Err(e) => Err(e),
                     Ok(remote) => {
                         let dest = remote.unwrap_or_else(|| {
                             ops::resolve_path(&text, &self.tree.path(self.current()))
                         });
-                        // Saves the absolute path: a relative one would change meaning
-                        // next time, from another directory.
-                        self.last_dest = Some(dest.to_string_lossy().into_owned());
                         let paths_from = paths.then(|| bases.get(mode).to_path_buf());
                         let side = self.side_of(&dest);
-                        if needs_new_dir(&side, &dest, sources.len(), paths_from.is_some()) {
+                        let new_dir =
+                            needs_new_dir(&side, &dest, sources.len(), paths_from.is_some());
+                        // A folder on this machine is a place to log later; a new
+                        // name for one file is not.
+                        if matches!(side, Side::Local) && (new_dir || dest.is_dir()) {
+                            self.remember_place(&dest.to_string_lossy());
+                        } else if crate::remote::Address::parse(&text).is_some() {
+                            // An address, as typed: Log takes it too.
+                            self.remember_place(&text);
+                        }
+                        if new_dir {
                             let question = format!("Create the missing folder {}?", dest.display());
                             let kind = ConfirmKind::CreateDest {
                                 kind,
@@ -1069,12 +1110,10 @@ impl App {
         let mode = self.options.copy_paths;
         let label = transfer_label(kind, &sources, tagged, paths, mode);
         // With the screen split, the natural destination is the other window.
+        // Otherwise empty, as in Log: ↑ brings the places used, F2 the tree.
         let default = match self.other() {
             Some(other) => other.current_path().to_string_lossy().into_owned(),
-            None => self
-                .last_dest
-                .clone()
-                .unwrap_or_else(|| self.current_path().to_string_lossy().into_owned()),
+            None => String::new(),
         };
         let prompt = PromptKind::Transfer {
             kind,
