@@ -27,4 +27,8 @@ ou commencer par `~` ; **F2** [le choisit dans une arborescence](picker.md) et �
 rappelle les précédents. Les nouvelles fenêtres conservent l'[ordre de
 tri](sort.md) et le mode d'affichage courants.
 
+L'invite s'ouvre vide. ↑ parcourt les lieux utilisés auparavant, du dernier au
+plus ancien : ceux ouverts avec Log et les dossiers où des fichiers ont été
+copiés ou déplacés.
+
 Voir aussi : [la fenêtre d'arborescence](tree.md), [signets](bookmarks.md).

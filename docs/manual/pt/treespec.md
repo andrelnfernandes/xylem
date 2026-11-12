@@ -26,4 +26,8 @@ diretório atual ou começar com `~`; **F2** [escolhe-o em uma árvore](picker.m
 e ↑ traz os anteriores. Novas janelas mantêm a [ordem de classificação](sort.md)
 e o modo de exibição atuais.
 
+O prompt abre vazio. ↑ percorre os lugares usados antes, do último para o mais
+antigo: os que foram logados e as pastas para onde arquivos foram copiados ou
+movidos.
+
 Veja também: [a janela da árvore](tree.md), [favoritos](bookmarks.md).
