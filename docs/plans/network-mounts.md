@@ -52,6 +52,17 @@ a raiz e cada subpasta dela na thread da tela, com um `stat` por entrada, e cada
   ou confirmar um caminho precisa da resposta na hora, e foi a pessoa quem pediu.
   No Enter, o cursor vai até o fim do caminho digitado.
 
+## Ajuste ao log sob demanda (2026-11-11)
+
+Esta frente foi escrita antes do [log sob demanda](log-on-demand.md), que tirou o
+`Tree::touch` (mover o cursor não lê mais nada). Ao trazê-la para cima dele:
+
+- `Tree::touch` voltou só para quem **vai** a uma pasta (`show_node` e o Treespec): lê
+  na hora no disco local e pede a leitura em pasta lenta. Mover o cursor continua sem ler.
+- `Pane::walk` lê a pasta aonde chega conforme o `wait`: enquanto se digita, pede a
+  leitura; em `/`, Tab e Enter, espera por ela.
+- Manual: a seção de compartilhamentos de rede em `cloud.md`, nas 6 línguas.
+
 ## O que continua síncrono
 
 Igual ao rclone: F3, completar no Treespec, Enter num caminho digitado (uma

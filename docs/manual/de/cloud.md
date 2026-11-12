@@ -121,6 +121,26 @@ Fehler 403 weiter unten.
   oder Verschieben eines Verzeichnisses wird jede enthaltene Datei einzeln
   kopiert und gelöscht.
 
+## Netzwerkfreigaben (SMB, WSL)
+
+Der Baum wird auch in einem über das Netzwerk freigegebenen Ordner im Hintergrund
+eingelesen: SMB (`cifs`), SSHFS, WebDAV (`davfs`) und, unter WSL, eine
+Windows-Freigabe, die über ihren UNC-Pfad eingehängt ist:
+
+```
+sudo mount -t drvfs '\\server\freigabe$' /mnt/freigabe
+```
+
+Dort zeigt die Dateiliste, wie in einem rclone-Mount, keine Git-Buchstaben (Ctrl+G
+funktioniert weiterhin), anderswo gemachte Änderungen erscheinen nach F3, und der
+Treespec wartet nicht auf einen Ordner, der gerade eingelesen wird: Der Cursor folgt
+Ihrer Eingabe, sobald die Ordner ankommen. `/`, Tab und Enter warten weiterhin auf
+ihr Einlesen. `*`, Branch und Usage lesen Ordner für Ordner, mit Fortschritt und Esc.
+
+Nicht erkannt: Eine Freigabe, die in Windows einem Laufwerksbuchstaben zugeordnet ist
+(`mount -t drvfs Z: /mnt/z`), sieht von Linux aus wie eine lokale Platte; hängen Sie
+sie über ihren UNC-Pfad ein. NFS wird wie eine lokale Platte gelesen.
+
 ## Wenn der Dienst ablehnt: Fehler 403
 
 Google Drive begrenzt, wie viele Anfragen es pro Minute annimmt. Auf einem Drive
