@@ -15,8 +15,8 @@ todos de uma vez, em qualquer terminal, direto do teclado.
   dados, com prévia antes de escrever qualquer coisa.
 - **Libere espaço:** veja o que ocupa mais e ache arquivos e pastas duplicados, até no
   Google Drive sem baixar nada.
-- **Vá além do seu disco:** navegue e copie de servidores via SSH, e trabalhe com
-  Google Drive, S3 e outras nuvens via rclone.
+- **Vá além do seu disco:** trabalhe em servidores via SSH e em containers como no
+  seu próprio disco, e com Google Drive, S3 e outras nuvens via rclone.
 - **Fique num lugar só:** um terminal embutido com a árvore acompanhando o seu `cd`, e
   o status do Git na própria lista de arquivos.
 - **Abra arquivos em que você não confia:** nada neles é executado, e tudo tem limite.
@@ -111,8 +111,10 @@ apresentações:
   que enche o disco; o Alt+K Percent mostra a parte de cada pasta na própria
   árvore.
 - **Além do XTree:** um terminal embutido cuja árvore acompanha o shell,
-  máquinas remotas via SSH (navegar e copiar delas, com o terminal de lá),
-  Google Drive, S3 e outros armazenamentos na nuvem via rclone, um menu Git
+  máquinas remotas via SSH e containers via `docker exec` (copiar, mover,
+  renomear, apagar, permissões e datas lá, com o terminal de lá), Google Drive,
+  S3 e outros armazenamentos na nuvem via rclone, compartilhamentos de rede lidos
+  em segundo plano, favoritos com nome, um menu Git
   opcional, a área de transferência, uma tela de configuração e temas.
 
 ## Uso
@@ -134,8 +136,8 @@ ARM64 (estático, roda em qualquer distribuição) ou Windows x86_64. Extraia e
 coloque o `xy` (`xy.exe`) numa pasta do `PATH`, por exemplo:
 
 ```bash
-tar xzf xy-v0.6.0-x86_64-unknown-linux-musl.tar.gz
-install -m 755 xy-v0.6.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
+tar xzf xy-v0.7.0-x86_64-unknown-linux-musl.tar.gz
+install -m 755 xy-v0.7.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
 ```
 
 Cada arquivo tem um `.sha256` ao lado, para conferir com `sha256sum -c`.
@@ -274,9 +276,10 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
   janela dividida, Compare, arquivos compactados, Edit e eXecute,
   configuração, temas, teclas configuráveis, a ajuda e o histórico
   persistente.
-- Além dele: o terminal integrado, máquinas remotas via SSH (navegar, copiar
-  delas, o terminal delas), armazenamento em nuvem via rclone, Git, a visão
-  Usage, favoritos, Oops, arquivos binários num editor hexadecimal à sua
+- Além dele: o terminal integrado, máquinas remotas via SSH e containers
+  (navegar, escrever lá, o terminal deles), armazenamento em nuvem via rclone,
+  com um Drive grande abrindo na hora, Git, a visão Usage e suas ações,
+  favoritos com nome, Oops, arquivos binários num editor hexadecimal à sua
   escolha, ícones Nerd Fonts, a ajuda em seis línguas e uma versão
   experimental para Windows.
 - O visualizador: codificações detectadas sozinhas, arquivos comprimidos,
@@ -292,17 +295,11 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
 
 ### Próximos passos
 
-- **Máquinas remotas (SSH):** hoje o lado remoto é somente leitura. Primeiro
-  vem a escrita (copiar para ela, mover, excluir, renomear, criar diretórios,
-  permissões, datas), depois Edit e Abrir (por uma cópia temporária que volta
+- **Máquinas remotas (SSH):** Edit e Abrir (por uma cópia temporária que volta
   ao salvar), eXecute e Git via ssh, e atualização periódica.
 - **Visualizador:** um visualizador que lê em janelas, como o `less`, sem limite
   de tamanho para arquivos não comprimidos, e logs (acompanhar, ir para o fim,
   cores por nível).
-- **Uso do disco:** ações dentro da visão Usage (marcar, excluir, Prune,
-  visualizar).
-- **Nuvem:** a raiz de um Drive grande sem tela em branco, e Branch, Usage e
-  Compare pedindo ao rclone o ramo inteiro de uma vez.
 - **Do ZTreeWin:** comparar o conteúdo de dois arquivos (JFC), e salvar o log para
   abrir a árvore de um disco na hora da próxima vez.
 - **Endurecimento:** as sobras da revisão de segurança, listadas no

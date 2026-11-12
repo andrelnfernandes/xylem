@@ -15,8 +15,8 @@ them at once, from any terminal, right from the keyboard.
   with a preview before anything is written.
 - **Free up space:** see what takes room, and find duplicate files and folders,
   even on Google Drive without downloading them.
-- **Reach beyond your disk:** browse and copy from servers over SSH, and work with
-  Google Drive, S3 and other clouds through rclone.
+- **Reach beyond your disk:** work on servers over SSH and in containers as on
+  your own disk, and with Google Drive, S3 and other clouds through rclone.
 - **Stay in one place:** a built-in terminal whose tree follows your `cd`, and Git
   status right in the file list.
 - **Open files you don't trust:** nothing in them runs, and everything has a limit.
@@ -108,9 +108,11 @@ presentations:
   and files by the space they take, largest first, down to what fills the
   disk; Alt+K Percent shows each folder's share right in the tree.
 - **Beyond XTree:** a built-in terminal whose tree follows the shell, remote
-  machines over SSH (browse and copy from them, with their own terminal),
-  Google Drive, S3 and other cloud storage through rclone, an optional Git
-  menu, the clipboard, a configuration screen and themes.
+  machines over SSH and containers through `docker exec` (copy, move, rename,
+  delete, permissions and dates there, with their own terminal), Google Drive,
+  S3 and other cloud storage through rclone, network shares read in the
+  background, bookmarks with names, an optional Git menu, the clipboard, a
+  configuration screen and themes.
 
 ## Usage
 
@@ -131,8 +133,8 @@ x86_64 or ARM64 (static, runs on any distribution) or Windows x86_64.
 Extract it and put `xy` (`xy.exe`) somewhere on your `PATH`, e.g.:
 
 ```bash
-tar xzf xy-v0.6.0-x86_64-unknown-linux-musl.tar.gz
-install -m 755 xy-v0.6.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
+tar xzf xy-v0.7.0-x86_64-unknown-linux-musl.tar.gz
+install -m 755 xy-v0.7.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
 ```
 
 Each archive has a `.sha256` next to it, to check with `sha256sum -c`.
@@ -265,9 +267,10 @@ Found a problem? Please report it privately [via GitHub Security Advisories](htt
   window, Filespec, Showall and Branch, tags and group operations, the split
   window, Compare, archives, Edit and eXecute, configuration, themes,
   configurable keys, the help and persistent history.
-- Beyond it: the built-in terminal, remote machines over SSH (browsing,
-  copying from them, their terminal), cloud storage through rclone, Git, the
-  Usage view, bookmarks, Oops, binary files in a hex editor of your choice,
+- Beyond it: the built-in terminal, remote machines over SSH and containers
+  (browsing, writing there, their terminal), cloud storage through rclone, with
+  a large Drive opening at once, Git, the Usage view and its actions, bookmarks
+  with names, Oops, binary files in a hex editor of your choice,
   Nerd Fonts icons, the help in six languages and an experimental Windows
   build.
 - The viewer: encodings found by itself, compressed files, a configurable
@@ -283,15 +286,10 @@ Found a problem? Please report it privately [via GitHub Security Advisories](htt
 
 ### Next
 
-- **Remote machines (SSH):** today the remote side is read-only. Next comes
-  writing to it (copy to it, move, delete, rename, make directories,
-  permissions, dates), then Edit and Open (through a temporary copy that
-  goes back when saved), eXecute and Git over ssh, and periodic refresh.
+- **Remote machines (SSH):** Edit and Open (through a temporary copy that goes
+  back when saved), eXecute and Git over ssh, and periodic refresh.
 - **Viewer:** a viewer that reads in windows, like `less`, with no size limit
   for uncompressed files, and logs (follow, jump to the end, colors by level).
-- **Disk usage:** actions inside the Usage view (tag, delete, prune, view).
-- **Cloud:** the root of a large Drive without a blank screen, and Branch, Usage
-  and Compare asking rclone for the whole branch at once.
 - **From ZTreeWin:** comparing the contents of two files (JFC), and saving the
   log to open a disk's tree at once next time.
 - **Hardening:** the leftovers of the security pass, listed in

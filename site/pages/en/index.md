@@ -35,7 +35,7 @@ alt="Xylem in use: the built-in terminal with the tree following a cd, tagging f
 </div>
 <div class="feature">
 <h3>Reach beyond your disk</h3>
-<p>Browse and copy from servers over SSH, and work with Google Drive, S3 and other clouds through rclone.</p>
+<p>Work on servers over SSH and in containers as on your own disk, and with Google Drive, S3 and other clouds through rclone.</p>
 </div>
 <div class="feature">
 <h3>Stay in one place</h3>
