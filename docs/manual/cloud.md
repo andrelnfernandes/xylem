@@ -105,6 +105,26 @@ error 403 below.
   directory may vanish once unmounted, and renaming or moving a directory
   copies and deletes each file in it.
 
+## Network shares (SMB, WSL)
+
+The tree also reads in the background on a folder shared over a network: SMB
+(`cifs`), SSHFS, WebDAV (`davfs`) and, under WSL, a Windows share mounted by its
+UNC path:
+
+```
+sudo mount -t drvfs '\\server\share$' /mnt/share
+```
+
+There, as on an rclone mount, the file list shows no Git letters (Ctrl+G still
+works), changes made elsewhere show up after F3, and the Treespec does not wait
+for a folder being read: the cursor follows what you type as folders arrive.
+`/`, Tab and Enter still wait for their read. `*`, Branch and Usage read folder
+by folder, with progress and Esc.
+
+Not recognized: a share mapped to a drive letter in Windows
+(`mount -t drvfs Z: /mnt/z`) looks like a local disk from Linux, so mount it by
+its UNC path. NFS is read as a local disk.
+
 ## When the service refuses: error 403
 
 Google Drive limits how many requests it takes per minute. On a Drive crowded

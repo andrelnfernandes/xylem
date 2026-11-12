@@ -49,6 +49,18 @@ xy ~/gdrive
 - **Google 文档、表格和幻灯片** 并不是普通文件：rclone 会将它们显示为导出的格式（`.docx`、`.xlsx`、`.pptx`），且显示大小为 0。加上 `--drive-skip-gdocs` 参数可以隐藏它们。
 - **S3 没有真正的目录**，只有包含 `/` 的对象名称：空目录在卸载后可能会消失，且重命名或移动目录实际上会逐个复制并删除其中的所有文件。
 
+## 网络共享（SMB、WSL）
+
+在通过网络共享的文件夹中，目录树同样在后台读取：SMB（`cifs`）、SSHFS、WebDAV（`davfs`），以及在 WSL 下按 UNC 路径挂载的 Windows 共享：
+
+```
+sudo mount -t drvfs '\\server\share$' /mnt/share
+```
+
+在那里，与 rclone 挂载一样，文件列表不显示 Git 字母（Ctrl+G 仍然可用），别处所做的更改要在按 F3 之后才会显示，Treespec 也不会等待正在读取的文件夹：随着文件夹陆续到达，光标会跟随您输入的内容。`/`、Tab 和 Enter 仍会等待各自的读取。`*`、Branch 和 Usage 逐个文件夹读取，带有进度显示，并可按 Esc 停止。
+
+无法识别的情况：在 Windows 中映射到盘符的共享（`mount -t drvfs Z: /mnt/z`）从 Linux 看来像本地磁盘，请改用 UNC 路径挂载。NFS 按本地磁盘读取。
+
 ## 服务拒绝请求时：错误 403
 
 Google Drive 限制每分钟接受的请求数量。如果 Drive 里塞满了小文件和小文件夹（项目备份、`node_modules`、编辑器扩展），**403 错误很常见**：`Quota exceeded`、`rateLimitExceeded`。rclone 会等待并重试，所以一切都会变慢，最后还可能放弃。任何通过挂载逐个文件夹读取的文件管理器都会碰到同样的限制。

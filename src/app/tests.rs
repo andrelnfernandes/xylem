@@ -4394,6 +4394,24 @@ fn git_status_is_not_automatic_on_a_cloud_mount() {
 }
 
 #[test]
+fn treespec_goes_on_when_a_slow_folder_arrives() {
+    let (tmp, mut app, _root) = treespec_setup();
+    app.panes[0] = Pane::slow(tmp.path().to_path_buf());
+    press(&mut app, KeyCode::Char('/'));
+    type_text(&mut app, "dow");
+    assert_eq!(app.current(), ROOT, "the root is still being read");
+    assert!(app.prompt.is_some(), "the prompt did not wait");
+    while app.reading() {
+        app.apply_reads();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(current_name(&app), "downloads");
+    press(&mut app, KeyCode::Enter);
+    assert!(app.prompt.is_none());
+    assert_eq!(current_name(&app), "downloads");
+}
+
+#[test]
 fn a_cloud_mount_is_not_watched() {
     let tmp = crate::testing::tempdir();
     let mut app = App::new(tmp.path().to_path_buf());
