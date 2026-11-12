@@ -26,4 +26,8 @@ relativa al directorio actual o empezar por `~`; **F2**
 [la elige desde un árbol](picker.md) y ↑ recupera las anteriores. Las ventanas
 nuevas conservan el [orden](sort.md) y el modo de visualización actuales.
 
+El prompt se abre vacío. ↑ recorre los lugares usados antes, del último al más
+antiguo: los registrados con Log y las carpetas a las que se copiaron o movieron
+archivos.
+
 Véase también: [la ventana del árbol](tree.md), [marcadores](bookmarks.md).

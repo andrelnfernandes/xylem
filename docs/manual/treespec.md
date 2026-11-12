@@ -24,4 +24,7 @@ relative to the current directory or start with `~`; **F2**
 [picks it from a tree](picker.md) and ↑ brings up earlier ones. New windows
 keep the current [sort order](sort.md) and display mode.
 
+The prompt opens empty. ↑ goes through the places used before, the last one
+first: those logged and the folders files were copied or moved to.
+
 See also: [the tree window](tree.md), [bookmarks](bookmarks.md).

@@ -466,10 +466,9 @@ impl App {
                 let sort = self.sort;
                 self.ask_sort(sort);
             }
-            Command::Log => {
-                let current = self.current_path().to_string_lossy().into_owned();
-                self.open_prompt(PromptKind::Log, "LOG directory: ".into(), &current);
-            }
+            // Empty: ↑ brings the places logged or copied and moved to, and
+            // F2 picks one in the tree, from the current directory.
+            Command::Log => self.open_prompt(PromptKind::Log, "LOG directory: ".into(), ""),
             Command::Back if in_files => self.back_to_tree(),
             Command::Back => self.close_archive(),
             Command::OpenArchive => self.open_archive(),
