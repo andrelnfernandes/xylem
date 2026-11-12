@@ -56,7 +56,7 @@ as a link is what `cp -a` and `rsync -l` do).
 
 ## Features
 
-- **Remote machines, phases 3 and 4** (phases 1 and 2 are in 0.4.0;
+- **Remote machines, phases 3 and 4** (phases 1 and 2 are in 0.4.0, phase 3 in 0.7.0;
   [docs/plans/ssh-write.md](docs/plans/ssh-write.md)):
   3. writing on the remote machine: done (rename, mkdir, copy, move, delete,
      prune, permissions, dates, and Duplicates there). Copying there does not recreate
@@ -69,7 +69,7 @@ as a link is what `cp -a` and `rsync -l` do).
   Containers without sshd (`docker://`, through `docker exec` and the
   container's `sftp-server`) are done.
 - **Disk usage** ([docs/plans/usage.md](docs/plans/usage.md)): phases 1 to 3 are
-  done, the actions of phase 3 going in 0.7.0. With no date: grouping by type and
+  done, the actions of phase 3 in 0.7.0. With no date: grouping by type and
   export.
 - **Duplicate files** ([docs/plans/usage.md](docs/plans/usage.md), "Duplicados";
   [the manual](docs/manual/duplicates.md)): done on local folders, whole folders
