@@ -596,19 +596,102 @@ impl App {
         Ok(())
     }
 
-    /// Sets or updates a bookmark for `key` pointing to `path`.
+    /// Sets or updates a bookmark for `key` pointing to `path`. Its name
+    /// stays if the place is the same, and goes with the old place otherwise.
     pub(crate) fn set_bookmark(&mut self, key: String, path: PathBuf) {
-        self.bookmarks.insert(key, Bookmark::new(path));
-        if let Some(file) = &self.history_file {
-            let _ = state::save_bookmarks(file, &self.bookmarks);
+        let label = self
+            .bookmarks
+            .get(&key)
+            .filter(|old| old.path == path)
+            .and_then(|old| old.label.clone());
+        self.bookmarks.insert(key, Bookmark { path, label });
+        self.save_bookmarks();
+    }
+
+    fn save_bookmarks(&mut self) {
+        if let Some(file) = &self.history_file
+            && let Err(e) = state::save_bookmarks(file, &self.bookmarks)
+        {
+            self.message = Some(format!("Cannot save bookmarks to {}: {e}", file.display()));
         }
+    }
+
+    /// Bookmarks the directory under the cursor as `key`: on a remote
+    /// machine or in a container, by the address that connects to it.
+    pub(crate) fn bookmark_here(&mut self, key: String) {
+        let here = self.current_path();
+        let place = match &self.remote {
+            None => here,
+            Some(remote) => match remote.address_of(&here) {
+                Some(address) => PathBuf::from(address),
+                None => {
+                    self.message = Some(format!(
+                        "Cannot bookmark {}: an address cannot hold its path",
+                        here.display()
+                    ));
+                    return;
+                }
+            },
+        };
+        // A failure to save, if any, takes the place of this message.
+        self.message = Some(format!("Bookmark '{key}' set to {}", place.display()));
+        self.set_bookmark(key, place);
+    }
+
+    /// Gives the bookmark `key` a name, or takes it away (empty).
+    pub(crate) fn name_bookmark(&mut self, key: &str, text: &str) -> Result<(), String> {
+        let label = state::check_label(text)?;
+        let Some(bm) = self.bookmarks.get_mut(key) else {
+            return Err(format!("Bookmark '{key}' not found"));
+        };
+        bm.label = label;
+        self.save_bookmarks();
+        Ok(())
+    }
+
+    /// Goes to a bookmark: a folder here, as Log does, or a remote one, by
+    /// connecting to it. A remote machine this window is already on only
+    /// moves the cursor, when the folder is in its tree.
+    pub(crate) fn jump_to_bookmark(&mut self, bm: &Bookmark) -> Result<(), String> {
+        let Some(text) = bm.address() else {
+            return self.jump_to_path(&bm.path);
+        };
+        let Some(address) = crate::remote::Address::parse(text) else {
+            return Err(format!(
+                "Not an address Xylem can open: {}",
+                crate::bidi::escape(text)
+            ));
+        };
+        if let Some(remote) = &self.remote
+            && remote.address.same_machine(&address)
+            && let Some(path) = remote.virtual_path(&address.path)
+            && self.goto(&path)
+        {
+            return Ok(());
+        }
+        self.connect(address)
+    }
+
+    /// The keys of the local bookmarks whose folder is gone. Remote ones and
+    /// those on a slow mount (a cloud, a network share) are not checked:
+    /// that would wait for the network.
+    pub(crate) fn missing_bookmarks(&self) -> std::collections::BTreeSet<String> {
+        let slow = |p: &Path| crate::info::mount_of(p).is_some_and(|m| m.reads_slowly());
+        self.bookmarks
+            .iter()
+            .filter(|(_, bm)| bm.address().is_none() && !slow(&bm.path) && !bm.path.is_dir())
+            .map(|(k, _)| k.clone())
+            .collect()
     }
 
     /// Removes a bookmark by `key`. Returns true if it existed.
     pub(crate) fn remove_bookmark(&mut self, key: &str) -> bool {
         let removed = self.bookmarks.remove(key).is_some();
-        if removed && let Some(file) = &self.history_file {
-            let _ = state::save_bookmarks(file, &self.bookmarks);
+        if removed {
+            self.save_bookmarks();
+            if let Some(view) = &mut self.bookmarks_view {
+                view.missing.remove(key);
+            }
         }
         removed
     }
@@ -637,71 +720,91 @@ impl App {
 
     /// Opens the bookmarks manager screen (Alt+B / F11).
     pub(crate) fn open_bookmarks(&mut self) {
-        self.bookmarks_view = Some(BookmarksView { selected: 0 });
+        self.bookmarks_view = Some(BookmarksView {
+            missing: self.missing_bookmarks(),
+            ..BookmarksView::default()
+        });
+    }
+
+    /// F11 in the Log, Copy or Move prompt: the bookmarks, to choose a place.
+    pub(crate) fn pick_bookmark(&mut self) {
+        self.bookmarks_view = Some(BookmarksView {
+            pick: true,
+            missing: self.missing_bookmarks(),
+            ..BookmarksView::default()
+        });
+    }
+
+    /// A bookmark chosen from a prompt: its place, in the prompt, to be
+    /// confirmed there.
+    fn put_bookmark_in_prompt(&mut self, bm: &Bookmark) {
+        self.bookmarks_view = None;
+        if let Some(prompt) = &mut self.prompt {
+            let place = match bm.address() {
+                Some(address) => address.to_string(),
+                None => bm.path.to_string_lossy().into_owned(),
+            };
+            prompt.input.set_text(place);
+        }
+    }
+
+    /// F2 in the manager: the name of the bookmark under the cursor, typed
+    /// over the list.
+    fn start_bookmark_name(&mut self) {
+        let Some(view) = &self.bookmarks_view else {
+            return;
+        };
+        let Some((key, bm)) = self.bookmarks.iter().nth(view.selected) else {
+            return;
+        };
+        let key = key.clone();
+        let current = bm.label.clone().unwrap_or_default();
+        let label = format!("NAME of bookmark '{key}' (empty: no name): ");
+        self.open_prompt(PromptKind::BookmarkName(key), label, &current);
     }
 
     /// Handles keyboard events when the bookmarks manager (Alt+B / F11) is open.
     pub(crate) fn bookmarks_key(&mut self, key: KeyEvent) {
+        let Some(view) = &self.bookmarks_view else {
+            return;
+        };
+        let (selected, pick) = (view.selected, view.pick);
         if key.modifiers.contains(KeyModifiers::ALT) && matches!(key.code, KeyCode::Char('b' | 'B'))
         {
             self.bookmarks_view = None;
             return;
         }
         let count = self.bookmarks.len();
+        let chosen = self.bookmarks.values().nth(selected).cloned();
+        let move_to = |app: &mut Self, to: usize| {
+            if let Some(view) = &mut app.bookmarks_view {
+                view.selected = to;
+            }
+        };
         match key.code {
-            KeyCode::Esc | KeyCode::F(11) => {
-                self.bookmarks_view = None;
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                if let Some(view) = &mut self.bookmarks_view {
-                    view.selected = view.selected.saturating_sub(1);
-                }
-            }
+            KeyCode::Esc | KeyCode::F(11) => self.bookmarks_view = None,
+            KeyCode::Up | KeyCode::Char('k') => move_to(self, selected.saturating_sub(1)),
             KeyCode::Down | KeyCode::Char('j') => {
-                if let Some(view) = &mut self.bookmarks_view
-                    && count > 0
-                {
-                    view.selected = (view.selected + 1).min(count - 1);
-                }
+                move_to(self, (selected + 1).min(count.saturating_sub(1)))
             }
-            KeyCode::Home => {
-                if let Some(view) = &mut self.bookmarks_view {
-                    view.selected = 0;
-                }
-            }
-            KeyCode::End => {
-                if let Some(view) = &mut self.bookmarks_view {
-                    view.selected = count.saturating_sub(1);
-                }
-            }
+            KeyCode::Home => move_to(self, 0),
+            KeyCode::End => move_to(self, count.saturating_sub(1)),
             KeyCode::Enter => {
-                if let Some(view) = self.bookmarks_view.take()
-                    && let Some((_, bm)) = self.bookmarks.iter().nth(view.selected)
+                if let Some(bm) = chosen {
+                    self.choose_bookmark(&bm, pick);
+                }
+            }
+            // From a prompt, the list only chooses: nothing is changed here.
+            _ if pick => {
+                if let KeyCode::Char(c) = key.code
+                    && let Some(bm) = self.bookmarks.get(&c.to_ascii_lowercase().to_string())
                 {
-                    let path = bm.path.clone();
-                    if let Err(e) = self.jump_to_path(&path) {
-                        self.message = Some(e);
-                    }
+                    let bm = bm.clone();
+                    self.choose_bookmark(&bm, true);
                 }
             }
-            KeyCode::Delete => {
-                let to_remove = self
-                    .bookmarks_view
-                    .as_ref()
-                    .and_then(|v| self.bookmarks.keys().nth(v.selected).cloned());
-                if let Some(k) = to_remove {
-                    self.remove_bookmark(&k);
-                    let new_count = self.bookmarks.len();
-                    if let Some(view) = &mut self.bookmarks_view {
-                        if new_count == 0 {
-                            view.selected = 0;
-                        } else {
-                            view.selected = view.selected.min(new_count - 1);
-                        }
-                    }
-                    self.message = Some(format!("Bookmark '{k}' removed"));
-                }
-            }
+            KeyCode::F(2) => self.start_bookmark_name(),
+            KeyCode::Delete => self.remove_selected_bookmark(),
             KeyCode::Insert | KeyCode::Char('+') => {
                 self.bookmarks_view = None;
                 self.start_bookmark_set();
@@ -709,27 +812,9 @@ impl App {
             KeyCode::Char(c) if c.is_ascii_alphanumeric() => {
                 let key_str = c.to_ascii_lowercase().to_string();
                 if let Some(bm) = self.bookmarks.get(&key_str).cloned() {
-                    self.bookmarks_view = None;
-                    if let Err(e) = self.jump_to_path(&bm.path) {
-                        self.message = Some(e);
-                    }
+                    self.choose_bookmark(&bm, false);
                 } else if c == 'd' || c == 'D' {
-                    let to_remove = self
-                        .bookmarks_view
-                        .as_ref()
-                        .and_then(|v| self.bookmarks.keys().nth(v.selected).cloned());
-                    if let Some(k) = to_remove {
-                        self.remove_bookmark(&k);
-                        let new_count = self.bookmarks.len();
-                        if let Some(view) = &mut self.bookmarks_view {
-                            if new_count == 0 {
-                                view.selected = 0;
-                            } else {
-                                view.selected = view.selected.min(new_count - 1);
-                            }
-                        }
-                        self.message = Some(format!("Bookmark '{k}' removed"));
-                    }
+                    self.remove_selected_bookmark();
                 } else if c == 'a' || c == 'A' || c == 'm' || c == 'M' {
                     self.bookmarks_view = None;
                     self.start_bookmark_set();
@@ -737,6 +822,34 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    /// Enter or a bookmark's key in the list: into the prompt it was opened
+    /// from (`pick`), or there.
+    fn choose_bookmark(&mut self, bm: &Bookmark, pick: bool) {
+        if pick {
+            self.put_bookmark_in_prompt(bm);
+            return;
+        }
+        self.bookmarks_view = None;
+        if let Err(e) = self.jump_to_bookmark(bm) {
+            self.message = Some(e);
+        }
+    }
+
+    fn remove_selected_bookmark(&mut self) {
+        let Some(view) = &self.bookmarks_view else {
+            return;
+        };
+        let Some(k) = self.bookmarks.keys().nth(view.selected).cloned() else {
+            return;
+        };
+        self.remove_bookmark(&k);
+        let count = self.bookmarks.len();
+        if let Some(view) = &mut self.bookmarks_view {
+            view.selected = view.selected.min(count.saturating_sub(1));
+        }
+        self.message = Some(format!("Bookmark '{k}' removed"));
     }
 
     /// `sources`, warning when there is nothing to operate on.

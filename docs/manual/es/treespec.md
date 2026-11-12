@@ -30,4 +30,7 @@ El prompt se abre vacío. ↑ recorre los lugares usados antes, del último al m
 antiguo: los registrados con Log y las carpetas a las que se copiaron o movieron
 archivos.
 
+**F11** trae un [marcador](bookmarks.md) a la entrada, por su nombre: útil para
+direcciones largas de máquinas remotas y contenedores.
+
 Véase también: [la ventana del árbol](tree.md), [marcadores](bookmarks.md).

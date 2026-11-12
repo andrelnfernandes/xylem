@@ -31,4 +31,7 @@ L'invite s'ouvre vide. ↑ parcourt les lieux utilisés auparavant, du dernier a
 plus ancien : ceux ouverts avec Log et les dossiers où des fichiers ont été
 copiés ou déplacés.
 
+**F11** amène un [signet](bookmarks.md) dans l'invite, par son nom : pratique
+pour les longues adresses de machines distantes et de conteneurs.
+
 Voir aussi : [la fenêtre d'arborescence](tree.md), [signets](bookmarks.md).

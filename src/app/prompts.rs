@@ -67,6 +67,8 @@ pub(crate) enum PromptKind {
     BookmarkJump,
     /// Set a directory bookmark for the current directory (Ctrl+F11).
     BookmarkSet,
+    /// The name of this bookmark (F2 in the manager).
+    BookmarkName(String),
     /// Goto line in the viewer (g / :).
     ViewerGoto,
     /// SQL filter in the viewer (WHERE ... / query).
@@ -114,6 +116,7 @@ impl PromptKind {
             | PromptKind::Prune { .. }
             | PromptKind::BookmarkJump
             | PromptKind::BookmarkSet
+            | PromptKind::BookmarkName(_)
             | PromptKind::Askpass { .. } => {
                 return None;
             }
@@ -205,6 +208,16 @@ impl Prompt {
 
     pub fn is_bookmark_set(&self) -> bool {
         matches!(self.kind, PromptKind::BookmarkSet)
+    }
+
+    /// The name of a bookmark, typed over the bookmarks manager.
+    pub fn is_bookmark_name(&self) -> bool {
+        matches!(self.kind, PromptKind::BookmarkName(_))
+    }
+
+    /// F11 brings a bookmark into it: Log, Copy and Move.
+    pub fn picks_bookmark(&self) -> bool {
+        matches!(self.kind, PromptKind::Log | PromptKind::Transfer { .. })
     }
 
     /// A password: shown masked.
@@ -820,19 +833,17 @@ impl App {
                         .to_ascii_lowercase()
                         .to_string();
                     if let Some(bm) = self.bookmarks.get(&key).cloned() {
-                        self.jump_to_path(&bm.path)
+                        self.jump_to_bookmark(&bm)
                     } else {
                         Err(format!("Bookmark '{key}' not found"))
                     }
                 }
             }
+            PromptKind::BookmarkName(key) => self.name_bookmark(&key, &text),
             PromptKind::BookmarkSet => {
                 let trimmed = text.trim();
                 if let Some(c) = trimmed.chars().next().filter(|c| c.is_ascii_alphanumeric()) {
-                    let key = c.to_ascii_lowercase().to_string();
-                    let path = self.current_path();
-                    self.set_bookmark(key.clone(), path.clone());
-                    self.message = Some(format!("Bookmark '{key}' set to {}", path.display()));
+                    self.bookmark_here(c.to_ascii_lowercase().to_string());
                     Ok(())
                 } else {
                     Err("Bookmark key must be 0-9 or a-z".into())

@@ -27,4 +27,7 @@ keep the current [sort order](sort.md) and display mode.
 The prompt opens empty. ↑ goes through the places used before, the last one
 first: those logged and the folders files were copied or moved to.
 
+**F11** brings a [bookmark](bookmarks.md) into the prompt, by its name: handy for
+long addresses of remote machines and containers.
+
 See also: [the tree window](tree.md), [bookmarks](bookmarks.md).

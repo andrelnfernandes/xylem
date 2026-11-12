@@ -2987,6 +2987,169 @@ fn test_bookmarks_manager_navigation_and_delete() {
 }
 
 #[test]
+fn a_bookmark_is_named_in_the_manager() {
+    let (_tmp, mut app) = sample();
+    let root = app.current_path();
+    let deep = root.join("sub/deep");
+    app.set_bookmark("1".into(), root.clone());
+    let label = |app: &App| app.bookmarks["1"].label.clone();
+
+    // F2 names the bookmark under the cursor, over the list.
+    press(&mut app, KeyCode::F(11));
+    press(&mut app, KeyCode::F(2));
+    assert!(app.prompt.as_ref().unwrap().is_bookmark_name());
+    // The keys go to the name, not to the list: d does not remove.
+    type_text(&mut app, "Servidor do Oracle d");
+    assert_eq!(app.bookmarks.len(), 1);
+    press(&mut app, KeyCode::Enter);
+    assert!(app.prompt.is_none());
+    assert!(app.bookmarks_view.is_some(), "back to the list");
+    assert_eq!(label(&app).as_deref(), Some("Servidor do Oracle d"));
+
+    // The name comes back to be edited; Esc leaves it as it was.
+    press(&mut app, KeyCode::F(2));
+    assert_eq!(
+        app.prompt.as_ref().unwrap().input.text,
+        "Servidor do Oracle d"
+    );
+    press(&mut app, KeyCode::Esc);
+    assert!(app.prompt.is_none() && app.bookmarks_view.is_some());
+    assert_eq!(label(&app).as_deref(), Some("Servidor do Oracle d"));
+
+    // Too long: refused, and the name stays.
+    press(&mut app, KeyCode::F(2));
+    ctrl(&mut app, 'u');
+    type_text(&mut app, &"x".repeat(crate::state::LABEL_MAX + 1));
+    press(&mut app, KeyCode::Enter);
+    assert!(app.message.as_deref().unwrap().contains("at most"));
+    assert_eq!(label(&app).as_deref(), Some("Servidor do Oracle d"));
+
+    // Empty: no name.
+    press(&mut app, KeyCode::F(2));
+    ctrl(&mut app, 'u');
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(label(&app), None);
+    press(&mut app, KeyCode::Esc);
+
+    // Saving the same place again keeps the name; another place drops it.
+    app.name_bookmark("1", "Raiz").unwrap();
+    app.set_bookmark("1".into(), root.clone());
+    assert_eq!(label(&app).as_deref(), Some("Raiz"));
+    app.set_bookmark("1".into(), deep);
+    assert_eq!(label(&app), None);
+}
+
+#[test]
+fn f11_brings_a_bookmark_into_log_copy_and_move() {
+    let (_tmp, mut app) = sample();
+    let root = app.current_path();
+    let deep = root.join("sub/deep");
+    app.set_bookmark("1".into(), root.clone());
+    app.set_bookmark("d".into(), deep.clone());
+    let text = |app: &App| app.prompt.as_ref().unwrap().input.text.clone();
+
+    // In Log: the key of a bookmark puts it in the prompt, to be confirmed there.
+    press(&mut app, KeyCode::Char('l'));
+    type_text(&mut app, "typed");
+    press(&mut app, KeyCode::F(11));
+    assert!(app.bookmarks_view.as_ref().unwrap().pick);
+    // Choosing only: nothing is removed or renamed from here.
+    press(&mut app, KeyCode::Delete);
+    press(&mut app, KeyCode::F(2));
+    assert_eq!(app.bookmarks.len(), 2);
+    assert!(!app.prompt.as_ref().unwrap().is_bookmark_name());
+    press(&mut app, KeyCode::Char('d'));
+    assert!(app.bookmarks_view.is_none());
+    assert_eq!(Path::new(&text(&app)), deep);
+    assert_eq!(app.current_path(), root, "not confirmed yet");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.current_path(), deep);
+
+    // Esc goes back to the prompt as it was.
+    press(&mut app, KeyCode::Char('l'));
+    type_text(&mut app, "abc");
+    press(&mut app, KeyCode::F(11));
+    press(&mut app, KeyCode::Esc);
+    assert!(app.bookmarks_view.is_none());
+    assert_eq!(text(&app), "abc");
+    press(&mut app, KeyCode::Esc);
+
+    // In Copy: Enter takes the one under the cursor.
+    app.select_node(ROOT);
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('c'));
+    press(&mut app, KeyCode::F(11));
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(Path::new(&text(&app)), deep);
+    press(&mut app, KeyCode::Esc);
+
+    // A remote place as a destination needs a window on that machine.
+    app.set_bookmark("r".into(), PathBuf::from("ssh://andre@nowhere/x"));
+    press(&mut app, KeyCode::Char('c'));
+    press(&mut app, KeyCode::F(11));
+    press(&mut app, KeyCode::Char('r'));
+    press(&mut app, KeyCode::Enter);
+    assert!(app.connecting.is_none() && app.op.is_none());
+    let note = app.message.clone().unwrap();
+    assert!(note.starts_with("Not connected to andre@nowhere"), "{note}");
+
+    // Elsewhere F11 is not a bookmark key: not in the Filespec prompt.
+    app.apply(Command::Back);
+    press(&mut app, KeyCode::Char('f'));
+    press(&mut app, KeyCode::F(11));
+    assert!(app.bookmarks_view.is_none());
+}
+
+#[test]
+fn a_bookmark_that_is_not_a_valid_address_never_connects() {
+    let (_tmp, mut app) = sample();
+    let root = app.current_path();
+    app.set_bookmark("x".into(), PathBuf::from("ssh://-oProxyCommand=x/y"));
+    app.set_bookmark("y".into(), PathBuf::from("/gone/for/good"));
+    press(&mut app, KeyCode::Char('\''));
+    press(&mut app, KeyCode::Char('x'));
+    assert!(app.connecting.is_none());
+    assert_eq!(app.current_path(), root);
+    let note = app.message.clone().unwrap();
+    assert!(note.starts_with("Not an address"), "{note}");
+
+    // Only the local folder that is gone is marked in the list.
+    press(&mut app, KeyCode::F(11));
+    let missing = &app.bookmarks_view.as_ref().unwrap().missing;
+    assert_eq!(missing.iter().collect::<Vec<_>>(), ["y"]);
+}
+
+/// A folder of a remote machine is saved by the address that opens it, and
+/// going back to it in a window on that machine only moves the cursor.
+#[cfg(unix)]
+#[test]
+fn a_remote_folder_is_bookmarked_by_its_address() {
+    let Some((tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    let root = app.tree.path(ROOT);
+    assert!(app.goto(&root.join("sub")));
+    app.handle_key(KeyEvent::new(KeyCode::F(11), KeyModifiers::CONTROL));
+    press(&mut app, KeyCode::Char('r'));
+    let real = tmp.path().canonicalize().unwrap();
+    let saved = format!("ssh://test@testhost{}/sub", real.display());
+    assert_eq!(app.bookmarks["r"].path, PathBuf::from(&saved));
+
+    assert!(app.goto(&root));
+    press(&mut app, KeyCode::Char('\''));
+    press(&mut app, KeyCode::Char('r'));
+    assert!(app.connecting.is_none(), "already on that machine");
+    assert_eq!(app.current_path(), root.join("sub"));
+
+    // From the Log prompt, the address goes in as it is.
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::F(11));
+    press(&mut app, KeyCode::Char('r'));
+    assert_eq!(app.prompt.as_ref().unwrap().input.text, saved);
+}
+
+#[test]
 fn test_bookmark_terminal_friendly_shortcuts() {
     let (_tmp, mut app) = sample();
     let root = app.current_path();

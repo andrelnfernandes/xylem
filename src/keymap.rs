@@ -752,6 +752,7 @@ impl Keymap {
              F6                      in Copy/Move of tagged files: with/without paths\n  \
              F7                      in Alt+C/Alt+M: paths from the disk root / tree root / current / below it\n  \
              F2                      in prompts that ask for a folder: pick it in a tree\n  \
+             F11                     in Log, Copy and Move: choose a bookmark\n  \
              ↑, ↓                    in prompts: history\n  \
              F2, F4                  in search prompts: match case, text/hex\n  \
              F2                      in tagged rename: cycles case (lower, upper, title)\n\n\
@@ -761,7 +762,7 @@ impl Keymap {
              ' + + / Ins             bookmark current directory\n  \
              Alt+B / F11             open bookmarks manager\n  \
              Ctrl+B (in tree)        bookmark current directory\n  \
-             (in manager) Ins / +: add · Del / d: remove · Enter / key: jump\n\n\
+             (in manager) Ins / +: add · Del / d: remove · F2: name · Enter / key: jump\n\n\
              TERMINAL (Alt+X; Alt+Z in full screen)\n  \
              (keys)                  go to the shell, except the terminal commands above\n  \
              Shift+PgUp / PgDn       scroll back through what went off the screen\n  \
