@@ -304,18 +304,32 @@ impl Tree {
         tree
     }
 
-    /// Each read here is a request to a service: a folder mounted by rclone.
+    /// Each read here goes through a network: a folder mounted by rclone, an
+    /// SMB share (see [`platform::Mount::reads_slowly`]).
     pub fn reads_slowly(&self, path: &Path) -> bool {
         self.always_slow
             || (self.lister.is_none()
                 && !self.is_virtual
-                && crate::info::mount_of(path).is_some_and(|m| m.fstype == "fuse.rclone"))
+                && crate::info::mount_of(path).is_some_and(|m| m.reads_slowly()))
     }
 
     /// Asks for `id` to be read in the background, first of all.
     fn ask_read(&mut self, id: NodeId) {
         let path = self.path(id);
         self.reads.get_or_insert_with(Reads::start).ask(id, path);
+    }
+
+    /// Logs `id` because the user went to it (a typed path, a bookmark): at
+    /// once on a local disk, in the background where reading is slow.
+    pub fn touch(&mut self, id: NodeId) {
+        if self.nodes[id].scanned {
+            return;
+        }
+        if self.reads_slowly(&self.path(id)) {
+            self.ask_read(id);
+        } else {
+            self.scan(id);
+        }
     }
 
     /// `id` was asked for and has not arrived yet.

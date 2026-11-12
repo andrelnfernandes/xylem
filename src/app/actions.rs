@@ -231,7 +231,13 @@ impl App {
                 LineEvent::Editing => prompt.input.text.clone(),
             },
         };
-        if let Some(id) = self.treespec_target(&text) {
+        self.treespec_follow(&text);
+    }
+
+    /// Puts the tree cursor on what the Treespec says so far, without waiting
+    /// for a slow directory: [`App::apply_reads`] calls it again when it arrives.
+    pub(crate) fn treespec_follow(&mut self, text: &str) {
+        if let Some(id) = self.treespec_target(text, false) {
             self.show_node(id);
         }
     }

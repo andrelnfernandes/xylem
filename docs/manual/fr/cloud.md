@@ -116,6 +116,26 @@ sur l'erreur 403 plus bas.
   répertoire vide peut disparaître une fois démonté, et renommer ou déplacer un
   répertoire copie puis supprime chacun des fichiers qu'il contient.
 
+## Partages réseau (SMB, WSL)
+
+L'arbre se lit aussi en arrière-plan dans un dossier partagé sur le réseau : SMB
+(`cifs`), SSHFS, WebDAV (`davfs`) et, sous WSL, un partage Windows monté par son
+chemin UNC :
+
+```
+sudo mount -t drvfs '\\serveur\partage$' /mnt/partage
+```
+
+Là, comme sur un montage rclone, la liste de fichiers ne montre pas les lettres de Git
+(Ctrl+G fonctionne toujours), ce qui change ailleurs apparaît après F3, et le
+Treespec n'attend pas un dossier en cours de lecture : le curseur suit ce que vous
+tapez à mesure que les dossiers arrivent. `/`, Tab et Enter attendent toujours leur
+lecture. `*`, Branch et Usage lisent dossier par dossier, avec la progression et Esc.
+
+Non reconnu : un partage associé à une lettre de lecteur dans Windows
+(`mount -t drvfs Z: /mnt/z`) ressemble à un disque local vu de Linux ; montez-le par
+son chemin UNC. NFS est lu comme un disque local.
+
 ## Quand le service refuse : erreur 403
 
 Google Drive limite le nombre de requêtes acceptées par minute. Sur un Drive
