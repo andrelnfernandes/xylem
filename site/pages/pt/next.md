@@ -4,11 +4,6 @@
 <p class="section-lead">Planejados, e a maior parte já desenhada. Acompanhe o projeto no GitHub para ver cada um chegar.</p>
 <div class="features soon">
 <div class="feature">
-<p class="badge">Próximo release</p>
-<h3>Já feito</h3>
-<p>Escrita em máquinas remotas: copiar para lá, mover, renomear, apagar, fazer Prune, criar diretórios, mudar permissões e datas, e achar duplicados lá. Containers sem sshd, com <code>docker://</code>. Marcar, apagar e fazer Prune direto da visão Usage. Nuvens grandes sem tela em branco.</p>
-</div>
-<div class="feature">
 <p class="badge">Planejado</p>
 <h3>O resto das máquinas remotas</h3>
 <p>Editar e abrir os arquivos de lá por uma cópia temporária que volta ao salvar, rodar comandos e o Git via ssh, e atualizar sozinho.</p>
