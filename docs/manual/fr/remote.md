@@ -19,6 +19,9 @@ ProxyJump), clés, agent et `known_hosts`. Il n'y a rien à installer sur l'autr
 machine : Xylem parle SFTP, que tout serveur SSH intègre (Linux, BSD, macOS,
 Windows).
 
+Pour revenir sans retaper l'adresse, enregistrez le dossier comme
+[signet](bookmarks.md) (Ctrl+F11) et donnez-lui un nom.
+
 ## Mots de passe et questions
 
 Lorsque ssh demande quelque chose, la question s'affiche dans le pied de page :

@@ -17,6 +17,9 @@ Xylem runs your own `ssh`, so what you use in a terminal works the same:
 `known_hosts`. Nothing needs installing on the other machine: Xylem talks
 SFTP, which every SSH server has (Linux, BSD, macOS, Windows).
 
+To come back without typing the address again, save the folder as a
+[bookmark](bookmarks.md) (Ctrl+F11) and give it a name.
+
 ## Passwords and questions
 
 When ssh asks for something, the question shows in the footer:

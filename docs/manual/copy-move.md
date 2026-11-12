@@ -15,6 +15,8 @@ Without a split, the prompt opens empty, as in [Log](treespec.md), and **↑** g
 through the same places: the folders copied or moved to and those logged, the
 last one first. Enter on an empty prompt does nothing.
 
+**F11** brings a [bookmark](bookmarks.md) into the prompt.
+
 A destination folder that does not exist yet is created after you confirm.
 
 ## With or without paths

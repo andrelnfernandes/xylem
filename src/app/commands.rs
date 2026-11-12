@@ -95,7 +95,10 @@ impl App {
             }
             return;
         }
-        if self.bookmarks_view.is_some() {
+        // A bookmark's name is typed over the list: the keys go to it.
+        if self.bookmarks_view.is_some()
+            && !self.prompt.as_ref().is_some_and(Prompt::is_bookmark_name)
+        {
             self.bookmarks_key(key);
             return;
         }
@@ -182,6 +185,10 @@ impl App {
             self.open_picker();
             return;
         }
+        if key.code == KeyCode::F(11) && self.prompt.as_ref().is_some_and(Prompt::picks_bookmark) {
+            self.pick_bookmark();
+            return;
+        }
         if let Some(Prompt {
             kind: PromptKind::Treespec { origin },
             ..
@@ -209,7 +216,7 @@ impl App {
                         self.prompt = None;
                         let key_str = c.to_ascii_lowercase().to_string();
                         if let Some(bm) = self.bookmarks.get(&key_str).cloned() {
-                            if let Err(e) = self.jump_to_path(&bm.path) {
+                            if let Err(e) = self.jump_to_bookmark(&bm) {
                                 self.message = Some(e);
                             }
                         } else if c == 'm' || c == 'M' || c == 'a' || c == 'A' {
@@ -229,11 +236,7 @@ impl App {
                     }
                     KeyCode::Char(c) if c.is_ascii_alphanumeric() => {
                         self.prompt = None;
-                        let key_str = c.to_ascii_lowercase().to_string();
-                        let path = self.current_path();
-                        self.set_bookmark(key_str.clone(), path.clone());
-                        self.message =
-                            Some(format!("Bookmark '{key_str}' set to {}", path.display()));
+                        self.bookmark_here(c.to_ascii_lowercase().to_string());
                     }
                     _ => {}
                 }

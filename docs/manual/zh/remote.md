@@ -11,6 +11,8 @@ Xylem 可以通过 SSH 将另一台机器上的文件作为目录树显示出来
 
 Xylem 直接调用系统自带的 `ssh`，因此您在终端中能用的配置在这里同样有效：`~/.ssh/config`（主机别名、端口、ProxyJump）、密钥、ssh-agent 以及 `known_hosts`。无需在远程机器上安装任何额外软件：Xylem 使用所有 SSH 服务器都自带的 SFTP 协议通信（支持 Linux、BSD、macOS、Windows）。
 
+若想下次不必再输入地址就能回来，可把该文件夹保存为 [书签](bookmarks.md)（Ctrl+F11）并为它命名。
+
 ## 密码与验证提示
 
 当 ssh 需要询问信息时，提示会显示在底部状态栏中：

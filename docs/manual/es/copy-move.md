@@ -17,6 +17,8 @@ Sin la pantalla dividida, el prompt se abre vacío, como en [Log](treespec.md), 
 registradas con Log, del último al más antiguo. Enter con el prompt vacío no hace
 nada.
 
+**F11** trae un [marcador](bookmarks.md) a la entrada.
+
 Una carpeta de destino que aún no exista se crea después de confirmar.
 
 ## Con o sin rutas
