@@ -2851,17 +2851,6 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             Style::new().fg(theme().error),
         ));
     }
-    if let Some(name) = v
-        .table
-        .as_ref()
-        .and_then(|t| t.layout.as_ref())
-        .map(|l| TableGrid::sanitize_cell(&l.loaded.layout.name))
-    {
-        title.push(Span::styled(
-            format!("  [layout {}]", fit(&name, 40).trim_end()),
-            Style::new().fg(theme().key),
-        ));
-    }
     if let Some(problem) = v.problem() {
         title.push(Span::styled(
             format!("  ({problem})"),
@@ -2923,9 +2912,6 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     if let Some(view) = &mut v.structure_view {
         draw_structure(frame, view, body);
     }
-    if let Some(list) = &mut v.layout_list {
-        draw_layout_list(frame, list, body);
-    }
     if let Some(guide) = app.prompt.as_ref().and_then(app::Prompt::batch_guide) {
         match &guide.reading {
             Some(reading) => draw_template_reading(frame, reading, body),
@@ -2980,17 +2966,6 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             "COLUMNS",
             &[("↑↓ PgUp PgDn", "scroll"), ("Esc", "back")],
         )]
-    } else if v.layout_list.is_some() {
-        vec![menu_line(
-            "LAYOUT",
-            &[
-                ("↑↓", "move"),
-                ("letters", "narrow"),
-                ("F2", "file path"),
-                ("Enter", "apply"),
-                ("Esc", "back"),
-            ],
-        )]
     } else if v.sheet_list.is_some() {
         let title = format!("{}S", sheet_word(&v.path).to_uppercase());
         vec![menu_line(
@@ -3034,7 +3009,6 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                         ("i", "structure"),
                         ("m", "mark"),
                         ("Ctrl+B", "batch"),
-                        ("K", "layout"),
                         ("Esc", "close"),
                     ]
                 } else {
@@ -3042,7 +3016,6 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                         ("&", "filter"),
                         ("/ \\", "find here"),
                         ("Space", "next hit"),
-                        ("K", "layout"),
                         ("Esc", "close"),
                     ]
                 },
@@ -3189,88 +3162,6 @@ fn draw_sheet_list(
         let name = fit(name, name_width.saturating_sub(mark.len()));
         let text = format!("{open} {}{mark}", name.trim_end());
         lines.push(if row == list.cursor {
-            Line::styled(text, highlight(true))
-        } else {
-            Line::raw(text)
-        });
-    }
-    frame.render_widget(Clear, rect);
-    frame.render_widget(
-        Paragraph::new(lines)
-            .block(block)
-            .style(Style::new().fg(t.text).bg(t.background)),
-        rect,
-    );
-}
-
-/// The layouts the file can be read through (K), over the viewer. Names come from
-/// layout files, which may be hostile: they are made safe here, row by row.
-fn draw_layout_list(frame: &mut Frame, list: &mut crate::viewer::table::LayoutList, area: Rect) {
-    let t = theme();
-    let width = 76.min(area.width.saturating_sub(4));
-    let wanted = list
-        .shown
-        .len()
-        .saturating_add(3)
-        .min(usize::from(u16::MAX)) as u16;
-    let height = wanted.max(5).min(area.height.saturating_sub(2));
-    if width < 20 || height < 4 {
-        return;
-    }
-    let rect = Rect {
-        x: area.x + (area.width - width) / 2,
-        y: area.y + (area.height - height) / 2,
-        width,
-        height,
-    };
-    let block = panel(
-        format!(
-            " Layouts: {} of {} ",
-            fmt_num(list.shown.len() as u64),
-            fmt_num(list.choices.len() as u64)
-        ),
-        true,
-    );
-    let inner = block.inner(rect);
-    let rows = usize::from(inner.height.saturating_sub(1)).max(1);
-    if list.cursor < list.scroll {
-        list.scroll = list.cursor;
-    } else if list.cursor >= list.scroll + rows {
-        list.scroll = list.cursor + 1 - rows;
-    }
-    let inner_width = usize::from(inner.width);
-    let mut lines = vec![Line::styled(
-        fit(&format!("Find: {}_", list.query), inner_width),
-        Style::new().fg(t.key),
-    )];
-    if list.shown.is_empty() {
-        lines.push(Line::styled(
-            " No layout has this name",
-            Style::new().fg(t.dim),
-        ));
-    }
-    for (row, &i) in list.shown.iter().enumerate().skip(list.scroll).take(rows) {
-        let Some(choice) = list.choices.get(i) else {
-            continue;
-        };
-        let label = TableGrid::sanitize_cell(&choice.label);
-        let detail = TableGrid::sanitize_cell(&choice.detail);
-        let section = format!("{:<7}", choice.section.label());
-        let rest = inner_width.saturating_sub(section.len() + 1);
-        let label_width = if detail.is_empty() {
-            rest
-        } else {
-            rest.min(rest * 3 / 5)
-        };
-        let mut text = format!(" {section}{}", fit(&label, label_width));
-        if !detail.is_empty() {
-            text.push_str(&format!(
-                " {}",
-                fit(&detail, rest.saturating_sub(label_width + 1))
-            ));
-        }
-        let text = fit(&text, inner_width);
-        lines.push(if row + list.scroll == list.cursor {
             Line::styled(text, highlight(true))
         } else {
             Line::raw(text)
@@ -3872,16 +3763,11 @@ fn draw_table_grid(
         String::new()
     };
 
-    let meaning = grid
-        .active_meaning()
-        .map(|m| format!(" — {m}"))
-        .unwrap_or_default();
     let bottom_text = format!(
-        "Cell: {}{} │ Content: {}{}{}",
+        "Cell: {}{} │ Content: {}{}",
         crate::viewer::tabular_loader::column_letter(grid.cursor_col),
         grid.cursor_file_row(),
         active_content,
-        meaning,
         filter_notice
     );
     lines.push(Line::from(Span::styled(
@@ -4193,46 +4079,6 @@ mod tests {
             let row0 = draw_row0(&mut app);
             assert!(row0.contains(shown), "{row0}");
         }
-    }
-
-    #[test]
-    fn a_layout_shows_its_name_the_meaning_of_a_code_and_the_list_of_k() {
-        use crate::viewer::{LoadOptions, Viewer};
-        use ratatui::crossterm::event::{KeyCode, KeyEvent};
-        let tmp = crate::testing::tempdir();
-        let mut app = App::new(tmp.path().to_path_buf());
-        let path = tmp.path().join("pag.rem");
-        let text = crate::viewer::multirecord::tests::payments("000006", "000000000000112345");
-        std::fs::write(&path, text).unwrap();
-        app.viewer = Some(Viewer::open(path, LoadOptions::view(1 << 20)).unwrap());
-        let screen = draw_text(&mut app);
-        assert!(screen.contains("[layout FEBRABAN CNAB 240"), "{screen}");
-        assert!(screen.contains("K layout"), "{screen}");
-        assert!(
-            screen.contains("TABLE [1/6: 0 - Header de Arquivo (1)]"),
-            "{screen}"
-        );
-        let v = app.viewer.as_mut().unwrap();
-        let col = {
-            let t = v.table.as_ref().unwrap();
-            t.headers
-                .iter()
-                .position(|h| h == "codigo_remessa_retorno")
-                .unwrap()
-        };
-        v.table.as_mut().unwrap().cursor_col = col;
-        let screen = draw_text(&mut app);
-        assert!(
-            screen.contains("Content: 1 — Remessa (Cliente → Banco)"),
-            "{screen}"
-        );
-        let v = app.viewer.as_mut().unwrap();
-        v.handle_key(KeyEvent::from(KeyCode::Char('k')));
-        let screen = draw_text(&mut app);
-        assert!(screen.contains("Layouts: "), "{screen}");
-        assert!(screen.contains("No layout: plain text"), "{screen}");
-        assert!(screen.contains("Brazil FEBRABAN CNAB 240"), "{screen}");
-        assert!(screen.contains("F2 file path"), "{screen}");
     }
 
     #[test]

@@ -31,7 +31,6 @@ e encontrar um erro ou algo que soe estranho, sugira uma melhoria:
 - [Tela dividida](split.md): duas janelas lado a lado
 - [O visualizador](viewer.md): texto e hexadecimal, busca, cores de sintaxe
 - [Filtrar linhas](filter.md): `&` no visualizador, com um guia de expressões regulares
-- [Layouts](layouts.md): CNAB, SPED, SDF e outros arquivos de largura fixa ou multi-registro como tabela; como escrever um layout
 - [Busca nos arquivos marcados](search.md): Ctrl+S e Ctrl+V
 - [Informações](info.md): Info, Avail, estatísticas e tamanhos de diretórios
 - [Uso do disco](usage.md): para onde vai o espaço (Alt+W)
