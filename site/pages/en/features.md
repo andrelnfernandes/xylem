@@ -17,7 +17,7 @@ Compare between two windows.</p>
 </div>
 <div class="feature">
 <h3>Finding things</h3>
-<p>Filespec by name, date and size, Treespec to type a path, bookmarks, and
+<p>Filespec by name, date and size, Treespec to type a path, bookmarks with names, and
 <kbd>Ctrl</kbd>+<kbd>S</kbd> to search the tagged files for text.</p>
 </div>
 <div class="feature">
@@ -51,8 +51,10 @@ ZIP and TAR can be created too.</p>
 </div>
 <div class="feature">
 <h3>Remote and cloud</h3>
-<p>Browse and copy from machines over SSH, with their own terminal. Google Drive, Amazon
-S3 and some 70 other services through <a href="https://rclone.org">rclone</a>.</p>
+<p>Copy, move, rename and delete on machines over SSH and in containers without sshd
+(<code>docker://</code>), with their own terminal. Google Drive, Amazon S3 and some 70
+other services through <a href="https://rclone.org">rclone</a>, with a large Drive
+opening at once, and network shares read in the background.</p>
 </div>
 <div class="feature">
 <h3>Git and more</h3>
@@ -91,7 +93,7 @@ configuration file. Every color can also be changed one by one.</p>
 take, largest first, with each one's share and, in the panel beside it, its date. Go down
 folder by folder to what fills the disk: an old backup, a forgotten ISO, a cache that grew.
 One disk at a time, hard links counted once, and the space on the disk as
-<code>du</code> counts it.</p>
+<code>du</code> counts it. Tag, delete, prune or view right from the list.</p>
 <div class="window theme-view"><img src="ASSETS/screenshots/usage-vivid.png" width="1104" height="772" loading="lazy" alt="The Usage view of a home folder: an old 72 MiB backup file at the top with 37%, then the projects, videos and downloads folders"></div>
 <p class="section-lead after">In the tree, <kbd>Alt</kbd>+<kbd>K</kbd> → <strong>Percent</strong> shows the same shares
 next to each folder. Pointed at a Google Drive or an S3 bucket mounted with

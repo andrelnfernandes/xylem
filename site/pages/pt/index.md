@@ -35,7 +35,7 @@ alt="O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arqui
 </div>
 <div class="feature">
 <h3>Vá além do seu disco</h3>
-<p>Navegue e copie de servidores via SSH, e trabalhe com Google Drive, S3 e outras nuvens via rclone.</p>
+<p>Trabalhe em servidores via SSH e em containers como no seu próprio disco, e com Google Drive, S3 e outras nuvens via rclone.</p>
 </div>
 <div class="feature">
 <h3>Fique num lugar só</h3>

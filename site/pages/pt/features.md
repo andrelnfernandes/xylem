@@ -17,7 +17,7 @@ datas, Compare entre duas janelas.</p>
 </div>
 <div class="feature">
 <h3>Achar coisas</h3>
-<p>Filespec por nome, data e tamanho, Treespec para digitar um caminho, bookmarks, e
+<p>Filespec por nome, data e tamanho, Treespec para digitar um caminho, favoritos com nome, e
 <kbd>Ctrl</kbd>+<kbd>S</kbd> para buscar texto nos arquivos marcados.</p>
 </div>
 <div class="feature">
@@ -51,8 +51,10 @@ para criar ZIP e TAR.</p>
 </div>
 <div class="feature">
 <h3>Remoto e nuvem</h3>
-<p>Navegue e copie de máquinas via SSH, com o terminal de lá. Google Drive, Amazon S3 e
-uns 70 outros serviços via <a href="https://rclone.org">rclone</a>.</p>
+<p>Copie, mova, renomeie e apague em máquinas via SSH e em containers sem sshd
+(<code>docker://</code>), com o terminal de lá. Google Drive, Amazon S3 e uns 70 outros
+serviços via <a href="https://rclone.org">rclone</a>, com um Drive grande abrindo na
+hora, e compartilhamentos de rede lidos em segundo plano.</p>
 </div>
 <div class="feature">
 <h3>Git e mais</h3>
@@ -91,7 +93,7 @@ arquivo de configuração. Cada cor também pode ser trocada uma a uma.</p>
 ocupam, do maior para o menor, com a parte de cada um e, no painel ao lado, a data. Desça
 pasta por pasta até o que enche o disco: um backup antigo, uma ISO esquecida, um cache que
 cresceu. Um disco por vez, hard links contados uma vez e o espaço em disco como o
-<code>du</code> conta.</p>
+<code>du</code> conta. Marque, apague, faça Prune ou visualize direto da lista.</p>
 <div class="window theme-view"><img src="ASSETS/screenshots/usage-vivid.png" width="1104" height="772" loading="lazy" alt="A visão Usage de uma pasta pessoal: um arquivo de backup antigo de 72 MiB no topo com 37%, depois as pastas de projetos, vídeos e downloads"></div>
 <p class="section-lead after">Na árvore, <kbd>Alt</kbd>+<kbd>K</kbd> → <strong>Percent</strong> mostra as mesmas partes
 ao lado de cada pasta. Apontado para um Google Drive ou um bucket S3 montado com o
