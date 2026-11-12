@@ -198,8 +198,6 @@ pub struct App {
     /// open when it ends.
     pub(crate) open_after: Option<Vec<PathBuf>>,
     pub viewer: Option<Viewer>,
-    /// Last destination typed in Copy/Move.
-    last_dest: Option<String>,
     /// Directories that changed on disk and have not been re-read yet.
     pending_changes: HashSet<PathBuf>,
     /// Prompt history, per kind.
@@ -325,7 +323,6 @@ impl App {
             op: None,
             open_after: None,
             viewer: None,
-            last_dest: None,
             pending_changes: HashSet::new(),
             history: History::new(),
             bookmarks: Bookmarks::new(),

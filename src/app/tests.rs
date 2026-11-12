@@ -1002,11 +1002,14 @@ fn alt_move_with_paths_from_branch_root() {
     alt(&mut app, 'm');
     // Relative to the tree cursor's directory (sub), not the file's.
     answer_prompt(&mut app, "../out");
-    // The next prompt, from another directory, suggests the already-resolved destination.
+    // The next prompt, from another directory, opens empty, and ↑ brings the
+    // destination already resolved.
     app.apply(Command::Back);
     app.select_node(ROOT);
     press(&mut app, KeyCode::Enter);
     press(&mut app, KeyCode::Char('c'));
+    assert_eq!(app.prompt.as_ref().unwrap().input.text, "");
+    press(&mut app, KeyCode::Up);
     assert_eq!(
         app.prompt.as_ref().unwrap().input.text,
         dest.to_str().unwrap()
@@ -1175,6 +1178,62 @@ fn log_moves_cursor_or_opens_new_root() {
     press(&mut app, KeyCode::Char('l'));
     answer_prompt(&mut app, "/caminho/que/nao/existe");
     assert!(app.message.as_deref().unwrap().starts_with("Cannot log"));
+}
+
+#[test]
+fn the_log_prompt_opens_empty_and_recalls_the_places_used() {
+    let (tmp, mut app) = sample();
+    let root = dunce::canonicalize(tmp.path()).unwrap();
+    let text = |app: &App| app.prompt.as_ref().unwrap().input.text.clone();
+    // What Copy and Move remembered before they shared the list with Log.
+    app.history
+        .insert("destination".into(), vec!["/old/destination".into()]);
+
+    // Empty until ↑, which reaches the old destinations; F2 opens the tree
+    // where the cursor is, whatever is typed.
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(text(&app), "");
+    press(&mut app, KeyCode::Up);
+    assert_eq!(text(&app), "/old/destination");
+    ctrl(&mut app, 'u');
+    press(&mut app, KeyCode::F(2));
+    let picker = app.picker.as_ref().expect("tree open");
+    assert_eq!(picker.pane().current_path(), app.current_path());
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(Path::new(&text(&app)), tmp.path().join("sub"));
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.current_path(), root.join("sub"));
+
+    // A copy into a folder makes it a place; a copy under a new name does not.
+    create_dir_all(tmp.path().join("zz")).unwrap();
+    app.select_node(ROOT);
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('c'));
+    // Copy opens empty too, and recalls the place logged; Enter on nothing
+    // copies nothing.
+    assert_eq!(text(&app), "");
+    press(&mut app, KeyCode::Up);
+    assert_eq!(Path::new(&text(&app)), tmp.path().join("sub"));
+    ctrl(&mut app, 'u');
+    press(&mut app, KeyCode::Enter);
+    assert!(app.prompt.is_none() && app.op.is_none() && app.message.is_none());
+    press(&mut app, KeyCode::Char('c'));
+    answer_prompt(&mut app, tmp.path().join("zz").to_str().unwrap());
+    assert!(tmp.path().join("zz/a.rs").exists());
+    press(&mut app, KeyCode::Char('c'));
+    answer_prompt(&mut app, tmp.path().join("copy.rs").to_str().unwrap());
+    app.apply(Command::Back);
+
+    // ↑ goes from the last place used to the older ones.
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(text(&app), "");
+    press(&mut app, KeyCode::Up);
+    assert_eq!(Path::new(&text(&app)), tmp.path().join("zz"));
+    press(&mut app, KeyCode::Up);
+    assert_eq!(Path::new(&text(&app)), tmp.path().join("sub"));
+    press(&mut app, KeyCode::Up);
+    assert_eq!(text(&app), "/old/destination", "the oldest ones");
 }
 
 /// Two windows: the active one in `left/`, the other in `right/`.
