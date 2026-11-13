@@ -2423,6 +2423,7 @@ fn menu_words(title: &str, words: &[&str]) -> Line<'static> {
         format!("{title:<9}"),
         Style::new().add_modifier(Modifier::BOLD),
     )];
+    spans.push(entry_end());
     for word in words {
         let (at, c) = word
             .char_indices()
@@ -2434,7 +2435,7 @@ fn menu_words(title: &str, words: &[&str]) -> Line<'static> {
         }
         spans.push(key(&word[at..after]));
         spans.push(Span::raw(format!("{} ", &word[after..])));
-        spans.push(entry_end());
+        spans.push(word_end());
     }
     Line::from(spans)
 }
@@ -3884,29 +3885,168 @@ fn entry_end() -> Span<'static> {
     Span::raw("")
 }
 
-/// Drops a menu line's last entries until it fits in `width` columns, so that
-/// no entry is cut in the middle. A line that does not end with an entry (a
-/// message added to it) is left as it is.
+/// Marks the end of a word of `menu_words`, which `fit_menu` may shorten.
+/// Empty, so the style only tells it apart.
+fn word_end() -> Span<'static> {
+    Span::styled("", Style::new().add_modifier(Modifier::HIDDEN))
+}
+
+/// The fewest letters a shortened word keeps (fewer than this reads as noise).
+const WORD_FLOOR: usize = 3;
+
+/// Makes a menu line fit in `width` columns, never cutting an entry by
+/// accident: first the words of `menu_words` are shortened, all to the same
+/// number of letters and never losing their key; then entries go from the end,
+/// with a `…` where they were. In a line of keys the last entry (F9, Esc)
+/// stays. A line that does not end with an entry (a message added to it) is
+/// left as it is.
 fn fit_menu(line: Line<'static>, width: usize) -> Line<'static> {
     let ends_with_entry = line.spans.last().is_some_and(|s| s.content.is_empty());
-    if line.width() <= width || !ends_with_entry {
+    if fits(&line.spans, width) || !ends_with_entry {
         return line;
     }
-    let (mut used, mut keep) = (0, 0);
-    for (i, span) in line.spans.iter().enumerate() {
-        if span.content.is_empty() {
-            keep = i;
-            continue;
+    // The entries, each with its end marker.
+    let mut entries: Vec<Vec<Span<'static>>> = Vec::new();
+    let mut current = Vec::new();
+    for span in line.spans {
+        let end = span.content.is_empty();
+        current.push(span);
+        if end {
+            entries.push(std::mem::take(&mut current));
         }
-        // The spaces after an entry may go past the edge.
-        if used + span.content.trim_end().chars().count() > width {
-            break;
-        }
-        used += span.width();
     }
-    let mut line = line;
-    line.spans.truncate(keep);
-    line
+    let is_word = |e: &[Span]| e.last().is_some_and(|s| s.style == word_end().style);
+    let words = entries.iter().any(|e| is_word(e));
+
+    if words {
+        let longest = entries
+            .iter()
+            .filter(|e| is_word(e))
+            .map(|e| word_label(e).chars().count())
+            .max()
+            .unwrap_or(0);
+        let mut limit = longest;
+        while limit > WORD_FLOOR {
+            limit -= 1;
+            let short: Vec<Vec<Span<'static>>> = entries
+                .iter()
+                .map(|e| {
+                    if is_word(e) {
+                        shorten_word(e, limit)
+                    } else {
+                        e.clone()
+                    }
+                })
+                .collect();
+            entries = short;
+            if fits(&entries.concat(), width) {
+                return Line::from(entries.concat());
+            }
+        }
+    }
+
+    // Entries go from the end; the first (the title) always stays, and so does
+    // the last of a line of keys.
+    let last = (!words && entries.len() > 2)
+        .then(|| entries.pop())
+        .flatten();
+    let mut keep = entries.len();
+    while keep > 1 {
+        keep -= 1;
+        let mut spans = entries[..keep].concat();
+        // Apart from what comes before it: a hint has no space at its end.
+        let spaced = spans
+            .iter()
+            .rev()
+            .find(|s| !s.content.is_empty())
+            .is_none_or(|s| s.content.ends_with(' '));
+        let more = if spaced { "… " } else { " … " };
+        spans.push(Span::styled(more, Style::new().fg(theme().dim)));
+        if let Some(last) = &last {
+            spans.extend(last.iter().cloned());
+        }
+        if fits(&spans, width) {
+            return Line::from(spans);
+        }
+    }
+    Line::from(entries[..1].concat())
+}
+
+/// Whether `spans` fit in `width` columns; the spaces at the end may go past
+/// the edge.
+fn fits(spans: &[Span], width: usize) -> bool {
+    let text: String = spans.iter().map(|s| s.content.as_ref()).collect();
+    Line::raw(text.trim_end()).width() <= width
+}
+
+/// The text of a word of `menu_words`, as it reads: "eXecute", "usage (W)".
+fn word_label(entry: &[Span]) -> String {
+    let text: String = entry.iter().map(|s| s.content.as_ref()).collect();
+    text.trim_end().trim_start_matches("· ").to_string()
+}
+
+/// A word of `menu_words` cut to `limit` letters, keeping its key: "Compare
+/// branch" → "Compar", "eXecute" → "eXecu", "· usage (W)" → "· us(W)" or "· (W)".
+fn shorten_word(entry: &[Span<'static>], limit: usize) -> Vec<Span<'static>> {
+    if word_label(entry).chars().count() <= limit {
+        return entry.to_vec();
+    }
+    // [prefix], key, suffix (with its space), end marker.
+    let (prefix, key, suffix, end) = match entry {
+        [k, s, e] => (None, k, s, e),
+        [p, k, s, e] => (Some(p), k, s, e),
+        _ => return entry.to_vec(),
+    };
+    // A second word goes whole ("Compare branch" → "Compare", never
+    // "Compare bra"); only the first one is cut letter by letter.
+    let cut = |text: &str, n: usize| -> String {
+        let text = text.trim_end();
+        if text.chars().count() <= n {
+            return text.to_string();
+        }
+        let t: String = text.chars().take(n).collect();
+        match t.split_once(' ') {
+            Some((head, _)) => head.to_string(),
+            None => t,
+        }
+    };
+    let mut out = Vec::new();
+    match prefix {
+        // "· usage (" + W + ") ": the name shrinks, the key stays in parentheses.
+        Some(p) if p.content.ends_with('(') => {
+            let deco = if p.content.starts_with("· ") {
+                "· "
+            } else {
+                ""
+            };
+            let name = p.content[deco.len()..p.content.len() - 1].trim_end();
+            let name = cut(name, limit.saturating_sub(3));
+            out.push(Span::styled(format!("{deco}{name}("), p.style));
+            out.push(key.clone());
+            out.push(Span::styled(") ", suffix.style));
+        }
+        // "e" + X + "ecute ": what comes after the key shrinks.
+        Some(p) => {
+            let room = limit.saturating_sub(p.content.chars().count() + 1);
+            out.push(p.clone());
+            out.push(key.clone());
+            out.push(Span::styled(
+                format!("{} ", cut(&suffix.content, room)),
+                suffix.style,
+            ));
+        }
+        // C + "ompare branch ".
+        None => {
+            out.push(key.clone());
+            let room = limit.saturating_sub(1);
+            out.push(Span::styled(
+                format!("{} ", cut(&suffix.content, room)),
+                suffix.style,
+            ));
+        }
+    }
+    out.push(end.clone());
+    out
 }
 
 /// Splits `text` into lines of at most `width` columns, at spaces.
@@ -4096,10 +4236,10 @@ mod tests {
         let tmp = crate::testing::tempdir();
         let mut app = App::new(tmp.path().to_path_buf());
         let footer = |app: &mut App| {
-            let mut term = Terminal::new(TestBackend::new(100, 20)).unwrap();
+            let mut term = Terminal::new(TestBackend::new(140, 20)).unwrap();
             term.draw(|f| draw(f, app)).unwrap();
             let buf = term.backend().buffer();
-            (0..100).map(|x| buf[(x, 18)].symbol()).collect::<String>()
+            (0..140).map(|x| buf[(x, 18)].symbol()).collect::<String>()
         };
         assert!(footer(&mut app).starts_with("DIR "));
         app.held = Some(MenuMode::Ctrl);
@@ -4151,23 +4291,50 @@ mod tests {
     }
 
     #[test]
-    fn a_menu_too_wide_loses_whole_entries_from_the_end() {
-        let line = menu_words("ALT", &["Attributes", "Bookmarks", "Compare branch"]);
+    fn a_menu_too_wide_shortens_its_words_and_then_loses_the_last() {
+        let line = menu_words(
+            "ALT",
+            &[
+                "Attributes",
+                "Compare branch",
+                "eXecute",
+                "Sort",
+                "· usage (W)",
+            ],
+        );
         let full = text_of(&line);
         assert_eq!(text_of(&fit_menu(line.clone(), 100)), full);
-        // Room for "Compare branch" but not its space keeps it; one column
-        // less drops it whole.
-        let end = full.trim_end().len();
+        // Room for the last word but not its space keeps it all.
+        let end = full.trim_end().chars().count();
+        assert_eq!(text_of(&fit_menu(line.clone(), end)), full);
+        // A little less: the longest words shrink first, all to the same
+        // length; a second word goes whole; the key always stays.
         assert_eq!(
-            text_of(&fit_menu(line.clone(), end)).trim_end(),
-            full.trim_end()
+            text_of(&fit_menu(line.clone(), end - 7)).trim_end(),
+            "ALT      Attributes Compare eXecute Sort · usage (W)"
         );
         assert_eq!(
-            text_of(&fit_menu(line, end - 1)).trim_end(),
-            "ALT      Attributes Bookmarks"
+            text_of(&fit_menu(line.clone(), end - 8)).trim_end(),
+            "ALT      Attribute Compare eXecute Sort · usage (W)"
+        );
+        assert_eq!(
+            text_of(&fit_menu(line.clone(), end - 14)).trim_end(),
+            "ALT      Attrib Compar eXecut Sort · usa(W)"
+        );
+        // At the floor, every word has 3 letters; one with its key in
+        // parentheses keeps only that.
+        let floor = "ALT      Att Com eXe Sor · (W)";
+        assert_eq!(
+            text_of(&fit_menu(line.clone(), floor.chars().count())).trim_end(),
+            floor
+        );
+        // Less than that: the last words go, and … says so.
+        assert_eq!(
+            text_of(&fit_menu(line, 22)).trim_end(),
+            "ALT      Att Com eXe …"
         );
 
-        // A long hint loses its last parts, not all of it.
+        // A long hint loses its last parts, not all of it, and F9 stays.
         let hint = menu_line(
             "",
             &[
@@ -4177,7 +4344,7 @@ mod tests {
         );
         assert_eq!(
             text_of(&fit_menu(hint, 50)).trim_end(),
-            "          on tagged files · Copy/Move: no paths"
+            "          on tagged files … F9 next menu"
         );
     }
 
@@ -4188,6 +4355,24 @@ mod tests {
             .push(Span::raw("  a long message that goes past the edge"));
         let full = text_of(&line);
         assert_eq!(text_of(&fit_menu(line, 20)), full);
+    }
+
+    /// `word` is one of `words`, the `…` marker, or one of them shortened
+    /// on purpose: at least 3 letters, or its key ("eX", "us(W)", "(W)").
+    fn is_whole_or_short(word: &str, words: &[&str]) -> bool {
+        if word == "…" || words.contains(&word) {
+            return true;
+        }
+        let (stem, key) = match word.find('(') {
+            Some(i) => (&word[..i], Some(&word[i..])),
+            None => (word, None),
+        };
+        let stem_ok = stem.is_empty() && key.is_some()
+            || words.iter().any(|w| {
+                w.starts_with(stem)
+                    && (stem.chars().count() >= 3 || stem.chars().any(|c| c.is_uppercase()))
+            });
+        stem_ok && key.is_none_or(|k| words.contains(&k))
     }
 
     #[test]
@@ -4207,7 +4392,10 @@ mod tests {
             for (narrow, wide) in footer(&mut app, 60).iter().zip(&wide) {
                 let words: Vec<&str> = wide.split_whitespace().collect();
                 for word in narrow.split_whitespace() {
-                    assert!(words.contains(&word), "{word:?} cut in {narrow:?}");
+                    assert!(
+                        is_whole_or_short(word, &words),
+                        "{word:?} cut in {narrow:?}"
+                    );
                 }
             }
         }
@@ -4218,7 +4406,10 @@ mod tests {
         for (narrow, wide) in footer(&mut app, 60).iter().zip(&wide) {
             let words: Vec<&str> = wide.split_whitespace().collect();
             for word in narrow.split_whitespace() {
-                assert!(words.contains(&word), "{word:?} cut in {narrow:?}");
+                assert!(
+                    is_whole_or_short(word, &words),
+                    "{word:?} cut in {narrow:?}"
+                );
             }
         }
     }
