@@ -30,6 +30,28 @@ acima dele.
   todas as teclas vão para eles, exceto Alt+X, Alt+Z e Alt+O. É por isso que F1
   e Alt+H não abrem esta ajuda dentro do terminal.
 
+## Vários terminais lado a lado (tmux)
+
+O terminal é um shell só, mas um multiplexador como o **tmux** dentro dele dá vários,
+lado a lado ou um sobre o outro: rode `tmux` e divida como de costume (`Ctrl+B %`,
+`Ctrl+B "`). As teclas do tmux chegam a ele, porque o Xylem só guarda Alt+X, Alt+Z e
+Alt+O; Alt+Z dá a tela inteira aos painéis, e o tmux os redistribui. Conferido com o
+tmux; outros multiplexadores (GNU screen, zellij) não foram testados.
+
+Com o tmux rodando:
+
+- **A árvore só acompanha o shell que o Xylem abriu,** não os `cd` feitos nos painéis
+  do tmux, e entrar no terminal a partir de outro diretório não muda mais o diretório
+  (há um programa rodando, então nada é digitado).
+- **Alt+O** digita os arquivos marcados no painel que está com o foco; o `$XY_TAGGED`
+  é o de quando o tmux começou.
+- **A sessão continua depois do Xylem.** Sair do Xylem pergunta antes, porque há um
+  programa rodando, e encerra o shell, mas o tmux mantém a sessão em segundo plano, como
+  sempre faz: `tmux attach` a traz de volta, e `tmux kill-session` (ou `exit` em todos
+  os painéis) a encerra.
+- **Memória:** cada painel é mais um shell, rodado pelo tmux; o Xylem continua com uma
+  só tela para o terminal, com as suas 2.000 linhas de rolagem.
+
 ## Histórico próprio
 
 Os comandos digitados nele vão para um histórico próprio do shell, separado dos
