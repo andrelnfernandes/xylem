@@ -36,6 +36,30 @@ Dateien darüber weiterhin sichtbar bleiben.
   Ausnahme von Alt+X, Alt+Z und Alt+O. Aus diesem Grund öffnen F1 und Alt+H
   innerhalb des Terminals nicht diese Hilfe.
 
+## Mehrere Terminals nebeneinander (tmux)
+
+Das Terminal ist eine einzige Shell, aber ein Multiplexer wie **tmux** darin gibt Ihnen
+mehrere, nebeneinander oder übereinander: Starten Sie `tmux` und teilen Sie wie gewohnt
+(`Ctrl+B %`, `Ctrl+B "`). Die Tasten von tmux kommen an, da Xylem nur Alt+X, Alt+Z und
+Alt+O für sich behält; Alt+Z gibt den Bereichen den ganzen Bildschirm, und tmux ordnet
+sie neu an. Mit tmux geprüft; andere Multiplexer (GNU screen, zellij) wurden nicht
+ausprobiert.
+
+Während tmux läuft:
+
+- **Der Baum folgt nur der Shell, die Xylem gestartet hat,** nicht den `cd`s in den
+  Bereichen von tmux, und das Betreten des Terminals aus einem anderen Verzeichnis
+  wechselt es nicht mehr (ein Programm läuft, also wird nichts eingetippt).
+- **Alt+O** tippt die markierten Dateien in den Bereich mit dem Fokus; `$XY_TAGGED` ist
+  der Wert vom Start von tmux.
+- **Die Sitzung überdauert Xylem.** Beim Beenden fragt Xylem zuerst, da ein Programm
+  läuft, und beendet die Shell, aber tmux behält seine Sitzung im Hintergrund, wie
+  immer: `tmux attach` holt sie zurück, und `tmux kill-session` (oder `exit` in jedem
+  Bereich) beendet sie.
+- **Speicher:** Jeder Bereich ist eine weitere Shell, die tmux ausführt; Xylem behält
+  weiterhin einen einzigen Bildschirm für das Terminal, mit seinen 2.000 Zeilen
+  Rückblick.
+
 ## Eigener Befehlsverlauf
 
 Die im integrierten Terminal eingegebenen Befehle landen in einem eigenen

@@ -29,6 +29,29 @@ in the bottom part, with the tree and the files still visible above it.
   keys go to them, except Alt+X, Alt+Z and Alt+O. That is why F1 and Alt+H do
   not open this help inside the terminal.
 
+## Several terminals side by side (tmux)
+
+The terminal is one shell, but a multiplexer such as **tmux** inside it gives you
+several, side by side or one above the other: start `tmux` and split as usual
+(`Ctrl+B %`, `Ctrl+B "`). tmux's keys reach it, since Xylem keeps only Alt+X,
+Alt+Z and Alt+O; Alt+Z gives the panes the whole screen, and tmux lays them out
+again. Checked with tmux; other multiplexers (GNU screen, zellij) have not been
+tried.
+
+With tmux running:
+
+- **The tree follows only the shell Xylem started,** not the `cd`s made in tmux's
+  panes, and entering the terminal from another directory no longer changes it
+  (a program is running, so nothing is typed).
+- **Alt+O** types the tagged files in the pane that has the focus; `$XY_TAGGED`
+  is the one set when tmux started.
+- **The session outlives Xylem.** Quitting Xylem asks first, since a program is
+  running, and ends the shell, but tmux keeps its session in the background, as
+  it always does: `tmux attach` brings it back, and `tmux kill-session` (or
+  `exit` in every pane) ends it.
+- **Memory:** each pane is another shell, run by tmux; Xylem still keeps a single
+  screen for the terminal, with its 2,000 lines of scrollback.
+
 ## Its own history
 
 The commands typed in it go to a shell history of their own, apart from your
