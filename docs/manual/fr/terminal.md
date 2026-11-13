@@ -32,6 +32,29 @@ fichiers restent visibles au-dessus.
   toutes les touches leur sont transmises, sauf Alt+X, Alt+Z et Alt+O. C'est
   pourquoi F1 et Alt+H n'ouvrent pas cette aide depuis le terminal.
 
+## Plusieurs terminaux côte à côte (tmux)
+
+Le terminal est un seul shell, mais un multiplexeur comme **tmux** à l'intérieur en
+donne plusieurs, côte à côte ou l'un au-dessus de l'autre : lancez `tmux` et divisez
+comme d'habitude (`Ctrl+B %`, `Ctrl+B "`). Les touches de tmux lui parviennent, car
+Xylem ne garde que Alt+X, Alt+Z et Alt+O ; Alt+Z donne tout l'écran aux volets, et tmux
+les redispose. Vérifié avec tmux ; les autres multiplexeurs (GNU screen, zellij) n'ont
+pas été essayés.
+
+Pendant que tmux tourne :
+
+- **L'arborescence suit seulement le shell lancé par Xylem,** pas les `cd` faits dans
+  les volets de tmux, et entrer dans le terminal depuis un autre répertoire ne le change
+  plus (un programme tourne, donc rien n'est tapé).
+- **Alt+O** tape les fichiers marqués dans le volet qui a le focus ; `$XY_TAGGED` est
+  celui du démarrage de tmux.
+- **La session survit à Xylem.** Quitter Xylem demande d'abord, puisqu'un programme
+  tourne, et termine le shell, mais tmux garde sa session en arrière-plan, comme
+  toujours : `tmux attach` la ramène, et `tmux kill-session` (ou `exit` dans chaque
+  volet) la termine.
+- **Mémoire :** chaque volet est un autre shell, lancé par tmux ; Xylem garde toujours
+  un seul écran pour le terminal, avec ses 2 000 lignes d'historique de défilement.
+
 ## Son propre historique
 
 Les commandes qui y sont tapées vont dans un historique de shell séparé de celui
