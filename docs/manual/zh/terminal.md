@@ -13,6 +13,17 @@
 - **退出 Xylem 会结束该 shell** 及其内部运行的所有程序。如果终端内仍有程序在运行（例如 `vim`），即使关闭了 `confirm_quit`，按 Q 或 Alt+Q 退出时也会先询问确认（Linux 与 macOS）。
 - 占用整个屏幕的程序（如 vim、htop、less）也能在内置终端中正常运行；此时除了 Alt+X、Alt+Z 和 Alt+O 之外，所有按键都会直接传递给该程序。因此，在终端内部按 F1 和 Alt+H 不会打开本帮助。
 
+## 多个终端并排（tmux）
+
+内置终端只有一个 shell，但在其中运行 **tmux** 这样的终端复用器，就能得到多个终端，左右或上下排列：运行 `tmux`，然后照常分割（`Ctrl+B %`、`Ctrl+B "`）。tmux 的按键都能传给它，因为 Xylem 只保留 Alt+X、Alt+Z 和 Alt+O；Alt+Z 把整个屏幕交给这些窗格，tmux 会重新排列它们。已用 tmux 验证；其他复用器（GNU screen、zellij）尚未测试。
+
+tmux 运行时：
+
+- **目录树只跟随 Xylem 启动的那个 shell**，不跟随在 tmux 窗格中执行的 `cd`；从其他目录进入终端时也不再切换目录（因为有程序在运行，不会输入任何内容）。
+- **Alt+O** 会把已标记的文件输入到当前获得焦点的窗格中；`$XY_TAGGED` 是 tmux 启动时的值。
+- **会话在 Xylem 退出后仍然存在。** 退出 Xylem 时会先询问（因为有程序在运行），并结束 shell，但 tmux 会像往常一样把会话保留在后台：`tmux attach` 可以重新连接，`tmux kill-session`（或在每个窗格中执行 `exit`）会结束它。
+- **内存：** 每个窗格都是 tmux 运行的另一个 shell；Xylem 仍然只为终端保留一个屏幕，以及 2,000 行的回滚记录。
+
 ## 独立的历史记录
 
 在内置终端中输入的命令会保存在独立的 shell 历史记录文件中，与您日常使用的其他终端互不干扰：通过设置 `HISTFILE` 保存在 `~/.local/state/xylem/bash_history`（或 `zsh_history` 等）中；在 fish 中则使用 `xylem` 会话。如果您的 shell 配置文件无条件覆盖了 `HISTFILE`，则以您的配置为准。可通过 F12（第 3 页）或设置 `terminal_history = false` 关闭此特性。
