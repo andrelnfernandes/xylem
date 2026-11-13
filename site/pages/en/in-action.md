@@ -23,5 +23,9 @@
 <a href="ASSETS/screenshots/demo-duplicates-vivid.gif"><div class="window"><img src="ASSETS/screenshots/demo-duplicates-vivid.gif" width="1104" height="772" loading="lazy" alt="Groups of duplicate files, tagging all but one copy of each, and then two whole folders found to be equal"></div></a>
 <figcaption><strong>Duplicates</strong> (<kbd>Alt+Y</kbd>) finds equal files and whole equal folders. <kbd>A</kbd> tags all but one copy of each group, and nothing is deleted until you say so.</figcaption>
 </figure>
+<figure class="shot">
+<a href="ASSETS/screenshots/demo-menus-nord.gif"><div class="window"><img src="ASSETS/screenshots/demo-menus-nord.gif" width="1104" height="772" loading="lazy" alt="Holding Ctrl and then Alt changes the menu at the bottom, in the tree and in the file window; then Ctrl+G shows the Git menu"></div></a>
+<figcaption><strong>Menus on Ctrl and Alt:</strong> as in XTree, holding <kbd>Ctrl</kbd> or <kbd>Alt</kbd> shows what each letter does with it, and letting go brings the menu back. It needs a terminal with the kitty keyboard protocol (kitty, WezTerm, foot, Ghostty); elsewhere <kbd>F9</kbd> switches the menus.</figcaption>
+</figure>
 </div>
 

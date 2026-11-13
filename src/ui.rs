@@ -1026,6 +1026,10 @@ fn draw_picker(frame: &mut Frame, app: &mut App, main: Rect, menu: Rect) {
             Style::new().fg(theme().dim),
         )),
     ];
+    let lines: Vec<_> = lines
+        .into_iter()
+        .map(|l| fit_menu(l, menu.width as usize))
+        .collect();
     frame.render_widget(Paragraph::new(lines), menu);
 }
 
@@ -1941,15 +1945,7 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
             },
         ]
     } else {
-        let (first, mut second) = idle_menu(app);
-        if app.options.git
-            && app.menu_mode() == MenuMode::Normal
-            && app.archive.is_none()
-            && app.remote.is_none()
-        {
-            second.spans.push(key("Ctrl+G"));
-            second.spans.push(Span::raw(" git   "));
-        }
+        let (first, second) = idle_menu(app);
         let first = match &app.message {
             Some(msg) => Line::from(Span::styled(
                 msg.clone(),
@@ -1965,8 +1961,22 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
         };
         vec![first, second]
     };
+    let lines: Vec<_> = lines
+        .into_iter()
+        .map(|l| fit_menu(l, area.width as usize))
+        .collect();
     frame.render_widget(Paragraph::new(lines), area);
 }
+
+/// Ctrl and Alt menu entries that write, which an archive refuses.
+const ARCHIVE_WRITES: &[&str] = &[
+    "Attributes",
+    "Delete",
+    "Move",
+    "Rename",
+    "Prune",
+    "Open terminal",
+];
 
 /// Footer menu when nothing is in progress: the normal one or the Ctrl/Alt one,
 /// depending on the key held down (or chosen with F9).
@@ -1981,6 +1991,18 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
     };
 
     let help_key = help_key(app);
+    // Archives are read-only: their Ctrl and Alt menus leave out what writes.
+    // Ctrl+G is there only when the Git menu is on, and not in an archive
+    // or on a remote machine.
+    let git = app.options.git && app.archive.is_none() && app.remote.is_none();
+    let read_only = |words: &[&'static str]| -> Vec<&'static str> {
+        words
+            .iter()
+            .copied()
+            .filter(|w| app.archive.is_none() || !ARCHIVE_WRITES.contains(w))
+            .filter(|w| git || *w != "Git")
+            .collect()
+    };
     match app.menu_mode() {
         MenuMode::Git => (
             menu_words("GIT", crate::git::MENU),
@@ -2013,7 +2035,6 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
                     (help_key.as_str(), "help"),
                     ("Enter", if tree { "files" } else { "tree" }),
                     ("F3", "reread"),
-                    ("Alt+X", "terminal there"),
                     ("F8", "split with this machine"),
                     ("F9", "menus"),
                 ],
@@ -2033,7 +2054,6 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
                     (help_key.as_str(), "help"),
                     ("Esc", "close archive"),
                     ("Enter", "files (Copy extracts)"),
-                    ("Alt+X", "terminal"),
                     ("F8", "split"),
                     ("F9", "Ctrl/Alt menus"),
                 ],
@@ -2054,9 +2074,7 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
                     ("*", "log branch"),
                     ("F3", "relog"),
                     ("Enter", "files"),
-                    ("Alt+X", "terminal"),
                     ("F8", "split"),
-                    ("Alt+B", "bookmarks"),
                     ("F9", "menus"),
                 ],
             ),
@@ -2090,9 +2108,7 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
                     (help_key.as_str(), "help"),
                     ("F3", "relog"),
                     ("Esc", "tree"),
-                    ("Alt+X", "terminal"),
                     ("F8", "split"),
-                    ("Alt+B", "bookmarks"),
                     ("F9", "Ctrl/Alt menus"),
                 ],
             ),
@@ -2100,11 +2116,12 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
         MenuMode::Ctrl => (
             menu_words(
                 "CTRL",
-                if tree {
+                &read_only(if tree {
                     &[
                         "Attributes",
                         "Copy",
                         "Delete",
+                        "Git",
                         "Move",
                         "Rename",
                         "Showall",
@@ -2117,6 +2134,7 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
                         "Attributes",
                         "Copy",
                         "Delete",
+                        "Git",
                         "Move",
                         "Open",
                         "Rename",
@@ -2124,7 +2142,7 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
                         "Untag",
                         "Yank",
                     ]
-                },
+                }),
             ),
             menu_line(
                 "",
@@ -2144,7 +2162,7 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
         MenuMode::Alt => (
             menu_words(
                 "ALT",
-                if tree {
+                &read_only(if tree {
                     &[
                         "Attributes",
                         "Bookmarks",
@@ -2156,9 +2174,8 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
                         "Prune",
                         "Rename",
                         "Sort",
-                        "usage (W)",
-                        "duplicates (Y)",
-                        "eXecute",
+                        "· usage (W)",
+                        "· duplicates (Y)",
                     ]
                 } else {
                     &[
@@ -2173,25 +2190,22 @@ fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
                         "Open terminal",
                         "Rename",
                         "Sort",
-                        "usage (W)",
-                        "duplicates (Y)",
-                        "eXecute",
+                        "· usage (W)",
+                        "· duplicates (Y)",
                     ]
-                },
+                }),
             ),
             menu_line(
                 "",
+                // Alt+X is the terminal: here, since its word has no X.
                 &[
-                    if tree {
-                        (
-                            "Alt+X",
-                            "terminal (Alt+Z full) · Attributes/Delete: tagged files",
-                        )
+                    ("X", "terminal (Z full screen)"),
+                    if app.archive.is_some() {
+                        ("", "read-only archive: Copy extracts")
+                    } else if tree {
+                        ("", "Attributes/Delete: tagged files")
                     } else {
-                        (
-                            "Alt+X",
-                            "terminal · F5: archive · Alt+O: tagged · Copy/Move: with paths",
-                        )
+                        ("", "F5: open archive · Copy/Move: with paths")
                     },
                     hint,
                 ],
@@ -2415,9 +2429,12 @@ fn menu_words(title: &str, words: &[&str]) -> Line<'static> {
             .find(|(_, c)| c.is_uppercase())
             .unwrap_or((0, word.chars().next().unwrap_or(' ')));
         let after = at + c.len_utf8();
-        spans.push(Span::raw(word[..at].to_string()));
+        if at > 0 {
+            spans.push(Span::raw(word[..at].to_string()));
+        }
         spans.push(key(&word[at..after]));
         spans.push(Span::raw(format!("{} ", &word[after..])));
+        spans.push(entry_end());
     }
     Line::from(spans)
 }
@@ -2565,6 +2582,10 @@ fn draw_settings(frame: &mut Frame, s: &Settings) {
         };
         vec![first, menu_line("", &[("F3", "save"), ("Esc", "cancel")])]
     };
+    let lines: Vec<_> = lines
+        .into_iter()
+        .map(|l| fit_menu(l, menu.width as usize))
+        .collect();
     frame.render_widget(Paragraph::new(lines), menu);
 }
 
@@ -2719,7 +2740,7 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
             ("Esc", "exit"),
         ]
     };
-    frame.render_widget(menu_line("", keys), menu);
+    frame.render_widget(fit_menu(menu_line("", keys), menu.width as usize), menu);
 }
 
 /// The help key to show in the footer: F1, unless the terminal is one of
@@ -3095,6 +3116,10 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         };
         vec![first, second]
     };
+    let lines: Vec<_> = lines
+        .into_iter()
+        .map(|l| fit_menu(l, menu.width as usize))
+        .collect();
     frame.render_widget(Paragraph::new(lines), menu);
 }
 
@@ -3836,10 +3861,52 @@ fn menu_line(title: &str, entries: &[(&str, &str)]) -> Line<'static> {
         Style::new().add_modifier(Modifier::BOLD),
     )];
     for (k, desc) in entries {
-        spans.push(key(k));
-        spans.push(Span::raw(format!(" {desc}   ")));
+        if !k.is_empty() {
+            spans.push(key(k));
+        }
+        // Each part of a long hint is an entry of its own, so that a narrow
+        // screen loses its last parts and not the whole hint.
+        for (i, part) in desc.split(" · ").enumerate() {
+            if i > 0 {
+                spans.push(entry_end());
+            }
+            let sep = if i > 0 { " · " } else { " " };
+            spans.push(Span::raw(format!("{sep}{part}")));
+        }
+        spans.push(Span::raw("   "));
+        spans.push(entry_end());
     }
     Line::from(spans)
+}
+
+/// Marks the end of an entry in a menu line: where `fit_menu` may cut it.
+fn entry_end() -> Span<'static> {
+    Span::raw("")
+}
+
+/// Drops a menu line's last entries until it fits in `width` columns, so that
+/// no entry is cut in the middle. A line that does not end with an entry (a
+/// message added to it) is left as it is.
+fn fit_menu(line: Line<'static>, width: usize) -> Line<'static> {
+    let ends_with_entry = line.spans.last().is_some_and(|s| s.content.is_empty());
+    if line.width() <= width || !ends_with_entry {
+        return line;
+    }
+    let (mut used, mut keep) = (0, 0);
+    for (i, span) in line.spans.iter().enumerate() {
+        if span.content.is_empty() {
+            keep = i;
+            continue;
+        }
+        // The spaces after an entry may go past the edge.
+        if used + span.content.trim_end().chars().count() > width {
+            break;
+        }
+        used += span.width();
+    }
+    let mut line = line;
+    line.spans.truncate(keep);
+    line
 }
 
 /// Splits `text` into lines of at most `width` columns, at spaces.
@@ -4040,8 +4107,149 @@ mod tests {
         app.held = None;
         app.sticky = MenuMode::Alt;
         assert!(footer(&mut app).starts_with("ALT "));
-        // Alt+W has no letter of its own in a word: it says so.
-        assert!(footer(&mut app).contains("usage (W)"));
+        // Alt+W has no letter of its own in a word: it says so, apart from Sort.
+        assert!(footer(&mut app).contains("Sort · usage (W)"));
+    }
+
+    #[test]
+    fn each_shortcut_is_in_the_menu_of_its_modifier() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.options.git = true;
+        let footer = |app: &mut App| {
+            let mut term = Terminal::new(TestBackend::new(200, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            let buf = term.backend().buffer();
+            [18, 19].map(|y| (0..200).map(|x| buf[(x, y)].symbol()).collect::<String>())
+        };
+        for focus in [Focus::Tree, Focus::Files] {
+            app.focus = focus;
+            app.held = None;
+            let normal = footer(&mut app).join("\n");
+            for other in ["Alt+X", "Alt+B", "Ctrl+G"] {
+                assert!(!normal.contains(other), "{other} in {normal:?}");
+            }
+            app.held = Some(MenuMode::Ctrl);
+            let ctrl = footer(&mut app);
+            assert!(ctrl[0].contains(" Git "), "{ctrl:?}");
+            app.held = Some(MenuMode::Alt);
+            let alt = footer(&mut app);
+            // Alt+X is the terminal, not eXecute (that is X alone).
+            assert!(!alt[0].contains("eXecute"), "{alt:?}");
+            assert!(alt[1].contains("X terminal"), "{alt:?}");
+            assert!(alt[0].contains("Bookmarks"), "{alt:?}");
+        }
+        // Without the Git menu, Ctrl+G does nothing: it is not offered.
+        app.options.git = false;
+        app.held = Some(MenuMode::Ctrl);
+        assert!(!footer(&mut app)[0].contains("Git"));
+    }
+
+    fn text_of(line: &Line) -> String {
+        line.spans.iter().map(|s| s.content.as_ref()).collect()
+    }
+
+    #[test]
+    fn a_menu_too_wide_loses_whole_entries_from_the_end() {
+        let line = menu_words("ALT", &["Attributes", "Bookmarks", "Compare branch"]);
+        let full = text_of(&line);
+        assert_eq!(text_of(&fit_menu(line.clone(), 100)), full);
+        // Room for "Compare branch" but not its space keeps it; one column
+        // less drops it whole.
+        let end = full.trim_end().len();
+        assert_eq!(
+            text_of(&fit_menu(line.clone(), end)).trim_end(),
+            full.trim_end()
+        );
+        assert_eq!(
+            text_of(&fit_menu(line, end - 1)).trim_end(),
+            "ALT      Attributes Bookmarks"
+        );
+
+        // A long hint loses its last parts, not all of it.
+        let hint = menu_line(
+            "",
+            &[
+                ("", "on tagged files · Copy/Move: no paths"),
+                ("F9", "next menu"),
+            ],
+        );
+        assert_eq!(
+            text_of(&fit_menu(hint, 50)).trim_end(),
+            "          on tagged files · Copy/Move: no paths"
+        );
+    }
+
+    #[test]
+    fn a_menu_with_a_message_is_not_cut_by_entries() {
+        let mut line = menu_line("", &[("Esc", "cancel")]);
+        line.spans
+            .push(Span::raw("  a long message that goes past the edge"));
+        let full = text_of(&line);
+        assert_eq!(text_of(&fit_menu(line, 20)), full);
+    }
+
+    #[test]
+    fn a_narrow_footer_never_cuts_a_word() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let footer = |app: &mut App, width: u16| {
+            let mut term = Terminal::new(TestBackend::new(width, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            let buf = term.backend().buffer();
+            [18, 19].map(|y| (0..width).map(|x| buf[(x, y)].symbol()).collect::<String>())
+        };
+        for mode in [MenuMode::Normal, MenuMode::Ctrl, MenuMode::Alt] {
+            app.held = Some(mode);
+            let wide = footer(&mut app, 250);
+            for (narrow, wide) in footer(&mut app, 60).iter().zip(&wide) {
+                let words: Vec<&str> = wide.split_whitespace().collect();
+                for word in narrow.split_whitespace() {
+                    assert!(words.contains(&word), "{word:?} cut in {narrow:?}");
+                }
+            }
+        }
+        // The bookmarks screen has a footer of its own.
+        app.held = None;
+        app.bookmarks_view = Some(BookmarksView::default());
+        let wide = footer(&mut app, 250);
+        for (narrow, wide) in footer(&mut app, 60).iter().zip(&wide) {
+            let words: Vec<&str> = wide.split_whitespace().collect();
+            for word in narrow.split_whitespace() {
+                assert!(words.contains(&word), "{word:?} cut in {narrow:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn an_archive_menu_leaves_out_what_writes() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let footer = |app: &mut App| {
+            let mut term = Terminal::new(TestBackend::new(200, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            let buf = term.backend().buffer();
+            (0..200).map(|x| buf[(x, 18)].symbol()).collect::<String>()
+        };
+        app.held = Some(MenuMode::Ctrl);
+        assert!(footer(&mut app).contains("Delete"));
+        app.archive = Some(tmp.path().join("p.zip"));
+        for mode in [MenuMode::Ctrl, MenuMode::Alt] {
+            app.held = Some(mode);
+            let menu = footer(&mut app);
+            for word in ["Attributes", "Delete", "Rename", "Prune", "eXecute"] {
+                assert!(!menu.contains(word), "{word} in {menu:?}");
+            }
+            let kept = if mode == MenuMode::Ctrl {
+                "Tag"
+            } else {
+                "Bookmarks"
+            };
+            assert!(menu.contains(kept), "{menu:?}");
+        }
     }
 
     fn draw_row0(app: &mut App) -> String {

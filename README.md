@@ -49,6 +49,12 @@ highlighted and counted on the right:
 
 ![Split window: photos on the left, source code on the right](docs/screenshots/split-gruvbox.png)
 
+**Menus on Ctrl and Alt**: holding Ctrl or Alt shows what each letter does
+with it, as in XTree (in terminals with the kitty keyboard protocol; elsewhere F9
+switches the menus):
+
+![Holding Ctrl and then Alt changes the menu at the bottom; then Ctrl+G shows the Git menu](docs/screenshots/demo-menus-nord.gif)
+
 **A SQLite database** in the viewer: the list of tables, a filter, a query with a
 `JOIN`, and a `DELETE` refused, since Xylem only reads:
 

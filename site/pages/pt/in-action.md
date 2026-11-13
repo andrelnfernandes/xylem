@@ -23,5 +23,9 @@
 <a href="ASSETS/screenshots/demo-duplicates-vivid.gif"><div class="window"><img src="ASSETS/screenshots/demo-duplicates-vivid.gif" width="1104" height="772" loading="lazy" alt="Grupos de arquivos duplicados, marcando todas as cópias menos uma de cada, e depois duas pastas inteiras iguais"></div></a>
 <figcaption><strong>Duplicados</strong> (<kbd>Alt+Y</kbd>) acha arquivos iguais e pastas inteiras iguais. <kbd>A</kbd> marca todas as cópias menos uma de cada grupo, e nada é apagado até você mandar.</figcaption>
 </figure>
+<figure class="shot">
+<a href="ASSETS/screenshots/demo-menus-nord.gif"><div class="window"><img src="ASSETS/screenshots/demo-menus-nord.gif" width="1104" height="772" loading="lazy" alt="Segurando Ctrl e depois Alt, o menu de baixo muda, na árvore e na janela de arquivos; depois Ctrl+G mostra o menu do Git"></div></a>
+<figcaption><strong>Menus no Ctrl e no Alt:</strong> como no XTree, segurar <kbd>Ctrl</kbd> ou <kbd>Alt</kbd> mostra o que cada letra faz com ela, e soltar traz o menu de volta. Precisa de um terminal com o protocolo de teclado do kitty (kitty, WezTerm, foot, Ghostty); nos outros, <kbd>F9</kbd> troca os menus.</figcaption>
+</figure>
 </div>
 
