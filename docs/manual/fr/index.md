@@ -32,8 +32,8 @@ proposez une amélioration : `https://github.com/andrelnfernandes/xylem/issues`.
 - [Filtrer les lignes](filter.md) : `&` dans la visionneuse, avec un guide des expressions régulières
 - [Rechercher dans les fichiers marqués](search.md) : Ctrl+S et Ctrl+V
 - [Informations](info.md) : Info, Avail, statistiques et tailles des répertoires
-- [Utilisation du disque](usage.md) : où va l'espace (Alt+W)
-- [Doublons](duplicates.md): fichiers et dossiers au même contenu (Alt+Y)
+- [Utilisation du disque](usage.md) : où va l'espace (Alt+U)
+- [Doublons](duplicates.md): fichiers et dossiers au même contenu (Alt+D)
 
 ## Travailler avec les fichiers
 

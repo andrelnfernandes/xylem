@@ -1,4 +1,4 @@
-//! The Usage view (Alt+W): opening it and its keys.
+//! The Usage view (Alt+U): opening it and its keys.
 
 use super::*;
 use crate::usage::Item;
@@ -14,7 +14,8 @@ impl App {
 
     pub(crate) fn usage_key(&mut self, key: KeyEvent) {
         let alt = key.modifiers.contains(KeyModifiers::ALT);
-        if key.code == KeyCode::Esc || alt && matches!(key.code, KeyCode::Char('w' | 'W')) {
+        // Esc, or the key that opened it (Alt+U), closes it.
+        if key.code == KeyCode::Esc || self.keymap.lookup(key, self.focus) == Some(Command::Usage) {
             self.usage = None;
             return;
         }
@@ -25,9 +26,9 @@ impl App {
         let tree = &pane.tree;
         let len = view.rows(tree).len();
         let page = view.page.max(1) as isize;
-        let ctrl_or_alt = key
-            .modifiers
-            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        // Ctrl acts on the tagged rows; Alt is the other version (Alt+P
+        // Prune, Alt+D Duplicates), as everywhere else.
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let shift = key.modifiers.contains(KeyModifiers::SHIFT);
         match key.code {
             KeyCode::Up => view.move_by(-1, len),
@@ -66,11 +67,11 @@ impl App {
                 self.select_node(dir);
                 self.focus = Focus::Tree;
             }
-            KeyCode::Char('t' | 'T') => self.usage_tag(true, ctrl_or_alt),
-            KeyCode::Char('u' | 'U') => self.usage_tag(false, ctrl_or_alt),
-            KeyCode::Char('v' | 'V') if !ctrl_or_alt => self.usage_view_file(),
-            KeyCode::Delete => self.usage_delete(ctrl_or_alt, shift),
-            KeyCode::Char('d' | 'D') if ctrl_or_alt => self.usage_delete(true, false),
+            KeyCode::Char('t' | 'T') if !alt => self.usage_tag(true, ctrl),
+            KeyCode::Char('u' | 'U') if !alt => self.usage_tag(false, ctrl),
+            KeyCode::Char('v' | 'V') if !ctrl && !alt => self.usage_view_file(),
+            KeyCode::Delete => self.usage_delete(ctrl, shift),
+            KeyCode::Char('d' | 'D') if ctrl => self.usage_delete(true, false),
             KeyCode::Char('p' | 'P') if alt => self.usage_prune(),
             KeyCode::Char('d' | 'D') => {
                 let dir = view.dir;

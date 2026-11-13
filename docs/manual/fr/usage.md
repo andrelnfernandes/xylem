@@ -1,10 +1,14 @@
-# Utilisation du disque (Alt+W)
+# Utilisation du disque (Alt+U)
 
-Où va l'espace. **Alt+W** lit toute la branche du répertoire courant et liste
+Où va l'espace. **Alt+U** lit toute la branche du répertoire courant et liste
 ses dossiers et fichiers selon l'espace qu'ils occupent, les plus grands en
 premier, avec une barre et leur part du répertoire. Enter entre dans un
 dossier ; de dossier en dossier, vous descendez jusqu'à ce qui remplit le
 disque.
+
+
+> Jusqu'à la version 0.7, l'utilisation du disque était Alt+W, et Alt+U
+> démarquait tout (désormais seulement Ctrl+U). Voir [Ctrl et Alt](tagging.md#ce-que-veulent-dire-ctrl-et-alt).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar
@@ -105,7 +109,7 @@ recalculent aussitôt, la vue restant ouverte.
 | `V` | afficher le fichier |
 | `D` | chercher les [doublons](duplicates.md) dans le dossier affiché |
 | F3 | relire le dossier affiché |
-| Esc ou Alt+W | fermer |
+| Esc ou Alt+U | fermer |
 
 Tab, F8, Alt+X (le terminal) et F12 fonctionnent normalement lorsque la vue est
 ouverte.

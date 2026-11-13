@@ -1,10 +1,14 @@
-# Speicherplatzbelegung (Alt+W)
+# Speicherplatzbelegung (Alt+U)
 
-Wohin der Speicherplatz geht. **Alt+W** liest den gesamten Zweig des aktuellen
+Wohin der Speicherplatz geht. **Alt+U** liest den gesamten Zweig des aktuellen
 Verzeichnisses ein und listet dessen Ordner und Dateien nach dem belegten Platz
 auf, die größten zuerst, mit einem Balken und ihrem Anteil am Verzeichnis.
 Enter wechselt in einen Ordner; Ordner für Ordner gelangen Sie so zu dem, was
 die Festplatte füllt.
+
+
+> Bis Version 0.7 war die Speicherplatzbelegung Alt+W, und Alt+U hob alle
+> Markierungen auf (jetzt nur Ctrl+U). Siehe [Ctrl und Alt](tagging.md#was-ctrl-und-alt-bedeuten).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar
@@ -106,7 +110,7 @@ danach neu berechnet, während die Ansicht offen bleibt.
 | `V` | die Datei anzeigen |
 | `D` | im gezeigten Ordner nach [Duplikaten](duplicates.md) suchen |
 | F3 | angezeigten Ordner neu einlesen |
-| Esc oder Alt+W | schließen |
+| Esc oder Alt+U | schließen |
 
 Tab, F8, Alt+X (das Terminal) und F12 funktionieren auch bei geöffneter Ansicht
 wie gewohnt.

@@ -3,7 +3,7 @@
 `R` renames the file (in the tree, the directory) under the cursor: type the
 new name. A name that already exists is refused.
 
-## Batch rename (Ctrl+R or Alt+R)
+## Batch rename (Ctrl+R)
 
 Renames all the tagged files with a mask, numbered in the order of the list:
 

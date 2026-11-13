@@ -1,8 +1,12 @@
-# Doublons (Alt+Y)
+# Doublons (Alt+D)
 
 Les fichiers au même contenu, quels que soient leurs noms et leurs dossiers, et
-l'espace gaspillé par les copies. **Alt+Y** cherche dans la branche du répertoire
+l'espace gaspillé par les copies. **Alt+D** cherche dans la branche du répertoire
 courant ; **D** dans la vue Utilisation cherche dans le dossier affiché.
+
+
+> Jusqu'à la version 0.7, les doublons étaient Alt+Y, et Alt+D supprimait les
+> fichiers marqués (désormais seulement Ctrl+D). Voir [Ctrl et Alt](tagging.md#ce-que-veulent-dire-ctrl-et-alt).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────
@@ -35,7 +39,7 @@ marquer la dernière.
 | `E` | écrit la liste dans un fichier (jamais par-dessus un fichier existant) : taille, date, marque et chemin, une ligne vide entre les groupes |
 | `\` | ferme la vue, avec l'arbre sur ce dossier |
 | F3 | relit les dossiers et compare à nouveau |
-| Échap ou Alt+Y | ferme |
+| Échap ou Alt+D | ferme |
 
 Avant de supprimer ou de déplacer, chaque groupe est revérifié : si une copie a
 changé depuis l'analyse, ou si celle qui devait rester a disparu, rien de ce

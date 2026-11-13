@@ -130,9 +130,9 @@ pub struct Pane {
     pub sort: Sort,
     /// Alt+K: size or file count next to each directory.
     pub kbyte: Kbyte,
-    /// Alt+W: the Usage view, in place of the tree and the files.
+    /// Alt+U: the Usage view, in place of the tree and the files.
     pub usage: Option<crate::usage::UsageView>,
-    /// Alt+Y: the Duplicates view, in place of the tree and the files.
+    /// Alt+D: the Duplicates view, in place of the tree and the files.
     pub duplicates: Option<crate::duplicates::DuplicatesView>,
     /// Alt+F: how the file window displays the list.
     pub display: FileDisplay,
@@ -641,6 +641,21 @@ impl Pane {
         self.view = view;
         self.tags_only = tags_only;
         self.focus = Focus::Files;
+        self.file_state.select(Some(0));
+        self.refresh_files();
+    }
+
+    /// B in Branch or Showall: back to the plain list of the directory
+    /// (where the Branch started; under the tree cursor for Showall),
+    /// staying in the file window.
+    pub fn leave_list_view(&mut self) {
+        let dir = match self.view {
+            FileView::Branch(id) => id,
+            _ => self.current(),
+        };
+        self.view = FileView::Dir;
+        self.tags_only = false;
+        self.show_node(dir);
         self.file_state.select(Some(0));
         self.refresh_files();
     }

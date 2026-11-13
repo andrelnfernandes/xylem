@@ -7,12 +7,20 @@ a remote address (user@host:, then Xylem starts in $SHOT_CWD) and a step is:
   type:TEXT       TEXT typed one character at a time (one frame each)
   send:KEYS       keys sent without a frame
   sleep:SECONDS   wait without a frame
-  hold:SECONDS    how long the last frame stays on screen (GIF)"""
-import fcntl, os, pty, select, struct, sys, termios, time
+  hold:SECONDS    how long the last frame stays on screen (GIF)
+  press:ctrl, press:alt, release:ctrl, release:alt
+                  Ctrl or Alt alone, held down and let go, as kitty reports them
+
+SHOT_COLS sets the width (120 by default). With SHOT_KITTY=1 the terminal
+answers like kitty that it has the keyboard protocol, so Xylem shows the
+Ctrl and Alt menus while those keys are held."""
+import fcntl, os, pty, re, select, struct, sys, termios, time
 import pyte
 from PIL import Image, ImageDraw, ImageFont
 
 COLS, ROWS, CW, CH, PAD = 120, 34, 9, 22, 12
+# Another width, to check how the screens fit (SHOT_COLS=80).
+COLS = int(os.environ.get("SHOT_COLS", COLS))
 # Windows Terminal's "Campbell", as in the first screenshots.
 NAMED = {
     "black": "0c0c0c", "red": "c50f1f", "green": "13a10e", "brown": "c19c00",
@@ -34,6 +42,14 @@ FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
 
 out, xy, root, steps = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
+KITTY = os.environ.get("SHOT_KITTY") == "1"
+KEYBOARD_PROTOCOL = re.compile(rb"\x1b\[[<>=?][0-9;]*u")
+# Ctrl and Alt alone as kitty sends them: the left key's code, its modifier
+# bit while pressed, and event type 3 on release.
+MODIFIERS = {
+    "press:ctrl": "\\x1b[57442;5u", "release:ctrl": "\\x1b[57442;1:3u",
+    "press:alt": "\\x1b[57443;3u", "release:alt": "\\x1b[57443;1:3u",
+}
 screen = pyte.Screen(COLS, ROWS)
 stream = pyte.ByteStream(screen)
 pid, fd = pty.fork()
@@ -52,7 +68,13 @@ def pump(seconds):
                 data = os.read(fd, 65536)
             except OSError:
                 return
-            stream.feed(data)
+            # pyte does not know the keyboard protocol's push and pop
+            # (CSI > flags u, CSI < n u) and would print part of them.
+            stream.feed(KEYBOARD_PROTOCOL.sub(b"", data))
+            # kitty: the protocol is there, with no flags pushed yet; then the
+            # device attributes, which crossterm waits for.
+            if KITTY and b"\x1b[?u" in data:
+                os.write(fd, b"\x1b[?0u\x1b[?62c")
             if b"\x1b[6n" in data:
                 os.write(fd, f"\x1b[{screen.cursor.y + 1};{screen.cursor.x + 1}R".encode())
 
@@ -71,6 +93,9 @@ BOX = {
     "└": (1, 0, 0, 1), "┘": (1, 0, 1, 0), "├": (1, 1, 0, 1), "┤": (1, 1, 1, 0),
     "┬": (0, 1, 1, 1), "┴": (1, 0, 1, 1), "┼": (1, 1, 1, 1),
 }
+# The rounded corners of the modern themes: where the arc's center sits
+# (right and down of the cell's center, as 1 or -1) and its angles.
+ROUND = {"╭": (1, 1, 180, 270), "╮": (-1, 1, 270, 360), "╰": (1, -1, 90, 180), "╯": (-1, -1, 0, 90)}
 
 
 def render():
@@ -104,6 +129,18 @@ def render():
                     draw.line([cx, py, cx, cy], fill=fg)
                 if down:
                     draw.line([cx, cy, cx, py + CH - 1], fill=fg)
+                continue
+            if text in ROUND:
+                dx, dy, start, end = ROUND[text]
+                r = CW // 2
+                cx, cy = px + CW // 2, py + CH // 2
+                ax, ay = cx + dx * r, cy + dy * r
+                draw.arc([ax - r, ay - r, ax + r, ay + r], start, end, fill=fg)
+                # From the arc's ends to the cell's edges.
+                edge_x = px + CW - 1 if dx > 0 else px
+                draw.line([ax, cy, edge_x, cy], fill=fg)
+                edge_y = py + CH - 1 if dy > 0 else py
+                draw.line([cx, ay, cx, edge_y], fill=fg)
                 continue
             draw.text((px, py + 3), text, font=FONT_BOLD if ch.bold else FONT_REGULAR, fill=fg)
     return img
@@ -146,7 +183,7 @@ for step in steps:
             frame(90)
         pump(0.3)
     else:
-        send(step)
+        send(MODIFIERS.get(step, step))
         pump(0.8)
         frame(700)
 pump(0.5)

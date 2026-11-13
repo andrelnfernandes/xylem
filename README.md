@@ -49,6 +49,12 @@ highlighted and counted on the right:
 
 ![Split window: photos on the left, source code on the right](docs/screenshots/split-gruvbox.png)
 
+**Menus on Ctrl and Alt**: holding Ctrl or Alt shows what each letter does
+with it, as in XTree (in terminals with the kitty keyboard protocol; elsewhere F9
+switches the menus):
+
+![Holding Ctrl and then Alt changes the menu at the bottom; then Ctrl+G shows the Git menu](docs/screenshots/demo-menus-nord.gif)
+
 **A SQLite database** in the viewer: the list of tables, a filter, a query with a
 `JOIN`, and a `DELETE` refused, since Xylem only reads:
 
@@ -72,7 +78,7 @@ Alt+O types the tagged files at the prompt:
 
 ![File list with Git status letters and the GIT menu in the footer](docs/screenshots/git-menu-dark.png)
 
-**Usage** (Alt+W): where the space goes, folders and files together by the
+**Usage** (Alt+U): where the space goes, folders and files together by the
 space they take:
 
 ![The Usage view of a home folder: an old backup file at the top, then the projects, videos and downloads folders](docs/screenshots/usage-nord.png)
@@ -101,10 +107,10 @@ presentations:
   those records or lines into a script, JSON, SQL or anything else,
   Autoview next to the list, ZIP, 7z and TAR archives opened as directories,
   and display modes that show owners or what each file is.
-- **Duplicates:** Alt+Y finds files and whole folders with the same contents,
+- **Duplicates:** Alt+D finds files and whole folders with the same contents,
   without downloading anything from a folder mounted by rclone, and always
   leaves one copy.
-- **Where the space goes:** the Usage view (Alt+W) lists a branch's folders
+- **Where the space goes:** the Usage view (Alt+U) lists a branch's folders
   and files by the space they take, largest first, down to what fills the
   disk; Alt+K Percent shows each folder's share right in the tree.
 - **Beyond XTree:** a built-in terminal whose tree follows the shell, remote
@@ -281,7 +287,7 @@ Found a problem? Please report it privately [via GitHub Security Advisories](htt
   Markdown.
 - Batch (Ctrl+B) over tagged files, the records of a table or the lines of a
   text, with templates, conditions, totals and output to SQLite.
-- Duplicates (Alt+Y): files and whole folders, on local disks and through the
+- Duplicates (Alt+D): files and whole folders, on local disks and through the
   hashes rclone gives.
 
 ### Next
