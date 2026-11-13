@@ -33,8 +33,8 @@ e encontrar um erro ou algo que soe estranho, sugira uma melhoria:
 - [Filtrar linhas](filter.md): `&` no visualizador, com um guia de expressões regulares
 - [Busca nos arquivos marcados](search.md): Ctrl+S e Ctrl+V
 - [Informações](info.md): Info, Avail, estatísticas e tamanhos de diretórios
-- [Uso do disco](usage.md): para onde vai o espaço (Alt+W)
-- [Duplicados](duplicates.md): arquivos e pastas com o mesmo conteúdo (Alt+Y)
+- [Uso do disco](usage.md): para onde vai o espaço (Alt+U)
+- [Duplicados](duplicates.md): arquivos e pastas com o mesmo conteúdo (Alt+D)
 
 ## Trabalhando com arquivos
 

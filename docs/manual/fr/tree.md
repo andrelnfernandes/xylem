@@ -48,7 +48,8 @@ les autres répertoires nécessitent toujours F3.
   sans plus aucune marque, tous les fichiers réapparaissent.
 - `F` ([Filespec](filespec.md)) : quels fichiers afficher, par nom, date et taille.
 
-Dans Branch et Showall, `\` va au répertoire du fichier sélectionné.
+Dans Branch et Showall, `\` va au répertoire du fichier sélectionné. `B` à nouveau revient
+à la liste du répertoire lui-même.
 
 ## Commandes dans l'arborescence
 

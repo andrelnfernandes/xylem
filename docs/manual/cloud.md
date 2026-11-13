@@ -161,7 +161,7 @@ it all with `*` (on a large Drive it takes a while) and choose Alt+K →
 one above it takes, with a bar against the largest of its siblings. Follow
 the biggest bars down to the old backups, videos and duplicates.
 
-The [Usage view](usage.md) (Alt+W, at the Drive's root) goes further: the
+The [Usage view](usage.md) (Alt+U, at the Drive's root) goes further: the
 files and folders together, largest first, so a single huge file shows as
 well as a full folder. And Branch (`B`) lists the files of a whole folder:
 [sorted](sort.md) by size, largest first (Alt+S, then `O` for descending and

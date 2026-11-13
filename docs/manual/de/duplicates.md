@@ -1,8 +1,12 @@
-# Duplikate (Alt+Y)
+# Duplikate (Alt+D)
 
 Dateien mit gleichem Inhalt, egal mit welchen Namen und in welchen Ordnern, und
-der Platz, den die Kopien verschwenden. **Alt+Y** sucht im Zweig des aktuellen
+der Platz, den die Kopien verschwenden. **Alt+D** sucht im Zweig des aktuellen
 Verzeichnisses; **D** in der Belegungsansicht sucht im dort gezeigten Ordner.
+
+
+> Bis Version 0.7 waren die Duplikate Alt+Y, und Alt+D löschte die markierten
+> Dateien (jetzt nur Ctrl+D). Siehe [Ctrl und Alt](tagging.md#was-ctrl-und-alt-bedeuten).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────
@@ -35,7 +39,7 @@ markieren.
 | `E` | schreibt die Liste in eine Datei (nie über eine vorhandene): Größe, Datum, Markierung und Pfad, eine Leerzeile zwischen den Gruppen |
 | `\` | schließt die Ansicht, mit dem Baum auf diesem Ordner |
 | F3 | liest die Ordner neu und vergleicht erneut |
-| Esc oder Alt+Y | schließt |
+| Esc oder Alt+D | schließt |
 
 Vor dem Löschen oder Verschieben wird jede Gruppe erneut geprüft: Hat sich eine
 Kopie seit der Analyse geändert oder fehlt die, die bleiben sollte, wird von

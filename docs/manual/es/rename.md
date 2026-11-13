@@ -3,7 +3,7 @@
 `R` renombra el archivo (en el árbol, el directorio) bajo el cursor: escribe el
 nombre nuevo. Un nombre que ya exista se rechaza.
 
-## Renombrado por lotes (Ctrl+R o Alt+R)
+## Renombrado por lotes (Ctrl+R)
 
 Renombra todos los archivos marcados con una máscara, numerados en el orden de
 la lista:

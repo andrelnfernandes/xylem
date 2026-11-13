@@ -37,8 +37,8 @@ end.
 
 ## What Xylem does not have yet
 
-- **Tree:** Global (G), Graft (Alt+G), Mirror (Alt+M), Release/unload from memory (Alt+R,
-  Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
+- **Tree:** Global (G, and Ctrl+G for the tagged files), Graft (Alt+G), Mirror (Alt+M),
+  partial release (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
   (Ctrl+V), F5/F6 (hide subdirectory levels),
   tag by attribute (Alt+T/U),
   Treespec in edit mode (F5, wildcards) and special folders (F6), type-ahead
@@ -91,10 +91,10 @@ Things the ZTreeWin v2.2 manual has no counterpart for:
   [remote machines](remote.md).
 - **Git** (optional): status letters in the file list, a Git menu (Ctrl+G) and
   diffs in the viewer. See [Git](git.md).
-- **Disk usage** (Alt+W): a branch's folders and files together, largest
+- **Disk usage** (Alt+U): a branch's folders and files together, largest
   first, down to what fills the disk; Alt+K shows each folder's share in the
   tree. See [disk usage](usage.md).
-- **Duplicates** (Alt+Y): files and whole folders with the same contents,
+- **Duplicates** (Alt+D): files and whole folders with the same contents,
   compared by SHA-256, or by the service's own hashes in a folder mounted by
   rclone, with nothing downloaded. One copy of each group always stays. See
   [duplicates](duplicates.md).
@@ -170,9 +170,10 @@ The keys follow ZTreeWin's. The exceptions:
 | Alt+B | Batch of the current file (not implemented) | bookmarks |
 | Alt+H | Hide (not implemented) | help |
 | Alt+O | Open in a new terminal window (not implemented) | types the tagged files in the built-in terminal |
-| Alt+R | Release (not implemented; `-` releases the branch) | renames the tagged files |
-| Alt+T, Alt+U | tag and untag by attribute (not implemented) | tag and untag all |
-| Alt+W | Wash (not implemented) | disk usage |
+| Alt+D | (nothing) | Duplicates |
+| Alt+T | tag by attribute (not implemented) | (nothing) |
+| Alt+U | untag by attribute (not implemented) | Usage, where the space goes |
+| Ctrl+G | Global for the tagged files (not implemented) | the Git menu (optional) |
 | Alt+Z | Zlist (not implemented) | the built-in terminal in full screen |
 | `/` | same as `?` (statistics) | Treespec, like `\` (`?` still shows the statistics) |
 | Ctrl+C, Ctrl+M in the tree | (nothing) | Copy/Move of the current directory's tagged files |

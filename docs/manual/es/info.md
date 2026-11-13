@@ -32,5 +32,5 @@ encontrar qué llena un disco, registra primero la rama con `*`: un directorio
 aún no registrado cuenta como vacío. Con Google Drive o S3 montados mediante
 rclone, así es como se encuentra qué los llena: véase
 [Almacenamiento en la nube](cloud.md). Para un disco entero, la
-[vista de uso](usage.md) (Alt+W) hace más: archivos y carpetas juntos, el
+[vista de uso](usage.md) (Alt+U) hace más: archivos y carpetas juntos, el
 espacio en el disco y los enlaces duros contados una sola vez.

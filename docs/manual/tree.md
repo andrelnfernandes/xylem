@@ -45,7 +45,8 @@ half second, after any operation in progress); other directories still need F3.
   all the files show again.
 - `F` ([Filespec](filespec.md)): which files show, by name, date and size.
 
-In Branch and Showall, `\` goes to the directory of the selected file.
+In Branch and Showall, `\` goes to the directory of the selected file. `B` again goes back to the
+directory's own list.
 
 ## Commands in the tree
 

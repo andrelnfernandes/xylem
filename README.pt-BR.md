@@ -79,7 +79,7 @@ Alt+O digita os arquivos marcados no prompt:
 
 ![Lista de arquivos com as letras de status do Git e o menu GIT no rodapé](docs/screenshots/git-menu-dark.png)
 
-**Usage** (Alt+W): para onde vai o espaço, pastas e arquivos juntos pelo
+**Usage** (Alt+U): para onde vai o espaço, pastas e arquivos juntos pelo
 espaço que ocupam:
 
 ![A visão Usage de uma pasta pessoal: um arquivo de backup antigo no topo, depois as pastas de projetos, vídeos e downloads](docs/screenshots/usage-nord.png)
@@ -110,9 +110,9 @@ apresentações:
   esses registros ou linhas em um script, JSON, SQL ou o que for, Autoview ao lado da lista,
   arquivos ZIP, 7z e TAR abertos como diretórios, e modos de exibição que
   mostram o dono ou o que cada arquivo é.
-- **Duplicados:** Alt+Y acha arquivos e pastas inteiras com o mesmo conteúdo,
+- **Duplicados:** Alt+D acha arquivos e pastas inteiras com o mesmo conteúdo,
   sem baixar nada de uma pasta montada pelo rclone, e sempre deixa uma cópia.
-- **Para onde vai o espaço:** a visão Usage (Alt+W) lista as pastas e os
+- **Para onde vai o espaço:** a visão Usage (Alt+U) lista as pastas e os
   arquivos de um ramo pelo espaço que ocupam, do maior para o menor, até o
   que enche o disco; o Alt+K Percent mostra a parte de cada pasta na própria
   árvore.
@@ -296,7 +296,7 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
   arquivos memo, SQLite e Parquet, e Markdown renderizado.
 - Batch (Ctrl+B) sobre arquivos marcados, os registros de uma tabela ou as linhas
   de um texto, com templates, condições, totais e saída em SQLite.
-- Duplicados (Alt+Y): arquivos e pastas inteiras, em discos locais e pelos hashes
+- Duplicados (Alt+D): arquivos e pastas inteiras, em discos locais e pelos hashes
   que o rclone fornece.
 
 ### Próximos passos

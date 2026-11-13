@@ -83,6 +83,8 @@ type_colors = true
 borders = "theme"
 # The name in block letters for two seconds at start (any key closes it).
 splash = true
+# Seconds in the clock at the top right (the dates in the lists never have them).
+clock_seconds = false
 # Initial mode of the files window (Alt+F changes it while running): "names"
 # (several columns), "names_size" (columns with size), "details" (one
 # column with size, date and permissions), "owner" (size, owner and group,
@@ -101,7 +103,7 @@ delete_to_trash = false
 # To confirm a Prune (Alt+P), type: "prune" (the word PRUNE),
 # "name" (the directory name) or "y".
 prune_confirmation = "prune"
-# Duplicates (Alt+Y): files smaller than this many bytes are not listed.
+# Duplicates (Alt+D): files smaller than this many bytes are not listed.
 duplicates_min_size = 1024
 # Duplicates: folders with these names are not looked into, and what holds them
 # is never called a copy of another folder.
@@ -144,7 +146,7 @@ terminal_history = true
 # Names: background, text, border, active_border, key, dim, highlight,
 # highlight_text, inactive_highlight, error, message, tagged, executable,
 # symlink, special, bar_low, bar_mid, bar_high (the bars of Alt+K Percent
-# and Alt+W, by share: up to 10%, up to 40%, more), and the colors of file
+# and Alt+U, by share: up to 10%, up to 40%, more), and the colors of file
 # types: archive, image, media, document, code, data.
 [colors]
 # key = "yellow"
@@ -248,6 +250,8 @@ pub struct Options {
     pub borders: Borders,
     /// The start screen with the name, for two seconds.
     pub splash: bool,
+    /// Seconds in the clock of the header.
+    pub clock_seconds: bool,
     /// Initial mode of the files window (Alt+F changes it while running).
     pub file_display: FileDisplay,
     /// Initial file sort order.
@@ -302,6 +306,7 @@ impl Default for Options {
             type_colors: true,
             borders: Borders::Theme,
             splash: true,
+            clock_seconds: false,
             file_display: FileDisplay::Details,
             sort: SortKey::Name,
             sort_descending: false,
@@ -358,6 +363,7 @@ impl Options {
             ("type_colors", Value::from(self.type_colors)),
             ("borders", s(self.borders.as_str())),
             ("splash", Value::from(self.splash)),
+            ("clock_seconds", Value::from(self.clock_seconds)),
             ("file_display", s(self.file_display.as_str())),
             ("sort", s(self.sort.as_str())),
             ("sort_descending", Value::from(self.sort_descending)),
@@ -901,7 +907,7 @@ pub struct Theme {
     pub executable: Color,
     pub symlink: Color,
     pub special: Color,
-    /// The bars of Alt+K Percent and Alt+W, by how much of the whole they
+    /// The bars of Alt+K Percent and Alt+U, by how much of the whole they
     /// take: up to 10%, up to 40%, more.
     pub bar_low: Color,
     pub bar_mid: Color,
@@ -1260,7 +1266,7 @@ impl Theme {
 
     /// Strong colors on a deep indigo, for presentations, videos and
     /// screenshots: magenta selection, cyan and lime, a sun yellow for the
-    /// keys; the bars of Alt+K and Alt+W go lime, yellow and coral.
+    /// keys; the bars of Alt+K and Alt+U go lime, yellow and coral.
     pub fn vivid() -> Self {
         Theme {
             background: rgb(0x1a1238),
@@ -1609,6 +1615,9 @@ mod tests {
         assert_eq!(c.options.number_format.separator(), Some('.'));
         assert!(Config::parse("[options]\nsort = \"color\"").is_err());
         assert!(Config::parse("[options]\ndate_format = \"yy\"").is_err());
+        let c = Config::parse("[options]\nclock_seconds = true").unwrap();
+        assert!(c.options.clock_seconds);
+        assert!(!Config::parse("").unwrap().options.clock_seconds);
     }
 
     #[test]

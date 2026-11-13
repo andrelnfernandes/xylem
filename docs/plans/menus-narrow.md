@@ -18,7 +18,8 @@ nos terminais sem o protocolo do kitty) é o primeiro a sumir. Aprovado pelo aut
 2. **Tirar entradas do fim com `…`**: o que ainda não cabe sai do fim, como hoje,
    mas um `…` fica no lugar, para mostrar que há mais.
 3. **A última entrada das linhas de teclas fica** (F9, Esc): sai o que vem antes
-   dela, e o `…` entra logo antes.
+   dela, e o `…` entra logo antes. Só quando ela começa com uma tecla: uma legenda
+   no fim (a do Usage, `> other disk  ! unreadable…`) é a primeira a sair.
 
 As dicas da segunda linha não são encurtadas: perdem partes inteiras (nos ` · `).
 

@@ -49,7 +49,8 @@ benötigen weiterhin F3.
   eingelesen wird (F3); ohne Markierungen erscheinen wieder alle Dateien.
 - `F` ([Filespec](filespec.md)): welche Dateien nach Name, Datum und Größe angezeigt werden.
 
-In Branch und Showall springt `\` zum Verzeichnis der ausgewählten Datei.
+In Branch und Showall springt `\` zum Verzeichnis der ausgewählten Datei. Ein erneutes `B`
+führt zurück zur Liste des Verzeichnisses selbst.
 
 ## Befehle im Baum
 

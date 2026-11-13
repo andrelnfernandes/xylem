@@ -73,10 +73,10 @@ run split-gruvbox gruvbox "*" sleep:1 "$(down 12)" "\033[19~" "$(up 8)"
 run viewer-nord nord "*" sleep:1 "$(down 12)" "\r" "$(down 10)" v sleep:1
 run git-menu-dark git-dark "*" sleep:1 "$(down 12)" "\r" "$(down 7)" "\007"
 run terminal-tagged-nord nord "*" sleep:1 "$(down 3)" b "$D" t "$D$D" t t "\033x" sleep:1.5 "\014" "wc -c " "\033o" "\r" sleep:1
-# The Usage view (Alt+W) of the whole home directory.
+# The Usage view (Alt+U) of the whole home directory.
 root=/home/user
-run usage-nord nord sleep:1 "\033w" sleep:2
-run usage-vivid vivid sleep:1 "\033w" sleep:2
+run usage-nord nord sleep:1 "\033u" sleep:2
+run usage-vivid vivid sleep:1 "\033u" sleep:2
 # Alt+K Percent in the tree, the whole home logged.
 run percent-vivid vivid "*" sleep:1.5 "\033k" sleep:.3 p sleep:.5
 root=
@@ -106,7 +106,7 @@ run demo-formats-gruvbox gruvbox hold:.8 "\r" hold:.5 "$(down 8)" hold:.6 v hold
 # Markdown shown rendered, and its source.
 run demo-markdown-nord nord hold:.8 "\r" hold:.5 "$(down 10)" hold:.6 v hold:3.5 "\033[6~" hold:3 "t" hold:3 "t" hold:2.5
 # Duplicates: the copies found, and choosing which go, without deleting anything.
-run demo-duplicates-vivid vivid hold:.8 "*" hold:1 "\033y" sleep:1 hold:3.5 "a" hold:3.5 "a" hold:3 "g" hold:4
+run demo-duplicates-vivid vivid hold:.8 "*" hold:1 "\033d" sleep:1 hold:3.5 "a" hold:3.5 "a" hold:3 "g" hold:4
 # Last, since it writes files into the list: a table becomes a page, then a script with
 # its values escaped, then a database.
 run demo-batch-nord nord hold:1 "\r" hold:.6 "$D" hold:.8 v hold:2.5 \

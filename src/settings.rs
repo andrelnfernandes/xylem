@@ -31,6 +31,7 @@ pub enum Opt {
     TypeColors,
     Borders,
     Splash,
+    ClockSeconds,
     Sort,
     SortDescending,
     EnterViews,
@@ -135,6 +136,7 @@ pub const PAGES: &[Page] = &[
             ('N', "Color file names by type", Opt::TypeColors),
             ('O', "Window borders", Opt::Borders),
             ('P', "Start screen with the name", Opt::Splash),
+            ('Q', "Clock with seconds", Opt::ClockSeconds),
         ],
     ),
     (
@@ -241,6 +243,7 @@ impl Opt {
             Opt::TypeColors => yes_no(o.type_colors),
             Opt::Borders => o.borders.as_str().into(),
             Opt::Splash => yes_no(o.splash),
+            Opt::ClockSeconds => yes_no(o.clock_seconds),
             Opt::FileDisplay => match o.file_display.as_str() {
                 "names" => "Names in columns".into(),
                 "names_size" => "Names and sizes in columns".into(),
@@ -335,6 +338,7 @@ impl Opt {
             Opt::TypeColors => o.type_colors = !o.type_colors,
             Opt::Borders => o.borders = o.borders.next(),
             Opt::Splash => o.splash = !o.splash,
+            Opt::ClockSeconds => o.clock_seconds = !o.clock_seconds,
             Opt::FileDisplay => o.file_display = o.file_display.next(),
             Opt::Sort => o.sort = o.sort.next(),
             Opt::SortDescending => o.sort_descending = !o.sort_descending,
