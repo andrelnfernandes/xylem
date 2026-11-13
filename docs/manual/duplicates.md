@@ -1,8 +1,11 @@
-# Duplicates (Alt+Y)
+# Duplicates (Alt+D)
 
 Files with the same contents, whatever their names and folders, and the space
-the copies waste. **Alt+Y** looks in the branch of the current directory; **D**
+the copies waste. **Alt+D** looks in the branch of the current directory; **D**
 in the Usage view looks in the folder listed there.
+
+> Up to version 0.7, Duplicates was Alt+Y, and Alt+D deleted the tagged files
+> (now only Ctrl+D). See [Ctrl and Alt](tagging.md#what-ctrl-and-alt-mean).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────
@@ -34,7 +37,7 @@ copy of each group always stays: Xylem does not let you tag the last one.
 | `E` | write the list to a file (never over one that exists): size, date, tag and path, a blank line between groups |
 | `\` | close the view, with the tree on that folder |
 | F3 | read the folders again and compare again |
-| Esc or Alt+Y | close |
+| Esc or Alt+D | close |
 
 Before deleting or moving, each group is looked at again: if a copy changed
 since the analysis, or the one that was to stay is gone, nothing of that group

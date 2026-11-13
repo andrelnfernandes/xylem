@@ -45,7 +45,8 @@ qualquer operação em andamento); outros diretórios ainda precisam de F3.
   nenhuma marca, voltam todos os arquivos.
 - `F` ([Filespec](filespec.md)): quais arquivos são exibidos, por nome, data e tamanho.
 
-Em Branch e Showall, `\` vai para o diretório do arquivo selecionado.
+Em Branch e Showall, `\` vai para o diretório do arquivo selecionado. `B` de novo volta
+para a lista do próprio diretório.
 
 ## Comandos na árvore
 

@@ -427,6 +427,11 @@ fn run(
             || app.reading_table()
         {
             100
+        } else if app.options.clock_seconds {
+            // Wake right after the next second turns, so the clock ticks
+            // evenly.
+            let into = u64::from(chrono::Local::now().timestamp_subsec_millis()).min(999);
+            (1000 - into + 5).min(500)
         } else {
             500
         };

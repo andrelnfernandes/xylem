@@ -175,7 +175,7 @@ parent il occupe, avec une barre proportionnelle au plus grand des dossiers de
 même niveau. Suivez les plus grandes barres jusqu'aux anciennes sauvegardes,
 vidéos et doublons.
 
-La [vue d'utilisation du disque](usage.md) (Alt+W, à la racine du Drive) va plus
+La [vue d'utilisation du disque](usage.md) (Alt+U, à la racine du Drive) va plus
 loin : fichiers et dossiers sont listés ensemble, les plus grands en premier, si
 bien qu'un fichier énorme isolé ressort aussi bien qu'un dossier plein. Et
 Branch (`B`) liste tous les fichiers d'un dossier : [triés](sort.md) par taille

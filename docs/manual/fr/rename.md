@@ -3,7 +3,7 @@
 `R` renomme le fichier (dans l'arborescence, le répertoire) sous le curseur :
 tapez le nouveau nom. Un nom qui existe déjà est refusé.
 
-## Renommage par lot (Ctrl+R ou Alt+R)
+## Renommage par lot (Ctrl+R)
 
 Renomme tous les fichiers marqués à l'aide d'un masque, numérotés dans l'ordre
 de la liste :

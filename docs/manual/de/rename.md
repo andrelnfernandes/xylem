@@ -3,7 +3,7 @@
 `R` benennt die Datei (im Baum das Verzeichnis) unter dem Cursor um: Geben Sie
 den neuen Namen ein. Ein bereits vergebener Name wird abgelehnt.
 
-## Stapelumbenennung (Ctrl+R oder Alt+R)
+## Stapelumbenennung (Ctrl+R)
 
 Benennt alle markierten Dateien anhand einer Maske um, nummeriert in der
 Reihenfolge der Liste:

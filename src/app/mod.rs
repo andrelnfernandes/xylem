@@ -188,7 +188,7 @@ pub struct App {
     pub tagged_view: Option<TaggedView>,
     /// F7: the contents of the selected file next to the list.
     pub autoview: Option<Viewer>,
-    /// Alt+Y: the analysis running.
+    /// Alt+D: the analysis running.
     pub duplicates_job: Option<crate::duplicates::Finder>,
     /// Where that analysis started.
     duplicates_root: Option<PathBuf>,

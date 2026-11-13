@@ -46,7 +46,8 @@ demás directorios siguen necesitando F3.
   se vuelve a leer (F3); sin ninguna marca, vuelven todos los archivos.
 - `F` ([Filespec](filespec.md)): qué archivos se muestran, por nombre, fecha y tamaño.
 
-En Branch y Showall, `\` va al directorio del archivo seleccionado.
+En Branch y Showall, `\` va al directorio del archivo seleccionado. `B` de nuevo vuelve
+a la lista del propio directorio.
 
 ## Comandos en el árbol
 

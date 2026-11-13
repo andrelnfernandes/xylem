@@ -109,6 +109,24 @@ fn branch_logs_whole_branch() {
 }
 
 #[test]
+fn b_again_goes_back_to_the_directory_list() {
+    let (_tmp, mut app) = sample();
+    app.apply(Command::Branch);
+    assert_eq!(app.view, FileView::Branch(ROOT));
+    app.apply(Command::Down);
+    app.apply(Command::Branch);
+    assert_eq!(app.view, FileView::Dir);
+    assert_eq!(app.focus, Focus::Files);
+    assert_eq!(app.current(), ROOT);
+    // The same from Showall.
+    app.apply(Command::Showall);
+    assert_eq!(app.view, FileView::Showall);
+    app.apply(Command::Branch);
+    assert_eq!(app.view, FileView::Dir);
+    assert_eq!(app.focus, Focus::Files);
+}
+
+#[test]
 fn leaving_showall_selects_file_dir() {
     let (_tmp, mut app) = sample();
     app.apply(Command::Branch);
@@ -2419,9 +2437,9 @@ fn alt_k_chooses_what_to_show() {
 }
 
 #[test]
-fn alt_w_opens_the_usage_view() {
+fn alt_u_opens_the_usage_view() {
     let (_tmp, mut app) = sample();
-    alt(&mut app, 'w');
+    alt(&mut app, 'u');
     while app.busy() {
         app.tick(Duration::from_millis(50));
     }
@@ -2449,7 +2467,7 @@ fn alt_w_opens_the_usage_view() {
     press(&mut app, KeyCode::Char('\\'));
     assert!(app.usage.is_none());
     assert_eq!(app.current_path().file_name().unwrap(), "sub");
-    alt(&mut app, 'w');
+    alt(&mut app, 'u');
     while app.busy() {
         app.tick(Duration::from_millis(50));
     }
@@ -3223,8 +3241,8 @@ fn rename_tagged_files_with_counters_and_search_replace() {
     press(&mut app, KeyCode::Char('t'));
     press(&mut app, KeyCode::Char('t'));
 
-    // Alt+R also triggers rename_tagged
-    app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::ALT));
+    // Ctrl+R renames the tagged files (Alt+R releases the branch).
+    app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
     assert!(app.prompt.as_ref().unwrap().is_rename_tagged());
 
     // Use counter %02d
@@ -3601,7 +3619,7 @@ fn duplicates_on_a_remote_machine_are_read_there() {
     };
     let mut app = App::new(p.to_path_buf());
     app.panes[0] = Pane::from_remote(remote);
-    alt(&mut app, 'y');
+    alt(&mut app, 'd');
     finish(&mut app);
     // Reading through SSH is asked first.
     let q = app.confirm.as_ref().expect("asks").question.clone();
@@ -4208,7 +4226,7 @@ fn duplicates_sample() -> (tempfile::TempDir, App) {
     }
     write(p.join("alone.bin"), vec![2u8; 7000]).unwrap();
     let mut app = App::new(p.to_path_buf());
-    alt(&mut app, 'y');
+    alt(&mut app, 'd');
     finish_duplicates(&mut app);
     (tmp, app)
 }
@@ -4234,7 +4252,7 @@ fn finish_duplicates(app: &mut App) {
 }
 
 #[test]
-fn alt_y_finds_files_and_folders() {
+fn alt_d_finds_files_and_folders() {
     let (tmp, mut app) = duplicates_sample();
     let view = app.duplicates.as_ref().expect("open");
     assert_eq!(view.files.len(), 1);
@@ -4255,9 +4273,9 @@ fn alt_y_finds_files_and_folders() {
 }
 
 #[test]
-fn alt_y_with_nothing_equal_says_so() {
+fn alt_d_with_nothing_equal_says_so() {
     let (_tmp, mut app) = sample();
-    alt(&mut app, 'y');
+    alt(&mut app, 'd');
     finish(&mut app);
     assert!(app.duplicates.is_none());
     assert!(app.message.as_deref().unwrap().contains("No duplicates"));
@@ -4396,7 +4414,7 @@ fn the_duplicates_view_is_drawn() {
 fn usage_d_goes_to_the_duplicates_of_the_folder() {
     let (_tmp, mut app) = duplicates_sample();
     press(&mut app, KeyCode::Esc);
-    alt(&mut app, 'w');
+    alt(&mut app, 'u');
     finish(&mut app);
     press(&mut app, KeyCode::Char('d'));
     finish_duplicates(&mut app);
@@ -4415,7 +4433,7 @@ fn usage_sample() -> (tempfile::TempDir, App) {
     write(p.join("old.bin"), vec![1u8; 30_000]).unwrap();
     let mut app = App::new(p.to_path_buf());
     app.options.delete_to_trash = false;
-    alt(&mut app, 'w');
+    alt(&mut app, 'u');
     finish(&mut app);
     let active = app.active;
     app.panes[active].usage.as_mut().expect("open").apparent = true;
@@ -4557,7 +4575,7 @@ fn usage_in_an_archive_tags_but_does_not_delete() {
     let (_tmp, mut app) = archive_setup();
     alt_f5(&mut app);
     assert!(app.archive.is_some());
-    alt(&mut app, 'w');
+    alt(&mut app, 'u');
     finish(&mut app);
     assert!(app.usage.is_some());
     usage_select(&mut app, "README");

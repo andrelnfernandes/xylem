@@ -33,8 +33,8 @@ Stelle finden, schlagen Sie bitte eine Verbesserung vor: `https://github.com/and
 - [Zeilen filtern](filter.md): `&` im Betrachter, mit einer Anleitung zu regulären Ausdrücken
 - [Markierte Dateien durchsuchen](search.md): Ctrl+S und Ctrl+V
 - [Informationen](info.md): Info, Avail, Statistiken und Verzeichnisgrößen
-- [Speicherplatzbelegung](usage.md): wohin der Platz geht (Alt+W)
-- [Duplikate](duplicates.md): Dateien und Ordner mit gleichem Inhalt (Alt+Y)
+- [Speicherplatzbelegung](usage.md): wohin der Platz geht (Alt+U)
+- [Duplikate](duplicates.md): Dateien und Ordner mit gleichem Inhalt (Alt+D)
 
 ## Arbeiten mit Dateien
 

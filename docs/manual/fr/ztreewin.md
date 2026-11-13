@@ -40,7 +40,7 @@ les exceptions sont dans « Touches différentes », à la fin.
 ## Ce que Xylem n'a pas encore
 
 - **Arborescence :** Global (G), Graft (Alt+G), Mirror (Alt+M), Release/décharger
-  de la mémoire (Alt+R, Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
+  de la mémoire (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
   (Ctrl+V), F5/F6 (masquer des niveaux de sous-répertoires), marquer par
   attribut (Alt+T/U), Treespec en mode édition (F5, jokers) et dossiers spéciaux
   (F6), recherche directe avec invite (`|`) et mode actif, changement de lecteur
@@ -94,11 +94,11 @@ Ce qui n'a pas d'équivalent dans le manuel de ZTreeWin v2.2 :
   aussi son propre terminal. Voir [machines distantes](remote.md).
 - **Git** (optionnel) : lettres d'état dans la liste des fichiers, un menu Git
   (Ctrl+G) et des diffs dans la visionneuse. Voir [Git](git.md).
-- **Occupation du disque** (Alt+W) : les dossiers et fichiers d'une branche
+- **Occupation du disque** (Alt+U) : les dossiers et fichiers d'une branche
   ensemble, les plus gros d'abord, jusqu'à ce qui remplit le disque ; Alt+K
   montre dans l'arborescence la part de chaque dossier. Voir
   [occupation du disque](usage.md).
-- **Doublons** (Alt+Y) : fichiers et dossiers entiers au même contenu, comparés
+- **Doublons** (Alt+D) : fichiers et dossiers entiers au même contenu, comparés
   par SHA-256 ou, dans un dossier monté par rclone, par les empreintes du service,
   sans rien télécharger. Une copie de chaque groupe reste toujours. Voir
   [doublons](duplicates.md).
@@ -180,9 +180,10 @@ Les touches suivent celles de ZTreeWin. Les exceptions :
 | Alt+B | Batch du fichier courant (non implémenté) | signets |
 | Alt+H | Hide (non implémenté) | aide |
 | Alt+O | Ouvrir dans une nouvelle fenêtre de terminal (non implémenté) | tape les fichiers marqués dans le terminal intégré |
-| Alt+R | Release (non implémenté ; `-` libère la branche) | renomme les fichiers marqués |
-| Alt+T, Alt+U | marquer et démarquer par attribut (non implémenté) | tout marquer et tout démarquer |
-| Alt+W | Wash (non implémenté) | occupation du disque |
+| Alt+D | (rien) | Doublons |
+| Alt+T | marquer par attribut (non implémenté) | (rien) |
+| Alt+U | démarquer par attribut (non implémenté) | occupation du disque |
+| Ctrl+G | Global des fichiers marqués (non implémenté) | le menu Git (optionnel) |
 | Alt+Z | Zlist (non implémenté) | le terminal intégré en plein écran |
 | `/` | identique à `?` (statistiques) | Treespec, comme `\` (`?` affiche toujours les statistiques) |
 | Ctrl+C, Ctrl+M dans l'arborescence | (rien) | Copier/Déplacer les fichiers marqués du répertoire courant |

@@ -48,7 +48,7 @@ run() { name=$1; cfg=$2; shift 2
   case $name in demo) file=docs/demo.gif;; demo-*) file=docs/screenshots/$name.gif;; *) file=docs/screenshots/$name.png;; esac
   HOME=/home/user SHELL=/bin/bash XDG_CONFIG_HOME=$W/root/config/$cfg \
   XDG_STATE_HOME=/mnt/tmp/state XDG_CACHE_HOME=/mnt/tmp/cache \
-  XY_SSH=/mnt/tmp/ssh FAKE_SSH_HOME=/home/deploy FAKE_SSH_ASK=$ask SHOT_CWD=/home/user/projects \
+  XY_SSH=/mnt/tmp/ssh FAKE_SSH_HOME=/home/deploy FAKE_SSH_ASK=$ask SHOT_CWD=/home/user/projects SHOT_KITTY=$kitty \
   "$PY" -I "$T/shot.py" "$X/$file" "$X/target/release/xy" "${root:-/home/user/projects}" "$@"
   echo "$file"; }
 run tree classic "*" sleep:1 "$(down 12)"
@@ -73,13 +73,21 @@ run split-gruvbox gruvbox "*" sleep:1 "$(down 12)" "\033[19~" "$(up 8)"
 run viewer-nord nord "*" sleep:1 "$(down 12)" "\r" "$(down 10)" v sleep:1
 run git-menu-dark git-dark "*" sleep:1 "$(down 12)" "\r" "$(down 7)" "\007"
 run terminal-tagged-nord nord "*" sleep:1 "$(down 3)" b "$D" t "$D$D" t t "\033x" sleep:1.5 "\014" "wc -c " "\033o" "\r" sleep:1
-# The Usage view (Alt+W) of the whole home directory.
+# The Usage view (Alt+U) of the whole home directory.
 root=/home/user
-run usage-nord nord sleep:1 "\033w" sleep:2
-run usage-vivid vivid sleep:1 "\033w" sleep:2
+run usage-nord nord sleep:1 "\033u" sleep:2
+run usage-vivid vivid sleep:1 "\033u" sleep:2
 # Alt+K Percent in the tree, the whole home logged.
 run percent-vivid vivid "*" sleep:1.5 "\033k" sleep:.3 p sleep:.5
 root=
+# Ctrl and Alt held down, as in kitty: the menu changes while the key is held,
+# in the tree and in the file window; then Ctrl+G and the Git menu.
+kitty=1
+run demo-menus-nord git-nord hold:1 "*" hold:1 "$(down 12)" hold:1 \
+  press:ctrl hold:2.5 release:ctrl hold:.8 press:alt hold:2.5 release:alt hold:1 \
+  "\r" hold:1 press:ctrl hold:2.5 release:ctrl hold:.8 press:alt hold:2.5 release:alt hold:1 \
+  "\007" hold:3 "\033" hold:1.5
+kitty=
 run demo-nord nord hold:1.5 "*" hold:1 "\033x" hold:1 "type:cd xylem/src" hold:.4 "\r" hold:2.5 \
   "\033x" hold:1 "$(up 9)" hold:.8 b hold:1.2 "$D" hold:.4 t hold:.5 "$D" hold:.3 "$D" hold:.4 \
   t hold:.5 t hold:1.5 "send:\033x" "\014" hold:.6 "type:wc -c " hold:.4 "\033o" hold:1 \
@@ -98,7 +106,7 @@ run demo-formats-gruvbox gruvbox hold:.8 "\r" hold:.5 "$(down 8)" hold:.6 v hold
 # Markdown shown rendered, and its source.
 run demo-markdown-nord nord hold:.8 "\r" hold:.5 "$(down 10)" hold:.6 v hold:3.5 "\033[6~" hold:3 "t" hold:3 "t" hold:2.5
 # Duplicates: the copies found, and choosing which go, without deleting anything.
-run demo-duplicates-vivid vivid hold:.8 "*" hold:1 "\033y" sleep:1 hold:3.5 "a" hold:3.5 "a" hold:3 "g" hold:4
+run demo-duplicates-vivid vivid hold:.8 "*" hold:1 "\033d" sleep:1 hold:3.5 "a" hold:3.5 "a" hold:3 "g" hold:4
 # Last, since it writes files into the list: a table becomes a page, then a script with
 # its values escaped, then a database.
 run demo-batch-nord nord hold:1 "\r" hold:.6 "$D" hold:.8 v hold:2.5 \

@@ -180,7 +180,7 @@ Anteil des übergeordneten Ordners er belegt, samt Balken im Vergleich zum
 größten Geschwisterordner. Folgen Sie den längsten Balken hinab zu alten
 Backups, Videos und Duplikaten.
 
-Die [Speicherplatzbelegung](usage.md) (Alt+W an der Wurzel des Drives) geht
+Die [Speicherplatzbelegung](usage.md) (Alt+U an der Wurzel des Drives) geht
 noch weiter: Sie listet Dateien und Ordner gemeinsam auf, die größten zuerst,
 sodass eine einzelne riesige Datei genauso sofort ins Auge fällt wie ein voller
 Ordner. Und Branch (`B`) listet alle Dateien eines gesamten Ordners auf:

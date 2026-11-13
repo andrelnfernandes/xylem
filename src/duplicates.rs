@@ -1,4 +1,4 @@
-//! Duplicates (Alt+Y): files with the same contents, whatever their names, and
+//! Duplicates (Alt+D): files with the same contents, whatever their names, and
 //! whole folders with the same files. The sizes come from the tree in memory;
 //! only files of a size shared with another one are read, in a thread of its
 //! own, and a group is split as soon as a part of its files differs.

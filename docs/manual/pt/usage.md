@@ -1,9 +1,13 @@
-# Uso do disco (Alt+W)
+# Uso do disco (Alt+U)
 
-Para onde vai o espaço. **Alt+W** lê todo o ramo do diretório atual e lista
+Para onde vai o espaço. **Alt+U** lê todo o ramo do diretório atual e lista
 suas pastas e arquivos pelo espaço que ocupam, do maior para o menor, com uma
 barra e sua fração do diretório. Enter entra em uma pasta; de pasta em pasta,
 você chega ao que está enchendo o disco.
+
+
+> Até a versão 0.7, o Uso era Alt+W, e Alt+U desmarcava tudo (agora só
+> Ctrl+U). Veja [Ctrl e Alt](tagging.md#o-que-ctrl-e-alt-querem-dizer).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar
@@ -100,7 +104,7 @@ seguida, com a visualização ainda aberta.
 | `V` | abre o arquivo no viewer |
 | `D` | procura [duplicados](duplicates.md) na pasta listada |
 | F3 | relê a pasta listada |
-| Esc ou Alt+W | fecha |
+| Esc ou Alt+U | fecha |
 
 Tab, F8, Alt+X (o terminal) e F12 funcionam normalmente com a visualização
 aberta.

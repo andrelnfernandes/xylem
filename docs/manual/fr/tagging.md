@@ -33,10 +33,45 @@ répertoire, ou la vue Branch ou Showall ouverte).
 
 Dans eXecute, `%t` représente les fichiers marqués ([eXecute](execute.md)).
 
+## Ce que veulent dire Ctrl et Alt
+
+Comme dans ZTreeWin :
+
+- **Une lettre seule** agit sur l'élément sous le curseur.
+- **Ctrl+lettre** agit sur les fichiers marqués : Ctrl+C les copie, Ctrl+D les
+  supprime, Ctrl+T marque tout.
+- **Alt+lettre** est l'autre version d'une commande : dans l'arbre, la branche
+  entière (Alt+P Prune, Alt+R Release, Alt+U utilisation du disque, Alt+D
+  Doublons, Alt+C Compare) ; dans la fenêtre des fichiers, les fichiers marqués
+  avec leurs chemins (Alt+C, Alt+M) ; et les outils (Alt+S Sort, Alt+F File
+  display, Alt+B signets, Alt+H aide, Alt+I Info, Alt+X le terminal).
+
+**Changé dans la version 0.8.** Alt ne répète plus Ctrl, et certaines
+touches ont changé :
+
+| Touche | Jusqu'à 0.7 | À partir de 0.8 |
+|---|---|---|
+| Alt+A | permissions des fichiers marqués | rien (Ctrl+A) |
+| Alt+D | supprimer les fichiers marqués | Doublons (supprimer : Ctrl+D) |
+| Alt+R | renommer les fichiers marqués | Release de la branche, comme `-` (renommer : Ctrl+R) |
+| Alt+T | tout marquer | rien (Ctrl+T) |
+| Alt+U | tout démarquer | utilisation du disque (démarquer : Ctrl+U) |
+| Alt+W | utilisation du disque | rien (Alt+U) |
+| Alt+Y | Doublons | rien (Alt+D) |
+
+Les anciennes touches peuvent revenir dans `[keys.any]` de la
+[configuration](configuration.md), par exemple `"alt+w" = "usage"`.
+
 ## Menus Ctrl et Alt (F9)
 
-Comme dans ZTree, le pied de page n'affiche que les commandes à une seule
-touche. **F9** passe au menu Ctrl, puis au menu Alt, et revient au menu normal.
+Le pied de page a trois lignes sur un écran ordinaire : les commandes à lettre
+par ordre alphabétique sur les deux premières, les touches de fonction et les
+symboles sur la troisième. Sur un écran assez large pour tous les menus, il en
+a deux : les lettres sur l'une, les touches sur l'autre. Chaque commande est dans l'un des menus (DIR ou FILE, CTRL, ALT) ;
+dans une archive ou sur une machine distante, ils omettent ce qui n'y
+fonctionne pas.
+
+**F9** passe au menu Ctrl, puis au menu Alt, et revient au menu normal.
 Lorsque l'un de ces menus est ouvert, la lettre suivante compte comme
 Ctrl+lettre ou Alt+lettre (`F9` `M` = Ctrl+M) ; `Esc` annule. Dans les
 terminaux prenant en charge le protocole clavier kitty, il suffit de **maintenir

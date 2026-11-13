@@ -3,7 +3,7 @@
 ## Permissions (A)
 
 `A` modifie les permissions du fichier sous le curseur (Ctrl+A : des fichiers
-marqués), en octal : `644`, `755`. Alt+A fonctionne comme Ctrl+A.
+marqués), en octal : `644`, `755`.
 
 Sous Windows, `A` modifie les attributs R, H, S et A, comme dans ZTreeWin : `RA`
 définit exactement ceux-ci, `+H -A` en active ou en désactive certains. La liste

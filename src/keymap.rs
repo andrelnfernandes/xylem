@@ -384,8 +384,10 @@ pub enum Scope {
 
 use Scope::{Any, Files, Tree};
 
-/// The default keys. Ctrl+letter acts on the tagged files; so does Alt+letter,
-/// and in Copy/Move it recreates the paths.
+/// The default keys. Ctrl+letter acts on the tagged files. Alt+letter is the
+/// other version of a command, as in ZTreeWin: in the tree, the whole branch
+/// (Prune, Release, Usage); in the file window, the tagged files with their
+/// paths (Copy, Move); and the tools (Sort, File display, Bookmarks...).
 const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("up", Any, "up"),
     ("down", Any, "down"),
@@ -427,7 +429,6 @@ const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("alt+q", Any, "quit_cd"),
     ("r", Any, "rename"),
     ("ctrl+r", Any, "rename_tagged"),
-    ("alt+r", Any, "rename_tagged"),
     ("s", Any, "showall"),
     ("t", Any, "tag"),
     ("u", Any, "untag"),
@@ -444,21 +445,18 @@ const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("ctrl+m", Any, "move_tagged"),
     ("ctrl+t", Any, "tag_all"),
     ("ctrl+u", Any, "untag_all"),
-    ("alt+a", Any, "attributes_tagged"),
-    ("alt+d", Any, "delete_tagged"),
     ("ctrl+shift+del", Any, "delete_tagged_permanent"),
     ("ctrl+shift+delete", Any, "delete_tagged_permanent"),
     ("alt+shift+del", Any, "delete_tagged_permanent"),
     ("alt+shift+delete", Any, "delete_tagged_permanent"),
     ("ctrl+z", Any, "oops"),
     ("o", Tree, "oops"),
-    ("alt+t", Any, "tag_all"),
-    ("alt+u", Any, "untag_all"),
     ("alt+s", Any, "sort"),
     ("right", Tree, "expand"),
     ("plus", Tree, "expand"),
     ("left", Tree, "collapse"),
     ("minus", Tree, "release"),
+    ("alt+r", Tree, "release"),
     ("*", Tree, "expand_all"),
     ("esc", Tree, "back"),
     ("c", Tree, "compare"),
@@ -469,8 +467,8 @@ const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("ctrl+f8", Tree, "untag_branch"),
     ("ctrl+f9", Tree, "invert_branch"),
     ("alt+k", Any, "kbyte"),
-    ("alt+w", Any, "usage"),
-    ("alt+y", Any, "duplicates"),
+    ("alt+u", Any, "usage"),
+    ("alt+d", Any, "duplicates"),
     ("esc", Files, "back"),
     ("left", Files, "left"),
     ("right", Files, "right"),
@@ -499,6 +497,24 @@ const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("ctrl+f11", Any, "bookmark_set"),
     ("ctrl+b", Tree, "bookmark_set"),
 ];
+
+/// The default keys and their commands, with the window each one works in
+/// (`None`: both). For the test that every command is in a menu.
+#[cfg(test)]
+pub(crate) fn default_bindings() -> Vec<(&'static str, Option<Focus>, Command)> {
+    DEFAULT_KEYS
+        .iter()
+        .filter_map(|(key, scope, name)| {
+            let cmd = COMMANDS.iter().find(|(n, _, _)| n == name)?.1;
+            let focus = match scope {
+                Any => None,
+                Tree => Some(Focus::Tree),
+                Files => Some(Focus::Files),
+            };
+            Some((*key, focus, cmd))
+        })
+        .collect()
+}
 
 /// A key with modifiers, already normalized: lowercase letters, and only
 /// Ctrl and Alt count (Shift is already part of the letter, except for Delete).
@@ -693,8 +709,18 @@ impl Keymap {
         }
     }
 
+    /// The command of a key written as in the config file (`"ctrl+n"`), as
+    /// `lookup` would find it: what a menu entry does.
+    pub fn lookup_text(&self, key: &str, focus: Focus) -> Option<Command> {
+        let spec = KeySpec::parse(key).ok()?;
+        self.lookup_spec(spec, focus)
+    }
+
     pub fn lookup(&self, key: KeyEvent, focus: Focus) -> Option<Command> {
-        let spec = KeySpec::from_event(key);
+        self.lookup_spec(KeySpec::from_event(key), focus)
+    }
+
+    fn lookup_spec(&self, spec: KeySpec, focus: Focus) -> Option<Command> {
         let scope = match focus {
             Focus::Tree => Tree,
             Focus::Files => Files,
@@ -828,7 +854,7 @@ mod tests {
     }
 
     #[test]
-    fn ctrl_and_alt_mean_tagged() {
+    fn ctrl_means_tagged_and_alt_with_paths() {
         for (mods, paths) in [(KeyModifiers::CONTROL, false), (KeyModifiers::ALT, true)] {
             assert_eq!(
                 map(KeyCode::Char('c'), mods, Focus::Files),
@@ -844,11 +870,35 @@ mod tests {
                     paths
                 })
             );
-            assert_eq!(
-                map(KeyCode::Char('t'), mods, Focus::Tree),
-                Some(Command::TagAll)
-            );
         }
+        let ctrl = KeyModifiers::CONTROL;
+        assert_eq!(
+            map(KeyCode::Char('t'), ctrl, Focus::Tree),
+            Some(Command::TagAll)
+        );
+    }
+
+    #[test]
+    fn alt_is_not_a_copy_of_ctrl() {
+        let alt = KeyModifiers::ALT;
+        // As in ZTreeWin: Alt+D, Alt+A, Alt+T are not the tagged versions.
+        assert_eq!(map(KeyCode::Char('a'), alt, Focus::Files), None);
+        assert_eq!(map(KeyCode::Char('t'), alt, Focus::Files), None);
+        assert_eq!(
+            map(KeyCode::Char('d'), alt, Focus::Files),
+            Some(Command::Duplicates)
+        );
+        assert_eq!(
+            map(KeyCode::Char('u'), alt, Focus::Tree),
+            Some(Command::Usage)
+        );
+        assert_eq!(
+            map(KeyCode::Char('r'), alt, Focus::Tree),
+            Some(Command::Release)
+        );
+        // The old keys of Usage and Duplicates are gone.
+        assert_eq!(map(KeyCode::Char('w'), alt, Focus::Tree), None);
+        assert_eq!(map(KeyCode::Char('y'), alt, Focus::Tree), None);
     }
 
     #[test]
@@ -945,9 +995,10 @@ mod tests {
             map(KeyCode::Char('r'), KeyModifiers::CONTROL, Focus::Files),
             Some(Command::Rename { tagged: true })
         );
+        // Alt+R is Release, as in ZTreeWin, and only in the tree.
         assert_eq!(
             map(KeyCode::Char('r'), KeyModifiers::ALT, Focus::Files),
-            Some(Command::Rename { tagged: true })
+            None
         );
     }
 

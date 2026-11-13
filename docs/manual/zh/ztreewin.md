@@ -14,7 +14,7 @@ Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linu
 
 ## Xylem 尚未具备的功能
 
-- **目录树：** Global (G)、Graft (Alt+G)、Mirror (Alt+M)、从内存中释放/卸载（Alt+R、Ctrl+Backspace）、隐藏 (Alt+H)、清理空闲空间 Wash (Alt+W)、卷标 Volume (Ctrl+V)、F5/F6（隐藏子目录层级）、按属性标记（Alt+T/U）、编辑模式下的 Treespec（F5、通配符）与特殊文件夹（F6）、带提示符的先行输入搜索（`|`）与活动模式、盘符切换（`<` 与 `>`）。
+- **目录树：** Global (G)、Graft (Alt+G)、Mirror (Alt+M)、从内存中释放/卸载（Ctrl+Backspace）、隐藏 (Alt+H)、清理空闲空间 Wash (Alt+W)、卷标 Volume (Ctrl+V)、F5/F6（隐藏子目录层级）、按属性标记（Alt+T/U）、编辑模式下的 Treespec（F5、通配符）与特殊文件夹（F6）、带提示符的先行输入搜索（`|`）与活动模式、盘符切换（`<` 与 `>`）。
 - **文件：** 在新终端窗口中打开 (Alt+O)、当前文件的批处理 (Alt+B)、JFC（J，比较两个文件的内容）、创建快捷方式 sHortcut (H)、打印 Print (P)、修改所有者/组 (chown)、Megaview（文件窗口中的 Ctrl+F7）、在两个窗口间合并已标记文件 (Ctrl+F6)、部分取消标记 Partial Untag (Ctrl+F8)、Showall 以外的 Tags-Only 模式（Ctrl+Enter 与 Ctrl+F4，目录树中的 Ctrl+B）。
 - **通用：** 宏 (F12)、应用程序菜单 (F9)、退出到临时 shell (Ctrl+Q)、保存与加载已载入目录列表（Zlist，Ctrl/Alt+Z）、按名称与属性着色（ZCOLORS.INI）、鼠标支持、ZTreeWin 命令行选项、视频模式命令（Alt+F6–F9）。
 
@@ -47,8 +47,8 @@ Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linu
 - **内置终端**（Alt+X）：在使用目录树时 shell 一直保持运行；在 shell 中 `cd`，目录树随之跳转，回到 shell 时它也会跟随目录树。Alt+O 将已标记的文件输入到命令行。参见[内置终端](terminal.md)。
 - **通过 SSH 访问远程机器**（`xy 用户@主机:`）：目录树、Branch、查看器和复制都可以在另一台机器上使用，那台机器也有自己的终端。参见[远程机器](remote.md)。
 - **Git**（可选）：文件列表中的状态字母、Git 菜单（Ctrl+G）以及查看器中的 diff。参见 [Git](git.md)。
-- **磁盘用量**（Alt+W）：将一个分支中的文件夹和文件放在一起，从大到小排列，一直找到占满磁盘的内容；Alt+K 在目录树中显示每个文件夹所占的比例。参见[磁盘用量](usage.md)。
-- **重复文件**（Alt+Y）：查找内容相同的文件和整个文件夹，通过 SHA-256 比较；在 rclone 挂载的文件夹中使用服务自身的哈希值，不下载任何内容。每组始终保留一个副本。参见[重复文件](duplicates.md)。
+- **磁盘用量**（Alt+U）：将一个分支中的文件夹和文件放在一起，从大到小排列，一直找到占满磁盘的内容；Alt+K 在目录树中显示每个文件夹所占的比例。参见[磁盘用量](usage.md)。
+- **重复文件**（Alt+D）：查找内容相同的文件和整个文件夹，通过 SHA-256 比较；在 rclone 挂载的文件夹中使用服务自身的哈希值，不下载任何内容。每组始终保留一个副本。参见[重复文件](duplicates.md)。
 - **读得更多的查看器：** 语法高亮、自动识别文本编码（UTF-8、UTF-16、CP850、Windows-1252、CP437）、直接显示 `.gz`、`.xz`、`.zst` 和 `.bz2` 文件解压后的内容，并将隐藏的文本方向控制字符（Trojan Source）显示出来而不是执行它们。参见[查看器](viewer.md)。
 - **表格和 Markdown：** 电子表格、CSV、JSON Lines、DBF、SQLite 和 Parquet 以带 SQL 筛选的表格打开，Markdown 文件以渲染后的形式打开。参见[查看器](viewer.md)。
 - **无需外部归档工具的归档文件：** ZIP、7z 和 TAR（未压缩及 gzip、xz、bzip2、zstd）可以像文件夹一样打开，并能创建 ZIP 和 TAR，全部由 Xylem 自身完成。参见[归档文件](archives.md)。
@@ -91,9 +91,10 @@ Xylem 的按键基本遵循 ZTreeWin 的设计。例外情况如下：
 | Alt+B | 当前文件的批处理（未实现） | 书签 |
 | Alt+H | 隐藏 Hide（未实现） | 帮助 |
 | Alt+O | 在新终端窗口中打开（未实现） | 在内置终端中输入已标记的文件 |
-| Alt+R | 释放 Release（未实现；`-` 可释放分支） | 重命名已标记的文件 |
-| Alt+T、Alt+U | 按属性标记和取消标记（未实现） | 全部标记和全部取消标记 |
-| Alt+W | Wash（未实现） | 磁盘用量 |
+| Alt+D | （无） | 重复文件 |
+| Alt+T | 按属性标记（未实现） | （无） |
+| Alt+U | 按属性取消标记（未实现） | 磁盘用量 |
+| Ctrl+G | 已标记文件的 Global（未实现） | Git 菜单（可选） |
 | Alt+Z | Zlist（未实现） | 全屏显示内置终端 |
 | `/` | 与 `?`（统计信息）相同 | 打开 Treespec，与 `\` 相同（`?` 仍用于显示统计信息） |
 | 目录树中的 Ctrl+C、Ctrl+M | （无功能） | 复制 / 移动当前目录中已标记的文件 |
