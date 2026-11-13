@@ -49,6 +49,12 @@ A árvore de diretórios, a janela de arquivos e as estatísticas:
 
 ![Janela dividida: fotos à esquerda, código-fonte à direita](docs/screenshots/split-gruvbox.png)
 
+**Menus no Ctrl e no Alt**: segurar Ctrl ou Alt mostra o que cada letra faz
+com ela, como no XTree (em terminais com o protocolo de teclado do kitty; nos
+outros, F9 troca os menus):
+
+![Segurando Ctrl e depois Alt, o menu de baixo muda; depois Ctrl+G mostra o menu do Git](docs/screenshots/demo-menus-nord.gif)
+
 **Um banco SQLite** no visualizador: a lista de tabelas, um filtro, uma query com
 `JOIN` e um `DELETE` recusado, porque o Xylem só lê:
 
