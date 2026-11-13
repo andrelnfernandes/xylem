@@ -134,6 +134,10 @@ shell ficar no diretório em que você estava ao sair com Alt+Q, acrescente a
 pequena função de shell de
 [Quitting and changing the shell's directory](docs/manual/quit.md).
 
+**Vindo da 0.7?** Algumas teclas Alt mudaram na 0.8 (Alt+U agora é o Uso, Alt+D os
+Duplicados); [O que Ctrl e Alt querem dizer](docs/manual/pt/tagging.md#o-que-ctrl-e-alt-querem-dizer)
+tem a tabela e as linhas do `config.toml` que trazem as antigas de volta.
+
 ## Instalação
 
 **Binário pronto:** baixe o arquivo do seu sistema na página de
