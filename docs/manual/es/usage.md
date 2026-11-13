@@ -1,9 +1,13 @@
-# Uso de disco (Alt+W)
+# Uso de disco (Alt+U)
 
-Adónde va el espacio. **Alt+W** registra toda la rama del directorio actual y
+Adónde va el espacio. **Alt+U** registra toda la rama del directorio actual y
 lista sus carpetas y archivos según el espacio que ocupan, de mayor a menor, con
 una barra y su proporción dentro del directorio. Enter entra en una carpeta;
 carpeta a carpeta, llegas hasta lo que llena el disco.
+
+
+> Hasta la versión 0.7, el uso de disco era Alt+W, y Alt+U desmarcaba todo
+> (ahora solo Ctrl+U). Vea [Ctrl y Alt](tagging.md#qué-significan-ctrl-y-alt).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar
@@ -99,7 +103,7 @@ rehacen enseguida, con la vista todavía abierta.
 | `V` | ver el archivo |
 | `D` | buscar [duplicados](duplicates.md) en la carpeta listada |
 | F3 | volver a leer la carpeta listada |
-| Esc o Alt+W | cerrar |
+| Esc o Alt+U | cerrar |
 
 Tab, F8, Alt+X (la terminal) y F12 funcionan como de costumbre con la vista
 abierta.

@@ -35,6 +35,6 @@ weniger als 100 % ergeben können. Um herauszufinden, was eine Festplatte füllt
 lesen Sie den Zweig zuerst mit `*` ein: Ein noch nicht eingelesenes Verzeichnis
 gilt als leer. Ist Google Drive oder S3 über rclone eingehängt, finden Sie so
 heraus, was dort den Platz belegt: siehe [Cloud-Speicher](cloud.md). Für einen
-ganzen Datenträger leistet die [Speicherplatzbelegung](usage.md) (Alt+W) noch
+ganzen Datenträger leistet die [Speicherplatzbelegung](usage.md) (Alt+U) noch
 mehr: Dateien und Ordner gemeinsam, tatsächlicher Platz auf dem Datenträger und
 einfache Zählung von Hardlinks.

@@ -30,5 +30,5 @@ the shares of its subdirectories may add up to less than 100%. To find what
 fills a disk, log the branch with `*` first: a directory not yet logged
 counts as empty. With Google Drive or S3 mounted through rclone, this is how to
 find what fills them: see [Cloud storage](cloud.md). For a whole disk, the
-[Usage view](usage.md) (Alt+W) does more: files and folders together, the
+[Usage view](usage.md) (Alt+U) does more: files and folders together, the
 space on the disk, hard links counted once.

@@ -1,9 +1,12 @@
-# Disk usage (Alt+W)
+# Disk usage (Alt+U)
 
-Where the space goes. **Alt+W** logs the whole branch of the current
+Where the space goes. **Alt+U** logs the whole branch of the current
 directory and lists its folders and files by the space they take, largest
 first, with a bar and their share of the directory. Enter goes into a
 folder; folder by folder, you get down to what fills the disk.
+
+> Up to version 0.7, Usage was Alt+W, and Alt+U untagged everything (now only
+> Ctrl+U). See [Ctrl and Alt](tagging.md#what-ctrl-and-alt-mean).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar
@@ -95,7 +98,7 @@ after, with the view still open.
 | `V` | view the file |
 | `D` | look for [duplicates](duplicates.md) in the folder listed |
 | F3 | read the folder listed again |
-| Esc or Alt+W | close |
+| Esc or Alt+U | close |
 
 Tab, F8, Alt+X (the terminal) and F12 work as usual with the view open.
 

@@ -3,7 +3,7 @@
 `R` renomeia o arquivo (na árvore, o diretório) sob o cursor: digite o novo
 nome. Um nome que já exista é recusado.
 
-## Renomeação em lote (Ctrl+R ou Alt+R)
+## Renomeação em lote (Ctrl+R)
 
 Renomeia todos os arquivos marcados com uma máscara, numerados na ordem da
 lista:

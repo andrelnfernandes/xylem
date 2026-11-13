@@ -377,8 +377,9 @@ impl App {
         self.sync_autoview();
     }
 
-    pub fn apply(&mut self, cmd: Command) {
-        let in_files = self.focus == Focus::Files;
+    /// Why `cmd` cannot run here (inside an archive, on a remote machine),
+    /// or `None`. The menus leave out what this refuses.
+    pub(crate) fn refusal(&self, cmd: Command) -> Option<String> {
         let writes = matches!(
             cmd,
             Command::Move { .. }
@@ -398,8 +399,7 @@ impl App {
                 | Command::CreateArchive { .. }
         );
         if writes && self.archive.is_some() {
-            self.message = Some("Archives are read-only (use Copy to extract)".into());
-            return;
+            return Some("Archives are read-only (use Copy to extract)".into());
         }
         // A remote machine: what is not there yet (Oops: it has no trash).
         let remote_writes = matches!(
@@ -412,11 +412,19 @@ impl App {
                 | Command::Batch
         );
         if remote_writes && self.remote.is_some() {
-            self.message = Some(match cmd {
+            return Some(match cmd {
                 Command::Oops => "There is no trash on a remote machine to restore from".into(),
                 _ => "Not yet on a remote machine: Edit, eXecute, archives and Batch come later"
                     .into(),
             });
+        }
+        None
+    }
+
+    pub fn apply(&mut self, cmd: Command) {
+        let in_files = self.focus == Focus::Files;
+        if let Some(why) = self.refusal(cmd) {
+            self.message = Some(why);
             return;
         }
         match cmd {
@@ -585,6 +593,11 @@ impl App {
                     self.message = Some("No tagged files match the filespec".into());
                 }
             }
+            // In Branch or Showall, B goes back to the directory's own list:
+            // the same Branch again would change nothing.
+            Command::Branch if self.focus == Focus::Files && self.view != FileView::Dir => {
+                self.leave_list_view();
+            }
             Command::Branch => {
                 let id = self.view_root();
                 self.log_for_view(id, LogJob::new(id, false), AfterLog::OpenBranch(id));
@@ -670,7 +683,7 @@ impl App {
                     let name = self.file(f).name.to_string_lossy().into_owned();
                     let tagged_count = self.sources(true).len();
                     let hint = if tagged_count > 0 {
-                        format!(" (Ctrl+R / Alt+R to rename {tagged_count} tagged files)")
+                        format!(" (Ctrl+R to rename {tagged_count} tagged files)")
                     } else {
                         String::new()
                     };

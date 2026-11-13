@@ -38,7 +38,7 @@ estão em "Teclas diferentes", no fim.
 ## O que o Xylem ainda não tem
 
 - **Árvore:** Global (G), Graft (Alt+G), Mirror (Alt+M), Release/descarregar da
-  memória (Alt+R, Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
+  memória (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
   (Ctrl+V), F5/F6 (ocultar níveis de subdiretórios), marcar por atributo
   (Alt+T/U), Treespec em modo de edição (F5, curingas) e pastas especiais (F6),
   busca ao digitar com prompt (`|`) e modo ativo, troca de unidade (`<` e `>`).
@@ -90,10 +90,10 @@ Coisas para as quais o manual do ZTreeWin v2.2 não tem equivalente:
   próprio terminal. Veja [máquinas remotas](remote.md).
 - **Git** (opcional): letras de status na lista de arquivos, um menu Git
   (Ctrl+G) e diffs no visualizador. Veja [Git](git.md).
-- **Uso do disco** (Alt+W): pastas e arquivos de um ramo juntos, os maiores
+- **Uso do disco** (Alt+U): pastas e arquivos de um ramo juntos, os maiores
   primeiro, até chegar ao que enche o disco; Alt+K mostra a fatia de cada pasta
   na árvore. Veja [uso do disco](usage.md).
-- **Duplicados** (Alt+Y): arquivos e pastas inteiras com o mesmo conteúdo,
+- **Duplicados** (Alt+D): arquivos e pastas inteiras com o mesmo conteúdo,
   comparados por SHA-256, ou pelos hashes do próprio serviço numa pasta montada
   pelo rclone, sem baixar nada. Uma cópia de cada grupo sempre fica. Veja
   [duplicados](duplicates.md).
@@ -173,9 +173,10 @@ As teclas seguem as do ZTreeWin. As exceções:
 | Alt+B | Batch do arquivo atual (não implementado) | favoritos |
 | Alt+H | Hide (não implementado) | ajuda |
 | Alt+O | Abrir em nova janela de terminal (não implementado) | digita os arquivos marcados no terminal embutido |
-| Alt+R | Release (não implementado; `-` libera o ramo) | renomeia os arquivos marcados |
-| Alt+T, Alt+U | marcar e desmarcar por atributo (não implementado) | marcar e desmarcar todos |
-| Alt+W | Wash (não implementado) | uso do disco |
+| Alt+D | (nada) | Duplicados |
+| Alt+T | marcar por atributo (não implementado) | (nada) |
+| Alt+U | desmarcar por atributo (não implementado) | Uso, para onde vai o espaço |
+| Ctrl+G | Global dos marcados (não implementado) | o menu Git (opcional) |
 | Alt+Z | Zlist (não implementado) | o terminal embutido em tela cheia |
 | `/` | igual a `?` (estatísticas) | Treespec, como `\` (`?` continua mostrando as estatísticas) |
 | Ctrl+C, Ctrl+M na árvore | (nada) | Copiar/Mover os arquivos marcados do diretório atual |

@@ -1,8 +1,12 @@
-# Duplicados (Alt+Y)
+# Duplicados (Alt+D)
 
 Arquivos com o mesmo conteúdo, quaisquer que sejam os nomes e as pastas, e o
-espaço que as cópias desperdiçam. **Alt+Y** procura no ramo do diretório atual;
+espaço que as cópias desperdiçam. **Alt+D** procura no ramo do diretório atual;
 **D** na tela de Uso procura na pasta listada ali.
+
+
+> Até a versão 0.7, Duplicados era Alt+Y, e Alt+D apagava os marcados
+> (agora só Ctrl+D). Veja [Ctrl e Alt](tagging.md#o-que-ctrl-e-alt-querem-dizer).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────
@@ -34,7 +38,7 @@ de cada grupo sempre fica: o Xylem não deixa marcar a última.
 | `E` | grava a lista num arquivo (nunca por cima de um que exista): tamanho, data, marca e caminho, com uma linha em branco entre os grupos |
 | `\` | fecha a tela, com a árvore naquela pasta |
 | F3 | lê as pastas de novo e compara de novo |
-| Esc ou Alt+Y | fecha |
+| Esc ou Alt+D | fecha |
 
 Antes de apagar ou mover, cada grupo é conferido de novo: se uma cópia mudou
 desde a análise, ou a que ia ficar sumiu, nada daquele grupo é tocado, e o

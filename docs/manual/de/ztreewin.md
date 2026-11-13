@@ -41,7 +41,7 @@ Tasten sind, wo immer möglich, die von ZTreeWin; die Ausnahmen stehen unter
 ## Was Xylem noch fehlt
 
 - **Baum:** Global (G), Graft (Alt+G), Mirror (Alt+M), Freigeben/Aus dem
-  Speicher entladen (Alt+R, Ctrl+Backspace), Ausblenden (Alt+H), Wash
+  Speicher entladen (Ctrl+Backspace), Ausblenden (Alt+H), Wash
   (Alt+W), Volume (Ctrl+V), F5/F6 (Unterverzeichnisebenen ausblenden), nach
   Attribut markieren (Alt+T/U), Treespec im Bearbeitungsmodus (F5,
   Platzhalter) und spezielle Ordner (F6), direkte Suche mit Eingabezeile (`|`)
@@ -95,10 +95,10 @@ Dinge, für die das ZTreeWin-v2.2-Handbuch keine Entsprechung hat:
   sein eigenes Terminal hat. Siehe [entfernte Rechner](remote.md).
 - **Git** (optional): Statusbuchstaben in der Dateiliste, ein Git-Menü
   (Ctrl+G) und Diffs im Betrachter. Siehe [Git](git.md).
-- **Speicherbelegung** (Alt+W): die Ordner und Dateien eines Zweigs zusammen,
+- **Speicherbelegung** (Alt+U): die Ordner und Dateien eines Zweigs zusammen,
   die größten zuerst, bis hin zu dem, was die Platte füllt; Alt+K zeigt im
   Baum den Anteil jedes Ordners. Siehe [Speicherbelegung](usage.md).
-- **Duplikate** (Alt+Y): Dateien und ganze Ordner mit gleichem Inhalt, verglichen
+- **Duplikate** (Alt+D): Dateien und ganze Ordner mit gleichem Inhalt, verglichen
   per SHA-256 oder, in einem mit rclone eingehängten Ordner, über die Prüfsummen
   des Dienstes, ohne etwas herunterzuladen. Eine Kopie jeder Gruppe bleibt immer.
   Siehe [Duplikate](duplicates.md).
@@ -178,9 +178,10 @@ Die Tastenbelegung folgt ZTreeWin, mit diesen Ausnahmen:
 | Alt+B | Batch der aktuellen Datei (nicht implementiert) | Lesezeichen |
 | Alt+H | Hide (nicht implementiert) | Hilfe |
 | Alt+O | In neuem Terminalfenster öffnen (nicht implementiert) | tippt die markierten Dateien im eingebauten Terminal |
-| Alt+R | Release (nicht implementiert; `-` gibt den Zweig frei) | benennt die markierten Dateien um |
-| Alt+T, Alt+U | nach Attribut markieren und Markierung aufheben (nicht implementiert) | alle markieren und alle Markierungen aufheben |
-| Alt+W | Wash (nicht implementiert) | Speicherbelegung |
+| Alt+D | (nichts) | Duplikate |
+| Alt+T | nach Attribut markieren (nicht implementiert) | (nichts) |
+| Alt+U | Markierung nach Attribut aufheben (nicht implementiert) | Speicherbelegung |
+| Ctrl+G | Global für markierte Dateien (nicht implementiert) | das Git-Menü (optional) |
 | Alt+Z | Zlist (nicht implementiert) | das eingebaute Terminal im Vollbild |
 | `/` | wie `?` (Statistiken) | Treespec, genau wie `\` (`?` zeigt weiterhin die Statistiken) |
 | Ctrl+C, Ctrl+M im Baum | (nichts) | Kopieren/Verschieben der markierten Dateien des aktuellen Verzeichnisses |

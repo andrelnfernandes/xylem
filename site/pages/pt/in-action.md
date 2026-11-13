@@ -21,7 +21,7 @@
 </figure>
 <figure class="shot">
 <a href="ASSETS/screenshots/demo-duplicates-vivid.gif"><div class="window"><img src="ASSETS/screenshots/demo-duplicates-vivid.gif" width="1104" height="772" loading="lazy" alt="Grupos de arquivos duplicados, marcando todas as cópias menos uma de cada, e depois duas pastas inteiras iguais"></div></a>
-<figcaption><strong>Duplicados</strong> (<kbd>Alt+Y</kbd>) acha arquivos iguais e pastas inteiras iguais. <kbd>A</kbd> marca todas as cópias menos uma de cada grupo, e nada é apagado até você mandar.</figcaption>
+<figcaption><strong>Duplicados</strong> (<kbd>Alt+D</kbd>) acha arquivos iguais e pastas inteiras iguais. <kbd>A</kbd> marca todas as cópias menos uma de cada grupo, e nada é apagado até você mandar.</figcaption>
 </figure>
 <figure class="shot">
 <a href="ASSETS/screenshots/demo-menus-nord.gif"><div class="window"><img src="ASSETS/screenshots/demo-menus-nord.gif" width="1104" height="772" loading="lazy" alt="Segurando Ctrl e depois Alt, o menu de baixo muda, na árvore e na janela de arquivos; depois Ctrl+G mostra o menu do Git"></div></a>

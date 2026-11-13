@@ -1,4 +1,4 @@
-//! The Usage view (Alt+W): where the space of a branch goes. The folders
+//! The Usage view (Alt+U): where the space of a branch goes. The folders
 //! and files of a directory by the space they take, with their share of it,
 //! going down into the folders to what fills the disk. The numbers come
 //! from the tree already in memory ([`Tree::usage`]), recomputed only when

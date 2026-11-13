@@ -31,8 +31,8 @@ odd, please suggest an improvement: `https://github.com/andrelnfernandes/xylem/i
 - [Filtering lines](filter.md): `&` in the viewer, with a regular expression guide
 - [Searching tagged files](search.md): Ctrl+S and Ctrl+V
 - [Information](info.md): Info, Avail, statistics and directory sizes
-- [Disk usage](usage.md): where the space goes (Alt+W)
-- [Duplicates](duplicates.md): files and folders with the same contents (Alt+Y)
+- [Disk usage](usage.md): where the space goes (Alt+U)
+- [Duplicates](duplicates.md): files and folders with the same contents (Alt+D)
 
 ## Working with files
 

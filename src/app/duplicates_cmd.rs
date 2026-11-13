@@ -1,4 +1,4 @@
-//! The Duplicates view (Alt+Y): opening it and its keys.
+//! The Duplicates view (Alt+D): opening it and its keys.
 
 use super::*;
 use crate::duplicates::{DuplicatesView, Fail, Finder, Scan};
@@ -174,7 +174,10 @@ impl App {
     pub(crate) fn duplicates_key(&mut self, key: KeyEvent) {
         let alt = key.modifiers.contains(KeyModifiers::ALT);
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        if key.code == KeyCode::Esc || alt && matches!(key.code, KeyCode::Char('y' | 'Y')) {
+        // Esc, or the key that opened it (Alt+D), closes it.
+        if key.code == KeyCode::Esc
+            || self.keymap.lookup(key, self.focus) == Some(Command::Duplicates)
+        {
             self.duplicates = None;
             return;
         }

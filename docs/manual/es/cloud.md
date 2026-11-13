@@ -170,7 +170,7 @@ qué porcentaje de la carpeta superior ocupa, con una barra proporcional a la m�
 grande de sus carpetas hermanas. Sigue las barras más grandes hasta dar con las
 copias de seguridad antiguas, los vídeos y los duplicados.
 
-La [vista de uso](usage.md) (Alt+W, en la raíz del Drive) va más allá: muestra
+La [vista de uso](usage.md) (Alt+U, en la raíz del Drive) va más allá: muestra
 los archivos y carpetas juntos, de mayor a menor, para que un único archivo
 enorme destaque igual que una carpeta llena. Y Branch (`B`) lista todos los
 archivos de una carpeta completa: [ordenados](sort.md) por tamaño de mayor a

@@ -41,9 +41,12 @@ use crate::viewer::table::TableGrid;
 use crate::viewer::{self, ViewMode, Viewer};
 
 const STATS_WIDTH: u16 = 28;
-const SMALL_FILE_WINDOW: u16 = 8;
+/// The small file window under the tree is a quarter of the height (8 rows,
+/// 6 files, on an ordinary 34-row screen), so that it keeps its share of a
+/// tall terminal or a short one; never under this (3 files).
+const SMALL_FILE_WINDOW: u16 = 5;
 /// Below this height, the tree is shown without the small file window.
-const MIN_TREE_WITH_FILES: u16 = 2 * SMALL_FILE_WINDOW;
+const MIN_TREE_WITH_FILES: u16 = 12;
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
     draw_screen(frame, app);
@@ -80,10 +83,16 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
         return;
     }
 
+    // The Usage view has three lines of keys of its own.
+    let footer = if app.usage.is_some() {
+        3
+    } else {
+        footer_height(app, frame.area().width as usize)
+    };
     let [header, main, menu] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(5),
-        Constraint::Length(2),
+        Constraint::Length(footer),
     ])
     .areas(frame.area());
 
@@ -168,7 +177,7 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
 /// Width of the bars of the Usage view (less on a narrow screen).
 const USAGE_BAR: usize = 16;
 
-/// Alt+W: the folders and files of a directory by the space they take, and
+/// Alt+U: the folders and files of a directory by the space they take, and
 /// a line with the totals at the bottom.
 fn draw_usage(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
     use crate::usage::{self, Item};
@@ -321,7 +330,7 @@ fn count(n: usize, what: &str) -> String {
     format!("{} {what}{plural}", fmt_num(n as u64))
 }
 
-/// Alt+Y: the groups of equal files or folders, and a line about them.
+/// Alt+D: the groups of equal files or folders, and a line about them.
 fn draw_duplicates(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
     use crate::duplicates::Row;
     use crate::usage;
@@ -491,10 +500,18 @@ fn draw_pane(
         draw_tree(frame, pane, active, title, area, icons);
         return;
     }
-    let [tree, files] =
-        Layout::vertical([Constraint::Min(3), Constraint::Length(SMALL_FILE_WINDOW)]).areas(area);
+    let [tree, files] = Layout::vertical([
+        Constraint::Min(3),
+        Constraint::Length(small_file_window(area.height)),
+    ])
+    .areas(area);
     draw_tree(frame, pane, active, title, tree, icons);
     draw_files(frame, pane, false, files, git, icons);
+}
+
+/// Height of the small file window for a tree area of `height` rows.
+fn small_file_window(height: u16) -> u16 {
+    height.div_ceil(4).max(SMALL_FILE_WINDOW)
 }
 
 fn panel(title: impl Into<Line<'static>>, active: bool) -> Block<'static> {
@@ -600,9 +617,21 @@ fn highlight(active: bool) -> Style {
     }
 }
 
+/// The header's clock: the date format, with seconds if so configured.
+fn clock_pattern(seconds: bool) -> String {
+    let date = formats().date.pattern();
+    if seconds {
+        format!("{date}:%S")
+    } else {
+        date.to_string()
+    }
+}
+
 fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     let path = app.tree.path(app.header_dir());
-    let clock = Local::now().format(formats().date.pattern()).to_string();
+    let clock = Local::now()
+        .format(&clock_pattern(app.options.clock_seconds))
+        .to_string();
     // The name and the version before the date, as XTreeGold did, while there
     // is room left for the path.
     let name = concat!("Xylem v", env!("CARGO_PKG_VERSION"), "  ");
@@ -1593,7 +1622,7 @@ fn draw_stats(frame: &mut Frame, app: &App, area: Rect) {
         statistics.push(Line::from(vec![Span::raw(format!("{k}{pad}")), bold(mode)]));
     }
 
-    // Alt+Y: the whole path and date of the item under the cursor.
+    // Alt+D: the whole path and date of the item under the cursor.
     if let Some(item) = app.duplicates.as_ref().and_then(|v| v.selected().cloned()) {
         let mut lines = vec![Line::from(label("DUPLICATE".into()))];
         let path = item.path.to_string_lossy().into_owned();
@@ -1617,7 +1646,7 @@ fn draw_stats(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    // Alt+W: what the row under the cursor takes, in place of the statistics.
+    // Alt+U: what the row under the cursor takes, in place of the statistics.
     if let Some(row) = app.usage.as_ref().and_then(|u| u.shown.clone()) {
         use crate::usage;
         let text = |k: &str, v: String| {
@@ -1855,6 +1884,14 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                     ],
                 ),
             },
+            menu_line(
+                "",
+                &[
+                    ("Ctrl+T/U", "tag/untag the whole folder"),
+                    ("Ctrl+D", "delete the tagged"),
+                    ("Shift+Del", "without trash"),
+                ],
+            ),
         ]
     } else if let Some(job) = &app.archive_job {
         vec![
@@ -1945,7 +1982,7 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
             },
         ]
     } else {
-        let (first, second) = idle_menu(app);
+        let mut lines = idle_menu(app, area.width as usize);
         let first = match &app.message {
             Some(msg) => Line::from(Span::styled(
                 msg.clone(),
@@ -1957,9 +1994,10 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                 "Name has hidden bidirectional characters: it may not be what it looks like",
                 Style::new().fg(theme().error),
             )),
-            None => first,
+            None => lines[0].clone(),
         };
-        vec![first, second]
+        lines[0] = first;
+        lines
     };
     let lines: Vec<_> = lines
         .into_iter()
@@ -1968,250 +2006,371 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(lines), area);
 }
 
-/// Ctrl and Alt menu entries that write, which an archive refuses.
-const ARCHIVE_WRITES: &[&str] = &[
-    "Attributes",
+/// A footer menu as data: the words (each with its highlighted letter), the
+/// hints and the other keys. Each word and key says what it binds, so the
+/// menu leaves out what cannot run here and a test can check that no command
+/// is missing from the menus.
+struct MenuSpec {
+    /// The window it is for: its keys are looked up there.
+    focus: Focus,
+    title: &'static str,
+    /// The modifier of the words' letters: "", "ctrl+" or "alt+".
+    mods: &'static str,
+    words: Vec<&'static str>,
+    hints: Vec<&'static str>,
+    /// Label, description and the keys it stands for (none: a hint).
+    keys: Vec<(String, &'static str, Vec<&'static str>)>,
+}
+
+/// The key a word of a menu stands for: its highlighted letter.
+fn word_key(word: &str) -> char {
+    word.chars()
+        .find(|c| c.is_uppercase())
+        .or_else(|| word.chars().next())
+        .unwrap_or(' ')
+        .to_ascii_lowercase()
+}
+
+const DIR_WORDS: &[&str] = &[
+    "Available",
+    "Branch",
+    "Compare",
     "Delete",
+    "Filespec",
+    "Invert",
+    "Log",
+    "Makedir",
+    "New date",
+    "Oops",
+    "Rename",
+    "Showall",
+    "Tag",
+    "Untag",
+    "eXecute",
+    "Yank",
+    "Quit",
+];
+const FILE_WORDS: &[&str] = &[
+    "Attributes",
+    "Branch",
+    "Copy",
+    "Delete",
+    "Edit",
+    "Filespec",
+    "Invert",
+    "Move",
+    "New date",
+    "Open",
+    "Rename",
+    "Showall",
+    "Tag",
+    "Untag",
+    "View",
+    "eXecute",
+    "Yank",
+    "Quit",
+];
+const CTRL_TREE_WORDS: &[&str] = &[
+    "Attributes",
+    "Bookmark",
+    "Copy",
+    "Delete",
+    "Git",
     "Move",
     "Rename",
+    "Showall",
+    "Tag",
+    "Untag",
+    "Yank",
+];
+const CTRL_FILE_WORDS: &[&str] = &[
+    "Attributes",
+    "Batch",
+    "Copy",
+    "Delete",
+    "Git",
+    "Move",
+    "New date",
+    "Open",
+    "Rename",
+    "Search",
+    "Tag",
+    "Untag",
+    "View",
+    "Yank",
+];
+const ALT_TREE_WORDS: &[&str] = &[
+    "Bookmarks",
+    "Compare",
+    "Duplicates",
+    "File display",
+    "Help",
+    "Info",
+    "Kbyte",
     "Prune",
-    "Open terminal",
+    "Quit here",
+    "Release",
+    "Sort",
+    "Usage",
+];
+const ALT_FILE_WORDS: &[&str] = &[
+    "Bookmarks",
+    "Copy",
+    "Duplicates",
+    "File display",
+    "Help",
+    "Info",
+    "Move",
+    "Quit here",
+    "Sort",
+    "Usage",
 ];
 
-/// Footer menu when nothing is in progress: the normal one or the Ctrl/Alt one,
-/// depending on the key held down (or chosen with F9).
-fn idle_menu(app: &App) -> (Line<'static>, Line<'static>) {
-    let tree = app.focus == Focus::Tree;
+/// Footer menu when nothing is in progress: the normal one or the Ctrl/Alt
+/// one, depending on the key held down (or chosen with F9).
+fn idle_menu_spec(app: &App, focus: Focus, mode: MenuMode) -> MenuSpec {
+    let tree = focus == Focus::Tree;
     // With F9, the next letter gets the modifier: tell how to back out.
     let sticky = app.held.is_none() && app.sticky != MenuMode::Normal;
-    let hint: (&str, &str) = if sticky {
-        ("Esc", "cancel")
+    let next = if sticky {
+        ("Esc".to_string(), "cancel", vec![])
     } else {
-        ("F9", "next menu")
+        ("F9".to_string(), "next menu", vec![])
     };
-
     let help_key = help_key(app);
-    // Archives are read-only: their Ctrl and Alt menus leave out what writes.
-    // Ctrl+G is there only when the Git menu is on, and not in an archive
-    // or on a remote machine.
-    let git = app.options.git && app.archive.is_none() && app.remote.is_none();
-    let read_only = |words: &[&'static str]| -> Vec<&'static str> {
-        words
-            .iter()
-            .copied()
-            .filter(|w| app.archive.is_none() || !ARCHIVE_WRITES.contains(w))
-            .filter(|w| git || *w != "Git")
-            .collect()
+    let help_bind = if help_key == "F1" { "f1" } else { "alt+h" };
+    let key = |label: &str, desc: &'static str, binds: &[&'static str]| {
+        (label.to_string(), desc, binds.to_vec())
     };
-    match app.menu_mode() {
-        MenuMode::Git => (
-            menu_words("GIT", crate::git::MENU),
-            menu_line(
-                "",
-                &[
-                    (
-                        "",
-                        if tree {
-                            "on this directory (or the tagged files)"
-                        } else {
-                            "on the tagged files (or this one)"
-                        },
-                    ),
-                    ("Esc", "cancel"),
-                ],
-            ),
-        ),
-        MenuMode::Normal if app.remote.is_some() => (
-            menu_words(
-                "REMOTE",
-                &[
-                    "Branch", "Copy", "Filespec", "Invert", "Log", "Open", "Showall", "Tag",
-                    "Untag", "View", "Yank", "Quit",
-                ],
-            ),
-            menu_line(
-                "",
-                &[
-                    (help_key.as_str(), "help"),
-                    ("Enter", if tree { "files" } else { "tree" }),
-                    ("F3", "reread"),
-                    ("F8", "split with this machine"),
-                    ("F9", "menus"),
-                ],
-            ),
-        ),
-        MenuMode::Normal if tree && app.archive.is_some() => (
-            menu_words(
-                "ARCHIVE",
-                &[
-                    "Branch", "Compare", "Filespec", "Invert", "Showall", "Tag", "Untag", "Yank",
-                    "Quit",
-                ],
-            ),
-            menu_line(
-                "",
-                &[
-                    (help_key.as_str(), "help"),
-                    ("Esc", "close archive"),
-                    ("Enter", "files (Copy extracts)"),
-                    ("F8", "split"),
-                    ("F9", "Ctrl/Alt menus"),
-                ],
-            ),
-        ),
-        MenuMode::Normal if tree => (
-            menu_words(
-                "DIR",
-                &[
-                    "Branch", "Compare", "Delete", "Filespec", "Invert", "Log", "Makedir", "Oops",
-                    "Rename", "Showall", "Tag", "Untag", "Yank", "eXecute", "Quit",
-                ],
-            ),
-            menu_line(
-                "",
-                &[
-                    (help_key.as_str(), "help"),
-                    ("*", "log branch"),
-                    ("F3", "relog"),
-                    ("Enter", "files"),
-                    ("F8", "split"),
-                    ("F9", "menus"),
-                ],
-            ),
-        ),
-        MenuMode::Normal => (
-            menu_words(
-                "FILE",
-                &[
-                    "Attributes",
-                    "Branch",
-                    "Copy",
-                    "Delete",
-                    "Filespec",
-                    "Invert",
-                    "Move",
-                    "Open",
-                    "Rename",
-                    "Showall",
-                    "Tag",
-                    "Untag",
-                    "View",
-                    "Edit",
-                    "Yank",
-                    "eXecute",
-                    "Quit",
-                ],
-            ),
-            menu_line(
-                "",
-                &[
-                    (help_key.as_str(), "help"),
-                    ("F3", "relog"),
-                    ("Esc", "tree"),
-                    ("F8", "split"),
-                    ("F9", "Ctrl/Alt menus"),
-                ],
-            ),
-        ),
-        MenuMode::Ctrl => (
-            menu_words(
-                "CTRL",
-                &read_only(if tree {
-                    &[
-                        "Attributes",
-                        "Copy",
-                        "Delete",
-                        "Git",
-                        "Move",
-                        "Rename",
-                        "Showall",
-                        "Tag",
-                        "Untag",
-                        "Yank",
+    match mode {
+        MenuMode::Git => MenuSpec {
+            focus,
+            title: "GIT",
+            mods: "",
+            words: crate::git::MENU.to_vec(),
+            hints: vec![if tree {
+                "on this directory (or the tagged files)"
+            } else {
+                "on the tagged files (or this one)"
+            }],
+            keys: vec![key("Esc", "cancel", &[])],
+        },
+        MenuMode::Normal => {
+            let title = if app.remote.is_some() {
+                "REMOTE"
+            } else if app.archive.is_some() {
+                "ARCHIVE"
+            } else if tree {
+                "DIR"
+            } else {
+                "FILE"
+            };
+            let mut keys = vec![key(&help_key, "help", &[help_bind])];
+            if tree {
+                keys.push(key("*", "log branch", &["*"]));
+            } else {
+                keys.push(key("Esc", "tree", &[]));
+            }
+            if tree && app.archive.is_some() {
+                keys.push(key("Esc", "close archive", &[]));
+            }
+            keys.push(key("?", "stats", &["?"]));
+            keys.push(key("\\", "treespec", &["\\"]));
+            keys.push(key("F3", "relog", &["f3"]));
+            if tree {
+                keys.push(key("Enter", "files", &["enter"]));
+            } else {
+                keys.push(key("F5", "archive", &["f5"]));
+                keys.push(key("F7", "autoview", &["f7"]));
+            }
+            keys.push(key("F8", "split", &["f8"]));
+            keys.push(key("F9", "menus", &[]));
+            MenuSpec {
+                focus,
+                title,
+                mods: "",
+                words: (if tree { DIR_WORDS } else { FILE_WORDS }).to_vec(),
+                hints: vec![],
+                keys,
+            }
+        }
+        MenuMode::Ctrl => {
+            let mut keys = if tree {
+                vec![key(
+                    "Ctrl+F7/F8/F9",
+                    "tag/untag/invert branch",
+                    &["ctrl+f7", "ctrl+f8", "ctrl+f9"],
+                )]
+            } else {
+                vec![key("Ctrl+F5", "archive them", &["ctrl+f5"])]
+            };
+            keys.push(next);
+            MenuSpec {
+                focus,
+                title: "CTRL",
+                mods: "ctrl+",
+                words: (if tree {
+                    CTRL_TREE_WORDS
+                } else {
+                    CTRL_FILE_WORDS
+                })
+                .to_vec(),
+                hints: if tree {
+                    vec![
+                        "on tagged files here",
+                        "Showall/Tag/Untag: all logged",
+                        "Yank: paths to clipboard",
                     ]
                 } else {
-                    &[
-                        "Attributes",
-                        "Copy",
-                        "Delete",
-                        "Git",
-                        "Move",
-                        "Open",
-                        "Rename",
-                        "Tag",
-                        "Untag",
-                        "Yank",
+                    vec![
+                        "on tagged files in list",
+                        "Copy/Move: no paths",
+                        "Yank: paths to clipboard",
                     ]
-                }),
-            ),
-            menu_line(
-                "",
-                &[
-                    (
-                        "",
-                        if tree {
-                            "on tagged files here · Showall/Tag/Untag: all logged · Yank: paths to clipboard"
-                        } else {
-                            "on tagged files in list · Copy/Move: no paths · Yank: paths to clipboard"
-                        },
-                    ),
-                    hint,
-                ],
-            ),
-        ),
-        MenuMode::Alt => (
-            menu_words(
-                "ALT",
-                &read_only(if tree {
-                    &[
-                        "Attributes",
-                        "Bookmarks",
-                        "Compare branch",
-                        "Delete",
-                        "Help",
-                        "Info",
-                        "Kbyte",
-                        "Prune",
-                        "Rename",
-                        "Sort",
-                        "· usage (W)",
-                        "· duplicates (Y)",
-                    ]
-                } else {
-                    &[
-                        "Attributes",
-                        "Bookmarks",
-                        "Copy",
-                        "Delete",
-                        "File display",
-                        "Help",
-                        "Info",
-                        "Move",
-                        "Open terminal",
-                        "Rename",
-                        "Sort",
-                        "· usage (W)",
-                        "· duplicates (Y)",
-                    ]
-                }),
-            ),
-            menu_line(
-                "",
-                // Alt+X is the terminal: here, since its word has no X.
-                &[
-                    ("X", "terminal (Z full screen)"),
-                    if app.archive.is_some() {
-                        ("", "read-only archive: Copy extracts")
-                    } else if tree {
-                        ("", "Attributes/Delete: tagged files")
-                    } else {
-                        ("", "F5: open archive · Copy/Move: with paths")
-                    },
-                    hint,
-                ],
-            ),
-        ),
+                },
+                keys,
+            }
+        }
+        // As in ZTreeWin, Alt is the other version of a command: the branch
+        // in the tree, the tagged files with their paths in the file window,
+        // and the tools. Alt+X and Alt+O have no word with their letter;
+        // Alt+Z (full screen) is in the terminal's own menu.
+        MenuMode::Alt => {
+            let mut keys = vec![
+                key("X", "terminal", &["alt+x"]),
+                key("O", "type tagged files in terminal", &["alt+o"]),
+            ];
+            if !tree {
+                keys.push(key("Alt+F5", "open archive", &["alt+f5"]));
+            }
+            keys.push(key("F12", "setup", &["f12"]));
+            keys.push(next);
+            let hints = if app.archive.is_some() {
+                vec!["read-only archive: Copy extracts"]
+            } else if tree {
+                vec!["Compare/Duplicates/Prune/Release/Usage: the whole branch"]
+            } else {
+                vec!["Copy/Move: the tagged files, with their paths"]
+            };
+            MenuSpec {
+                focus,
+                title: "ALT",
+                mods: "alt+",
+                words: (if tree { ALT_TREE_WORDS } else { ALT_FILE_WORDS }).to_vec(),
+                hints,
+                keys,
+            }
+        }
     }
+}
+
+impl MenuSpec {
+    /// Leaves out what does not run here: keys not bound (Git with its menu
+    /// off) and what this window refuses (writing in an archive; Edit or
+    /// Batch on a remote machine).
+    fn only_what_runs(mut self, app: &App) -> Self {
+        if self.title == "GIT" {
+            return self;
+        }
+        let git = app.options.git && app.archive.is_none() && app.remote.is_none();
+        // Ctrl+G follows the option (the key map leaves it out while off).
+        let focus = self.focus;
+        let runs = |bind: &str| match app.keymap.lookup_text(bind, focus) {
+            _ if bind == "ctrl+g" => git,
+            Some(Command::Git) => git,
+            Some(cmd) => app.refusal(cmd).is_none(),
+            None => false,
+        };
+        let mods = self.mods;
+        self.words
+            .retain(|w| runs(&format!("{mods}{}", word_key(w))));
+        self.keys
+            .retain(|(_, _, binds)| binds.is_empty() || binds.iter().any(|b| runs(b)));
+        self
+    }
+
+    /// The words on one line, and the keys on another with the hints
+    /// before them (left out, as only explanations, when they do not fit).
+    fn two_lines(&self, width: usize) -> Vec<Line<'static>> {
+        let keys: Vec<(&str, &str)> = self.keys.iter().map(|(k, d, _)| (k.as_str(), *d)).collect();
+        let hint = self.hints.join(" · ");
+        let mut with_hints = keys.clone();
+        if !hint.is_empty() {
+            with_hints.insert(0, ("", &hint));
+        }
+        let second = menu_line("", &with_hints);
+        let second = if fits(&second.spans, width) {
+            second
+        } else {
+            menu_line("", &keys)
+        };
+        vec![menu_words(self.title, &self.words), second]
+    }
+
+    /// Whether the menu fits in two lines of `width` columns (the hints may
+    /// go).
+    fn fits_in_two(&self, width: usize) -> bool {
+        let keys: Vec<(&str, &str)> = self.keys.iter().map(|(k, d, _)| (k.as_str(), *d)).collect();
+        fits(&menu_words(self.title, &self.words).spans, width)
+            && fits(&menu_line("", &keys).spans, width)
+    }
+
+    /// The footer's three lines: the words over one or two lines (two, in
+    /// alphabetical order, when there are no hints), the hints, the keys.
+    fn lines(&self) -> Vec<Line<'static>> {
+        let mut lines = Vec::new();
+        if self.hints.is_empty() {
+            let (first, second) = split_words(&self.words);
+            lines.push(menu_words(self.title, first));
+            lines.push(menu_words("", second));
+        } else {
+            lines.push(menu_words(self.title, &self.words));
+            lines.push(menu_line("", &[("", &self.hints.join(" · "))]));
+        }
+        let keys: Vec<(&str, &str)> = self.keys.iter().map(|(k, d, _)| (k.as_str(), *d)).collect();
+        lines.push(menu_line("", &keys));
+        lines
+    }
+}
+
+/// Splits the words in two lines of about the same width, keeping their
+/// order.
+fn split_words<'a>(words: &'a [&'static str]) -> (&'a [&'static str], &'a [&'static str]) {
+    let total: usize = words.iter().map(|w| w.chars().count() + 1).sum();
+    let mut used = 0;
+    for (i, w) in words.iter().enumerate() {
+        used += w.chars().count() + 1;
+        if used * 2 >= total {
+            return words.split_at(i + 1);
+        }
+    }
+    (words, &[])
+}
+
+fn idle_menu(app: &App, width: usize) -> Vec<Line<'static>> {
+    let menu = idle_menu_spec(app, app.focus, app.menu_mode()).only_what_runs(app);
+    if footer_height(app, width) == 2 {
+        menu.two_lines(width)
+    } else {
+        menu.lines()
+    }
+}
+
+/// The footer's height for a screen `width` columns wide: 2 when every menu
+/// (DIR, FILE, CTRL and ALT, in the tree and in the file window) fits in two
+/// lines, 3 otherwise. The same for all of them, so that holding Ctrl or
+/// moving between windows never moves the tree.
+fn footer_height(app: &App, width: usize) -> u16 {
+    let all_fit = [Focus::Tree, Focus::Files].into_iter().all(|focus| {
+        [MenuMode::Normal, MenuMode::Ctrl, MenuMode::Alt]
+            .into_iter()
+            .all(|mode| {
+                idle_menu_spec(app, focus, mode)
+                    .only_what_runs(app)
+                    .fits_in_two(width)
+            })
+    });
+    if all_fit { 2 } else { 3 }
 }
 
 /// Footer prompt: the label, the typed text (with the cursor) and the keys.
@@ -3946,10 +4105,11 @@ fn fit_menu(line: Line<'static>, width: usize) -> Line<'static> {
     }
 
     // Entries go from the end; the first (the title) always stays, and so does
-    // the last of a line of keys.
-    let last = (!words && entries.len() > 2)
-        .then(|| entries.pop())
-        .flatten();
+    // the last of a line of keys when it is a key (F9, Esc), not a legend.
+    let starts_with_key = |e: &[Span]| e.first().is_some_and(|s| s.style == key("x").style);
+    let keep_last =
+        !words && entries.len() > 2 && entries.last().is_some_and(|e| starts_with_key(e));
+    let last = keep_last.then(|| entries.pop()).flatten();
     let mut keep = entries.len();
     while keep > 1 {
         keep -= 1;
@@ -4230,39 +4390,67 @@ mod tests {
         assert!(!header(&mut app, 60).contains("Xylem"));
     }
 
-    #[test]
-    fn footer_shows_menu_for_mode() {
+    /// The footer's rows on a screen `width` columns wide and 20 high.
+    fn footer_rows(app: &mut App, width: u16) -> Vec<String> {
         use ratatui::{Terminal, backend::TestBackend};
+        let mut term = Terminal::new(TestBackend::new(width, 20)).unwrap();
+        term.draw(|f| draw(f, app)).unwrap();
+        let rows = if app.usage.is_some() {
+            3
+        } else {
+            footer_height(app, width as usize)
+        };
+        let buf = term.backend().buffer();
+        (20 - rows..20)
+            .map(|y| (0..width).map(|x| buf[(x, y)].symbol()).collect())
+            .collect()
+    }
+
+    #[test]
+    fn the_footer_has_two_lines_when_every_menu_fits() {
         let tmp = crate::testing::tempdir();
         let mut app = App::new(tmp.path().to_path_buf());
-        let footer = |app: &mut App| {
-            let mut term = Terminal::new(TestBackend::new(140, 20)).unwrap();
-            term.draw(|f| draw(f, app)).unwrap();
-            let buf = term.backend().buffer();
-            (0..140).map(|x| buf[(x, 18)].symbol()).collect::<String>()
-        };
+        assert_eq!(footer_height(&app, 120), 3);
+        assert_eq!(footer_height(&app, 250), 2);
+        // Holding Ctrl or moving to the file window keeps the height.
+        app.held = Some(MenuMode::Ctrl);
+        app.focus = Focus::Files;
+        assert_eq!(footer_height(&app, 120), 3);
+        assert_eq!(footer_height(&app, 250), 2);
+        // Two lines: the words, then the hints and the keys.
+        let rows = footer_rows(&mut app, 250);
+        assert!(rows[0].starts_with("CTRL "), "{rows:?}");
+        assert!(rows[0].contains("New date"), "{rows:?}");
+        assert!(rows[1].contains("on tagged files in list"), "{rows:?}");
+        assert!(rows[1].contains("F9 next menu"), "{rows:?}");
+    }
+
+    #[test]
+    fn footer_shows_menu_for_mode() {
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let footer = |app: &mut App| footer_rows(app, 140)[0].clone();
         assert!(footer(&mut app).starts_with("DIR "));
         app.held = Some(MenuMode::Ctrl);
         assert!(footer(&mut app).starts_with("CTRL "));
         app.held = None;
         app.sticky = MenuMode::Alt;
         assert!(footer(&mut app).starts_with("ALT "));
-        // Alt+W has no letter of its own in a word: it says so, apart from Sort.
-        assert!(footer(&mut app).contains("Sort · usage (W)"));
+        // Each word has its own letter, and the tools come apart.
+        let alt = footer(&mut app);
+        assert!(
+            alt.contains("Prune Quit here Release Sort Usage"),
+            "{alt:?}"
+        );
+        assert!(!alt.contains('('), "{alt:?}");
     }
 
     #[test]
     fn each_shortcut_is_in_the_menu_of_its_modifier() {
-        use ratatui::{Terminal, backend::TestBackend};
         let tmp = crate::testing::tempdir();
         let mut app = App::new(tmp.path().to_path_buf());
         app.options.git = true;
-        let footer = |app: &mut App| {
-            let mut term = Terminal::new(TestBackend::new(200, 20)).unwrap();
-            term.draw(|f| draw(f, app)).unwrap();
-            let buf = term.backend().buffer();
-            [18, 19].map(|y| (0..200).map(|x| buf[(x, y)].symbol()).collect::<String>())
-        };
+        let footer = |app: &mut App| footer_rows(app, 200);
         for focus in [Focus::Tree, Focus::Files] {
             app.focus = focus;
             app.held = None;
@@ -4277,13 +4465,117 @@ mod tests {
             let alt = footer(&mut app);
             // Alt+X is the terminal, not eXecute (that is X alone).
             assert!(!alt[0].contains("eXecute"), "{alt:?}");
-            assert!(alt[1].contains("X terminal"), "{alt:?}");
+            assert!(alt.last().unwrap().contains("X terminal"), "{alt:?}");
             assert!(alt[0].contains("Bookmarks"), "{alt:?}");
         }
         // Without the Git menu, Ctrl+G does nothing: it is not offered.
         app.options.git = false;
         app.held = Some(MenuMode::Ctrl);
         assert!(!footer(&mut app)[0].contains("Git"));
+    }
+
+    /// No command is invisible: each default key's command is in a footer
+    /// menu (DIR, FILE, CTRL or ALT) of the window where it works, except
+    /// moving around and second keys of commands shown elsewhere.
+    #[test]
+    fn every_command_is_in_a_menu() {
+        use crate::input::Command as C;
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.options.git = true;
+        app.keymap = crate::keymap::Keymap::from_config(&Default::default(), &app.options).unwrap();
+        // Moving around, and what has a menu of its own (the terminal's full
+        // screen, the Delete confirmation that switches to permanent, the
+        // bookmarks list that jumps).
+        let exempt = [
+            C::Up,
+            C::Down,
+            C::PageUp,
+            C::PageDown,
+            C::Home,
+            C::End,
+            C::Expand,
+            C::Collapse,
+            C::SwitchPane,
+            C::Parent,
+            C::Left,
+            C::Right,
+            C::Back,
+            C::TerminalFull,
+            C::BookmarkJump,
+            C::Delete {
+                tagged: false,
+                permanent: true,
+            },
+            C::Delete {
+                tagged: true,
+                permanent: true,
+            },
+        ];
+        let mut shown: [Vec<C>; 2] = Default::default();
+        for (i, focus) in [Focus::Tree, Focus::Files].into_iter().enumerate() {
+            app.focus = focus;
+            for mode in [MenuMode::Normal, MenuMode::Ctrl, MenuMode::Alt] {
+                app.held = Some(mode);
+                let menu = idle_menu_spec(&app, focus, mode).only_what_runs(&app);
+                let mut binds: Vec<String> = menu
+                    .words
+                    .iter()
+                    .map(|w| format!("{}{}", menu.mods, word_key(w)))
+                    .collect();
+                for (_, _, b) in &menu.keys {
+                    binds.extend(b.iter().map(|b| b.to_string()));
+                }
+                for b in binds {
+                    if let Some(cmd) = app.keymap.lookup_text(&b, focus) {
+                        shown[i].push(cmd);
+                    }
+                }
+            }
+        }
+        let mut missing = Vec::new();
+        for (key, focus, cmd) in crate::keymap::default_bindings() {
+            if exempt.contains(&cmd) {
+                continue;
+            }
+            let ok = match focus {
+                Some(Focus::Tree) => shown[0].contains(&cmd),
+                Some(Focus::Files) => shown[1].contains(&cmd),
+                None => shown[0].contains(&cmd) || shown[1].contains(&cmd),
+            };
+            if !ok {
+                missing.push(format!("{key} ({cmd:?})"));
+            }
+        }
+        assert!(missing.is_empty(), "not in any menu: {missing:?}");
+    }
+
+    #[test]
+    fn the_clock_shows_seconds_only_when_asked() {
+        let at = chrono::NaiveDate::from_ymd_opt(2026, 11, 13)
+            .unwrap()
+            .and_hms_opt(9, 5, 7)
+            .unwrap();
+        let date = formats().date;
+        assert_eq!(
+            at.format(&clock_pattern(false)).to_string(),
+            at.format(date.pattern()).to_string()
+        );
+        assert!(
+            at.format(&clock_pattern(true))
+                .to_string()
+                .ends_with("09:05:07")
+        );
+    }
+
+    #[test]
+    fn the_small_file_window_grows_with_the_screen() {
+        // 8 rows on an ordinary screen, as always; a quarter of a tall or a
+        // short one, the tree keeping the most; at least 3 files.
+        assert_eq!(small_file_window(31), 8);
+        assert_eq!(small_file_window(97), 25);
+        assert_eq!(small_file_window(16), SMALL_FILE_WINDOW);
+        assert_eq!(small_file_window(12), SMALL_FILE_WINDOW);
     }
 
     fn text_of(line: &Line) -> String {
@@ -4334,6 +4626,13 @@ mod tests {
             "ALT      Att Com eXe …"
         );
 
+        // A legend at the end, with no key, goes first.
+        let legend = menu_line("", &[("F3", "reread"), ("", "> other disk  ! unreadable")]);
+        assert_eq!(
+            text_of(&fit_menu(legend, 30)).trim_end(),
+            "         F3 reread   …"
+        );
+
         // A long hint loses its last parts, not all of it, and F9 stays.
         let hint = menu_line(
             "",
@@ -4377,20 +4676,15 @@ mod tests {
 
     #[test]
     fn a_narrow_footer_never_cuts_a_word() {
-        use ratatui::{Terminal, backend::TestBackend};
         let tmp = crate::testing::tempdir();
         let mut app = App::new(tmp.path().to_path_buf());
-        let footer = |app: &mut App, width: u16| {
-            let mut term = Terminal::new(TestBackend::new(width, 20)).unwrap();
-            term.draw(|f| draw(f, app)).unwrap();
-            let buf = term.backend().buffer();
-            [18, 19].map(|y| (0..width).map(|x| buf[(x, y)].symbol()).collect::<String>())
-        };
+        // Two lines when wide, three when narrow: every word of the narrow
+        // footer is a word of the wide one, whole or shortened on purpose.
         for mode in [MenuMode::Normal, MenuMode::Ctrl, MenuMode::Alt] {
             app.held = Some(mode);
-            let wide = footer(&mut app, 250);
-            for (narrow, wide) in footer(&mut app, 60).iter().zip(&wide) {
-                let words: Vec<&str> = wide.split_whitespace().collect();
+            let wide = footer_rows(&mut app, 250).join(" ");
+            let words: Vec<&str> = wide.split_whitespace().collect();
+            for narrow in footer_rows(&mut app, 60) {
                 for word in narrow.split_whitespace() {
                     assert!(
                         is_whole_or_short(word, &words),
@@ -4399,11 +4693,18 @@ mod tests {
                 }
             }
         }
-        // The bookmarks screen has a footer of its own.
+        let footer = |app: &mut App, width: u16| {
+            use ratatui::{Terminal, backend::TestBackend};
+            let mut term = Terminal::new(TestBackend::new(width, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            let buf = term.backend().buffer();
+            [17, 18, 19].map(|y| (0..width).map(|x| buf[(x, y)].symbol()).collect::<String>())
+        };
+        // The bookmarks screen has a footer of its own, in its last two rows.
         app.held = None;
         app.bookmarks_view = Some(BookmarksView::default());
         let wide = footer(&mut app, 250);
-        for (narrow, wide) in footer(&mut app, 60).iter().zip(&wide) {
+        for (narrow, wide) in footer(&mut app, 60).iter().zip(&wide).skip(1) {
             let words: Vec<&str> = wide.split_whitespace().collect();
             for word in narrow.split_whitespace() {
                 assert!(
@@ -4416,15 +4717,9 @@ mod tests {
 
     #[test]
     fn an_archive_menu_leaves_out_what_writes() {
-        use ratatui::{Terminal, backend::TestBackend};
         let tmp = crate::testing::tempdir();
         let mut app = App::new(tmp.path().to_path_buf());
-        let footer = |app: &mut App| {
-            let mut term = Terminal::new(TestBackend::new(200, 20)).unwrap();
-            term.draw(|f| draw(f, app)).unwrap();
-            let buf = term.backend().buffer();
-            (0..200).map(|x| buf[(x, 18)].symbol()).collect::<String>()
-        };
+        let footer = |app: &mut App| footer_rows(app, 200)[0].clone();
         app.held = Some(MenuMode::Ctrl);
         assert!(footer(&mut app).contains("Delete"));
         app.archive = Some(tmp.path().join("p.zip"));
@@ -4680,7 +4975,7 @@ mod tests {
         let mut term = Terminal::new(TestBackend::new(100, 20)).unwrap();
         term.draw(|f| draw(f, &mut app)).unwrap();
         let buf = term.backend().buffer();
-        let row: String = (0..100).map(|x| buf[(x, 18)].symbol()).collect();
+        let row: String = (0..100).map(|x| buf[(x, 17)].symbol()).collect();
         assert!(
             row.contains("Name has hidden bidirectional characters"),
             "{row}"

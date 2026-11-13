@@ -1,8 +1,12 @@
-# Duplicados (Alt+Y)
+# Duplicados (Alt+D)
 
 Archivos con el mismo contenido, sean cuales sean sus nombres y carpetas, y el
-espacio que desperdician las copias. **Alt+Y** busca en la rama del directorio
+espacio que desperdician las copias. **Alt+D** busca en la rama del directorio
 actual; **D** en la vista de Uso busca en la carpeta listada allí.
+
+
+> Hasta la versión 0.7, Duplicados era Alt+Y, y Alt+D borraba los marcados
+> (ahora solo Ctrl+D). Vea [Ctrl y Alt](tagging.md#qué-significan-ctrl-y-alt).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────
@@ -34,7 +38,7 @@ copia de cada grupo siempre queda: Xylem no deja marcar la última.
 | `E` | escribe la lista en un archivo (nunca sobre uno que exista): tamaño, fecha, marca y ruta, con una línea en blanco entre grupos |
 | `\` | cierra la vista, con el árbol en esa carpeta |
 | F3 | lee las carpetas otra vez y compara otra vez |
-| Esc o Alt+Y | cierra |
+| Esc o Alt+D | cierra |
 
 Antes de borrar o mover, cada grupo se revisa otra vez: si una copia cambió desde
 el análisis, o la que iba a quedar desapareció, no se toca nada de ese grupo, y

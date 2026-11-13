@@ -32,5 +32,5 @@ enche um disco, leia o ramo com `*` primeiro: um diretório ainda não lido cont
 como vazio. Com o Google Drive ou o S3 montados via rclone, é assim que se
 encontra o que está ocupando espaço neles: veja
 [Armazenamento na nuvem](cloud.md). Para um disco inteiro, a
-[visualização de Uso](usage.md) (Alt+W) faz ainda mais: arquivos e pastas
+[visualização de Uso](usage.md) (Alt+U) faz ainda mais: arquivos e pastas
 juntos, o espaço real no disco e hard links contados uma única vez.

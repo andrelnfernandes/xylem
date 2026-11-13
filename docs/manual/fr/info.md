@@ -34,5 +34,5 @@ son total ; la somme des parts de ses sous-répertoires peut donc être inférie
 `*` : un répertoire non encore lu compte comme vide. Avec Google Drive ou S3
 monté via rclone, c'est ainsi que l'on trouve ce qui les remplit : voir
 [Stockage cloud](cloud.md). Pour un disque entier, la [vue d'utilisation du
-disque](usage.md) (Alt+W) va plus loin : fichiers et dossiers ensemble, espace
+disque](usage.md) (Alt+U) va plus loin : fichiers et dossiers ensemble, espace
 sur le disque, liens matériels comptés une seule fois.

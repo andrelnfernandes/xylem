@@ -169,7 +169,7 @@ pasta mostra quanto ocupa da pasta acima, com uma barra proporcional à maior
 entre as pastas irmãs. Siga as maiores barras até chegar aos backups antigos,
 vídeos e arquivos duplicados.
 
-A [visualização de Uso](usage.md) (Alt+W, na raiz do Drive) vai além: junta
+A [visualização de Uso](usage.md) (Alt+U, na raiz do Drive) vai além: junta
 arquivos e pastas, do maior para o menor, para que um único arquivo enorme se
 destaque tanto quanto uma pasta cheia. E o Branch (`B`) lista os arquivos de
 uma pasta inteira: [ordenados](sort.md) por tamanho, do maior para o menor

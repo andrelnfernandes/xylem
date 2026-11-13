@@ -33,9 +33,44 @@ aberto).
 
 Em eXecute, `%t` representa os arquivos marcados ([eXecute](execute.md)).
 
+## O que Ctrl e Alt querem dizer
+
+Como no ZTreeWin:
+
+- **A letra sozinha** age sobre o item sob o cursor.
+- **Ctrl+letra** age sobre os arquivos marcados: Ctrl+C copia, Ctrl+D apaga,
+  Ctrl+T marca tudo.
+- **Alt+letra** é a outra versão de um comando: na árvore, o ramo inteiro
+  (Alt+P Prune, Alt+R Release, Alt+U Uso, Alt+D Duplicados, Alt+C Compare); na
+  janela de arquivos, os marcados com seus caminhos (Alt+C, Alt+M); e as
+  ferramentas (Alt+S Sort, Alt+F File display, Alt+B Bookmarks, Alt+H Ajuda,
+  Alt+I Info, Alt+X o terminal).
+
+**Mudou na versão 0.8.** O Alt não repete mais o Ctrl, e algumas teclas mudaram:
+
+| Tecla | Até a 0.7 | A partir da 0.8 |
+|---|---|---|
+| Alt+A | permissões dos marcados | nada (Ctrl+A) |
+| Alt+D | apagar os marcados | Duplicados (apagar os marcados: Ctrl+D) |
+| Alt+R | renomear os marcados | Release do ramo, como `-` (renomear: Ctrl+R) |
+| Alt+T | marcar tudo | nada (Ctrl+T) |
+| Alt+U | desmarcar tudo | Uso (desmarcar: Ctrl+U) |
+| Alt+W | Uso | nada (Alt+U) |
+| Alt+Y | Duplicados | nada (Alt+D) |
+
+As teclas antigas podem voltar em `[keys.any]` na
+[configuração](configuration.md), por exemplo `"alt+w" = "usage"`.
+
 ## Menus Ctrl e Alt (F9)
 
-Como no ZTree, o rodapé mostra apenas os comandos de uma tecla. **F9** alterna
+O rodapé tem três linhas numa tela comum: os comandos de letra em ordem
+alfabética nas duas primeiras, as teclas de função e os símbolos na terceira.
+Numa tela larga o bastante para todos os menus, tem duas: as letras numa, as
+teclas na outra. Todo comando está em
+um dos menus (DIR ou FILE, CTRL, ALT); dentro de um arquivo compactado ou numa
+máquina remota, eles deixam de fora o que ali não funciona.
+
+**F9** alterna
 para o menu Ctrl, depois para o menu Alt e de volta. Com um desses menus
 aberto, a próxima letra vale como Ctrl+letra ou Alt+letra (`F9` `M` = Ctrl+M);
 `Esc` cancela. Em terminais com o protocolo de teclado do kitty, basta
