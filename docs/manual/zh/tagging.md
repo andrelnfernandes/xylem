@@ -51,7 +51,20 @@
 | Alt+W | 磁盘用量 | 无（用 Alt+U） |
 | Alt+Y | 重复文件 | 无（用 Alt+D） |
 
-旧按键可以在[配置](configuration.md)的 `[keys.any]` 中恢复，例如 `"alt+w" = "usage"`。
+旧按键可以在[配置](configuration.md)的 `[keys.any]` 中恢复，可以只恢复其中一个，也可以全部恢复。全部恢复为 0.7 及以前的样子：
+
+```toml
+[keys.any]
+"alt+a" = "attributes_tagged"
+"alt+d" = "delete_tagged"
+"alt+r" = "rename_tagged"
+"alt+t" = "tag_all"
+"alt+u" = "untag_all"
+"alt+w" = "usage"
+"alt+y" = "duplicates"
+```
+
+这些设置在两个窗口中都生效，目录树中的 Alt+R 也一样；Release 仍然可以用 `-`。在帮助（F1）中按 **K** 可查看当前生效的按键。
 
 ## Ctrl 与 Alt 菜单 (F9)
 

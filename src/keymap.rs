@@ -1133,6 +1133,49 @@ mod tests {
         assert_eq!(km.lookup(alt_g, Focus::Tree), None);
     }
 
+    /// The keys of 0.7, as the manual and the 0.8 notes give them to bring
+    /// back. `[keys.any]` is enough, also for Alt+R in the tree, where the
+    /// default (Release) is specific to the tree.
+    #[test]
+    fn the_alt_keys_of_0_7_can_be_brought_back() {
+        // The block as the manual prints it, under [keys.any].
+        let block = r#"
+[any]
+"alt+a" = "attributes_tagged"
+"alt+d" = "delete_tagged"
+"alt+r" = "rename_tagged"
+"alt+t" = "tag_all"
+"alt+u" = "untag_all"
+"alt+w" = "usage"
+"alt+y" = "duplicates"
+"#;
+        let keys: Keys = toml::from_str(block).unwrap();
+        let km = Keymap::from_config(&keys, &Options::default()).unwrap();
+        let alt = |c| KeyEvent::new(KeyCode::Char(c), KeyModifiers::ALT);
+        for focus in [Focus::Tree, Focus::Files] {
+            for (c, cmd) in [
+                ('a', Command::Attributes { tagged: true }),
+                (
+                    'd',
+                    Command::Delete {
+                        tagged: true,
+                        permanent: false,
+                    },
+                ),
+                ('r', Command::Rename { tagged: true }),
+                ('t', Command::TagAll),
+                ('u', Command::UntagAll),
+                ('w', Command::Usage),
+                ('y', Command::Duplicates),
+            ] {
+                assert_eq!(km.lookup(alt(c), focus), Some(cmd), "Alt+{c} in {focus:?}");
+            }
+        }
+        // Release keeps `-` in the tree.
+        let key = |c| KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE);
+        assert_eq!(km.lookup(key('-'), Focus::Tree), Some(Command::Release));
+    }
+
     #[test]
     fn every_command_has_a_default_key() {
         let options = Options {
