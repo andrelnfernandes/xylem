@@ -95,8 +95,11 @@ as a link is what `cp -a` and `rsync -l` do).
   six subprojects, security first. Done: subproject 1 (encodings, compressed
   files, the size limit; PRs #44 to #49), and the table mode with SQLite and the
   SQL filter (subprojects 2 and 5; PR #63), documented in
-  [the manual](docs/manual/viewer.md). Still to do: the windowed viewer (3); logs
-  (4), of which the line filter is done. Fixed-width and multi-record files (SDF,
+  [the manual](docs/manual/viewer.md). The windowed viewer (3) is started by the
+  tables, with no limit of rows in 0.8.0
+  ([docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)). Still to do:
+  windows for the text (3); logs (4), of which the line filter is done; Parquet in
+  windows (0.9). Fixed-width and multi-record files (SDF,
   CNAB, SPED) are out, by decision (2026-11-11): they go to a separate product
   ([docs/plans/viewer-positional.md](docs/plans/viewer-positional.md)).
 - **Rendered Markdown in the viewer**

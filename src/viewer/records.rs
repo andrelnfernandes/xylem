@@ -3313,6 +3313,79 @@ mod tests {
         assert_eq!(counted, Some(2));
     }
 
+    /// Stops the reading (as Esc does) at its `at`-th record.
+    struct StopAt(Arc<AtomicBool>, usize);
+
+    impl RecordSink for StopAt {
+        fn sheets(&mut self, _: &[String], _: usize) {}
+        fn columns(&mut self, _: &[String]) {}
+        fn columns_cut(&mut self) {}
+        fn record(&mut self, _: &[Cell<'_>]) -> ControlFlow<()> {
+            self.1 = self.1.saturating_sub(1);
+            if self.1 == 0 {
+                self.0.store(true, Ordering::Relaxed);
+            }
+            ControlFlow::Continue(())
+        }
+    }
+
+    /// Esc in the middle of the count and of the filter's scan: both stop,
+    /// and the count goes on from its last mark to the right total.
+    fn esc_stops_and_the_count_goes_on(rows: &mut dyn RowSource, total: usize) {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let budget = Budget::cancellable(u64::MAX, cancel.clone());
+        let mut seen = 0;
+        let stopped = rows
+            .count(budget, &mut |n, _| {
+                seen = n;
+                if n >= 8_192 {
+                    cancel.store(true, Ordering::Relaxed);
+                }
+            })
+            .unwrap();
+        assert_eq!(stopped, None, "Esc stopped the count");
+        assert!((8_192..total).contains(&seen), "{seen}");
+        let counted = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap();
+        assert_eq!(counted, Some(total));
+
+        let cancel = Arc::new(AtomicBool::new(false));
+        let budget = Budget::cancellable(u64::MAX, cancel.clone());
+        let mut sink = StopAt(cancel, 5_000);
+        let end = rows.read_from(0, budget, &mut sink).unwrap();
+        assert_eq!(end, End::OutOfTime, "Esc stopped the scan");
+    }
+
+    #[test]
+    fn esc_stops_a_text_tables_count_and_scan() {
+        let tmp = crate::testing::tempdir();
+        let csv = tmp.path().join("e.csv");
+        let jsonl = tmp.path().join("e.jsonl");
+        let (mut a, mut b) = (String::from("n\n"), String::new());
+        for n in 0..300_000 {
+            a.push_str(&format!("{n}\n"));
+            b.push_str(&format!("{{\"n\": {n}}}\n"));
+        }
+        std::fs::write(&csv, a).unwrap();
+        std::fs::write(&jsonl, b).unwrap();
+        let index = RowIndex::new(Vec::new());
+        let mut rows = TextRows::csv(&csv, None, file_stamp(&csv), index).unwrap();
+        esc_stops_and_the_count_goes_on(&mut rows, 300_000);
+        let index = RowIndex::new(vec!["n".to_string()]);
+        let mut rows = TextRows::jsonl(&jsonl, file_stamp(&jsonl), index).unwrap();
+        esc_stops_and_the_count_goes_on(&mut rows, 300_000);
+    }
+
+    #[test]
+    fn esc_stops_a_dbfs_count_and_scan() {
+        let tmp = crate::testing::tempdir();
+        let memos: Vec<String> = (0..100_000).map(|i| i.to_string()).collect();
+        let memos: Vec<&str> = memos.iter().map(String::as_str).collect();
+        let path = memo_dbf(tmp.path(), &memos, &[7]);
+        let index = RowIndex::new(Vec::new());
+        let mut rows = DbfRows::open(&path, file_stamp(&path), index).unwrap();
+        esc_stops_and_the_count_goes_on(&mut rows, 99_999);
+    }
+
     proptest::proptest! {
         /// Marks that point anywhere (the middle of a record, past the end)
         /// in any bytes give errors or odd rows, never a panic.

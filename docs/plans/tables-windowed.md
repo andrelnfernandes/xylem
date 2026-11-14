@@ -47,8 +47,15 @@ para a 0.8.0.** Em implementação na branch `tables-windowed`:
     linhas (`read_dbf`), e o arquivo de memo é escolhido como no `from_path` do crate
     (`.fpt` nas versões FoxPro, `.dbt` nas outras), já que ele não expõe essa escolha.
   - Um arquivo mais curto que o cabeçalho conta só os registros inteiros.
-- **Próxima:** ao fim, o manual nas 6 línguas, as notas da 0.8.0, o BACKLOG e o
-  `viewers.md` (abaixo).
+- **Fechamento:** as notas da 0.8.0 (`.github/release-notes/v0.8.0.md`), o BACKLOG e
+  o `viewers.md` atualizados. Os testes que faltavam (o teto de 1.000.000 de resultados
+  e o Esc na contagem e no filtro de CSV, JSONL e DBF) estão escritos. Conferido no app
+  real (build de debug), com um CSV de 108 MB (4 milhões de linhas) e um banco de 333
+  MB: a tabela abre em 0,14 s e 0,08 s (o banco levava 16 s), Ctrl+End, `g`, o filtro
+  e o Esc acertam; T lê o resto do texto em 5,8 s. A nota `Filtering the whole
+  table...` passou a dar lugar a `Filter matched N rows` quando a varredura acaba.
+  Fica para depois: o manual nas outras 5 línguas, com a tarefa de documentação
+  (BACKLOG).
 - **Manual:** durante o desenvolvimento, só o inglês (`docs/manual/viewer.md`, seção
   "Big tables"); as traduções ficam pendentes no BACKLOG.
 
