@@ -60,7 +60,21 @@ touches ont changé :
 | Alt+Y | Doublons | rien (Alt+D) |
 
 Les anciennes touches peuvent revenir dans `[keys.any]` de la
-[configuration](configuration.md), par exemple `"alt+w" = "usage"`.
+[configuration](configuration.md), une ou toutes. Toutes, comme jusqu'à la 0.7 :
+
+```toml
+[keys.any]
+"alt+a" = "attributes_tagged"
+"alt+d" = "delete_tagged"
+"alt+r" = "rename_tagged"
+"alt+t" = "tag_all"
+"alt+u" = "untag_all"
+"alt+w" = "usage"
+"alt+y" = "duplicates"
+```
+
+Elles valent dans les deux fenêtres, Alt+R dans l'arborescence compris ; Release
+reste sur `-`. **K** dans l'aide (F1) montre les touches en vigueur.
 
 ## Menus Ctrl et Alt (F9)
 

@@ -60,7 +60,21 @@ Tasten haben sich geändert:
 | Alt+Y | Duplikate | nichts (Alt+D) |
 
 Die alten Tasten lassen sich in `[keys.any]` der
-[Konfiguration](configuration.md) zurückholen, etwa `"alt+w" = "usage"`.
+[Konfiguration](configuration.md) zurückholen, einzeln oder alle. Alle, wie bis 0.7:
+
+```toml
+[keys.any]
+"alt+a" = "attributes_tagged"
+"alt+d" = "delete_tagged"
+"alt+r" = "rename_tagged"
+"alt+t" = "tag_all"
+"alt+u" = "untag_all"
+"alt+w" = "usage"
+"alt+y" = "duplicates"
+```
+
+Sie gelten in beiden Fenstern, auch Alt+R im Baum; Release bleibt auf `-`.
+**K** in der Hilfe (F1) zeigt die gültigen Tasten.
 
 ## Ctrl- und Alt-Menüs (F9)
 

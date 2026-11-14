@@ -131,6 +131,10 @@ options. To have the shell end up in the directory you were in when you quit
 with Alt+Q, add the small shell function from
 [Quitting and changing the shell's directory](docs/manual/quit.md).
 
+**Coming from 0.7?** Some Alt keys changed in 0.8 (Alt+U is now Usage, Alt+D
+Duplicates); [What Ctrl and Alt mean](docs/manual/tagging.md#what-ctrl-and-alt-mean)
+has the table and the lines for `config.toml` that bring the old ones back.
+
 ## Installation
 
 **Ready-made binary:** download the archive for your system from the
