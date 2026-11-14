@@ -181,6 +181,26 @@ impl App {
             self.picker_key(key);
             return;
         }
+        // The history list (↑) takes every key while it is open: the prompt's
+        // own (F2, F11, Tab...) come back when it closes.
+        if let Some(prompt) = &mut self.prompt
+            && prompt.input.list_open()
+        {
+            prompt.input.handle_key(key);
+            prompt.batch_mask_sync();
+            let treespec = match prompt.kind {
+                PromptKind::Treespec { .. } if !prompt.input.list_open() => {
+                    Some(prompt.input.text.clone())
+                }
+                _ => None,
+            };
+            self.forget_history();
+            if let Some(text) = treespec {
+                self.treespec_back.clear();
+                self.treespec_follow(&text);
+            }
+            return;
+        }
         if key.code == KeyCode::F(2) && self.prompt.as_ref().is_some_and(Prompt::picks_folder) {
             self.open_picker();
             return;

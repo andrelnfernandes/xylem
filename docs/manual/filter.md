@@ -11,7 +11,7 @@ the file, so the gaps show the filter at work. The header tells the result:
 | **F2** | match case or ignore it |
 | **F3** | invert: keep the lines that do not match |
 | **F4** | plain text or regular expression |
-| ↑ ↓ | earlier filters |
+| ↑ | earlier filters, as a [list](execute.md#history) |
 | Enter | apply |
 | Esc | cancel |
 
