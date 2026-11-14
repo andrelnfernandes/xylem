@@ -6,7 +6,18 @@ o `less` (subprojeto 3 de [viewers.md](viewers.md)), e abre caminho para os logs
 (subprojeto 4). Pedido do autor: entrar na **0.8.0**, prevista para uns 5 dias depois.
 
 **Estado: aprovado pelo autor em 2026-11-13, com as recomendações abaixo ("Decisões"),
-para a 0.8.0.** Em implementação na branch `tables-windowed`.
+para a 0.8.0.** Em implementação na branch `tables-windowed`:
+
+- **Feitas:** fatia 4 (2951f8e) e fatia 1 (5277b52). A janela está em
+  `src/viewer/table_window.rs`: `Window`, as threads de leitura, contagem e filtro, e o
+  trait `RowSource` em `records.rs`, com `SqliteRows` como primeira fonte. A grade
+  (`table.rs`) usa `row`, `file_row`, `known_rows` e `total_text`, e o viewer chama
+  `poll_window`, `pause_window` e `resume_window`.
+- **Próxima:** fatia 2. Um `RowSource` para CSV, TSV e JSONL com o índice, a carga
+  janelada em `tabular_loader` (como `load_sqlite_windowed`), o arquivo que mudou e a
+  leitura adiada do texto e do hexa (abaixo).
+- **Manual:** durante o desenvolvimento, só o inglês (`docs/manual/viewer.md`, seção
+  "Big tables"); as traduções ficam pendentes no BACKLOG.
 
 ## O que existe hoje
 
@@ -151,6 +162,14 @@ metade.
    tetos, a contagem, Ctrl+End e `g`, o filtro em segundo plano, e o SQLite (tabelas,
    views e query).
 2. **CSV, TSV e JSON Lines** com o índice em segundo plano, e o arquivo que mudou.
+   Também (pedido do autor em 2026-11-13): **abrir a tabela sem ler antes o arquivo
+   para o texto e o hexa.** Um banco de 300 MB levou 16 s para abrir (build de debug),
+   porque o viewer lia antes até o limite de tamanho (238 MiB) para os modos texto e
+   hexa. Com `V`, um arquivo que abre como tabela lê só o começo (64 KiB); o resto é
+   lido quando se vai para o texto ou o hexa (T, H), ou se a tabela não abrir. Um
+   arquivo comprimido continua lido por inteiro, porque não abre como tabela. Na tabela,
+   o cabeçalho deixa de dizer `(showing first N MiB)` e o número de controles bidi
+   do texto, que são do texto e não da grade.
 3. **DBF** pelo `seek`.
 4. **O aviso das planilhas.** Já está escrito, numa branch local (`spreadsheet-row-limit`,
    sem commit): parado quando o autor pediu para planejar antes.
