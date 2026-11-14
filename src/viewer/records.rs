@@ -738,8 +738,7 @@ fn dbase_structure(path: &Path, fields: &[dbase::FieldInfo], about: Vec<String>)
 
 /// A dBase / Clipper / FoxPro .dbf file (with companion .dbt memo file if present).
 pub fn read_dbf(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Result<End, String> {
-    let mut reader = dbase::Reader::from_path(path)
-        .map_err(|e| format!("Failed to open DBF {}: {e}", path.display()))?;
+    let (mut reader, edge) = open_dbf(path, &budget)?;
 
     let total = reader.fields().len();
     let names: Vec<String> = reader
@@ -776,9 +775,117 @@ pub fn read_dbf(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Resul
     ];
     sink.structure(dbase_structure(path, reader.fields(), about));
 
-    let mut pace = Pace::new(budget);
+    each_dbf_record(&mut reader, &edge, &budget, &names, sink)
+}
+
+/// The file under a dBase reader: it ends where the header says the records
+/// end, so that the reader stops there even when it started past the first,
+/// and it stops with the budget.
+struct DbfFile {
+    file: File,
+    /// Where it is, and where it ends (`u64::MAX` for a memo file).
+    at: u64,
+    end: u64,
+    budget: Budget,
+    edge: std::rc::Rc<std::cell::Cell<bool>>,
+}
+
+impl Read for DbfFile {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.budget.over() {
+            return Err(std::io::Error::other("the reading was stopped"));
+        }
+        let room = self.end.saturating_sub(self.at);
+        if room == 0 && !buf.is_empty() {
+            self.edge.set(true);
+            return Ok(0);
+        }
+        let len = buf.len().min(usize::try_from(room).unwrap_or(usize::MAX));
+        let n = self.file.read(&mut buf[..len])?;
+        self.at += n as u64;
+        Ok(n)
+    }
+}
+
+impl Seek for DbfFile {
+    fn seek(&mut self, to: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.at = self.file.seek(to)?;
+        Ok(self.at)
+    }
+}
+
+type DbfReader = dbase::Reader<BufReader<DbfFile>>;
+
+/// Opens a dBase file and, when it has memo fields, its memo file, as
+/// `dbase::Reader::from_path` does: `.fpt` for the FoxPro versions, `.dbt`
+/// for the others. The flag tells that the reader got to the end of the
+/// records.
+fn open_dbf(
+    path: &Path,
+    budget: &Budget,
+) -> Result<(DbfReader, std::rc::Rc<std::cell::Cell<bool>>), String> {
+    let failed = |e: &dyn std::fmt::Display| format!("Failed to open DBF {}: {e}", path.display());
+    let edge = std::rc::Rc::new(std::cell::Cell::new(false));
+    let open = |p: &Path, end: u64| -> Result<BufReader<DbfFile>, String> {
+        let file = File::open(p).map_err(|e| failed(&e))?;
+        Ok(BufReader::new(DbfFile {
+            file,
+            at: 0,
+            end,
+            budget: budget.clone(),
+            edge: edge.clone(),
+        }))
+    };
+    // The header first, for where the records end.
+    let probe = dbase::ReaderBuilder::new()
+        .build(open(path, u64::MAX)?)
+        .map_err(|e| failed(&e))?;
+    let header = probe.header();
+    let end = u64::from(header.offset_to_first_record)
+        + u64::from(header.num_records) * u64::from(header.size_of_record);
+    let memo = probe
+        .fields()
+        .iter()
+        .any(|f| f.field_type() == dbase::FieldType::Memo);
+    let fox = format!("{:?}", header.file_type).contains("Fox");
+    let builder = dbase::ReaderBuilder::new();
+    let reader = if memo {
+        let memo_path = path.with_extension(if fox { "fpt" } else { "dbt" });
+        let memo_file =
+            open(&memo_path, u64::MAX).map_err(|_| failed(&"the memo file could not be opened"))?;
+        builder.build_with_memo(open(path, end)?, memo_file)
+    } else {
+        builder.build(open(path, end)?)
+    }
+    .map_err(|e| failed(&e))?;
+    Ok((reader, edge))
+}
+
+/// Gives the sink the records from where the reader is, until the end of
+/// them, the sink refusing, or the budget running out.
+fn each_dbf_record(
+    reader: &mut DbfReader,
+    edge: &std::cell::Cell<bool>,
+    budget: &Budget,
+    names: &[String],
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
+    let mut pace = Pace::new(budget.clone());
     for record in reader.iter_records() {
-        let record = record.map_err(|e| format!("Error reading DBF record: {e}"))?;
+        let record = match record {
+            Ok(record) => record,
+            // Past the last record the header declares, when the reading
+            // started further on: the records ended.
+            Err(e)
+                if edge.get()
+                    && matches!(e.kind(), dbase::ErrorKind::IoError(io)
+                        if io.kind() == std::io::ErrorKind::UnexpectedEof) =>
+            {
+                return Ok(End::Complete);
+            }
+            Err(_) if budget.over() => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("Error reading DBF record: {e}")),
+        };
         let cells: Vec<Cell<'_>> = names
             .iter()
             .map(|name| record.get(name).map_or(Cell::Null, dbase_cell))
@@ -1534,6 +1641,15 @@ pub fn file_stamp(path: &Path) -> Stamp {
     Some((meta.len(), meta.modified().ok()?))
 }
 
+/// Whether the file is still the one an index was made of.
+fn still(path: &Path, stamp: Stamp) -> Result<(), String> {
+    if file_stamp(path) == stamp {
+        Ok(())
+    } else {
+        Err(FILE_CHANGED.to_string())
+    }
+}
+
 /// What reading a table says when its file is no longer the one it was:
 /// whatever its index knew of it no longer holds.
 pub const FILE_CHANGED: &str = "the file changed: R reloads";
@@ -1573,6 +1689,57 @@ impl RowIndex {
         self.0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Notes that `row` starts at `at`, if it is the next mark to note.
+    /// False when the index is full.
+    fn note(&self, row: usize, at: u64) -> bool {
+        if !row.is_multiple_of(MARK_EVERY) {
+            return true;
+        }
+        let mut marks = self.lock();
+        let k = row / MARK_EVERY;
+        if k == marks.bytes.len() {
+            if k >= MAX_MARKS {
+                return false;
+            }
+            marks.bytes.push(at);
+        }
+        true
+    }
+
+    /// Where a count goes on from: the last mark, or the whole count if it
+    /// is done.
+    fn resume(&self) -> Result<(usize, u64), usize> {
+        let marks = self.lock();
+        if let Some(rows) = marks.rows {
+            return Err(rows);
+        }
+        let k = marks.bytes.len().saturating_sub(1);
+        Ok((k * MARK_EVERY, marks.bytes.get(k).copied().unwrap_or(0)))
+    }
+
+    /// How a count ended: with the rows, out of time, or the index full.
+    fn counted(&self, end: End, rows: usize) -> Result<Option<usize>, String> {
+        match end {
+            End::Complete => {
+                self.lock().rows = Some(rows);
+                Ok(Some(rows))
+            }
+            End::OutOfTime => Ok(None),
+            End::Refused => Err(format!(
+                "over {} rows, the most Xylem counts",
+                thousands(MAX_MARKS * MARK_EVERY)
+            )),
+        }
+    }
+
+    /// The first mark, at the start of the rows, if there is none yet.
+    fn start_at(&self, at: u64) {
+        let mut marks = self.lock();
+        if marks.bytes.is_empty() {
+            marks.bytes.push(at);
+        }
     }
 
     /// The last mark at or before `row`: its row and its byte.
@@ -1630,11 +1797,7 @@ impl TextRows {
         rows.kind = TextKind::Csv {
             delimiter: layout.delimiter,
         };
-        let mut marks = rows.index.lock();
-        if marks.bytes.is_empty() {
-            marks.bytes.push(layout.data.unwrap_or(0));
-        }
-        drop(marks);
+        rows.index.start_at(layout.data.unwrap_or(0));
         Ok(rows)
     }
 
@@ -1647,21 +1810,12 @@ impl TextRows {
             kind: TextKind::Jsonl,
         };
         rows.check()?;
-        let mut marks = rows.index.lock();
-        if marks.bytes.is_empty() {
-            marks.bytes.push(0);
-        }
-        drop(marks);
+        rows.index.start_at(0);
         Ok(rows)
     }
 
-    /// Whether the file is still the one the index was made of.
     fn check(&self) -> Result<(), String> {
-        if file_stamp(&self.path) == self.stamp {
-            Ok(())
-        } else {
-            Err(FILE_CHANGED.to_string())
-        }
+        still(&self.path, self.stamp)
     }
 
     fn each_record(
@@ -1725,27 +1879,16 @@ impl RowSource for TextRows {
         progress: &mut Progress<'_>,
     ) -> Result<Option<usize>, String> {
         self.check()?;
-        let (mut row, byte, mut columns) = {
-            let marks = self.index.lock();
-            if let Some(rows) = marks.rows {
-                return Ok(Some(rows));
-            }
-            // From the last mark: a count stopped before goes on from there.
-            let k = marks.bytes.len().saturating_sub(1);
-            let byte = marks.bytes.get(k).copied().unwrap_or(0);
-            (k * MARK_EVERY, byte, JsonColumns::of(&marks.names))
+        // From the last mark: a count stopped before goes on from there.
+        let (mut row, byte) = match self.index.resume() {
+            Ok(from) => from,
+            Err(rows) => return Ok(Some(rows)),
         };
+        let mut columns = JsonColumns::of(&self.index.lock().names);
         let index = self.index.clone();
         let end = self.each_record(byte, &budget, |start, record| {
-            if row.is_multiple_of(MARK_EVERY) {
-                let mut marks = index.lock();
-                let k = row / MARK_EVERY;
-                if k == marks.bytes.len() {
-                    if k >= MAX_MARKS {
-                        return ControlFlow::Break(End::Refused);
-                    }
-                    marks.bytes.push(start);
-                }
+            if !index.note(row, start) {
+                return ControlFlow::Break(End::Refused);
             }
             if let TextRecord::Json(map) = record
                 && columns.learn(map)
@@ -1761,17 +1904,140 @@ impl RowSource for TextRows {
         })?;
         progress(row, None);
         self.check()?;
-        match end {
-            End::Complete => {
-                self.index.lock().rows = Some(row);
-                Ok(Some(row))
-            }
-            End::OutOfTime => Ok(None),
-            End::Refused => Err(format!(
-                "over {} rows, the most Xylem counts",
-                thousands(MAX_MARKS * MARK_EVERY)
-            )),
+        self.index.counted(end, row)
+    }
+}
+
+/// The names of a dBase file's first [`MAX_COLS`] fields.
+fn dbf_names(reader: &DbfReader) -> Vec<String> {
+    reader
+        .fields()
+        .iter()
+        .take(MAX_COLS)
+        .map(|f| f.name().to_string())
+        .collect()
+}
+
+/// The flag of a record that was deleted: the reader passes over it.
+const DBF_DELETED: u8 = 0x2A;
+
+/// A dBase file read by its [`RowIndex`], whose marks are numbers of
+/// records: the records have a fixed size, so the reader goes straight to
+/// one, and the index is there for the deleted ones, which are not rows.
+pub struct DbfRows {
+    path: std::path::PathBuf,
+    stamp: Stamp,
+    index: Arc<RowIndex>,
+}
+
+impl DbfRows {
+    pub fn open(path: &Path, stamp: Stamp, index: Arc<RowIndex>) -> Result<Self, String> {
+        still(path, stamp)?;
+        index.start_at(0);
+        Ok(DbfRows {
+            path: path.to_path_buf(),
+            stamp,
+            index,
+        })
+    }
+}
+
+/// Passes over the first `left` records it gets, then hands them on.
+struct Skip<'a> {
+    left: usize,
+    sink: &'a mut dyn RecordSink,
+}
+
+impl RecordSink for Skip<'_> {
+    fn sheets(&mut self, _: &[String], _: usize) {}
+    fn columns(&mut self, _: &[String]) {}
+    fn columns_cut(&mut self) {}
+
+    fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()> {
+        if self.left > 0 {
+            self.left -= 1;
+            return ControlFlow::Continue(());
         }
+        self.sink.record(cells)
+    }
+}
+
+impl RowSource for DbfRows {
+    fn read_from(
+        &mut self,
+        from: usize,
+        budget: Budget,
+        sink: &mut dyn RecordSink,
+    ) -> Result<End, String> {
+        still(&self.path, self.stamp)?;
+        let (row, record) = self.index.before(from);
+        let (mut reader, edge) = open_dbf(&self.path, &budget)?;
+        let record = usize::try_from(record).map_err(|_| FILE_CHANGED.to_string())?;
+        reader
+            .seek(record)
+            .map_err(|e| format!("Error reading DBF record: {e}"))?;
+        let names = dbf_names(&reader);
+        let mut skip = Skip {
+            left: from - row,
+            sink,
+        };
+        let end = each_dbf_record(&mut reader, &edge, &budget, &names, &mut skip)?;
+        still(&self.path, self.stamp)?;
+        Ok(end)
+    }
+
+    fn count(
+        &mut self,
+        budget: Budget,
+        progress: &mut Progress<'_>,
+    ) -> Result<Option<usize>, String> {
+        still(&self.path, self.stamp)?;
+        let (mut row, mut record) = match self.index.resume() {
+            Ok(from) => from,
+            Err(rows) => return Ok(Some(rows)),
+        };
+        let (first, size, records) = {
+            let (reader, _) = open_dbf(&self.path, &budget)?;
+            let header = reader.header();
+            (
+                u64::from(header.offset_to_first_record),
+                u64::from(header.size_of_record).max(1),
+                u64::from(header.num_records),
+            )
+        };
+        // Only the flag of each record is looked at, in one pass over them.
+        let mut file = File::open(&self.path).map_err(|_| FILE_CHANGED.to_string())?;
+        file.seek(std::io::SeekFrom::Start(first + record * size))
+            .map_err(|e| format!("Error reading DBF record: {e}"))?;
+        let mut reader = BufReader::with_capacity(1 << 16, Stoppable::new(file, budget.clone()));
+        let mut buf = vec![0; usize::try_from(size).unwrap_or(1)];
+        let mut end = End::Complete;
+        while record < records {
+            match reader.read_exact(&mut buf) {
+                Ok(()) => {}
+                // A file shorter than its header says: its last whole record.
+                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+                Err(_) if budget.over() => {
+                    end = End::OutOfTime;
+                    break;
+                }
+                Err(e) => return Err(format!("Error reading DBF record: {e}")),
+            }
+            if buf[0] != DBF_DELETED {
+                if !self.index.note(row, record) {
+                    end = End::Refused;
+                    break;
+                }
+                row += 1;
+                if row.is_multiple_of(4096) {
+                    progress(row, None);
+                }
+            }
+            record += 1;
+        }
+        progress(row, None);
+        still(&self.path, self.stamp)?;
+        self.index.counted(end, row)
     }
 }
 
@@ -2937,6 +3203,116 @@ mod tests {
         assert_eq!(e, FILE_CHANGED);
     }
 
+    /// A dBase III file with a number `N` and a memo `M` per record, and its
+    /// `.dbt`, made by hand: the crate writes no memo files. Records listed in
+    /// `deleted` are flagged as deleted.
+    fn memo_dbf(dir: &Path, memos: &[&str], deleted: &[usize]) -> std::path::PathBuf {
+        let path = dir.join("m.dbf");
+        let fields: [(&[u8], u8, u8); 2] = [(b"N", b'N', 6), (b"M", b'M', 10)];
+        let size = 1 + fields.iter().map(|f| u16::from(f.2)).sum::<u16>();
+        let header_len = 32 + 32 * fields.len() as u16 + 1;
+        let mut dbf = vec![0x83, 126, 11, 13];
+        dbf.extend((memos.len() as u32).to_le_bytes());
+        dbf.extend(header_len.to_le_bytes());
+        dbf.extend(size.to_le_bytes());
+        dbf.resize(32, 0);
+        for (name, kind, len) in fields {
+            let mut field = name.to_vec();
+            field.resize(11, 0);
+            field.push(kind);
+            field.extend([0; 4]);
+            field.extend([len, 0]);
+            field.resize(32, 0);
+            dbf.extend(field);
+        }
+        dbf.push(0x0D);
+        // Block 0 says where the free blocks start; memo `i` is block `i + 1`.
+        let mut dbt = vec![0; 512];
+        dbt[..4].copy_from_slice(&(memos.len() as u32 + 1).to_le_bytes());
+        for (i, memo) in memos.iter().enumerate() {
+            dbf.push(if deleted.contains(&i) {
+                DBF_DELETED
+            } else {
+                b' '
+            });
+            dbf.extend(format!("{i:>6}{:>10}", i + 1).into_bytes());
+            let mut block = memo.as_bytes().to_vec();
+            block.extend([0x1A, 0x1A]);
+            block.resize(512, 0);
+            dbt.extend(block);
+        }
+        dbf.push(0x1A);
+        std::fs::write(&path, dbf).unwrap();
+        std::fs::write(path.with_extension("dbt"), dbt).unwrap();
+        path
+    }
+
+    #[test]
+    fn a_dbf_with_memos_reads_them_from_its_dbt() {
+        let tmp = crate::testing::tempdir();
+        let path = memo_dbf(tmp.path(), &["first note", "second"], &[]);
+        let mut sink = Collect::default();
+        read_dbf(&path, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!(sink.columns, ["N", "M"]);
+        assert_eq!(sink.rows[0][1], text("first note"));
+        assert_eq!(sink.rows[1][1], text("second"));
+        // Without its memo file it does not open, as the crate's own reader.
+        std::fs::remove_file(path.with_extension("dbt")).unwrap();
+        let e = read_dbf(&path, Budget::unlimited(), &mut Collect::default()).unwrap_err();
+        assert!(e.contains("the memo file could not be opened"), "{e}");
+    }
+
+    #[test]
+    fn a_dbf_is_read_by_its_rows_passing_over_the_deleted_records() {
+        let tmp = crate::testing::tempdir();
+        let memos: Vec<String> = (0..1_000).map(|i| format!("m{i}")).collect();
+        let memos: Vec<&str> = memos.iter().map(String::as_str).collect();
+        // The first record, a run across a mark, and the last are deleted.
+        let mut deleted = vec![0, 999];
+        deleted.extend(250..270);
+        let path = memo_dbf(tmp.path(), &memos, &deleted);
+        let stamp = file_stamp(&path);
+        let mut rows = DbfRows::open(&path, stamp, RowIndex::new(Vec::new())).unwrap();
+        let counted = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap();
+        assert_eq!(counted, Some(1_000 - 22));
+        // Row r is the r-th record not deleted.
+        let live: Vec<usize> = (0..1_000).filter(|i| !deleted.contains(i)).collect();
+        for from in [0, 1, 248, 249, 255, 256, 600, 977] {
+            let mut sink = Collect {
+                stop: Some(1),
+                ..Default::default()
+            };
+            rows.read_from(from, Budget::unlimited(), &mut sink)
+                .unwrap();
+            let n = live[from];
+            assert_eq!(sink.rows[0][1], text(&format!("m{n}")), "row {from}");
+        }
+        // Past the last one the records end, with nothing made up.
+        let mut sink = Collect::default();
+        let end = rows.read_from(970, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!((end, sink.rows.len()), (End::Complete, 8));
+        let end = rows.read_from(978, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!((end, sink.rows.len()), (End::Complete, 8));
+        // And the file that changed is not read.
+        std::fs::write(&path, b"other").unwrap();
+        let e = rows
+            .read_from(0, Budget::unlimited(), &mut sink)
+            .unwrap_err();
+        assert_eq!(e, FILE_CHANGED);
+    }
+
+    #[test]
+    fn a_dbf_shorter_than_its_header_counts_its_whole_records() {
+        let tmp = crate::testing::tempdir();
+        let path = memo_dbf(tmp.path(), &["a", "b", "c"], &[]);
+        let bytes = std::fs::read(&path).unwrap();
+        // Half of the last record gone.
+        std::fs::write(&path, &bytes[..bytes.len() - 9]).unwrap();
+        let mut rows = DbfRows::open(&path, file_stamp(&path), RowIndex::new(Vec::new())).unwrap();
+        let counted = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap();
+        assert_eq!(counted, Some(2));
+    }
+
     proptest::proptest! {
         /// Marks that point anywhere (the middle of a record, past the end)
         /// in any bytes give errors or odd rows, never a panic.
@@ -2952,10 +3328,21 @@ mod tests {
             let path = tmp.path().join("t");
             std::fs::write(&path, &bytes).unwrap();
             for marks in [marks, near] {
-                let mut rows = indexed(&path, json, marks);
+                let mut rows = indexed(&path, json, marks.clone());
                 let _ = rows.read_from(from, Budget::unlimited(), &mut Collect::default());
                 let _ = rows.count(Budget::unlimited(), &mut |_, _| {});
                 let _ = rows.read_from(from, Budget::unlimited(), &mut Collect::default());
+                // A dBase header on the same bytes, with marks as records.
+                let mut dbf = vec![0x03, 126, 1, 1];
+                dbf.extend(bytes.iter().take(28));
+                dbf.extend_from_slice(&bytes);
+                std::fs::write(&path, &dbf).unwrap();
+                let index = RowIndex::new(Vec::new());
+                index.lock().bytes = marks;
+                let mut rows = DbfRows { path: path.clone(), stamp: file_stamp(&path), index };
+                let _ = rows.read_from(from, Budget::unlimited(), &mut Collect::default());
+                let _ = rows.count(Budget::unlimited(), &mut |_, _| {});
+                std::fs::write(&path, &bytes).unwrap();
             }
         }
     }

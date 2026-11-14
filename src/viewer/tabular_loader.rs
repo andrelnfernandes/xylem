@@ -376,6 +376,24 @@ pub fn load_jsonl_windowed(path: &Path, budget: Budget) -> Result<TableGrid, Str
     )
 }
 
+/// Like [`load_dbf`], with no limit of rows (see [`load_csv_windowed`]).
+pub fn load_dbf_windowed(path: &Path, budget: Budget) -> Result<TableGrid, String> {
+    let stamp = records::file_stamp(path);
+    load_windowed(
+        path,
+        budget,
+        |budget, sink| records::read_dbf(path, budget, sink),
+        |_| {
+            let path = path.to_path_buf();
+            let index = records::RowIndex::new(Vec::new());
+            Arc::new(move || {
+                records::DbfRows::open(&path, stamp, index.clone())
+                    .map(|rows| Box::new(rows) as Box<dyn RowSource>)
+            })
+        },
+    )
+}
+
 /// Load an Apache Parquet file (.parquet).
 pub fn load_parquet(path: &Path, budget: Budget) -> Result<TableGrid, String> {
     load(path, budget, |budget, sink| {
