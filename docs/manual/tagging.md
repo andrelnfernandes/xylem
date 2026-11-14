@@ -59,7 +59,21 @@ As in ZTreeWin:
 | Alt+Y | Duplicates | nothing (Alt+D) |
 
 The old keys can be brought back in `[keys.any]` of the
-[configuration](configuration.md), for instance `"alt+w" = "usage"`.
+[configuration](configuration.md), one or all of them. All of them, as up to 0.7:
+
+```toml
+[keys.any]
+"alt+a" = "attributes_tagged"
+"alt+d" = "delete_tagged"
+"alt+r" = "rename_tagged"
+"alt+t" = "tag_all"
+"alt+u" = "untag_all"
+"alt+w" = "usage"
+"alt+y" = "duplicates"
+```
+
+They apply in both windows, also Alt+R in the tree; Release stays on `-`.
+**K** in the help (F1) shows the keys in effect.
 
 ## Ctrl and Alt menus (F9)
 
