@@ -132,6 +132,7 @@ O separador do CSV (vírgula, ponto e vírgula, tabulação ou barra vertical) �
 | `m` ou Insert | marca ou desmarca o registro sob o cursor e vai para o próximo; o **Ctrl+B** passa a gravar só os marcados |
 | `M` | limpa as marcas |
 | `i` | a estrutura da tabela: o que o arquivo diz de cada coluna (veja abaixo) |
+| Enter | o registro sob o cursor em forma de ficha, um campo por linha: ↑ ↓ escolhem o campo, ← → vão ao registro anterior ou seguinte, `c` copia o registro inteiro (`NOME : valor`, uma linha por campo) e `y` o valor do campo, para colar num editor ou terminal; Esc volta. O que se copia é o que a tela mostra: caracteres de controle e de direção do texto, quebras de linha inclusive, viram `·`, e colar num terminal não executa nada. Fora da tabela, Enter fecha o visualizador |
 | `T` | vai para o texto do arquivo e volta |
 | `H` | da tabela para o texto, depois hexadecimal, depois de volta à tabela |
 
