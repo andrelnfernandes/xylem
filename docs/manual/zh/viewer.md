@@ -1,5 +1,7 @@
 # 查看器
 
+> **尚未涵盖 0.8.0。** 不再受 50,000 行限制的表格目前只写在英文版中。
+
 `V` 在查看器中打开文件（自动预览 Autoview，即 F7，则将其显示在文件列表旁）。二进制文件默认以十六进制模式打开。超过大小限制的文件仅显示开头部分。
 电子表格、CSV、DBF、SQLite 和 Parquet 以表格形式打开（见“表格模式”）。
 
@@ -174,6 +176,8 @@ SELECT c.name, sum(o.price) FROM customers c JOIN orders o ON o.code = c.code GR
 ### 限制
 
 一个表格最多容纳 50,000 行和 256 列，耗时也不超过查看器其他限制所允许的范围：3 秒（自动预览中为 100 毫秒）；解压后超过大小限制（自动预览中为 1 MiB）的电子表格不会以表格形式打开。超出部分不会显示，筛选也看不到，标题栏会提示：`(showing first 50,000 rows)` 或 `(stopped by the time limit: showing N rows)`。读取表格时屏幕保持可用，并有提示说明；按 Esc 停止读取并显示已读到的内容，`(stopped by Esc: showing N rows)`，再按一次 Esc 关闭查看器。单元格最多显示 2,048 个字符，之后显示 `…`。控制字符和文本方向字符显示为 `·`。
+
+当电子表格（XLSX、XLSB、XLS、ODS）的行数超过这一限制时，标题和提示会说明：`(the sheet has more than 50,000 rows, the most Xylem shows: open it in Excel or another spreadsheet program to see them all (O))`，即请用 Excel 或其他电子表格程序打开以查看全部行。按 **O** 会用系统为它指定的程序打开。
 
 ## 由 C 库读取的表格
 
