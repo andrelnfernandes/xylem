@@ -232,6 +232,7 @@ const TABLE_STOP_WAIT: Duration = Duration::from_millis(200);
 const READING_TABLE: &str = "Reading the table... Esc stops";
 const TABLE_STOPPED: &str = "Table reading stopped";
 const TABLE_BUSY: &str = "A table left behind is still being read: try again soon";
+const FILTERING: &str = "Filtering the whole table... Esc stops";
 /// How much of a file that opens as a table is read for its text at first.
 const TABLE_PEEK: u64 = 64 << 10;
 
@@ -544,6 +545,16 @@ impl Viewer {
     pub fn poll_table(&mut self) -> bool {
         let page = self.grid_rows();
         let window = self.table.as_mut().is_some_and(|t| t.poll_window(page));
+        // The filter over the whole table ended: the note says what it found.
+        if self.note.as_deref() == Some(FILTERING)
+            && let Some(t) = &self.table
+            && !t.filtering()
+        {
+            self.note = Some(format!(
+                "Filter matched {} rows",
+                tabular_loader::thousands(t.visible_row_count())
+            ));
+        }
         let Some(task) = &self.table_task else {
             return window;
         };
@@ -1612,9 +1623,7 @@ impl Viewer {
         }
         let filter = (!text.is_empty()).then_some(text);
         self.note = Some(match t.apply_filter(filter) {
-            Ok(_) if t.window_working() && filter.is_some() => {
-                "Filtering the whole table... Esc stops".to_string()
-            }
+            Ok(_) if t.window_working() && filter.is_some() => FILTERING.to_string(),
             Ok(count) => format!("Filter matched {count} rows"),
             Err(e) => format!("SQL error: {e}"),
         });
@@ -4918,7 +4927,13 @@ mod tests {
         let mut v = view_big(&path);
         settle(&mut v);
         v.sql_prompt("n > 119997 OR note = 'r60001'");
+        assert_eq!(v.note.as_deref(), Some(FILTERING));
         settle(&mut v);
+        assert_eq!(
+            v.note.as_deref(),
+            Some("Filter matched 3 rows"),
+            "said when done"
+        );
         let t = v.table.as_ref().unwrap();
         assert_eq!(t.visible_row_count(), 3);
         assert_eq!(t.file_row(0), Some(60_001));

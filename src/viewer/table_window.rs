@@ -737,6 +737,59 @@ mod tests {
         assert!((1_000..1_100).all(|n| w.row(n).is_some()));
     }
 
+    /// A table of `0`, `1`, `2`... in one column, `rows` long, made up as read.
+    struct Numbers(usize);
+
+    impl RowSource for Numbers {
+        fn read_from(
+            &mut self,
+            from: usize,
+            _: Budget,
+            sink: &mut dyn RecordSink,
+        ) -> Result<End, String> {
+            for n in from..self.0 {
+                if sink.record(&[Cell::Int(n as i64)]).is_break() {
+                    return Ok(End::Refused);
+                }
+            }
+            Ok(End::Complete)
+        }
+
+        fn count(
+            &mut self,
+            _: Budget,
+            _: &mut super::super::records::Progress<'_>,
+        ) -> Result<Option<usize>, String> {
+            Ok(Some(self.0))
+        }
+    }
+
+    #[test]
+    fn the_filter_keeps_at_most_its_limit_of_matches() {
+        let rows = MAX_MATCHES + 50;
+        let opener: Opener = Arc::new(move || Ok(Box::new(Numbers(rows)) as Box<dyn RowSource>));
+        let head = (0..WINDOW_ROWS)
+            .map(|n| TableRow {
+                cells: vec![n.to_string()],
+            })
+            .collect();
+        let mut w = Window::new(head, vec!["n".into()], opener);
+        w.start();
+        w.filter(Some(sql_filter::SqlFilter::parse("n >= 10").unwrap()));
+        let deadline = Instant::now() + Duration::from_secs(120);
+        while w.working() {
+            assert!(Instant::now() < deadline, "the scan never ended");
+            w.poll(0, (0, 0));
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let scan = w.scan.as_ref().unwrap();
+        assert!(scan.capped);
+        assert_eq!(scan.matches.len(), MAX_MATCHES);
+        assert_eq!(scan.matches.last(), Some(&(MAX_MATCHES + 9)));
+        assert_eq!(scan.state, Progress::Done);
+        assert!(w.cache.len() <= WINDOW_ROWS);
+    }
+
     #[test]
     fn the_window_keeps_to_its_rows() {
         let row = |n: usize| TableRow {

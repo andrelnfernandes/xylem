@@ -283,6 +283,14 @@ impl TableGrid {
         self.window.as_ref().is_some_and(|w| w.changed)
     }
 
+    /// The filter is still going over the whole table.
+    pub fn filtering(&self) -> bool {
+        self.window
+            .as_ref()
+            .and_then(|w| w.scan.as_ref())
+            .is_some_and(|s| s.state == Progress::Running)
+    }
+
     /// The window is reading something: the screen should look again soon.
     pub fn window_working(&self) -> bool {
         self.window.as_ref().is_some_and(|w| w.working())
