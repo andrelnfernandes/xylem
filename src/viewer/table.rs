@@ -10,6 +10,8 @@ use std::time::SystemTime;
 
 use super::records::Structure;
 use super::sql_filter::{self, Expr, RowContext, SqlFilter, Value};
+use super::table_window::{Progress, Window};
+use super::tabular_loader::thousands;
 use crate::bidi;
 
 /// Computes visual display width in terminal cells.
@@ -81,7 +83,7 @@ pub struct StructureView {
 }
 
 /// A structured tabular dataset (from CSV, spreadsheet, SQLite or DBF).
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TableGrid {
     #[allow(dead_code)]
     pub title: String,
@@ -120,11 +122,16 @@ pub struct TableGrid {
 
     /// What the file declares of its columns, made safe when it was read.
     pub structure: Option<Structure>,
+
+    /// A table too big to keep whole: its rows are in the window, read from
+    /// the file as the cursor moves, and `rows` and `filtered_indices` are
+    /// empty.
+    pub window: Option<Box<Window>>,
 }
 
-struct GridRowContext<'a> {
-    headers: &'a [String],
-    row: &'a TableRow,
+pub(super) struct GridRowContext<'a> {
+    pub(super) headers: &'a [String],
+    pub(super) row: &'a TableRow,
 }
 
 impl<'a> RowContext for GridRowContext<'a> {
@@ -175,9 +182,187 @@ impl TableGrid {
             marked: BTreeSet::new(),
             marked_stamp: None,
             structure: None,
+            window: None,
         };
         grid.recalculate_widths();
         grid
+    }
+
+    /// Moves the rows into a window over the whole table (see `table_window`),
+    /// once their widths are known. Its threads start with
+    /// [`TableGrid::resume_window`].
+    pub fn make_window(&mut self, opener: super::table_window::Opener) {
+        let head = std::mem::take(&mut self.rows);
+        self.filtered_indices = Vec::new();
+        self.window = Some(Box::new(Window::new(head, self.headers.clone(), opener)));
+    }
+
+    /// Starts the window's threads, if there is a window.
+    pub fn resume_window(&mut self) {
+        if let Some(w) = &mut self.window {
+            w.start();
+        }
+    }
+
+    /// Lets the window's threads go, keeping the rows on screen.
+    pub fn pause_window(&mut self) {
+        if let Some(w) = &mut self.window {
+            w.pause();
+        }
+    }
+
+    /// A row by its number in the file (from 0), if it is here: in a window,
+    /// one not read yet is not.
+    pub fn row(&self, file_row: usize) -> Option<&TableRow> {
+        match &self.window {
+            None => self.rows.get(file_row),
+            Some(w) => w.row(file_row),
+        }
+    }
+
+    /// The number in the file (from 0) of the `visible`-th row shown.
+    pub fn file_row(&self, visible: usize) -> Option<usize> {
+        match &self.window {
+            None => self.filtered_indices.get(visible).copied(),
+            Some(w) => w.file_row(visible),
+        }
+    }
+
+    /// The rows the table is known to have: all, unless a window is still
+    /// counting them.
+    pub fn known_rows(&self) -> usize {
+        self.window.as_ref().map_or(self.rows.len(), |w| w.rows)
+    }
+
+    /// How many rows the table has, as the screen says it: `2,000+` while a
+    /// window counts them.
+    pub fn total_text(&self) -> String {
+        let Some(w) = &self.window else {
+            return thousands(self.rows.len());
+        };
+        let rows = thousands(w.rows);
+        match w.counting {
+            Progress::Done => rows,
+            Progress::Running => format!("{rows}+ (counting…)"),
+            Progress::Stopped | Progress::Failed => format!("{rows}+"),
+        }
+    }
+
+    /// How the filter is going, for the line under the grid.
+    pub fn filter_text(&self) -> Option<String> {
+        let q = self.active_filter.as_ref()?;
+        let found = thousands(self.visible_row_count());
+        let Some(scan) = self.window.as_ref().and_then(|w| w.scan.as_ref()) else {
+            return Some(format!("Filter: {q} ({found} matches)"));
+        };
+        let status = if scan.capped {
+            format!("first {found} matches")
+        } else {
+            let scanned = thousands(scan.scanned);
+            match scan.state {
+                Progress::Done => format!("{found} matches"),
+                Progress::Running => format!(
+                    "{found} matches so far, row {scanned} of {}",
+                    self.total_text()
+                ),
+                Progress::Stopped | Progress::Failed => {
+                    format!("{found} matches in the first {scanned} rows: stopped")
+                }
+            }
+        };
+        Some(format!("Filter: {q} ({status})"))
+    }
+
+    /// Esc: stops the window's count and filter. False if neither was running.
+    pub fn stop_window_work(&mut self) -> bool {
+        self.window.as_mut().is_some_and(|w| w.stop_work())
+    }
+
+    /// The file is no longer the one its window was reading: R reads it again.
+    pub fn file_changed(&self) -> bool {
+        self.window.as_ref().is_some_and(|w| w.changed)
+    }
+
+    /// The filter is still going over the whole table.
+    pub fn filtering(&self) -> bool {
+        self.window
+            .as_ref()
+            .and_then(|w| w.scan.as_ref())
+            .is_some_and(|s| s.state == Progress::Running)
+    }
+
+    /// The window is reading something: the screen should look again soon.
+    pub fn window_working(&self) -> bool {
+        self.window.as_ref().is_some_and(|w| w.working())
+    }
+
+    /// Takes what the window's threads read and asks for the rows around the
+    /// screen (`page` rows tall). True if there is something new to show.
+    pub fn poll_window(&mut self, page: usize) -> bool {
+        let page = page.max(1);
+        let focus = self.file_row(self.cursor_row).unwrap_or(0);
+        let first = self.file_row(self.scroll_row).unwrap_or(0);
+        let last = self
+            .file_row(
+                (self.scroll_row + page)
+                    .min(self.visible_row_count())
+                    .saturating_sub(1),
+            )
+            .unwrap_or(first);
+        let Some(w) = &mut self.window else {
+            return false;
+        };
+        let changed = w.poll(focus, (first, last));
+        // Columns the count found further on (JSON Lines).
+        if w.headers().len() > self.headers.len() {
+            let new = &w.headers()[self.headers.len()..];
+            self.col_widths
+                .extend(new.iter().map(|h| (display_width(h) + 1).max(4)));
+            self.headers.extend_from_slice(new);
+        }
+        // The table may have turned out shorter than it seemed.
+        let visible = w.visible();
+        if self.cursor_row >= visible {
+            self.cursor_row = visible.saturating_sub(1);
+        }
+        if self.scroll_row > self.cursor_row {
+            self.scroll_row = self.cursor_row;
+        }
+        // The screen and as much again on each side; a page of rows is
+        // read at least, as reading costs most in getting to the first. No
+        // more than fits, or what was read would push out what was asked for
+        // and be asked for again.
+        let w = self.window.as_mut().expect("looked at it above");
+        let margin = page
+            .max(250)
+            .min(w.rows_that_fit().saturating_sub(page) / 2);
+        let from = self.scroll_row.saturating_sub(margin);
+        let to = (self.scroll_row + page + margin).min(visible);
+        let wanted: Vec<usize> = (from..to).filter_map(|v| w.file_row(v)).collect();
+        w.want(wanted.into_iter());
+        if changed {
+            self.widen_to_screen(page);
+        }
+        changed
+    }
+
+    /// Widens a column that a row on screen has wider than its first rows
+    /// had (row numbers grow along a table), never narrowing one.
+    fn widen_to_screen(&mut self, page: usize) {
+        let end = (self.scroll_row + page).min(self.visible_row_count());
+        for visible in self.scroll_row..end {
+            let Some(row) = self.file_row(visible).and_then(|r| self.row(r)) else {
+                continue;
+            };
+            let widths: Vec<usize> = row
+                .cells
+                .iter()
+                .map(|cell| display_width(cell).min(40) + 1)
+                .collect();
+            for (have, w) in self.col_widths.iter_mut().zip(widths) {
+                *have = (*have).max(w);
+            }
+        }
     }
 
     /// Recalculate visual column widths based on headers and sample rows.
@@ -208,7 +393,11 @@ impl TableGrid {
             None => {
                 self.active_filter = None;
                 self.filter_expr = None;
-                self.filtered_indices = (0..self.rows.len()).collect();
+                if let Some(w) = &mut self.window {
+                    w.filter(None);
+                } else {
+                    self.filtered_indices = (0..self.rows.len()).collect();
+                }
                 self.cursor_row = 0;
                 self.scroll_row = 0;
                 Ok(self.filtered_indices.len())
@@ -216,6 +405,14 @@ impl TableGrid {
             Some(q) if q.trim().is_empty() => self.apply_filter(None),
             Some(q) => {
                 let expr = SqlFilter::parse(q)?;
+                if let Some(w) = &mut self.window {
+                    w.filter(Some(expr.clone()));
+                    self.active_filter = Some(q.to_string());
+                    self.filter_expr = Some(expr);
+                    self.cursor_row = 0;
+                    self.scroll_row = 0;
+                    return Ok(self.visible_row_count());
+                }
                 let mut matched = Vec::new();
                 for (idx, row) in self.rows.iter().enumerate() {
                     let ctx = GridRowContext {
@@ -250,29 +447,54 @@ impl TableGrid {
     /// The number the row under the cursor has in the file, from 1. A filter hides
     /// rows but does not renumber them.
     pub fn cursor_file_row(&self) -> usize {
-        self.filtered_indices
-            .get(self.cursor_row)
-            .copied()
-            .unwrap_or(self.cursor_row)
-            + 1
+        self.file_row(self.cursor_row).unwrap_or(self.cursor_row) + 1
     }
 
     /// Go to a row by its number in the file, from 1, and say where the cursor
     /// landed. If the filter hid that row, it goes to the next one kept.
     pub fn goto_row(&mut self, row: usize, page_height: usize) -> String {
-        let total = self.rows.len().max(1);
+        let total = self.known_rows().max(1);
+        if let Some(w) = &self.window {
+            if row > total && w.counting != Progress::Done {
+                return format!(
+                    "The count has not reached row {} yet: {} so far",
+                    thousands(row),
+                    self.total_text()
+                );
+            }
+            if let Some(scan) = &w.scan
+                && scan.state == Progress::Running
+                && row > scan.scanned
+                && scan.matches.last().is_none_or(|&last| last + 1 < row)
+            {
+                return format!(
+                    "The filter has not reached row {} yet: it is on row {}",
+                    thousands(row),
+                    thousands(scan.scanned)
+                );
+            }
+        }
         let row = row.clamp(1, total);
-        let Some(&last) = self.filtered_indices.last() else {
+        let visible = self.visible_row_count();
+        if visible == 0 {
             return "No rows to go to".to_string();
-        };
-        let wanted = (row - 1).min(last);
-        self.cursor_row = self.filtered_indices.partition_point(|&r| r < wanted);
+        }
+        self.cursor_row = match &self.window {
+            None => self.filtered_indices.partition_point(|&r| r < row - 1),
+            Some(w) => w.shown_from(row - 1),
+        }
+        .min(visible - 1);
         self.scroll_row = self.cursor_row.saturating_sub(page_height / 2);
         let shown = self.cursor_file_row();
+        let total = self.total_text();
         if shown == row {
-            format!("Row {row} of {total}")
+            format!("Row {} of {total}", thousands(row))
         } else {
-            format!("Row {row} is filtered out: showing row {shown}")
+            format!(
+                "Row {} is filtered out: showing row {}",
+                thousands(row),
+                thousands(shown)
+            )
         }
     }
 
@@ -290,7 +512,7 @@ impl TableGrid {
             .map(|(col, name)| {
                 let mut seen = [false; KINDS.len()];
                 let mut widest = 0;
-                for row in &self.rows {
+                for row in self.sample() {
                     let cell = row.cells.get(col).map_or("", String::as_str);
                     let kind = match Value::infer(cell) {
                         Value::Int(_) => 0,
@@ -310,8 +532,8 @@ impl TableGrid {
                 vec![name.clone(), kinds.join(", "), widest.to_string()]
             })
             .collect();
-        let rows = self.rows.len();
-        let count = super::tabular_loader::thousands(rows);
+        let rows = self.sample().count();
+        let count = thousands(rows);
         Structure {
             titles: ["Column", "Values seen", "Widest"]
                 .map(String::from)
@@ -324,19 +546,26 @@ impl TableGrid {
         }
     }
 
+    /// The rows read so far: all of them, or those in the window.
+    fn sample(&self) -> Box<dyn Iterator<Item = &TableRow> + '_> {
+        match &self.window {
+            None => Box::new(self.rows.iter()),
+            Some(w) => Box::new(w.kept()),
+        }
+    }
+
     /// Total count of rows currently visible (matching filter).
     pub fn visible_row_count(&self) -> usize {
-        self.filtered_indices.len()
+        match &self.window {
+            None => self.filtered_indices.len(),
+            Some(w) => w.visible(),
+        }
     }
 
     /// Get current active cell contents.
     pub fn active_cell(&self) -> Option<&str> {
-        if let Some(&row_idx) = self.filtered_indices.get(self.cursor_row)
-            && let Some(row) = self.rows.get(row_idx)
-        {
-            return row.cells.get(self.cursor_col).map(|s| s.as_str());
-        }
-        None
+        let row = self.row(self.file_row(self.cursor_row)?)?;
+        row.cells.get(self.cursor_col).map(|s| s.as_str())
     }
 
     /// Sanitize cell text for safe display (control chars and bidi to '·', truncated at max length).
@@ -372,7 +601,7 @@ impl TableGrid {
 
     /// Width of the row numbers on the left of the grid.
     pub fn row_number_width(&self) -> usize {
-        self.rows.len().max(1).to_string().len().max(3)
+        self.known_rows().max(1).to_string().len().max(3)
     }
 
     /// Moves the first column shown so that the cursor's column is on a
