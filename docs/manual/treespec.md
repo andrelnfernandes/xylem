@@ -27,6 +27,13 @@ relative to the current directory or start with `~`; **F2**
 [picks it from a tree](picker.md) and ↑ lists earlier ones. New windows
 keep the current [sort order](sort.md) and display mode.
 
+**Alt+L** makes the directory under the cursor the root of the tree, at once:
+`L` to a directory inside the tree only moves the cursor, and Alt+L then narrows
+the tree to it. In the file window it takes the directory shown (in Branch and
+Showall, that of the selected file). The window is opened again there, so what
+was read and the tags are dropped; `L ..` opens the directory above again. Not
+inside archives nor on remote machines.
+
 The prompt opens empty. ↑ opens a [list](execute.md#history) of the places
 used before, the last one at the bottom: those logged and the folders files
 were copied or moved to. Typing filters it, Enter puts a place in the line and

@@ -616,6 +616,52 @@ impl App {
         Ok(())
     }
 
+    /// Alt+L: the directory under the cursor (in Branch and Showall, that of the
+    /// selected file) becomes the root of the window. The window is opened again
+    /// there, as Log does with a path outside the tree: what was read is dropped,
+    /// the tags included.
+    pub(crate) fn log_here(&mut self) {
+        let id = match self.focus {
+            Focus::Tree => self.current(),
+            Focus::Files => self.header_dir(),
+        };
+        if id == ROOT {
+            let log = self.keymap.key_for(Command::Log).unwrap_or("L".into());
+            self.message = Some(format!(
+                "This is already the root ({log} .. opens the one above)"
+            ));
+            return;
+        }
+        let path = self.tree.path(id);
+        let path = match dunce::canonicalize(&path) {
+            Ok(path) if path.is_dir() => path,
+            Ok(path) => {
+                self.message = Some(format!("{} is not a directory", path.display()));
+                return;
+            }
+            Err(e) => {
+                self.message = Some(format!("Cannot log {}: {e}", path.display()));
+                return;
+            }
+        };
+        let lost: usize = self
+            .tree
+            .subtree(ROOT)
+            .into_iter()
+            .map(|n| self.tree.node(n).files.iter().filter(|f| f.tagged).count())
+            .sum();
+        let (sort, display) = (self.sort, self.display);
+        *self.deref_mut() = self.new_pane(path.clone());
+        self.display = display;
+        self.set_sort(sort);
+        let path = path.display();
+        self.message = Some(match lost {
+            0 => format!("{path} is now the root"),
+            1 => format!("{path} is now the root (1 tag dropped)"),
+            n => format!("{path} is now the root ({n} tags dropped)"),
+        });
+    }
+
     /// Jumps directly to a directory path: if it is inside the current tree, moves
     /// the cursor there and expands as needed; otherwise opens it as a new root.
     pub(crate) fn jump_to_path(&mut self, path: &Path) -> Result<(), String> {

@@ -195,6 +195,11 @@ const COMMANDS: &[(&str, Command, &str)] = &[
     ),
     ("log", Command::Log, "open another directory in the pane"),
     (
+        "log_here",
+        Command::LogHere,
+        "make this directory the root of the tree",
+    ),
+    (
         "compare",
         Command::Compare,
         "compare with the other pane and tag",
@@ -386,7 +391,7 @@ use Scope::{Any, Files, Tree};
 
 /// The default keys. Ctrl+letter acts on the tagged files. Alt+letter is the
 /// other version of a command, as in ZTreeWin: in the tree, the whole branch
-/// (Prune, Release, Usage); in the file window, the tagged files with their
+/// (Prune, Release, Usage, Log as the root); in the file window, the tagged files with their
 /// paths (Copy, Move); and the tools (Sort, File display, Bookmarks...).
 const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("up", Any, "up"),
@@ -463,6 +468,7 @@ const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("l", Tree, "log"),
     ("m", Tree, "make_dir"),
     ("alt+p", Tree, "prune"),
+    ("alt+l", Any, "log_here"),
     ("ctrl+f7", Tree, "tag_branch"),
     ("ctrl+f8", Tree, "untag_branch"),
     ("ctrl+f9", Tree, "invert_branch"),

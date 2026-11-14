@@ -1207,6 +1207,71 @@ fn log_moves_cursor_or_opens_new_root() {
 }
 
 #[test]
+fn alt_l_makes_the_directory_under_the_cursor_the_root() {
+    let (tmp, _) = sample();
+    let root = dunce::canonicalize(tmp.path()).unwrap();
+    let mut app = App::new(root.clone());
+    app.tree.file_mut(ROOT, 0).tagged = true;
+    let sort = Sort {
+        descending: true,
+        ..app.sort
+    };
+    app.set_sort(sort);
+
+    // On the root there is nothing to do: the tree and the tags stay.
+    alt(&mut app, 'l');
+    assert_eq!(app.tree.path(ROOT), root);
+    assert!(app.tree.node(ROOT).files[0].tagged);
+    let said = app.message.take().unwrap();
+    assert!(said.contains("already the root"), "{said}");
+
+    // On a directory inside the tree, where L only moves the cursor.
+    app.apply(Command::Down);
+    assert_eq!(app.current_path(), root.join("sub"));
+    alt(&mut app, 'l');
+    assert_eq!(app.tree.path(ROOT), root.join("sub"));
+    assert_eq!(app.current_path(), root.join("sub"));
+    assert_eq!(names(&app), ["c.rs"]);
+    assert_eq!(app.sort, sort, "the sort order stays, as in Log");
+    let said = app.message.take().unwrap();
+    assert!(said.ends_with("is now the root (1 tag dropped)"), "{said}");
+
+    // L with a path outside goes back up.
+    press(&mut app, KeyCode::Char('l'));
+    answer_prompt(&mut app, "..");
+    assert_eq!(app.tree.path(ROOT), root);
+}
+
+#[test]
+fn alt_l_in_a_branch_takes_the_directory_of_the_selected_file() {
+    let (tmp, _) = sample();
+    let root = dunce::canonicalize(tmp.path()).unwrap();
+    let mut app = App::new(root.clone());
+    app.apply(Command::Branch);
+    assert_eq!(app.focus, Focus::Files);
+    let c = names(&app).iter().position(|n| n == "c.rs").unwrap();
+    app.file_state.select(Some(c));
+    alt(&mut app, 'l');
+    assert_eq!(app.tree.path(ROOT), root.join("sub"));
+    assert_eq!(app.view, FileView::Dir);
+    let said = app.message.take().unwrap();
+    assert!(said.ends_with("is now the root"), "{said}");
+}
+
+#[test]
+fn alt_l_is_refused_on_a_remote_machine() {
+    let Some((_tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    let root = app.tree.path(ROOT);
+    app.apply(Command::Down);
+    alt(&mut app, 'l');
+    assert_eq!(app.tree.path(ROOT), root);
+    let said = app.message.take().unwrap();
+    assert!(said.starts_with("Not yet on a remote machine"), "{said}");
+}
+
+#[test]
 fn the_log_prompt_opens_empty_and_recalls_the_places_used() {
     let (tmp, mut app) = sample();
     let root = dunce::canonicalize(tmp.path()).unwrap();
