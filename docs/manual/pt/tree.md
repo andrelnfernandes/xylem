@@ -56,6 +56,7 @@ para a lista do próprio diretório.
 | `M` | cria um subdiretório |
 | `R` | renomeia o diretório |
 | `D` ou Del | exclui o diretório, se estiver vazio ([excluir](delete.md)) |
+| Alt+L | Log aqui: faz deste diretório a raiz da árvore |
 | Alt+P | Prune: exclui o diretório com tudo o que há nele |
 | `O` ou Ctrl+Z | Oops: restaura o que foi enviado para a lixeira |
 | `N` | altera a data do diretório ([datas](attributes.md)) |

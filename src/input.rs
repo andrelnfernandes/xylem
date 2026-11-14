@@ -25,6 +25,8 @@ pub enum Command {
     Split,
     /// Opens another directory in the window.
     Log,
+    /// Alt+L: the directory under the cursor becomes the root of the window.
+    LogHere,
     /// Compares with the other window's directory and tags files.
     Compare,
     /// Opens a ZIP/TAR as if it were a directory (Alt+F5).

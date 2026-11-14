@@ -56,6 +56,7 @@ directory's own list.
 | `M` | make a subdirectory |
 | `R` | rename the directory |
 | `D` or Del | delete the directory, if empty ([delete](delete.md)) |
+| Alt+L | Log here: make this directory the root of the tree |
 | Alt+P | Prune: delete the directory with everything in it |
 | `O` or Ctrl+Z | Oops: restore what went to the trash |
 | `N` | change the directory's date ([dates](attributes.md)) |

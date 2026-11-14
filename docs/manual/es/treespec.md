@@ -26,6 +26,14 @@ relativa al directorio actual o empezar por `~`; **F2**
 [la elige desde un árbol](picker.md) y ↑ recupera las anteriores. Las ventanas
 nuevas conservan el [orden](sort.md) y el modo de visualización actuales.
 
+**Alt+L** convierte el directorio bajo el cursor en la raíz del árbol, al
+instante: `L` hacia un directorio dentro del árbol solo mueve el cursor, y Alt+L
+reduce entonces el árbol a él. En la ventana de archivos se toma el directorio
+mostrado (en Branch y Showall, el del archivo seleccionado). La ventana se abre
+de nuevo allí, así que lo leído y las marcas se pierden; `L ..` vuelve a abrir el
+directorio superior. No funciona dentro de archivos comprimidos ni en máquinas
+remotas.
+
 El prompt se abre vacío. ↑ recorre los lugares usados antes, del último al más
 antiguo: los registrados con Log y las carpetas a las que se copiaron o movieron
 archivos.

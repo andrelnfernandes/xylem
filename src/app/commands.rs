@@ -409,6 +409,7 @@ impl App {
                 | Command::Attributes { .. }
                 | Command::MakeDir
                 | Command::Log
+                | Command::LogHere
                 | Command::Edit
                 | Command::Execute
                 | Command::Terminal
@@ -431,6 +432,12 @@ impl App {
                 | Command::CreateArchive { .. }
                 | Command::Batch
         );
+        if cmd == Command::LogHere && self.remote.is_some() {
+            return Some(
+                "Not yet on a remote machine: Log the address with the folder (user@host:folder)"
+                    .into(),
+            );
+        }
         if remote_writes && self.remote.is_some() {
             return Some(match cmd {
                 Command::Oops => "There is no trash on a remote machine to restore from".into(),
@@ -500,6 +507,7 @@ impl App {
             // Empty: ↑ brings the places logged or copied and moved to, and
             // F2 picks one in the tree, from the current directory.
             Command::Log => self.open_prompt(PromptKind::Log, "LOG directory: ".into(), ""),
+            Command::LogHere => self.log_here(),
             Command::Back if in_files => self.back_to_tree(),
             Command::Back => self.close_archive(),
             Command::OpenArchive => self.open_archive(),
