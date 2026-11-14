@@ -3197,6 +3197,12 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             Style::new().fg(theme().error),
         ));
     }
+    if v.text_changed() && v.mode != ViewMode::Table {
+        title.push(Span::styled(
+            "  (the file changed: R reloads)",
+            Style::new().fg(theme().error),
+        ));
+    }
     if let Some(problem) = v.problem() {
         title.push(Span::styled(
             format!("  ({problem})"),
@@ -3268,9 +3274,15 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     let total = v.line_count().max(1);
     let position = match v.mode {
         ViewMode::Text => format!(
-            "Line {} of {}",
+            "Line {} of {}{}",
             fmt_num(v.top_line() as u64 + 1),
-            fmt_num(v.total_lines().max(1) as u64)
+            fmt_num(v.total_lines().max(1) as u64),
+            // The lines of a big file are still being counted.
+            if v.counting_lines() {
+                "+ (counting…)"
+            } else {
+                ""
+            }
         ),
         ViewMode::Rendered => format!(
             "Line {} of {}",
@@ -3357,8 +3369,9 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         first.spans.extend(
             menu_line(
                 "",
-                &if v.mode == ViewMode::Table
-                    && v.table.as_ref().is_some_and(TableGrid::file_changed)
+                &if (v.mode == ViewMode::Table
+                    && v.table.as_ref().is_some_and(TableGrid::file_changed))
+                    || (v.mode != ViewMode::Table && v.text_changed())
                 {
                     vec![("R", "reload"), ("Esc", "close")]
                 } else if v.mode == ViewMode::Table {

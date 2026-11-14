@@ -1,5 +1,7 @@
 # Comparação com o ZTreeWin
 
+> **Uma linha ainda não atualizada.** Na tabela, o visualizador já não tem limite de tamanho para arquivos no disco; veja a versão em inglês.
+
 ## Antes de tudo, um agradecimento
 
 Uso alguma variante do XTree desde os anos 1990 e tenho uma licença paga do

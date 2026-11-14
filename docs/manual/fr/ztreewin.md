@@ -1,5 +1,7 @@
 # Comparaison avec ZTreeWin
 
+> **Une ligne pas encore à jour.** Dans le tableau, la visionneuse n'a plus de limite de taille pour les fichiers sur disque ; voir la version anglaise.
+
 ## Avant tout, un remerciement
 
 J'utilise une variante de XTree depuis les années 1990, et j'ai une licence
