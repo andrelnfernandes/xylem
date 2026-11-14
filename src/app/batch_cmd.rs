@@ -72,9 +72,16 @@ fn template_typed(templates: &[TemplateInfo], typed: &str) -> Option<usize> {
 }
 
 impl Prompt {
+    /// After the history list put a mask in the line: the template it names.
+    pub(crate) fn batch_mask_sync(&mut self) {
+        if let PromptKind::ViewerBatchMask { guide, .. } = &mut self.kind {
+            guide.selected = template_typed(&guide.templates, &self.input.text);
+        }
+    }
+
     /// The keys of the mask prompt that are not typing: whether this one was
     /// taken. ↑↓ choose a template while the mask is empty or names one, and
-    /// otherwise go through the history, as PgUp and PgDn always do.
+    /// otherwise open the history list, as PgUp always does.
     pub(crate) fn batch_mask_key(&mut self, key: KeyEvent) -> bool {
         let PromptKind::ViewerBatchMask { guide, .. } = &mut self.kind else {
             return false;

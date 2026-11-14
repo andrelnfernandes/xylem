@@ -406,6 +406,13 @@ fn ctrl(app: &mut App, c: char) {
     app.handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL));
 }
 
+/// The history entry the open prompt's list (↑) has the cursor on.
+fn chosen_in_history(app: &App) -> String {
+    let input = &app.prompt.as_ref().expect("prompt open").input;
+    let list = input.list().expect("history list open");
+    input.history_entry(list.shown[list.cursor]).to_string()
+}
+
 /// Answers an open prompt, replacing the suggested text.
 fn answer_prompt(app: &mut App, text: &str) {
     assert!(app.prompt.is_some(), "prompt should be open");
@@ -1028,6 +1035,7 @@ fn alt_move_with_paths_from_branch_root() {
     press(&mut app, KeyCode::Char('c'));
     assert_eq!(app.prompt.as_ref().unwrap().input.text, "");
     press(&mut app, KeyCode::Up);
+    press(&mut app, KeyCode::Enter);
     assert_eq!(
         app.prompt.as_ref().unwrap().input.text,
         dest.to_str().unwrap()
@@ -1212,6 +1220,8 @@ fn the_log_prompt_opens_empty_and_recalls_the_places_used() {
     press(&mut app, KeyCode::Char('l'));
     assert_eq!(text(&app), "");
     press(&mut app, KeyCode::Up);
+    assert_eq!(chosen_in_history(&app), "/old/destination");
+    press(&mut app, KeyCode::Enter);
     assert_eq!(text(&app), "/old/destination");
     ctrl(&mut app, 'u');
     press(&mut app, KeyCode::F(2));
@@ -1232,6 +1242,7 @@ fn the_log_prompt_opens_empty_and_recalls_the_places_used() {
     // copies nothing.
     assert_eq!(text(&app), "");
     press(&mut app, KeyCode::Up);
+    press(&mut app, KeyCode::Enter);
     assert_eq!(Path::new(&text(&app)), tmp.path().join("sub"));
     ctrl(&mut app, 'u');
     press(&mut app, KeyCode::Enter);
@@ -1247,11 +1258,71 @@ fn the_log_prompt_opens_empty_and_recalls_the_places_used() {
     press(&mut app, KeyCode::Char('l'));
     assert_eq!(text(&app), "");
     press(&mut app, KeyCode::Up);
-    assert_eq!(Path::new(&text(&app)), tmp.path().join("zz"));
+    assert_eq!(Path::new(&chosen_in_history(&app)), tmp.path().join("zz"));
     press(&mut app, KeyCode::Up);
-    assert_eq!(Path::new(&text(&app)), tmp.path().join("sub"));
+    assert_eq!(Path::new(&chosen_in_history(&app)), tmp.path().join("sub"));
     press(&mut app, KeyCode::Up);
-    assert_eq!(text(&app), "/old/destination", "the oldest ones");
+    assert_eq!(
+        chosen_in_history(&app),
+        "/old/destination",
+        "the oldest ones"
+    );
+}
+
+#[test]
+fn del_in_the_history_list_forgets_the_place_for_good() {
+    let (tmp, mut app) = sample();
+    let file = tmp.path().join("state/history.toml");
+    app.history_file = Some(file.clone());
+    app.history
+        .insert("destination".into(), vec!["/old/destination".into()]);
+    app.history
+        .insert("log".into(), vec!["/srv/kept".into(), "/srv/gone".into()]);
+
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Up);
+    assert_eq!(chosen_in_history(&app), "/srv/gone");
+    press(&mut app, KeyCode::Delete);
+    // The oldest, from the list Copy and Move kept before: it goes from there.
+    press(&mut app, KeyCode::Home);
+    assert_eq!(chosen_in_history(&app), "/old/destination");
+    press(&mut app, KeyCode::Delete);
+    assert_eq!(chosen_in_history(&app), "/srv/kept");
+
+    let saved = state::load_history(&file);
+    assert_eq!(saved["log"], ["/srv/kept"]);
+    assert!(saved.get("destination").is_none_or(Vec::is_empty));
+    assert_eq!(app.history["log"], ["/srv/kept"]);
+
+    // Esc closes the list, a second one the prompt; the next prompt has
+    // only what was kept.
+    press(&mut app, KeyCode::Esc);
+    assert!(app.prompt.is_some());
+    press(&mut app, KeyCode::Esc);
+    assert!(app.prompt.is_none());
+    press(&mut app, KeyCode::Char('l'));
+    let input = &app.prompt.as_ref().unwrap().input;
+    assert_eq!(input.history(), ["/srv/kept"]);
+}
+
+#[test]
+fn the_history_list_takes_the_prompt_keys_while_open() {
+    let (_tmp, mut app) = sample();
+    app.history.insert("log".into(), vec!["/srv/one".into()]);
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Up);
+    press(&mut app, KeyCode::F(2));
+    assert!(
+        app.picker.is_none(),
+        "F2 is not for the tree while choosing"
+    );
+    press(&mut app, KeyCode::F(11));
+    assert!(app.bookmarks_view.is_none());
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.prompt.as_ref().unwrap().input.text, "/srv/one");
+    assert!(app.prompt.is_some(), "Enter in the list does not log");
+    press(&mut app, KeyCode::F(2));
+    assert!(app.picker.is_some(), "closed, F2 opens the tree again");
 }
 
 /// Two windows: the active one in `left/`, the other in `right/`.
@@ -1592,15 +1663,18 @@ fn prompts_remember_history_by_kind() {
     press(&mut app, KeyCode::Char('f'));
     ctrl(&mut app, 'u');
     press(&mut app, KeyCode::Up);
-    assert_eq!(app.prompt.as_ref().unwrap().input.text, "*.txt");
+    assert_eq!(chosen_in_history(&app), "*.txt");
     press(&mut app, KeyCode::Up);
-    assert_eq!(app.prompt.as_ref().unwrap().input.text, "*.rs");
+    assert_eq!(chosen_in_history(&app), "*.rs");
+    press(&mut app, KeyCode::Esc);
     press(&mut app, KeyCode::Esc);
 
     // Another kind of prompt has its own history.
     press(&mut app, KeyCode::Char('x'));
     press(&mut app, KeyCode::Up);
-    assert_eq!(app.prompt.as_ref().unwrap().input.text, "");
+    let input = &app.prompt.as_ref().unwrap().input;
+    assert!(!input.list_open(), "nothing in it yet");
+    assert_eq!(input.text, "");
 }
 
 #[test]
@@ -1688,6 +1762,7 @@ fn history_is_saved_after_each_entry() {
     again.history = state::load_history(&file);
     press(&mut again, KeyCode::Char('f'));
     press(&mut again, KeyCode::Up);
+    press(&mut again, KeyCode::Enter);
     assert_eq!(again.prompt.as_ref().unwrap().input.text, "*.rs");
 }
 
@@ -2351,6 +2426,51 @@ fn treespec_navigates_while_typing() {
     assert!(app.prompt.is_none());
     assert_eq!(current_name(&app), "src");
     assert_eq!(names(&app), ["main.rs"]);
+}
+
+#[test]
+fn treespec_ctrl_left_goes_up_a_folder_and_ctrl_right_comes_back() {
+    let (_tmp, mut app, root) = treespec_setup();
+    let ctrl_key = |app: &mut App, code| app.handle_key(KeyEvent::new(code, KeyModifiers::CONTROL));
+    let text = |app: &App| app.prompt.as_ref().unwrap().input.text.clone();
+    press(&mut app, KeyCode::Char('\\'));
+    type_text(&mut app, "Docs/rust/sr");
+    let typed = text(&app);
+    assert_eq!(current_name(&app), "src");
+
+    ctrl_key(&mut app, KeyCode::Left);
+    assert_eq!(text(&app), sep(format!("{root}/Docs/rust/")));
+    assert_eq!(current_name(&app), "rust", "the tree follows");
+    ctrl_key(&mut app, KeyCode::Left);
+    assert_eq!(text(&app), sep(format!("{root}/Docs/")));
+    assert_eq!(current_name(&app), "Docs");
+
+    ctrl_key(&mut app, KeyCode::Right);
+    assert_eq!(text(&app), sep(format!("{root}/Docs/rust/")));
+    ctrl_key(&mut app, KeyCode::Right);
+    assert_eq!(text(&app), typed, "back to what was typed");
+    assert_eq!(current_name(&app), "src");
+    ctrl_key(&mut app, KeyCode::Right);
+    assert_eq!(text(&app), typed, "nothing more to bring back");
+
+    // Typing after going up starts a new path.
+    ctrl_key(&mut app, KeyCode::Left);
+    ctrl_key(&mut app, KeyCode::Left);
+    type_text(&mut app, "no");
+    assert_eq!(current_name(&app), "notes");
+    ctrl_key(&mut app, KeyCode::Right);
+    assert_eq!(text(&app), sep(format!("{root}/Docs/no")));
+
+    // At the root of the file system there is nothing to take off.
+    ctrl_key(&mut app, KeyCode::Char('u'));
+    type_text(&mut app, std::path::MAIN_SEPARATOR_STR);
+    let top = text(&app);
+    if std::path::Path::new(&top).parent().is_none() {
+        ctrl_key(&mut app, KeyCode::Left);
+        assert_eq!(text(&app), top);
+    }
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(app.current(), ROOT);
 }
 
 #[test]

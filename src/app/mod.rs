@@ -256,6 +256,9 @@ pub struct App {
     pub git_status: git::StatusCache,
     /// F2 in a prompt that asks for a folder.
     pub picker: Option<Picker>,
+    /// What Ctrl+← took off the Treespec path, the last one on top, for
+    /// Ctrl+→ to bring back.
+    pub treespec_back: Vec<String>,
     /// Alt+X: the shell of the built-in terminal, alive even while hidden.
     pub terminal: Option<Terminal>,
     /// The terminal is on screen and receives the keys.
@@ -356,6 +359,7 @@ impl App {
             sticky: MenuMode::Normal,
             git_status: git::StatusCache::default(),
             picker: None,
+            treespec_back: Vec::new(),
             terminal: None,
             terminal_focus: false,
             terminal_full: false,

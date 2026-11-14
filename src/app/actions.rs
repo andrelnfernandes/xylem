@@ -182,7 +182,19 @@ impl App {
             text.push(std::path::MAIN_SEPARATOR);
         }
         let origin = self.current();
+        self.treespec_back.clear();
         self.open_prompt(PromptKind::Treespec { origin }, "TREESPEC: ".into(), &text);
+    }
+
+    /// Ctrl+← in the Treespec: the path one folder up, ending in a separator
+    /// so that what is typed next looks inside it. None at the root.
+    fn treespec_up(text: &str) -> Option<String> {
+        let trimmed = text.trim_end_matches(std::path::is_separator);
+        let mut up = Path::new(trimmed).parent()?.to_string_lossy().into_owned();
+        if !up.ends_with(std::path::is_separator) {
+            up.push(std::path::MAIN_SEPARATOR);
+        }
+        Some(up)
     }
 
     /// Keys in the Treespec prompt: `/` or `\` complete and go down one
@@ -192,6 +204,28 @@ impl App {
             return;
         };
         let text = prompt.input.text.clone();
+        let before = text.clone();
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        // Ctrl+← takes a folder off the path, Ctrl+→ brings it back; any
+        // other change starts a new path, with nothing to bring back.
+        match key.code {
+            KeyCode::Left if ctrl => {
+                if let Some(up) = Self::treespec_up(&text) {
+                    self.treespec_back.push(text);
+                    prompt.input.set_text(up.clone());
+                    self.treespec_follow(&up);
+                }
+                return;
+            }
+            KeyCode::Right if ctrl => {
+                if let Some(back) = self.treespec_back.pop() {
+                    prompt.input.set_text(back.clone());
+                    self.treespec_follow(&back);
+                }
+                return;
+            }
+            _ => {}
+        }
         let new_text = match key.code {
             KeyCode::Char('/' | '\\') => {
                 let mut t = self.treespec_complete(&text).unwrap_or(text.clone());
@@ -231,6 +265,9 @@ impl App {
                 LineEvent::Editing => prompt.input.text.clone(),
             },
         };
+        if text != before {
+            self.treespec_back.clear();
+        }
         self.treespec_follow(&text);
     }
 
