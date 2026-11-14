@@ -27,6 +27,14 @@ ou commencer par `~` ; **F2** [le choisit dans une arborescence](picker.md) et �
 rappelle les précédents. Les nouvelles fenêtres conservent l'[ordre de
 tri](sort.md) et le mode d'affichage courants.
 
+**Alt+L** fait du répertoire sous le curseur la racine de l'arborescence,
+immédiatement : `L` vers un répertoire déjà dans l'arborescence ne fait que
+déplacer le curseur, et Alt+L réduit alors l'arborescence à ce répertoire. Dans
+la fenêtre des fichiers, c'est le répertoire affiché qui est pris (en Branch et
+Showall, celui du fichier sélectionné). La fenêtre est rouverte à cet endroit :
+ce qui avait été lu et les marques sont perdus ; `L ..` rouvre le répertoire du
+dessus. Indisponible dans les archives et sur les machines distantes.
+
 L'invite s'ouvre vide. ↑ parcourt les lieux utilisés auparavant, du dernier au
 plus ancien : ceux ouverts avec Log et les dossiers où des fichiers ont été
 copiés ou déplacés.

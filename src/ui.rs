@@ -2117,6 +2117,7 @@ const ALT_TREE_WORDS: &[&str] = &[
     "Help",
     "Info",
     "Kbyte",
+    "Log",
     "Prune",
     "Quit here",
     "Release",
@@ -2130,6 +2131,7 @@ const ALT_FILE_WORDS: &[&str] = &[
     "File display",
     "Help",
     "Info",
+    "Log",
     "Move",
     "Quit here",
     "Sort",
@@ -2258,9 +2260,15 @@ fn idle_menu_spec(app: &App, focus: Focus, mode: MenuMode) -> MenuSpec {
             let hints = if app.archive.is_some() {
                 vec!["read-only archive: Copy extracts"]
             } else if tree {
-                vec!["Compare/Duplicates/Prune/Release/Usage: the whole branch"]
+                vec![
+                    "Compare/Duplicates/Prune/Release/Usage: the whole branch",
+                    "Log: this directory as the root",
+                ]
             } else {
-                vec!["Copy/Move: the tagged files, with their paths"]
+                vec![
+                    "Copy/Move: the tagged files, with their paths",
+                    "Log: this directory as the root",
+                ]
             };
             MenuSpec {
                 focus,

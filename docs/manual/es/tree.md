@@ -57,6 +57,7 @@ a la lista del propio directorio.
 | `M` | crear un subdirectorio |
 | `R` | renombrar el directorio |
 | `D` o Del | eliminar el directorio, si está vacío ([eliminar](delete.md)) |
+| Alt+L | Log aquí: convertir este directorio en la raíz del árbol |
 | Alt+P | Prune: eliminar el directorio con todo su contenido |
 | `O` o Ctrl+Z | Oops: restaurar lo enviado a la papelera |
 | `N` | cambiar la fecha del directorio ([fechas](attributes.md)) |

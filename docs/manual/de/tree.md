@@ -60,6 +60,7 @@ führt zurück zur Liste des Verzeichnisses selbst.
 | `M` | Unterverzeichnis erstellen |
 | `R` | Verzeichnis umbenennen |
 | `D` oder Del | Verzeichnis löschen, falls leer ([Löschen](delete.md)) |
+| Alt+L | Log hier: dieses Verzeichnis zur Wurzel des Baums machen |
 | Alt+P | Prune: Verzeichnis samt gesamtem Inhalt löschen |
 | `O` oder Ctrl+Z | Oops: zuletzt in den Papierkorb verschobenes Element wiederherstellen |
 | `N` | Datum des Verzeichnisses ändern ([Datum](attributes.md)) |
