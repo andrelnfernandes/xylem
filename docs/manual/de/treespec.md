@@ -27,6 +27,14 @@ kann absolut, relativ zum aktuellen Verzeichnis sein oder mit `~` beginnen;
 Neue Fenster behalten die aktuelle [Sortierreihenfolge](sort.md) und den
 Anzeigemodus bei.
 
+**Alt+L** macht das Verzeichnis unter dem Cursor sofort zur Wurzel des Baums:
+`L` zu einem Verzeichnis innerhalb des Baums bewegt nur den Cursor, Alt+L
+verkleinert den Baum dann darauf. Im Dateifenster gilt das angezeigte
+Verzeichnis (in Branch und Showall das der ausgewählten Datei). Das Fenster wird
+dort neu geöffnet, das Eingelesene und die Markierungen gehen also verloren;
+`L ..` öffnet wieder das Verzeichnis darüber. Nicht in Archiven und nicht auf
+entfernten Rechnern.
+
 Die Eingabe öffnet sich leer. ↑ geht durch die zuvor benutzten Orte, der letzte
 zuerst: die mit Log geöffneten und die Ordner, in die Dateien kopiert oder
 verschoben wurden.

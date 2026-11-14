@@ -59,6 +59,7 @@ Dans Branch et Showall, `\` va au répertoire du fichier sélectionné. `B` à n
 | `M` | créer un sous-répertoire |
 | `R` | renommer le répertoire |
 | `D` ou Del | supprimer le répertoire, s'il est vide ([supprimer](delete.md)) |
+| Alt+L | Log ici : faire de ce répertoire la racine de l'arborescence |
 | Alt+P | Prune : supprimer le répertoire avec tout son contenu |
 | `O` ou Ctrl+Z | Oops : restaurer ce qui a été envoyé à la corbeille |
 | `N` | modifier la date du répertoire ([dates](attributes.md)) |
