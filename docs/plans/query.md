@@ -1,8 +1,8 @@
 # Estudo: consultar o disco, por fora e por dentro dos arquivos
 
-Origem: conversa de 2026-11-14. Pedido do autor por um recurso novo, muito usado e
-que chame a atenção. A sugestão foi consultar os arquivos da árvore com SQL e agir
-sobre o resultado; o autor perguntou se valeria para o **conteúdo** dos arquivos,
+Origem: conversa de 2026-11-14. Um recurso necessário, para o qual não há
+implementações robustas no mercado. A sugestão foi consultar os arquivos da árvore
+com SQL e agir sobre o resultado; o autor perguntou se valeria para o **conteúdo** dos arquivos,
 como o Google Desktop fazia, com a preocupação da performance.
 
 **Estado: proposta para estudo. Nada aprovado, nada implementado.** As decisões em
