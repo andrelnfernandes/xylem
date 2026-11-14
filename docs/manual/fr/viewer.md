@@ -1,5 +1,7 @@
 # La visionneuse
 
+> **Ne couvre pas encore la 0.8.0.** Les tableaux sans la limite de 50 000 lignes ne sont pour l'instant que dans la version anglaise.
+
 `V` ouvre le fichier dans la visionneuse (Autoview, F7, l'affiche à côté de la
 liste). Les fichiers binaires s'ouvrent en hexadécimal. Pour les fichiers qui dépassent la limite de taille,
 seul le début est affiché.
@@ -191,6 +193,8 @@ Le cadre indique `QUERY:`, et la grille montre le résultat. Une condition filtr
 ### Limites
 
 Un tableau contient au plus 50 000 lignes et 256 colonnes, et prend au plus ce que permettent les autres limites de la visionneuse : 3 s (100 ms dans Autoview), et un classeur qui se décompresse au-delà de la limite de taille (1 Mio dans Autoview) ne s'ouvre pas en tableau. Ce qui dépasse n'apparaît pas et le filtre ne le voit pas ; l'en-tête le signale : `(showing first 50,000 rows)` ou `(stopped by the time limit: showing N rows)`. Pendant la lecture du tableau, l'écran reste libre et une note le signale ; Échap arrête la lecture et montre ce qui est déjà arrivé, `(stopped by Esc: showing N rows)`, et l'Échap suivant ferme la visionneuse. Une cellule affiche au plus 2 048 caractères, puis `…`. Les caractères de contrôle et de direction du texte s'affichent comme `·`.
+
+Quand un classeur (XLSX, XLSB, XLS, ODS) a plus de lignes que cela, l'en-tête et la note le disent : `(the sheet has more than 50,000 rows, the most Xylem shows: open it in Excel or another spreadsheet program to see them all (O))`, c'est-à-dire : ouvrez-la dans Excel ou un autre tableur pour les voir toutes. **O** l'ouvre dans le programme que votre système utilise pour elle.
 
 ## Tableaux lus par des bibliothèques C
 

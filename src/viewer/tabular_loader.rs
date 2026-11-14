@@ -6,8 +6,11 @@
 use std::ops::ControlFlow;
 use std::path::Path;
 
+use super::records::RowSource;
 use super::records::{self, Budget, Cell, End, MAX_COLS, RecordSink, SqlitePart, Structure};
 use super::table::{TableGrid, TableRow};
+use super::table_window::{Opener, WINDOW_ROWS};
+use std::sync::Arc;
 
 pub use super::records::column_letter;
 
@@ -96,6 +99,16 @@ pub fn uses_c_parser(path: &Path) -> bool {
     matches!(ext.as_str(), "sqlite" | "sqlite3" | "db" | "parquet")
 }
 
+/// A spreadsheet: XLSX, XLSB, XLS or ODS.
+fn is_spreadsheet(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+    matches!(ext.as_str(), "xlsx" | "xlsb" | "xls" | "ods")
+}
+
 /// The sheets a reader builds whole before giving a row: no one can stop that part,
 /// and a small file can make it take gigabytes.
 pub fn is_built_whole(path: &Path) -> bool {
@@ -114,7 +127,11 @@ struct GridSink {
     current_sheet: usize,
     first_view: Option<usize>,
     headers: Vec<String>,
+    /// The columns as the file names them, for reading it again.
+    names: Vec<String>,
     rows: Vec<TableRow>,
+    /// The most rows kept, when not [`MAX_TABLE_ROWS`].
+    max_rows: Option<usize>,
     rows_cut: bool,
     columns_cut: bool,
     structure: Option<Structure>,
@@ -132,6 +149,7 @@ impl RecordSink for GridSink {
 
     fn columns(&mut self, names: &[String]) {
         self.headers = names.iter().map(|s| TableGrid::sanitize_cell(s)).collect();
+        self.names = names.to_vec();
     }
 
     fn columns_cut(&mut self) {
@@ -154,7 +172,7 @@ impl RecordSink for GridSink {
 
     fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()> {
         // One more than it keeps, to tell a table cut from one of that size.
-        if self.rows.len() >= MAX_TABLE_ROWS {
+        if self.rows.len() >= self.max_rows.unwrap_or(MAX_TABLE_ROWS) {
             self.rows_cut = true;
             return ControlFlow::Break(());
         }
@@ -190,6 +208,14 @@ impl GridSink {
             cut.push(format!(
                 "stopped by {by}: showing {} rows",
                 thousands(self.rows.len())
+            ));
+        } else if self.rows_cut && is_spreadsheet(path) {
+            // A sheet cannot be read in windows, so the rest never shows here:
+            // say where to see it.
+            cut.push(format!(
+                "the sheet has more than {} rows, the most Xylem shows: open it in Excel \
+                 or another spreadsheet program to see them all (O)",
+                thousands(MAX_TABLE_ROWS)
             ));
         } else if self.rows_cut {
             cut.push(format!("showing first {} rows", thousands(MAX_TABLE_ROWS)));
@@ -250,6 +276,122 @@ pub fn load_sqlite(path: &Path, part: SqlitePart<'_>, budget: Budget) -> Result<
     load(path, budget, |budget, sink| {
         records::read_sqlite(path, part, budget, sink)
     })
+}
+
+/// Opens a table again from where it is, in the thread that reads it.
+fn sqlite_opener(path: &Path, part: SqlitePart<'_>) -> Opener {
+    let path = path.to_path_buf();
+    let (table, query) = match part {
+        SqlitePart::First => (None, None),
+        SqlitePart::Table(t) => (Some(t.to_string()), None),
+        SqlitePart::Query(q) => (None, Some(q.to_string())),
+    };
+    Arc::new(move || {
+        let part = match (&table, &query) {
+            (_, Some(q)) => SqlitePart::Query(q),
+            (Some(t), None) => SqlitePart::Table(t),
+            (None, None) => SqlitePart::First,
+        };
+        records::SqliteRows::open(&path, part).map(|rows| Box::new(rows) as Box<dyn RowSource>)
+    })
+}
+
+/// Reads the first [`WINDOW_ROWS`] rows of a table; if it has more, it is not
+/// cut: the grid keeps a window over it (see `table_window`), whose threads
+/// start when the grid is on screen and open it with what `opener` makes of
+/// the columns the file named.
+fn load_windowed(
+    path: &Path,
+    budget: Budget,
+    read: impl FnOnce(Budget, &mut GridSink) -> Result<End, String>,
+    opener: impl FnOnce(Vec<String>) -> Opener,
+) -> Result<TableGrid, String> {
+    let mut sink = GridSink {
+        max_rows: Some(WINDOW_ROWS),
+        ..GridSink::default()
+    };
+    let end = read(budget.clone(), &mut sink)?;
+    let more = std::mem::take(&mut sink.rows_cut);
+    let names = std::mem::take(&mut sink.names);
+    let mut grid = sink.finish(path, end, budget.cancelled());
+    if more {
+        grid.make_window(opener(names));
+    }
+    Ok(grid)
+}
+
+/// Like [`load_sqlite`], with no limit of rows (see [`load_windowed`]).
+pub fn load_sqlite_windowed(
+    path: &Path,
+    part: SqlitePart<'_>,
+    budget: Budget,
+) -> Result<TableGrid, String> {
+    load_windowed(
+        path,
+        budget,
+        |budget, sink| records::read_sqlite(path, part, budget, sink),
+        |_| sqlite_opener(path, part),
+    )
+}
+
+/// Like [`load_csv`], with no limit of rows: the rest of the file is found
+/// through an index (see [`records::RowIndex`]), built as the rows are counted.
+pub fn load_csv_windowed(
+    path: &Path,
+    delimiter: Option<u8>,
+    budget: Budget,
+) -> Result<TableGrid, String> {
+    // Taken before the first rows are read: a change while they are is seen.
+    let stamp = records::file_stamp(path);
+    load_windowed(
+        path,
+        budget,
+        |budget, sink| records::read_csv(path, delimiter, budget, sink),
+        |_| {
+            let path = path.to_path_buf();
+            let index = records::RowIndex::new(Vec::new());
+            Arc::new(move || {
+                records::TextRows::csv(&path, delimiter, stamp, index.clone())
+                    .map(|rows| Box::new(rows) as Box<dyn RowSource>)
+            })
+        },
+    )
+}
+
+/// Like [`load_jsonl`], with no limit of rows (see [`load_csv_windowed`]).
+pub fn load_jsonl_windowed(path: &Path, budget: Budget) -> Result<TableGrid, String> {
+    let stamp = records::file_stamp(path);
+    load_windowed(
+        path,
+        budget,
+        |budget, sink| records::read_jsonl(path, budget, sink),
+        |names| {
+            let path = path.to_path_buf();
+            let index = records::RowIndex::new(names);
+            Arc::new(move || {
+                records::TextRows::jsonl(&path, stamp, index.clone())
+                    .map(|rows| Box::new(rows) as Box<dyn RowSource>)
+            })
+        },
+    )
+}
+
+/// Like [`load_dbf`], with no limit of rows (see [`load_csv_windowed`]).
+pub fn load_dbf_windowed(path: &Path, budget: Budget) -> Result<TableGrid, String> {
+    let stamp = records::file_stamp(path);
+    load_windowed(
+        path,
+        budget,
+        |budget, sink| records::read_dbf(path, budget, sink),
+        |_| {
+            let path = path.to_path_buf();
+            let index = records::RowIndex::new(Vec::new());
+            Arc::new(move || {
+                records::DbfRows::open(&path, stamp, index.clone())
+                    .map(|rows| Box::new(rows) as Box<dyn RowSource>)
+            })
+        },
+    )
 }
 
 /// Load an Apache Parquet file (.parquet).
@@ -460,6 +602,36 @@ mod tests {
         let grid = load_csv(file.path(), None, Budget::unlimited()).unwrap();
         assert_eq!(grid.rows.len(), MAX_TABLE_ROWS);
         assert_eq!(grid.cut.as_deref(), Some("showing first 50,000 rows"));
+    }
+
+    #[test]
+    fn a_sheet_over_the_limit_says_where_to_see_it_all() {
+        let full = |path: &str| {
+            let mut sink = GridSink::default();
+            sink.columns(&["n".to_string()]);
+            for i in 0..=MAX_TABLE_ROWS {
+                if sink.record(&[Cell::Int(i as i64)]).is_break() {
+                    break;
+                }
+            }
+            sink.finish(Path::new(path), End::Complete, false).cut
+        };
+        for sheet in ["big.xlsx", "big.XLS", "big.xlsb", "big.ods"] {
+            let cut = full(sheet).unwrap();
+            assert!(
+                cut.starts_with("the sheet has more than 50,000 rows"),
+                "{cut}"
+            );
+            assert!(
+                cut.contains("Excel or another spreadsheet program"),
+                "{cut}"
+            );
+        }
+        // Other tables keep their message.
+        assert_eq!(
+            full("big.csv").as_deref(),
+            Some("showing first 50,000 rows")
+        );
     }
 
     #[test]

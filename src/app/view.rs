@@ -77,7 +77,7 @@ impl App {
     }
 
     pub fn reading_table(&self) -> bool {
-        self.viewer.as_ref().is_some_and(Viewer::reading_table)
+        self.viewer.as_ref().is_some_and(Viewer::table_busy)
     }
 
     pub(crate) fn open_viewer(&mut self) {
@@ -307,7 +307,13 @@ impl App {
                         format!("GOTO offset (0-{max:X}): ")
                     }
                     ViewMode::Table => {
-                        let total = v.table.as_ref().map_or(1, |t| t.rows.len().max(1));
+                        let total = v
+                            .table
+                            .as_ref()
+                            .map_or("1".into(), |t| match t.known_rows() {
+                                0 => "1".to_string(),
+                                _ => t.total_text(),
+                            });
                         format!("GOTO row (1-{total}): ")
                     }
                 };

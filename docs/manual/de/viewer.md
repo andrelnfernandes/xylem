@@ -1,5 +1,7 @@
 # Der Betrachter
 
+> **Noch nicht auf dem Stand von 0.8.0.** Tabellen ohne die Grenze von 50.000 Zeilen stehen vorerst nur in der englischen Fassung.
+
 `V` öffnet die Datei im Betrachter (Autoview, F7, zeigt sie neben der Liste
 an). Binärdateien werden im Hex-Modus geöffnet. Bei Dateien über dem Größenlimit wird
 nur der Anfang angezeigt.
@@ -190,6 +192,8 @@ Der Rahmen zeigt `QUERY:`, und das Raster das Ergebnis. Eine Bedingung filtert d
 ### Grenzen
 
 Eine Tabelle fasst höchstens 50.000 Zeilen und 256 Spalten und braucht höchstens, was die übrigen Grenzen des Betrachters erlauben: 3 s (100 ms in Autoview), und eine Tabellenkalkulation, die entpackt größer als das Größenlimit ist (1 MiB in Autoview), öffnet sich nicht als Tabelle. Was darüber hinausgeht, erscheint nicht, und der Filter sieht es nicht; die Kopfzeile weist darauf hin: `(showing first 50,000 rows)` oder `(stopped by the time limit: showing N rows)`. Während die Tabelle gelesen wird, bleibt der Bildschirm frei und ein Hinweis sagt es; Esc stoppt das Lesen und zeigt, was schon da ist, `(stopped by Esc: showing N rows)`, und das nächste Esc schließt den Betrachter. Eine Zelle zeigt höchstens 2.048 Zeichen und dann `…`. Steuerzeichen und Zeichen für die Schreibrichtung erscheinen als `·`.
+
+Hat eine Tabellenkalkulation (XLSX, XLSB, XLS, ODS) mehr Zeilen, sagen es Kopfzeile und Hinweis: `(the sheet has more than 50,000 rows, the most Xylem shows: open it in Excel or another spreadsheet program to see them all (O))`, also: öffnen Sie es in Excel oder einem anderen Tabellenprogramm, um alle zu sehen. **O** öffnet es in dem Programm, das Ihr System dafür verwendet.
 
 ## Tabellen in C-Bibliotheken
 
