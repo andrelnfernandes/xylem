@@ -6,8 +6,11 @@
 use std::ops::ControlFlow;
 use std::path::Path;
 
+use super::records::RowSource;
 use super::records::{self, Budget, Cell, End, MAX_COLS, RecordSink, SqlitePart, Structure};
 use super::table::{TableGrid, TableRow};
+use super::table_window::{Opener, WINDOW_ROWS};
+use std::sync::Arc;
 
 pub use super::records::column_letter;
 
@@ -125,6 +128,8 @@ struct GridSink {
     first_view: Option<usize>,
     headers: Vec<String>,
     rows: Vec<TableRow>,
+    /// The most rows kept, when not [`MAX_TABLE_ROWS`].
+    max_rows: Option<usize>,
     rows_cut: bool,
     columns_cut: bool,
     structure: Option<Structure>,
@@ -164,7 +169,7 @@ impl RecordSink for GridSink {
 
     fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()> {
         // One more than it keeps, to tell a table cut from one of that size.
-        if self.rows.len() >= MAX_TABLE_ROWS {
+        if self.rows.len() >= self.max_rows.unwrap_or(MAX_TABLE_ROWS) {
             self.rows_cut = true;
             return ControlFlow::Break(());
         }
@@ -268,6 +273,45 @@ pub fn load_sqlite(path: &Path, part: SqlitePart<'_>, budget: Budget) -> Result<
     load(path, budget, |budget, sink| {
         records::read_sqlite(path, part, budget, sink)
     })
+}
+
+/// Opens a table again from where it is, in the thread that reads it.
+fn sqlite_opener(path: &Path, part: SqlitePart<'_>) -> Opener {
+    let path = path.to_path_buf();
+    let (table, query) = match part {
+        SqlitePart::First => (None, None),
+        SqlitePart::Table(t) => (Some(t.to_string()), None),
+        SqlitePart::Query(q) => (None, Some(q.to_string())),
+    };
+    Arc::new(move || {
+        let part = match (&table, &query) {
+            (_, Some(q)) => SqlitePart::Query(q),
+            (Some(t), None) => SqlitePart::Table(t),
+            (None, None) => SqlitePart::First,
+        };
+        records::SqliteRows::open(&path, part).map(|rows| Box::new(rows) as Box<dyn RowSource>)
+    })
+}
+
+/// Like [`load_sqlite`], but a table with more than [`WINDOW_ROWS`] rows is
+/// not cut: the grid keeps a window over it (see `table_window`), whose
+/// threads start when the grid is on screen.
+pub fn load_sqlite_windowed(
+    path: &Path,
+    part: SqlitePart<'_>,
+    budget: Budget,
+) -> Result<TableGrid, String> {
+    let mut sink = GridSink {
+        max_rows: Some(WINDOW_ROWS),
+        ..GridSink::default()
+    };
+    let end = records::read_sqlite(path, part, budget.clone(), &mut sink)?;
+    let more = std::mem::take(&mut sink.rows_cut);
+    let mut grid = sink.finish(path, end, budget.cancelled());
+    if more {
+        grid.make_window(sqlite_opener(path, part));
+    }
+    Ok(grid)
 }
 
 /// Load an Apache Parquet file (.parquet).

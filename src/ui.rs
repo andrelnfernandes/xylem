@@ -3077,6 +3077,21 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             Style::new().fg(theme().error),
         ));
     }
+    if v.mode == ViewMode::Table
+        && let Some(problem) = v
+            .table
+            .as_ref()
+            .and_then(|t| t.window.as_ref())
+            .and_then(|w| w.problem.as_ref())
+    {
+        title.push(Span::styled(
+            format!(
+                "  ({})",
+                crate::viewer::table::TableGrid::sanitize_cell(problem)
+            ),
+            Style::new().fg(theme().error),
+        ));
+    }
     if let Some(problem) = v.problem() {
         title.push(Span::styled(
             format!("  ({problem})"),
@@ -3167,23 +3182,31 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                     format!(", {} marked", fmt_num(t.marked.len() as u64))
                 };
                 let row = t.cursor_file_row();
-                let total = t.rows.len();
+                let total = t.total_text();
                 let matched = if t.active_filter.is_some() {
                     format!(
                         ", match {} of {}",
-                        (t.cursor_row + 1).min(t.visible_row_count()),
-                        t.visible_row_count()
+                        fmt_num((t.cursor_row + 1).min(t.visible_row_count()) as u64),
+                        fmt_num(t.visible_row_count() as u64)
                     )
                 } else {
                     String::new()
                 };
-                format!("Cell {cell_col_letter}{row} (Row {row} of {total}{matched}{marked})")
+                format!(
+                    "Cell {cell_col_letter}{row} (Row {} of {total}{matched}{marked})",
+                    fmt_num(row as u64)
+                )
             } else {
                 "Table".to_string()
             }
         }
     };
-    let percent = ((v.top + v.page).min(total) * 100) / total;
+    // A table scrolls by its own rows, not the viewer's lines.
+    let top = match (&v.table, v.mode) {
+        (Some(t), ViewMode::Table) => t.scroll_row,
+        _ => v.top,
+    };
+    let percent = ((top + v.page).min(total) * 100) / total;
     let note = v.note.clone();
     let lines = if let Some(prompt) = &app.prompt {
         prompt_lines(frame, prompt, menu)
@@ -3933,8 +3956,11 @@ fn draw_table_grid(
         if display_row_idx >= total_rows {
             break;
         }
-        let real_row_idx = grid.filtered_indices[display_row_idx];
-        let row_data = &grid.rows[real_row_idx];
+        let Some(real_row_idx) = grid.file_row(display_row_idx) else {
+            break;
+        };
+        // A row the window has not read yet shows as `…` until it comes.
+        let row_data = grid.row(real_row_idx);
         let is_cursor_row = display_row_idx == grid.cursor_row;
 
         let mut row_spans = Vec::new();
@@ -3962,11 +3988,11 @@ fn draw_table_grid(
             let Some(w) = grid_column_width(grid, col_idx, cur_w, max_avail_width) else {
                 break;
             };
-            let cell_text = row_data
-                .cells
-                .get(col_idx)
-                .map(|s| s.as_str())
-                .unwrap_or("");
+            let cell_text = match row_data {
+                Some(row) => row.cells.get(col_idx).map_or("", |s| s.as_str()),
+                None if col_idx == grid.scroll_col => "…",
+                None => "",
+            };
             let is_active_cell = is_cursor_row && col_idx == grid.cursor_col;
 
             let cell_style = if is_active_cell {
@@ -3987,11 +4013,9 @@ fn draw_table_grid(
 
     // 3. Status / Active Cell Full Content at Bottom
     let active_content = grid.active_cell().unwrap_or("");
-    let filter_notice = if let Some(q) = &grid.active_filter {
-        format!(" [Filter: {} ({} matches)] ", q, grid.visible_row_count())
-    } else {
-        String::new()
-    };
+    let filter_notice = grid
+        .filter_text()
+        .map_or_else(String::new, |f| format!(" [{f}] "));
 
     let bottom_text = format!(
         "Cell: {}{} │ Content: {}{}",

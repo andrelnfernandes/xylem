@@ -986,15 +986,9 @@ fn query_structure(stmt: &rusqlite::Statement<'_>, cols: usize) -> Structure {
     }
 }
 
-/// A table or query result from an SQLite database in strictly defensive
-/// read-only mode.
-pub fn read_sqlite(
-    path: &Path,
-    part: SqlitePart<'_>,
-    budget: Budget,
-    sink: &mut dyn RecordSink,
-) -> Result<End, String> {
-    use rusqlite::fallible_iterator::FallibleIterator;
+/// A database opened in strictly defensive read-only mode, with no time limit
+/// yet (see [`limit_sqlite_time`]).
+fn open_sqlite(path: &Path) -> Result<rusqlite::Connection, String> {
     use rusqlite::{Connection, OpenFlags, ffi};
 
     // Open connection strictly READONLY (no URI scheme expansion)
@@ -1003,7 +997,7 @@ pub fn read_sqlite(
         .to_str()
         .ok_or_else(|| "Invalid UTF-8 in SQLite path".to_string())?;
 
-    let mut conn = Connection::open_with_flags(path_str, flags)
+    let conn = Connection::open_with_flags(path_str, flags)
         .map_err(|e| format!("Failed to open SQLite database: {e}"))?;
 
     // Hardening: Defensive mode + Disable extensions
@@ -1029,14 +1023,36 @@ pub fn read_sqlite(
 
     // Opening a view runs what the file wrote in it: nothing it names may be unsafe.
     let _ = conn.execute_batch("PRAGMA query_only = ON; PRAGMA trusted_schema = OFF;");
+    Ok(conn)
+}
 
-    // A query can take forever without giving a single row.
+/// A query can take forever without giving a single row: SQLite looks at the
+/// budget every so many steps. Without it the query has no limit, so it is
+/// better not to read at all.
+fn limit_sqlite_time(conn: &mut rusqlite::Connection, budget: &Budget) -> Result<(), String> {
     if budget.deadline.is_some() || budget.cancel.is_some() {
         let budget = budget.clone();
-        // Without it the query has no limit: better not to open the file.
         conn.progress_handler(SQLITE_STEPS, Some(move || budget.over()))
             .map_err(|e| format!("Failed to limit the time of the query: {e}"))?;
     }
+    Ok(())
+}
+
+/// What of a database is read: its tables and views, from which of them on
+/// they are views, the SQL that gives the rows, and which table that is.
+struct SqliteChoice {
+    tables: Vec<String>,
+    first_view: usize,
+    query: String,
+    active: usize,
+}
+
+/// Lists the tables and picks the part. `None`: the database has no tables.
+fn choose_sqlite_part(
+    conn: &rusqlite::Connection,
+    part: SqlitePart<'_>,
+) -> Result<Option<SqliteChoice>, String> {
+    use rusqlite::fallible_iterator::FallibleIterator;
 
     // List user tables, then views (bounded to prevent DoS from DB with millions of tables)
     let mut table_stmt = conn
@@ -1054,9 +1070,7 @@ pub fn read_sqlite(
     let tables: Vec<String> = listed.into_iter().map(|(name, _)| name).collect();
 
     if tables.is_empty() && !matches!(part, SqlitePart::Query(_)) {
-        sink.columns(&["Status".to_string()]);
-        let _ = sink.record(&[Cell::Text(Cow::Borrowed("(Database has no tables)"))]);
-        return Ok(End::Complete);
+        return Ok(None);
     }
 
     // A table's name comes from the file: it is only ever a name, never SQL.
@@ -1070,7 +1084,7 @@ pub fn read_sqlite(
             if !reads {
                 return Err(READS_ONLY.to_string());
             }
-            let mut statements = rusqlite::Batch::new(&conn, q);
+            let mut statements = rusqlite::Batch::new(conn, q);
             let first = statements
                 .next()
                 .map_err(|e| format!("SQL statement error: {e}"))?;
@@ -1096,6 +1110,66 @@ pub fn read_sqlite(
         }
         SqlitePart::First => (select(0), 0),
     };
+    Ok(Some(SqliteChoice {
+        tables,
+        first_view,
+        query,
+        active,
+    }))
+}
+
+/// Gives the sink each row SQLite gives, `cols` values of it, until the end,
+/// the sink refusing, or the time running out.
+fn stream_sqlite_rows(
+    mut rows: rusqlite::Rows<'_>,
+    cols: usize,
+    budget: Budget,
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
+    let mut pace = Pace::new(budget);
+    loop {
+        let row = match rows.next() {
+            Ok(Some(row)) => row,
+            Ok(None) => return Ok(End::Complete),
+            Err(e) if is_interrupted(&e) => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("Row read error: {e}")),
+        };
+        let cells: Vec<Cell<'_>> = (0..cols)
+            .map(|i| match row.get_ref(i) {
+                Ok(rusqlite::types::ValueRef::Null) | Err(_) => Cell::Null,
+                Ok(rusqlite::types::ValueRef::Integer(i)) => Cell::Int(i),
+                Ok(rusqlite::types::ValueRef::Real(r)) => Cell::Float(r),
+                Ok(rusqlite::types::ValueRef::Text(t)) => Cell::Text(String::from_utf8_lossy(t)),
+                Ok(rusqlite::types::ValueRef::Blob(b)) => Cell::Bytes(b),
+            })
+            .collect();
+        if let Some(end) = deliver(&mut pace, sink, &cells) {
+            return Ok(end);
+        }
+    }
+}
+
+/// A table or query result from an SQLite database in strictly defensive
+/// read-only mode.
+pub fn read_sqlite(
+    path: &Path,
+    part: SqlitePart<'_>,
+    budget: Budget,
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
+    let mut conn = open_sqlite(path)?;
+    limit_sqlite_time(&mut conn, &budget)?;
+    let Some(SqliteChoice {
+        tables,
+        first_view,
+        query,
+        active,
+    }) = choose_sqlite_part(&conn, part)?
+    else {
+        sink.columns(&["Status".to_string()]);
+        let _ = sink.record(&[Cell::Text(Cow::Borrowed("(Database has no tables)"))]);
+        return Ok(End::Complete);
+    };
     sink.sheets(&tables, active);
     sink.first_view(first_view);
 
@@ -1120,29 +1194,117 @@ pub fn read_sqlite(
         sink.structure(structure);
     }
 
-    let mut rows = stmt
+    let rows = stmt
         .query([])
         .map_err(|e| format!("SQL execution error: {e}"))?;
+    stream_sqlite_rows(rows, cols, budget, sink)
+}
 
-    let mut pace = Pace::new(budget);
-    loop {
-        let row = match rows.next() {
-            Ok(Some(row)) => row,
-            Ok(None) => return Ok(End::Complete),
-            Err(e) if is_interrupted(&e) => return Ok(End::OutOfTime),
-            Err(e) => return Err(format!("Row read error: {e}")),
-        };
-        let cells: Vec<Cell<'_>> = (0..cols)
-            .map(|i| match row.get_ref(i) {
-                Ok(rusqlite::types::ValueRef::Null) | Err(_) => Cell::Null,
-                Ok(rusqlite::types::ValueRef::Integer(i)) => Cell::Int(i),
-                Ok(rusqlite::types::ValueRef::Real(r)) => Cell::Float(r),
-                Ok(rusqlite::types::ValueRef::Text(t)) => Cell::Text(String::from_utf8_lossy(t)),
-                Ok(rusqlite::types::ValueRef::Blob(b)) => Cell::Bytes(b),
-            })
-            .collect();
-        if let Some(end) = deliver(&mut pace, sink, &cells) {
-            return Ok(end);
+/// A table that can be read from any of its rows, again and again, as the
+/// viewer's window over it moves (see `table_window`). Each thread opens its own.
+pub trait RowSource: Send {
+    /// Gives the sink the records from row `from` (from 0) on, as `read_*` do:
+    /// until the end, the sink refusing, or the budget running out.
+    fn read_from(
+        &mut self,
+        from: usize,
+        budget: Budget,
+        sink: &mut dyn RecordSink,
+    ) -> Result<End, String>;
+
+    /// How many rows the table has; `None` if the budget ran out first.
+    fn count(&mut self, budget: Budget) -> Result<Option<usize>, String>;
+}
+
+/// A table, view or query of a database, read by `LIMIT` and `OFFSET`.
+pub struct SqliteRows {
+    conn: rusqlite::Connection,
+    /// The SQL that gives the rows, to be wrapped as `SELECT * FROM (…)`.
+    query: String,
+    cols: usize,
+}
+
+impl SqliteRows {
+    /// Opens the part of the database as [`read_sqlite`] does, checking a typed
+    /// query in the same way.
+    pub fn open(path: &Path, part: SqlitePart<'_>) -> Result<Self, String> {
+        let conn = open_sqlite(path)?;
+        let choice = choose_sqlite_part(&conn, part)?
+            .ok_or_else(|| "the database has no tables".to_string())?;
+        // Wrapped, a `;` would end the statement early, and a `--` comment
+        // would hide the parenthesis that closes it (hence the line breaks).
+        let query = first_statement(&conn, &choice.query)?
+            .trim_end_matches(|c: char| c == ';' || c.is_whitespace())
+            .to_string();
+        let cols = conn
+            .prepare(&query)
+            .map_err(|e| format!("SQL statement error: {e}"))?
+            .column_count()
+            .min(MAX_COLS);
+        Ok(SqliteRows { conn, query, cols })
+    }
+
+    /// The query, wrapped with `tail`: whatever was typed, it stays one
+    /// statement that only reads.
+    fn wrapped(&self, head: &str, tail: &str) -> Result<rusqlite::Statement<'_>, String> {
+        let sql = format!("{head} (\n{}\n){tail}", self.query);
+        let stmt = self
+            .conn
+            .prepare(&sql)
+            .map_err(|e| format!("SQL statement error: {e}"))?;
+        if !stmt.readonly() {
+            return Err(READS_ONLY.to_string());
+        }
+        Ok(stmt)
+    }
+}
+
+/// The text of the first statement of `sql`, up to where SQLite says it ends:
+/// whatever comes after it (a comment, more `;`) is left out.
+fn first_statement<'a>(conn: &rusqlite::Connection, sql: &'a str) -> Result<&'a str, String> {
+    use rusqlite::ffi;
+    let text = std::ffi::CString::new(sql).map_err(|_| "a NUL in the query".to_string())?;
+    let mut stmt = std::ptr::null_mut();
+    let mut tail = std::ptr::null();
+    // SAFETY: the handle is a valid connection, `text` lives through the call
+    // and ends in NUL, and the statement prepared is finalized right away.
+    let rc = unsafe {
+        let rc = ffi::sqlite3_prepare_v2(conn.handle(), text.as_ptr(), -1, &mut stmt, &mut tail);
+        ffi::sqlite3_finalize(stmt);
+        rc
+    };
+    if rc != ffi::SQLITE_OK || tail.is_null() {
+        return Err("SQL statement error: the query could not be read again".to_string());
+    }
+    let end = (tail as usize).saturating_sub(text.as_ptr() as usize);
+    sql.get(..end)
+        .ok_or_else(|| "SQL statement error: the query could not be read again".to_string())
+}
+
+impl RowSource for SqliteRows {
+    fn read_from(
+        &mut self,
+        from: usize,
+        budget: Budget,
+        sink: &mut dyn RecordSink,
+    ) -> Result<End, String> {
+        limit_sqlite_time(&mut self.conn, &budget)?;
+        let cols = self.cols;
+        let mut stmt = self.wrapped("SELECT * FROM", " LIMIT -1 OFFSET ?1")?;
+        let from = i64::try_from(from).map_err(|_| "row out of range".to_string())?;
+        let rows = stmt
+            .query([from])
+            .map_err(|e| format!("SQL execution error: {e}"))?;
+        stream_sqlite_rows(rows, cols, budget, sink)
+    }
+
+    fn count(&mut self, budget: Budget) -> Result<Option<usize>, String> {
+        limit_sqlite_time(&mut self.conn, &budget)?;
+        let mut stmt = self.wrapped("SELECT count(*) FROM", "")?;
+        match stmt.query_row([], |row| row.get::<_, i64>(0)) {
+            Ok(n) => Ok(Some(usize::try_from(n).unwrap_or(0))),
+            Err(e) if is_interrupted(&e) => Ok(None),
+            Err(e) => Err(format!("SQL execution error: {e}")),
         }
     }
 }
