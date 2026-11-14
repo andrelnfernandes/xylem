@@ -13,6 +13,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{OnceLock, RwLock};
 
 use ratatui::style::Color;
+
+use crate::viewer::lines::LineSource;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
@@ -120,17 +122,18 @@ fn find_syntax(path: &Path, first_line: &str) -> Option<&'static SyntaxReference
 
 impl Highlighter {
     /// Colors for `name`: a file name, or `GIT_STATUS`.
-    pub fn for_name(name: &Path, lines: &[String]) -> Option<Self> {
+    pub fn for_name(name: &Path, lines: &(impl LineSource + ?Sized)) -> Option<Self> {
         if name == Path::new(GIT_STATUS) {
             return Self::git_status(lines);
         }
-        Self::for_file(name, lines.first().map_or("", String::as_str))
+        let first = if lines.count() > 0 { lines.line(0) } else { "" };
+        Self::for_file(name, first)
     }
 
     /// `git status`, as git colors it in a terminal: the files staged in
     /// green, the others (not staged, untracked, in conflict) in red. Git
     /// indents the files with a tab, which the viewer turns into 8 spaces.
-    fn git_status(lines: &[String]) -> Option<Self> {
+    fn git_status(lines: &(impl LineSource + ?Sized)) -> Option<Self> {
         if !enabled() {
             return None;
         }
@@ -141,10 +144,9 @@ impl Highlighter {
         };
         let (green, red) = (color((78, 154, 6)), color((204, 0, 0)));
         let mut section = None;
-        let done = lines
-            .iter()
-            .take(MAX_LINES)
-            .map(|line| {
+        let done = (0..lines.count().min(MAX_LINES))
+            .map(|i| {
+                let line = lines.line(i);
                 if line.is_empty() {
                     section = None;
                 } else if line.starts_with("Changes to be committed") {
@@ -156,7 +158,7 @@ impl Highlighter {
                     section = Some(red);
                 }
                 match section {
-                    Some(c) if line.starts_with("        ") => vec![(c, line.clone())],
+                    Some(c) if line.starts_with("        ") => vec![(c, line.to_string())],
                     _ => Vec::new(),
                 }
             })
@@ -204,15 +206,19 @@ impl Highlighter {
 
     /// Colored segments of line `i` of `lines`, highlighting the lines
     /// before it first if needed. `None` past `MAX_LINES` or after an error.
-    pub fn line(&mut self, i: usize, lines: &[String]) -> Option<&[(Color, String)]> {
-        if i >= MAX_LINES || i >= lines.len() {
+    pub fn line(
+        &mut self,
+        i: usize,
+        lines: &(impl LineSource + ?Sized),
+    ) -> Option<&[(Color, String)]> {
+        if i >= MAX_LINES || i >= lines.count() {
             return None;
         }
         while !self.failed && self.done.len() <= i {
             let Some(highlight) = &mut self.lines else {
                 break;
             };
-            let line = &lines[self.done.len()];
+            let line = lines.line(self.done.len());
             // Skipped, not fed to syntect: the lines after it start from
             // the state before it.
             if line.len() > MAX_LINE_CHARS && line.chars().count() > MAX_LINE_CHARS {
@@ -441,8 +447,8 @@ fn contrast(a: (u8, u8, u8), b: (u8, u8, u8)) -> f64 {
 mod tests {
     use super::*;
 
-    fn lines(text: &str) -> Vec<String> {
-        text.lines().map(String::from).collect()
+    fn lines(text: &str) -> crate::viewer::lines::Lines {
+        text.lines().collect()
     }
 
     #[test]
@@ -519,10 +525,10 @@ mod tests {
     /// get their colors.
     #[test]
     fn very_long_lines_are_not_colored() {
-        let text = vec!["let x = 1; ".repeat(1_000), "    let y = 2;".to_string()];
+        let text = ["let x = 1; ".repeat(1_000), "    let y = 2;".to_string()];
         let mut h = Highlighter::for_file(Path::new("a.rs"), "").unwrap();
-        assert_eq!(h.line(0, &text), Some(&[][..]));
-        assert!(h.line(1, &text).is_some_and(|segs| segs.len() > 1));
+        assert_eq!(h.line(0, &text[..]), Some(&[][..]));
+        assert!(h.line(1, &text[..]).is_some_and(|segs| segs.len() > 1));
     }
 
     #[test]
