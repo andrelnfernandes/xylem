@@ -25,6 +25,33 @@ Em duas frentes, que se somam:
 - **Por dentro:** o texto dos arquivos. Sem índice no começo; com índice, por ramo,
   para a resposta na hora que o Google Desktop dava.
 
+## Regras decididas pelo autor (2026-11-14)
+
+1. **A busca é sempre sobre os arquivos logados que estão na lista.** Nunca aparece
+   um arquivo que o Xylem não está mostrando: todo resultado pode ser marcado, visto
+   e copiado ali mesmo. O índice só acelera; um arquivo que está no índice mas não na
+   lista não é resultado. Para procurar num ramo, ele precisa estar logado (`*`,
+   Branch), como para qualquer outra operação.
+2. **Sem Ctrl, os arquivos da lista; com Ctrl, os marcados.** A mesma tecla com e sem
+   Ctrl, como no resto do Xylem (e como o Ctrl+S de hoje, que procura nos marcados).
+   O rodapé e o título do prompt dizem em qual dos dois a busca está sendo feita.
+3. **Com índice e sem índice é dito com todas as letras.** Antes de rodar, o prompt
+   mostra o que vai acontecer: quantos arquivos têm índice em dia, quantos serão
+   lidos direto, e o tamanho do que será lido. Depois, o resultado diz o mesmo. O
+   manual explica a diferença numa tabela:
+
+   | | Sem índice | Com índice |
+   |---|---|---|
+   | Resposta | lê cada arquivo na hora | imediata |
+   | Custo | tempo a cada busca | tempo e espaço ao indexar |
+   | Procura | pedaço de texto (`contains`) ou palavras (`words`) | palavras (`words`) |
+   | Arquivo mudado | sempre o conteúdo atual | lido direto se mais novo que o índice |
+   | Onde | qualquer lugar logado | só nos ramos que o usuário mandou indexar |
+
+Consequência da regra 1 para a etapa 5: a caixa de busca procura no que está logado,
+não em todos os ramos indexados. Um ramo indexado e não logado precisa ser logado
+antes; como o índice sabe quais arquivos tem, logar esse ramo pode ser oferecido ali.
+
 ## O que já existe e se aproveita
 
 - **`src/viewer/sql_filter.rs`**: o mini-SQL do viewer. Só o predicado do `WHERE`
@@ -128,8 +155,8 @@ quando o Xylem está fechado.
 
 ### 5. A caixa de busca: a experiência do Google Desktop
 
-Uma tecla, uma caixa, digitar e ver os resultados chegando, sem SQL. Sobre os ramos
-indexados, mais a busca por nome em tudo o que está logado. Cada linha: arquivo, trecho
+Uma tecla, uma caixa, digitar e ver os resultados chegando, sem SQL. Sobre os arquivos
+logados da lista (com Ctrl, os marcados), por nome e por conteúdo. Cada linha: arquivo, trecho
 com o termo, data. Enter vai ao arquivo (ou abre o viewer na linha); `T` marca.
 
 É a porta de entrada para quem não escreve consultas, e o que aparece no GIF. A lista
@@ -205,15 +232,17 @@ locais do cockpit e o trecho mostrado na caixa de busca (etapa 5).
 
 ## Decisões em aberto
 
-1. **A tecla.** `Ctrl+Q` (Query) está livre, mas o Ctrl é "os marcados". Alternativa:
-   estender o Filespec (`F`), que aceitaria predicado além de máscara **(?)**. Recomendo
-   o Filespec para a etapa 1 (é o que ela é) e uma tecla própria para a caixa de busca.
+1. **A tecla.** Decidido: a mesma letra sem Ctrl (a lista) e com Ctrl (os marcados).
+   Falta escolher a letra: `Q` é Quit e `S` é Showall (com Ctrl+S já sendo a busca nos
+   marcados). Para a etapa 1, estender o Filespec (`F`), que aceitaria predicado além
+   de máscara **(?)**; para a busca por conteúdo, uma letra a escolher.
 2. **O motor da etapa 3:** SQLite em memória ou mini-SQL estendido. Decidir depois das
    etapas 1 e 2.
 3. **`contains` e `words` separados?** Recomendo sim.
 4. **Conteúdo na nuvem:** confirmar com o total em bytes, ou recusar. Recomendo recusar
    na nuvem e confirmar por SSH.
-5. **A tantivy entra como dependência opcional?** Recomendo sim, feature `index`.
+5. **O motor do índice é a tantivy:** decidido pelo autor em 2026-11-14. Em aberto só
+   se entra como dependência opcional; recomendo sim, feature `index`.
 6. **Onde a etapa 5 entra no roteiro:** é a mais visível, mas depende da 4.
 
 ## Fora deste estudo
