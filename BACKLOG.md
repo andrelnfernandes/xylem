@@ -108,7 +108,8 @@ as a link is what `cp -a` and `rsync -l` do).
   [the manual](docs/manual/viewer.md). The windowed viewer (3) is started by the
   tables, with no limit of rows in 0.8.0
   ([docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)). Still to do:
-  windows for the text (3); logs (4), of which the line filter is done; Parquet in
+  windows for the text (3), which until then is in memory twice, as the bytes read
+  and as its lines (a file of 234 MB takes 475 MB); logs (4), of which the line filter is done; Parquet in
   windows (0.9). Fixed-width and multi-record files (SDF,
   CNAB, SPED) are out, by decision (2026-11-11): they go to a separate product
   ([docs/plans/viewer-positional.md](docs/plans/viewer-positional.md)).

@@ -3,6 +3,7 @@
 
 pub mod batch;
 pub mod line_filter;
+pub mod lines;
 pub mod markdown;
 mod parquet_pages;
 pub mod records;
@@ -30,6 +31,7 @@ use crate::decompress::{
 use crate::highlight::Highlighter;
 use crate::search::Pattern;
 use line_filter::{LineFilterSpec, LineMatcher};
+use lines::{LINE_COST, Lines};
 use records::Budget;
 use table::TableGrid;
 
@@ -247,7 +249,7 @@ pub struct Viewer {
     pub size: u64,
     pub mode: ViewMode,
     data: Vec<u8>,
-    lines: Vec<String>,
+    lines: Lines,
     /// Where a bidi control was swapped for `·`: (line, character column).
     bidi: Vec<(usize, usize)>,
     /// First visible line.
@@ -716,7 +718,7 @@ impl Viewer {
                 })
             }
             ViewMode::Text => Ok(batch::Source::Text {
-                text: charset::decode(&self.data, self.charset),
+                text: charset::decode(&self.data, self.charset).into_owned(),
                 total: self.lines.len(),
                 kept: self.filter.as_ref().map(|f| f.rows.clone()),
                 regex: self
@@ -727,7 +729,7 @@ impl Viewer {
             }),
             // The source's lines; the line filter is for the text mode.
             ViewMode::Rendered => Ok(batch::Source::Text {
-                text: charset::decode(&self.data, self.charset),
+                text: charset::decode(&self.data, self.charset).into_owned(),
                 total: self.lines.len(),
                 kept: None,
                 regex: None,
@@ -2441,29 +2443,18 @@ pub fn looks_binary(data: &[u8]) -> bool {
 }
 
 /// The syntax colors of a text: by the name they follow, else by `path`.
-fn text_colors(path: &Path, name: Option<&Path>, lines: &[String]) -> Option<Highlighter> {
+fn text_colors(path: &Path, name: Option<&Path>, lines: &Lines) -> Option<Highlighter> {
     match name {
         Some(n) => Highlighter::for_name(n, lines),
-        None => Highlighter::for_file(path, lines.first().map_or("", String::as_str)),
+        None => Highlighter::for_file(path, lines.first().unwrap_or("")),
     }
 }
 
-/// The memory the lines of a text may take, by `line_cost`: twice the
-/// read limit. Ordinary text costs about 1.4 × its size (~100-byte lines);
-/// tiny lines, tabs and bidi marks cost many times the bytes they come from.
+/// The memory the lines of a text may take: twice the read limit. Ordinary
+/// text costs little over its size; tiny lines (`LINE_COST` each), tabs and
+/// bidi marks cost many times the bytes they come from.
 fn line_budget(limit: usize) -> usize {
     limit.saturating_mul(2)
-}
-
-/// What a line costs in memory, roughly: the `String` itself, plus its heap
-/// block when it has one (allocators hand out at least 32 bytes, in steps
-/// of 16).
-fn line_cost(capacity: usize) -> usize {
-    let heap = match capacity {
-        0 => 0,
-        n => n.next_multiple_of(16).max(32),
-    };
-    size_of::<String>() + heap
 }
 
 /// What each bidi position costs in `Viewer::bidi`.
@@ -2471,7 +2462,7 @@ const MARK_COST: usize = size_of::<(usize, usize)>();
 
 /// A text split by `text_lines`.
 struct TextLines {
-    lines: Vec<String>,
+    lines: Lines,
     /// Where each bidi control was replaced: (line, character column after
     /// expanding tabs), in order.
     bidi: Vec<(usize, usize)>,
@@ -2481,30 +2472,31 @@ struct TextLines {
 
 /// Splits into lines, expands tabs and replaces control characters with `·`,
 /// noting where the bidi controls were. Stops once the lines would cost
-/// more than `budget` bytes: a file of newlines would otherwise take 25
-/// times its size (16 MiB of them, a .bz2 of a few hundred bytes, became
-/// 400 MiB).
+/// more than `budget` bytes: a file of newlines takes `LINE_COST` times its
+/// size, a line of tabs 8 times, and a few hundred bytes of a .bz2 can
+/// decompress to 16 MiB of either.
 fn text_lines(text: &str, budget: usize) -> TextLines {
     // The final '\n' does not open a new line.
     let body = text.strip_suffix('\n').unwrap_or(text);
-    // Room for all the lines the budget allows, so the vector never grows.
+    // Room for all the budget allows, so that neither block grows (growing
+    // would hold the old and the new one for a moment).
     let count = body.bytes().filter(|&b| b == b'\n').count() + 1;
-    let mut lines = Vec::with_capacity(count.min(budget / size_of::<String>() + 1));
+    let mut lines = Lines::with_capacity(body.len().min(budget), count.min(budget / LINE_COST + 1));
     let mut bidi = Vec::new();
+    // What the closed lines and the bidi marks cost.
     let mut used = 0;
     let mut cut = false;
     let mut parts = body.split('\n').peekable();
     while let Some(line) = parts.next() {
         let line = line.strip_suffix('\r').unwrap_or(line);
         let i = lines.len();
-        let mut out = String::with_capacity(line.len());
         let mut col = 0;
         let mut chars = line.chars();
         let mut full = false;
         for c in chars.by_ref() {
             if c == '\t' {
                 let n = TAB_WIDTH - col % TAB_WIDTH;
-                out.extend(std::iter::repeat_n(' ', n));
+                lines.push_spaces(n);
                 col += n;
             } else {
                 let hidden = crate::bidi::is_bidi(c);
@@ -2512,22 +2504,23 @@ fn text_lines(text: &str, budget: usize) -> TextLines {
                     bidi.push((i, col));
                     used += MARK_COST;
                 }
-                out.push(if c.is_control() || hidden { '·' } else { c });
+                lines.push(if c.is_control() || hidden { '·' } else { c });
                 col += 1;
             }
             // One long line (of tabs or bidi marks) can be over the budget.
-            if used + out.len() > budget {
+            if used + lines.open_len() > budget {
                 full = true;
                 break;
             }
         }
-        used += line_cost(out.capacity());
-        lines.push(out);
+        used += LINE_COST + lines.open_len();
+        lines.end_line();
         if full || used > budget {
             cut = !chars.as_str().is_empty() || parts.peek().is_some();
             break;
         }
     }
+    lines.shrink_to_fit();
     TextLines { lines, bidi, cut }
 }
 
@@ -3347,7 +3340,10 @@ mod tests {
 
     #[test]
     fn splits_text_lines() {
-        let lines = |t: &str| text_lines(t, usize::MAX).lines;
+        let lines = |t: &str| -> Vec<String> {
+            let text = text_lines(t, usize::MAX).lines;
+            text.iter().map(String::from).collect()
+        };
         assert_eq!(lines("a\r\nb\n"), ["a", "b"]);
         assert_eq!(lines("a\tb"), ["a       b"]);
         assert_eq!(lines("x\x07y"), ["x·y"]);
@@ -3363,7 +3359,7 @@ mod tests {
     fn many_tiny_lines_stop_at_the_line_budget() {
         let limit = 1 << 20;
         let budget = 2 * limit;
-        let most = budget / size_of::<String>() + 1;
+        let most = budget / LINE_COST + 1;
         let mut v = from_gz(
             "nl.txt.gz",
             gz(&vec![b'\n'; 16 << 20]),
@@ -5059,7 +5055,7 @@ mod tests {
         assert_eq!(v.mode, ViewMode::Text);
         assert!(!v.partial());
         assert_eq!(v.data_len(), size);
-        assert_eq!(v.lines[1], "0,\"two");
+        assert_eq!(&v.lines[1], "0,\"two");
         press(&mut v, KeyCode::Char('t'));
         assert_eq!(v.mode, ViewMode::Table);
         // And so is the hex.

@@ -1,6 +1,8 @@
 //! Text encodings for the viewer: UTF-16, CP437, CP850, Windows-1252, plus
 //! detection and a CP850/1252 guess for data that is not valid UTF-8.
 
+use std::borrow::Cow;
+
 use crate::viewer::looks_binary;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,17 +125,18 @@ fn sniff_utf16(data: &[u8]) -> Option<Charset> {
     }
 }
 
-pub fn decode(data: &[u8], charset: Charset) -> String {
+pub fn decode(data: &[u8], charset: Charset) -> Cow<'_, str> {
     match charset {
+        // Valid UTF-8 is not copied: a big text would be in memory once more.
         Charset::Utf8 => {
             let data = data.strip_prefix(&[0xEF, 0xBB, 0xBF][..]).unwrap_or(data);
-            String::from_utf8_lossy(data).into_owned()
+            String::from_utf8_lossy(data)
         }
-        Charset::Utf16Le => decode_utf16(data, &[0xFF, 0xFE], u16::from_le_bytes),
-        Charset::Utf16Be => decode_utf16(data, &[0xFE, 0xFF], u16::from_be_bytes),
-        Charset::Cp437 => decode_table(data, &CP437),
-        Charset::Cp850 => decode_table(data, &CP850),
-        Charset::Cp1252 => decode_table(data, &CP1252),
+        Charset::Utf16Le => decode_utf16(data, &[0xFF, 0xFE], u16::from_le_bytes).into(),
+        Charset::Utf16Be => decode_utf16(data, &[0xFE, 0xFF], u16::from_be_bytes).into(),
+        Charset::Cp437 => decode_table(data, &CP437).into(),
+        Charset::Cp850 => decode_table(data, &CP850).into(),
+        Charset::Cp1252 => decode_table(data, &CP1252).into(),
     }
 }
 
