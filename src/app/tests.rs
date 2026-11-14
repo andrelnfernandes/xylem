@@ -1258,6 +1258,7 @@ fn alt_l_in_a_branch_takes_the_directory_of_the_selected_file() {
     assert!(said.ends_with("is now the root"), "{said}");
 }
 
+#[cfg(unix)]
 #[test]
 fn alt_l_is_refused_on_a_remote_machine() {
     let Some((_tmp, mut app)) = remote_sample() else {
