@@ -1,5 +1,7 @@
 # Vergleich mit ZTreeWin
 
+> **Eine Zeile ist noch nicht aktuell.** In der Tabelle hat der Betrachter für Dateien auf der Festplatte keine Größengrenze mehr; siehe die englische Fassung.
+
 ## Zuerst ein Dankeschön
 
 Ich benutze seit den 1990er-Jahren die eine oder andere Variante von XTree

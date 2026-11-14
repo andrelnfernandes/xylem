@@ -1,6 +1,6 @@
 # O visualizador
 
-> **Ainda não cobre a 0.8.0.** As tabelas sem o limite de 50.000 linhas estão só na versão em inglês por enquanto.
+> **Ainda não cobre a 0.8.0.** As tabelas sem o limite de 50.000 linhas estão só na versão em inglês por enquanto. Os textos grandes lidos conforme a tela anda ("Big files") também.
 
 `V` abre o arquivo no visualizador (o Autoview, F7, o mostra ao lado da lista).
 Arquivos binários abrem em hexadecimal. Arquivos acima do limite de tamanho mostram

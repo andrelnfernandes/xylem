@@ -1,6 +1,6 @@
 # Der Betrachter
 
-> **Noch nicht auf dem Stand von 0.8.0.** Tabellen ohne die Grenze von 50.000 Zeilen stehen vorerst nur in der englischen Fassung.
+> **Noch nicht auf dem Stand von 0.8.0.** Tabellen ohne die Grenze von 50.000 Zeilen stehen vorerst nur in der englischen Fassung. Das gilt auch für große Texte, die mit dem Bildschirm gelesen werden („Big files“).
 
 `V` öffnet die Datei im Betrachter (Autoview, F7, zeigt sie neben der Liste
 an). Binärdateien werden im Hex-Modus geöffnet. Bei Dateien über dem Größenlimit wird
