@@ -19,7 +19,7 @@ followed by `<b`, which is the range between the two
 (`>=01/05/2026,<=31/05/2026`: May); `<>` excludes. Between kinds, AND applies:
 `*.txt,=TODAY,<s1000` are the `.txt` files from today smaller than 1000 bytes.
 
-`*` (or an empty prompt) shows everything. **↑** brings up earlier filespecs.
+`*` (or an empty prompt) shows everything. **↑** lists earlier filespecs ([history](execute.md#history)).
 
 See also: [the file window](files.md), [tags](tagging.md) (Ctrl+T in the tree
 tags what matches the filespec).

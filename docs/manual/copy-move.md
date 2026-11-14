@@ -9,11 +9,12 @@ prompt asks for the destination.
 A directory (relative to the directory under the tree cursor, absolute, or with
 `~`) or, for a single file, a new name. With the screen
 [split](split.md), the other window's directory is suggested. **F2** opens a
-tree to [pick the folder](picker.md); **↑** brings up earlier destinations.
+tree to [pick the folder](picker.md); **↑** opens the earlier destinations
+as a [list](execute.md#history).
 
-Without a split, the prompt opens empty, as in [Log](treespec.md), and **↑** goes
-through the same places: the folders copied or moved to and those logged, the
-last one first. Enter on an empty prompt does nothing.
+Without a split, the prompt opens empty, as in [Log](treespec.md), and the
+list of **↑** has the same places: the folders copied or moved to and those
+logged, the last one at the bottom. Enter on an empty prompt does nothing.
 
 **F11** brings a [bookmark](bookmarks.md) into the prompt.
 
