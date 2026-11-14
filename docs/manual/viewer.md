@@ -186,14 +186,17 @@ The frame says `QUERY:`, and the grid shows what it gave. A condition then filte
 
 ### Big tables
 
-A table or view of a SQLite database, and a query typed in one, has no limit of rows with **V**. The grid keeps the rows near the cursor, at most 2,000 of them and 32 MiB of text, and reads the others from the file as the cursor moves, without holding the screen: a row not read yet shows as `…` for a moment.
+With **V**, these tables have no limit of rows: a CSV or TSV file, a JSON Lines file, and a table or view of a SQLite database, or a query typed in one. The grid keeps the rows near the cursor, at most 2,000 of them and 32 MiB of text, and reads the others from the file as the cursor moves, without holding the screen: a row not read yet shows as `…` for a moment.
 
 - **The total** shows while it is counted: `Row 1 of 2,000+ (counting…)`, and then `Row 1 of 8,412,903`. **Ctrl+End** goes to the last row and `g` to any; before the count ends, `g` past it says the count has not got there yet.
 - **The filter** (`&`) goes over the whole table, in the background. The line under the grid says how far it went, `1,203 matches so far, row 2,300,000 of 8,412,903`, and the rows show as they are found. It keeps at most 1,000,000 matches, and then says `first 1,000,000 matches`.
 - **Esc** stops the count or the filter, keeping what they found so far; the next Esc closes the viewer.
-- Column widths come from the first rows, and a column widens when a wider row comes on screen.
+- Column widths come from the first rows, and a column widens when a wider row comes on screen. A JSON Lines file can also gain columns as it is counted, when a key first shows up further on.
+- **CSV, TSV and JSON Lines** are read once from start to end as they are counted, and Xylem notes where every 256th row starts, so that any row is reached by reading at most 255 others. That note is kept only in memory, about 8 bytes for every 256 rows, and goes when the viewer closes. A CSV record with a line break inside quotes is still one row. A CSV record longer than 16 MiB stops the reading, and a line of JSON Lines longer than 512 KiB is passed over.
+- **When the file changes** while it is open (it grows, shrinks or is replaced), what Xylem noted of it no longer holds: nothing more is read from it, and the header says `(the file changed: R reloads)`. **R** reads it again.
+- **The text and the hex** of a file that opens as a table are read only when you go to them (**T**, **H**): until then Xylem reads just the start of the file, so a big table opens at once.
 
-Autoview (F7) does not open databases. The other formats keep the limit below for now.
+Autoview (F7) does not open databases, and it reads only the first rows of the other tables. The other formats keep the limit below for now.
 
 ### Limits
 

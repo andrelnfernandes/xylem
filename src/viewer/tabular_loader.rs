@@ -127,6 +127,8 @@ struct GridSink {
     current_sheet: usize,
     first_view: Option<usize>,
     headers: Vec<String>,
+    /// The columns as the file names them, for reading it again.
+    names: Vec<String>,
     rows: Vec<TableRow>,
     /// The most rows kept, when not [`MAX_TABLE_ROWS`].
     max_rows: Option<usize>,
@@ -147,6 +149,7 @@ impl RecordSink for GridSink {
 
     fn columns(&mut self, names: &[String]) {
         self.headers = names.iter().map(|s| TableGrid::sanitize_cell(s)).collect();
+        self.names = names.to_vec();
     }
 
     fn columns_cut(&mut self) {
@@ -293,25 +296,84 @@ fn sqlite_opener(path: &Path, part: SqlitePart<'_>) -> Opener {
     })
 }
 
-/// Like [`load_sqlite`], but a table with more than [`WINDOW_ROWS`] rows is
-/// not cut: the grid keeps a window over it (see `table_window`), whose
-/// threads start when the grid is on screen.
-pub fn load_sqlite_windowed(
+/// Reads the first [`WINDOW_ROWS`] rows of a table; if it has more, it is not
+/// cut: the grid keeps a window over it (see `table_window`), whose threads
+/// start when the grid is on screen and open it with what `opener` makes of
+/// the columns the file named.
+fn load_windowed(
     path: &Path,
-    part: SqlitePart<'_>,
     budget: Budget,
+    read: impl FnOnce(Budget, &mut GridSink) -> Result<End, String>,
+    opener: impl FnOnce(Vec<String>) -> Opener,
 ) -> Result<TableGrid, String> {
     let mut sink = GridSink {
         max_rows: Some(WINDOW_ROWS),
         ..GridSink::default()
     };
-    let end = records::read_sqlite(path, part, budget.clone(), &mut sink)?;
+    let end = read(budget.clone(), &mut sink)?;
     let more = std::mem::take(&mut sink.rows_cut);
+    let names = std::mem::take(&mut sink.names);
     let mut grid = sink.finish(path, end, budget.cancelled());
     if more {
-        grid.make_window(sqlite_opener(path, part));
+        grid.make_window(opener(names));
     }
     Ok(grid)
+}
+
+/// Like [`load_sqlite`], with no limit of rows (see [`load_windowed`]).
+pub fn load_sqlite_windowed(
+    path: &Path,
+    part: SqlitePart<'_>,
+    budget: Budget,
+) -> Result<TableGrid, String> {
+    load_windowed(
+        path,
+        budget,
+        |budget, sink| records::read_sqlite(path, part, budget, sink),
+        |_| sqlite_opener(path, part),
+    )
+}
+
+/// Like [`load_csv`], with no limit of rows: the rest of the file is found
+/// through an index (see [`records::RowIndex`]), built as the rows are counted.
+pub fn load_csv_windowed(
+    path: &Path,
+    delimiter: Option<u8>,
+    budget: Budget,
+) -> Result<TableGrid, String> {
+    // Taken before the first rows are read: a change while they are is seen.
+    let stamp = records::file_stamp(path);
+    load_windowed(
+        path,
+        budget,
+        |budget, sink| records::read_csv(path, delimiter, budget, sink),
+        |_| {
+            let path = path.to_path_buf();
+            let index = records::RowIndex::new(Vec::new());
+            Arc::new(move || {
+                records::TextRows::csv(&path, delimiter, stamp, index.clone())
+                    .map(|rows| Box::new(rows) as Box<dyn RowSource>)
+            })
+        },
+    )
+}
+
+/// Like [`load_jsonl`], with no limit of rows (see [`load_csv_windowed`]).
+pub fn load_jsonl_windowed(path: &Path, budget: Budget) -> Result<TableGrid, String> {
+    let stamp = records::file_stamp(path);
+    load_windowed(
+        path,
+        budget,
+        |budget, sink| records::read_jsonl(path, budget, sink),
+        |names| {
+            let path = path.to_path_buf();
+            let index = records::RowIndex::new(names);
+            Arc::new(move || {
+                records::TextRows::jsonl(&path, stamp, index.clone())
+                    .map(|rows| Box::new(rows) as Box<dyn RowSource>)
+            })
+        },
+    )
 }
 
 /// Load an Apache Parquet file (.parquet).

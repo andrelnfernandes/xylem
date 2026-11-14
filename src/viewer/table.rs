@@ -278,6 +278,11 @@ impl TableGrid {
         self.window.as_mut().is_some_and(|w| w.stop_work())
     }
 
+    /// The file is no longer the one its window was reading: R reads it again.
+    pub fn file_changed(&self) -> bool {
+        self.window.as_ref().is_some_and(|w| w.changed)
+    }
+
     /// The window is reading something: the screen should look again soon.
     pub fn window_working(&self) -> bool {
         self.window.as_ref().is_some_and(|w| w.working())
@@ -300,6 +305,13 @@ impl TableGrid {
             return false;
         };
         let changed = w.poll(focus, (first, last));
+        // Columns the count found further on (JSON Lines).
+        if w.headers().len() > self.headers.len() {
+            let new = &w.headers()[self.headers.len()..];
+            self.col_widths
+                .extend(new.iter().map(|h| (display_width(h) + 1).max(4)));
+            self.headers.extend_from_slice(new);
+        }
         // The table may have turned out shorter than it seemed.
         let visible = w.visible();
         if self.cursor_row >= visible {

@@ -8,14 +8,34 @@ o `less` (subprojeto 3 de [viewers.md](viewers.md)), e abre caminho para os logs
 **Estado: aprovado pelo autor em 2026-11-13, com as recomendações abaixo ("Decisões"),
 para a 0.8.0.** Em implementação na branch `tables-windowed`:
 
-- **Feitas:** fatia 4 (2951f8e) e fatia 1 (5277b52). A janela está em
+- **Feitas:** fatia 4 (2951f8e), fatia 1 (5277b52) e fatia 2. A janela está em
   `src/viewer/table_window.rs`: `Window`, as threads de leitura, contagem e filtro, e o
-  trait `RowSource` em `records.rs`, com `SqliteRows` como primeira fonte. A grade
-  (`table.rs`) usa `row`, `file_row`, `known_rows` e `total_text`, e o viewer chama
-  `poll_window`, `pause_window` e `resume_window`.
-- **Próxima:** fatia 2. Um `RowSource` para CSV, TSV e JSONL com o índice, a carga
-  janelada em `tabular_loader` (como `load_sqlite_windowed`), o arquivo que mudou e a
-  leitura adiada do texto e do hexa (abaixo).
+  trait `RowSource` em `records.rs`, com `SqliteRows` e `TextRows` (CSV, TSV, JSONL) como
+  fontes. A grade (`table.rs`) usa `row`, `file_row`, `known_rows` e `total_text`, e o
+  viewer chama `poll_window`, `pause_window` e `resume_window`.
+- **Fatia 2, como ficou:**
+  - `RowIndex` (em `records.rs`) guarda o byte de uma linha a cada 256, compartilhado por
+    todas as threads da janela; quem o preenche é a contagem, que retoma da última marca
+    se for parada. Cada marca ocupa 8 bytes (só o byte; o número da linha é o da marca),
+    não os 24 do desenho.
+  - A contagem diz o progresso (`RowSource::count` recebe um `Progress`), então o total
+    cresce na tela enquanto conta; no JSONL ela também acha colunas novas depois das
+    primeiras 2.000 linhas, e a grade as ganha.
+  - CSV: um registro com mais de 16 MiB para a leitura (`MAX_RECORD_BYTES`, pelo
+    `Fenced` sob o leitor do `csv`); bytes que não são UTF-8 viram `�` em vez de parar a
+    leitura (antes parava).
+  - JSONL: um registro é um objeto com ao menos uma chave, seja qual for o lugar de onde
+    se lê (`{}` deixou de ser linha de nulos); uma linha com mais de 512 KiB é pulada
+    inteira (antes era lida em pedaços), e uma linha que não é UTF-8 é pulada (antes
+    parava a leitura).
+  - O arquivo que mudou: tamanho e data guardados antes de ler as primeiras linhas e
+    conferidos antes e depois de cada leitura. Ao mudar, a janela para, o cabeçalho diz
+    `(the file changed: R reloads)`, o rodapé mostra `R reload`, e **R** relê.
+  - Leitura adiada do texto: com `V`, um arquivo candidato a tabela lê só 64 KiB
+    (`TABLE_PEEK`); o resto é lido (`fill_text`) ao ir para T ou H, se a tabela não abrir,
+    ou ao voltar ao texto num reload. Na tabela, o cabeçalho não diz mais `(showing first
+    N MiB)` nem os controles bidi do texto.
+- **Próxima:** fatia 3, o DBF pelo `seek`.
 - **Manual:** durante o desenvolvimento, só o inglês (`docs/manual/viewer.md`, seção
   "Big tables"); as traduções ficam pendentes no BACKLOG.
 
