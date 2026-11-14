@@ -108,9 +108,13 @@ as a link is what `cp -a` and `rsync -l` do).
   [the manual](docs/manual/viewer.md). The windowed viewer (3) is started by the
   tables, with no limit of rows in 0.8.0
   ([docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)). Still to do:
-  windows for the text (3), which until then is in memory twice, as the bytes read
-  and as its lines (a file of 234 MB takes 475 MB); logs (4), of which the line filter is done; Parquet in
-  windows (0.9). Fixed-width and multi-record files (SDF,
+  logs (4), of which the line filter is done; Parquet in windows (0.9). The text
+  is in windows too ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)): a
+  file on disk over 16 MiB is read as the screen moves, with no size limit (one of
+  234 MB takes 15 MB of memory, not 475). Left of it: a Batch over such a text still
+  reads it into memory up to the limit; in Ctrl+V, a search that finds nothing in a
+  big file does not go on to the next tagged file; End waits for the count instead
+  of reading the file from its end (for the logs). Fixed-width and multi-record files (SDF,
   CNAB, SPED) are out, by decision (2026-11-11): they go to a separate product
   ([docs/plans/viewer-positional.md](docs/plans/viewer-positional.md)).
 - **Rendered Markdown in the viewer**
@@ -143,6 +147,8 @@ version; the sync removes the note and the entry.
 
 - `viewer.md`: tables with no limit of 50,000 rows (0.8.0,
   [docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)).
+- `viewer.md` ("Big files") and `ztreewin.md` (the Viewer row): big text files read
+  as the screen moves ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)).
 
 ## Tests
 

@@ -1,7 +1,7 @@
 # The viewer
 
 `V` opens the file in the viewer (Autoview, F7, shows it next to the list).
-Binary files open in hex. Files over the size limit show only the beginning.
+Binary files open in hex. A big file on disk is not read whole: the viewer reads what the screen shows as it moves (see [Big files](#big-files)). What cannot be read that way shows only its beginning, up to the size limit.
 Spreadsheets, CSV, DBF, SQLite and Parquet open as a table (see Table mode).
 
 | Key | What it does |
@@ -73,13 +73,31 @@ Xylem finds the encoding by itself, in this order: a decompressed file first, th
 
 To always use one encoding for old text files instead of the guess, set `legacy_charset` to `cp850`, `cp1252` or `cp437` (**K** on page 2 of the [configuration](configuration.md)). The default is `auto`.
 
+## Big files
+
+With **V**, a file on disk bigger than 16 MiB is not loaded: the viewer keeps the lines near the screen, about 2,000 of them, and reads the others from the file as it moves, without holding the screen. A line not read yet shows as `…` for a moment. The file has no size limit this way, and the memory used does not grow with it.
+
+- **The lines are counted in the background.** The footer shows `Line 1 of 1,234,567+ (counting…)` and then the total. **End** and **g** go to any line already counted. Esc stops the count, and what was counted stays.
+- **The search** (`F`, `B`, `/`, `\`, Space) goes over the file in the background: the footer shows `Searching... line 1,200,000 (Esc stops)`, and the screen goes to the match when it is found.
+- **The line filter** (`&`) goes over the whole file in the background, and the lines appear as they are found, up to 1,000,000 of them. Esc stops it and keeps what was found.
+- **Hex** (`H`) reads the bytes where the screen is, and its search goes over the file too.
+- **Another encoding** (`O`) reads the lines again; with UTF-16 they are counted again, since a line ends elsewhere.
+- **No syntax colors and no rendered Markdown**: both read a text from its start.
+- **A line longer than 1 MiB** is cut on screen, ending in `…`; the hex shows all of it.
+- **If the file changes** while it is open, the header says `(the file changed: R reloads)`, and **R** reads it again and goes back to the line it was at.
+- **A Batch** (`Ctrl+B`) over the text still reads the file into memory, up to the size limit below, and says so when that is not all of it.
+
+To reach a line the viewer notes where every 256th line starts, about 8 bytes for every 256 lines, only in memory. The text direction controls are counted over the whole file as the lines are (in UTF-8), and the header shows how many were found so far.
+
+A compressed file, an entry of an archive, a file on a remote machine and Autoview are not read this way: there is no jumping inside them, so they follow the size limit below.
+
 ## Size limit
 
-The viewer reads only the beginning of a big file, and the header says `(showing first N MiB)`. How much it reads is the `viewer_max_size` option (**L** on page 2 of the [configuration](configuration.md)): `auto`, `16`, `64`, `256` or `1024` (MiB). With `auto`, the default, the limit is 1/32 of the machine's RAM, never less than 16 MiB and never more than 256 MiB (it is 16 MiB when the RAM cannot be read). The configuration screen shows the value in use, for example `auto (256 MiB)`.
+For those, and for the files up to 16 MiB, the viewer reads only the beginning of a file too big, and the header says `(showing first N MiB)`. How much it reads is the `viewer_max_size` option (**L** on page 2 of the [configuration](configuration.md)): `auto`, `16`, `64`, `256` or `1024` (MiB). With `auto`, the default, the limit is 1/32 of the machine's RAM, never less than 16 MiB and never more than 256 MiB (it is 16 MiB when the RAM cannot be read). The configuration screen shows the value in use, for example `auto (256 MiB)`.
 
 Two cases do not follow it. Autoview always reads 1 MiB. A file on a remote machine (SFTP) is read at most up to 16 MiB, because Esc cannot cancel that read.
 
-A bigger limit costs memory and time: with `1024`, an ordinary text file that big takes roughly 2.5 GiB of RAM and about 5 s to open. Very short lines cost more than their bytes, because each line has its own bookkeeping, and so do tabs and hidden direction controls: the viewer keeps lines up to about twice the size limit in memory, and past that the header says `(showing first N lines)`. A log of ordinary lines (about 100 bytes) is never cut by this.
+A bigger limit costs memory and time: with `1024`, a compressed text that unpacks to that much takes roughly 2 GiB of RAM. Very short lines cost more than their bytes, because each line has its own bookkeeping, and so do tabs and hidden direction controls: the viewer keeps lines up to about twice the size limit in memory, and past that the header says `(showing first N lines)`. A log of ordinary lines (about 100 bytes) is never cut by this.
 
 ## Compressed files
 

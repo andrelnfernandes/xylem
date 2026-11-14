@@ -11,6 +11,7 @@ pub mod sql_filter;
 pub mod table;
 pub mod table_window;
 pub mod tabular_loader;
+pub mod text_window;
 
 use std::fs::File;
 use std::io::{self, Read};
@@ -34,6 +35,7 @@ use line_filter::{LineFilterSpec, LineMatcher};
 use lines::{LINE_COST, Lines};
 use records::Budget;
 use table::TableGrid;
+use text_window::{FilterState, Text, TextSearch, TextWindow};
 
 /// The default viewer limit, the floor of `auto` and the cap for remote
 /// files (16 MiB).
@@ -235,6 +237,9 @@ const READING_TABLE: &str = "Reading the table... Esc stops";
 const TABLE_STOPPED: &str = "Table reading stopped";
 const TABLE_BUSY: &str = "A table left behind is still being read: try again soon";
 const FILTERING: &str = "Filtering the whole table... Esc stops";
+/// The start of the notes of a search and of a filter over a window's file.
+const SEARCHING: &str = "Searching...";
+const FILTERING_TEXT: &str = "Filtering...";
 /// How much of a file that opens as a table is read for its text at first.
 const TABLE_PEEK: u64 = 64 << 10;
 
@@ -249,7 +254,8 @@ pub struct Viewer {
     pub size: u64,
     pub mode: ViewMode,
     data: Vec<u8>,
-    lines: Lines,
+    /// The text: all of it, or a window over a big file (see `text_window`).
+    lines: Text,
     /// Where a bidi control was swapped for `·`: (line, character column).
     bidi: Vec<(usize, usize)>,
     /// First visible line.
@@ -313,6 +319,13 @@ pub struct Viewer {
     /// Only the start of the file is in `data`, since it opens as a table:
     /// the rest is read when the text or the hex is wanted (see `settle_text`).
     partial: bool,
+    /// A search going over a window's file: the mode it was started in.
+    seeking: Option<ViewMode>,
+    /// What a search found past the lines counted so far: shown when the
+    /// count gets there.
+    awaited: Option<Hit>,
+    /// The line a reload wants at the top, once the count gets there.
+    wish: Option<usize>,
 }
 
 /// The line filter in effect and the lines it kept, in order.
@@ -361,13 +374,24 @@ impl Viewer {
         let size = file.metadata()?.len();
         let limit = load.limits.output as u64;
         let peek = load.in_background && tabular_loader::is_tabular_candidate(&path);
+        // With V, a big file is not read: only its start, for the window.
+        let windowed = load.in_background && size > text_window::window_over();
+        let first = if windowed {
+            text_window::head()
+        } else if peek {
+            TABLE_PEEK.min(limit)
+        } else {
+            limit
+        };
         let mut raw = Vec::new();
-        (&mut file)
-            .take(if peek { TABLE_PEEK.min(limit) } else { limit })
-            .read_to_end(&mut raw)?;
-        // A compressed file does not open as a table: all of it now.
+        (&mut file).take(first).read_to_end(&mut raw)?;
+        // A compressed file has no window and does not open as a table: all
+        // of it now.
         let compressed = load.decompress && decompress::sniff(&raw).is_some();
-        if peek && compressed {
+        if windowed && !compressed {
+            return Ok(Self::open_window(path, size, raw, load));
+        }
+        if (peek || windowed) && compressed {
             (&mut file)
                 .take(limit.saturating_sub(raw.len() as u64))
                 .read_to_end(&mut raw)?;
@@ -381,6 +405,238 @@ impl Viewer {
         v.load_table();
         v.settle_text();
         Ok(v)
+    }
+
+    /// A file on disk seen through a window (see `text_window`): `head` is its
+    /// start, and the rest is read as the screen gets there.
+    fn open_window(path: PathBuf, size: u64, mut head: Vec<u8>, load: LoadOptions) -> Self {
+        let stamp = records::file_stamp(&path);
+        // The encoding, by a start that does not end in the middle of a
+        // character.
+        let found = charset::detect(whole_utf8(&head), load.fallback);
+        // Only the whole lines are shown from the start; with none (one long
+        // line), the window reads the first one.
+        let whole = text_window::whole_lines(&head, found.charset);
+        if whole > 0 {
+            head.truncate(whole);
+        } else {
+            head.truncate(whole_utf8(&head).len());
+        }
+        let mut v = Self::from_file(
+            path.clone(),
+            size,
+            head,
+            LoadOptions {
+                decompress: false,
+                ..load
+            },
+        );
+        v.load = load;
+        let (lines, bidi) = match std::mem::take(&mut v.lines) {
+            Text::Whole(lines) if whole > 0 => (lines, v.bidi.clone()),
+            _ => (Lines::default(), Vec::new()),
+        };
+        v.bidi.clone_from(&bidi);
+        let window = TextWindow::new(&path, size, stamp, v.charset, lines, bidi);
+        v.lines = Text::Window(Box::new(window));
+        // The colors and the rendered mode read the text from its start.
+        v.colors = None;
+        v.colors_on = false;
+        v.md = None;
+        v.md_file = false;
+        if v.mode == ViewMode::Rendered {
+            v.mode = ViewMode::Text;
+        }
+        v.cut = false;
+        v.lines_cut = false;
+        v.on_disk = true;
+        v.load_table();
+        v.fill_window();
+        v
+    }
+
+    /// The text is a window over a big file.
+    pub fn windowed(&self) -> bool {
+        self.lines.window().is_some()
+    }
+
+    /// The lines of a window are still being counted.
+    pub fn counting_lines(&self) -> bool {
+        self.lines.window().is_some_and(TextWindow::counting)
+    }
+
+    /// The file under the window is no longer the one that was opened.
+    pub fn text_changed(&self) -> bool {
+        self.lines.window().is_some_and(TextWindow::changed)
+    }
+
+    /// Asks the window for what the screen shows and the lines around it.
+    fn fill_window(&mut self) {
+        if !self.windowed() {
+            return;
+        }
+        let page = self.page.max(1);
+        let changed = match self.mode {
+            ViewMode::Text => {
+                let rows = self.text_rows();
+                let top = self.top.min(rows.saturating_sub(1));
+                let from = top.saturating_sub(text_window::AROUND);
+                let to = (top + text_window::AROUND).min(rows);
+                let wanted: Vec<usize> = (from..to).map(|row| self.line_index(row)).collect();
+                let screen = top - from..(top + page + 1).min(to) - from;
+                let Some(w) = self.lines.window_mut() else {
+                    return;
+                };
+                w.count_once();
+                w.want(wanted, screen, top)
+            }
+            ViewMode::Hex => {
+                let start = (self.top * HEX_WIDTH) as u64;
+                let end = start + ((page + 1) * HEX_WIDTH) as u64;
+                self.lines
+                    .window_mut()
+                    .is_some_and(|w| w.want_hex(start..end))
+            }
+            ViewMode::Table | ViewMode::Rendered => false,
+        };
+        if changed {
+            self.take_bidi();
+        }
+    }
+
+    /// The bidi marks of the lines the window keeps now.
+    fn take_bidi(&mut self) {
+        if let Some(w) = self.lines.window() {
+            self.bidi.clear();
+            self.bidi.extend_from_slice(w.bidi());
+        }
+    }
+
+    /// Looks at what the window's threads did: lines counted and read, the end
+    /// of a search, what a filter found. True if there is something new to show.
+    fn poll_text(&mut self) -> bool {
+        let Some(w) = self.lines.window_mut() else {
+            return false;
+        };
+        let mut new = w.poll();
+        if new {
+            self.take_bidi();
+        }
+        let Some(w) = self.lines.window_mut() else {
+            return false;
+        };
+        // The search.
+        let progress = w.searching();
+        if let Some(found) = w.take_found() {
+            new = true;
+            let mode = self.seeking.take().unwrap_or(self.mode);
+            self.note = None;
+            match found {
+                Some((line, start, end)) if mode == ViewMode::Text => {
+                    self.awaited = Some(Hit {
+                        mode,
+                        line,
+                        start,
+                        end,
+                    });
+                }
+                Some((_, start, end)) => self.show(Hit {
+                    mode: ViewMode::Hex,
+                    line: start / HEX_WIDTH,
+                    start,
+                    end,
+                }),
+                None => self.note = Some("Not found".into()),
+            }
+        } else if let Some(at) = progress
+            && self
+                .note
+                .as_deref()
+                .is_none_or(|n| n.starts_with(SEARCHING))
+        {
+            let what = if self.seeking == Some(ViewMode::Hex) {
+                format!("offset {at:X}")
+            } else {
+                format!("line {}", tabular_loader::thousands(at + 1))
+            };
+            self.note = Some(format!("{SEARCHING} {what} (Esc stops)"));
+        }
+        // A match past what was counted waits for the count, which goes on if
+        // Esc had stopped it.
+        if let Some(hit) = self.awaited {
+            let known = self.lines.len();
+            if hit.line < known {
+                self.awaited = None;
+                if self.line_kept(hit.line) {
+                    self.show(hit);
+                }
+                new = true;
+            } else if let Some(w) = self.lines.window_mut() {
+                if w.counting() {
+                    w.count();
+                } else {
+                    self.awaited = None;
+                }
+            }
+        }
+        // The filter.
+        let state = match (&mut self.filter, self.lines.window_mut()) {
+            (Some(f), Some(w)) => {
+                let before = f.rows.len();
+                let state = w.take_matches(&mut f.rows);
+                new |= f.rows.len() != before;
+                state.map(|state| (state, f.rows.len(), f.matcher.spec().text.clone()))
+            }
+            _ => None,
+        };
+        match state {
+            Some((FilterState::Running(at), kept, _))
+                if self
+                    .note
+                    .as_deref()
+                    .is_none_or(|n| n.starts_with(FILTERING_TEXT)) =>
+            {
+                self.note = Some(format!(
+                    "{FILTERING_TEXT} {} kept, at line {} (Esc stops)",
+                    tabular_loader::thousands(kept),
+                    tabular_loader::thousands(at + 1)
+                ));
+            }
+            Some((FilterState::Done { .. }, 0, text)) => {
+                new = true;
+                self.filter = None;
+                if let Some(w) = self.lines.window_mut() {
+                    w.filter(None);
+                }
+                self.top = 0;
+                self.note = Some(format!("No lines match \"{text}\": filter off"));
+            }
+            Some((FilterState::Done { capped }, kept, _)) => {
+                new = true;
+                let total = tabular_loader::thousands(self.lines.len());
+                let kept = tabular_loader::thousands(kept);
+                self.note = Some(if capped {
+                    format!("Filter: the first {kept} lines that match")
+                } else {
+                    format!("Filter: {kept} of {total} lines")
+                });
+            }
+            _ => {}
+        }
+        // A reload goes back to where it was.
+        if let Some(line) = self.wish
+            && self.mode == ViewMode::Text
+            && self.filter.is_none()
+        {
+            let known = self.lines.len();
+            if line < known || !self.counting_lines() {
+                self.wish = None;
+                self.top = line.min(known.saturating_sub(1));
+                new = true;
+            }
+        }
+        self.fill_window();
+        new
     }
 
     /// Reads the rest of the text, if only its start was read for a table
@@ -543,8 +799,14 @@ impl Viewer {
         }
     }
 
-    /// Looks at a table being read. True if there is something new to show.
+    /// Looks at what is being read in other threads: a table, or the window of
+    /// a big text. True if there is something new to show.
     pub fn poll_table(&mut self) -> bool {
+        let text = self.poll_text();
+        self.poll_grid() || text
+    }
+
+    fn poll_grid(&mut self) -> bool {
         let page = self.grid_rows();
         let window = self.table.as_mut().is_some_and(|t| t.poll_window(page));
         // The filter over the whole table ended: the note says what it found.
@@ -591,7 +853,9 @@ impl Viewer {
     /// A table is being read, or its window is reading rows: the screen should
     /// look again soon.
     pub fn table_busy(&self) -> bool {
-        self.reading_table() || self.table.as_ref().is_some_and(TableGrid::window_working)
+        self.reading_table()
+            || self.table.as_ref().is_some_and(TableGrid::window_working)
+            || self.lines.window().is_some_and(TextWindow::working)
     }
 
     fn resume_window(&mut self) {
@@ -717,16 +981,19 @@ impl Viewer {
                     marked: t.marked.clone(),
                 })
             }
-            ViewMode::Text => Ok(batch::Source::Text {
-                text: charset::decode(&self.data, self.charset).into_owned(),
-                total: self.lines.len(),
-                kept: self.filter.as_ref().map(|f| f.rows.clone()),
-                regex: self
-                    .filter
-                    .as_ref()
-                    .and_then(|f| f.matcher.regex().cloned()),
-                cut: self.truncated(),
-            }),
+            ViewMode::Text => {
+                let (text, total, cut) = self.batch_text()?;
+                Ok(batch::Source::Text {
+                    text,
+                    total,
+                    kept: self.filter.as_ref().map(|f| f.rows.clone()),
+                    regex: self
+                        .filter
+                        .as_ref()
+                        .and_then(|f| f.matcher.regex().cloned()),
+                    cut,
+                })
+            }
             // The source's lines; the line filter is for the text mode.
             ViewMode::Rendered => Ok(batch::Source::Text {
                 text: charset::decode(&self.data, self.charset).into_owned(),
@@ -737,6 +1004,23 @@ impl Viewer {
             }),
             ViewMode::Hex => Err("Batch works on text and tables (H)".into()),
         }
+    }
+
+    /// The text a Batch reads, how many of its lines, and whether it is not
+    /// all of the file. Under a window the file is read here, up to the limit
+    /// of the viewer: the Batch works on text in memory.
+    fn batch_text(&self) -> Result<(String, usize, bool), String> {
+        let Some(w) = self.lines.window() else {
+            let text = charset::decode(&self.data, self.charset).into_owned();
+            return Ok((text, self.lines.len(), self.truncated()));
+        };
+        let limit = self.load.limits.output as u64;
+        let mut raw = Vec::new();
+        File::open(&self.path)
+            .and_then(|file| file.take(limit).read_to_end(&mut raw))
+            .map_err(|e| format!("Cannot read the file: {e}"))?;
+        let text = charset::decode(&raw, self.charset).into_owned();
+        Ok((text, usize::MAX, w.size() > limit))
     }
 
     /// `m` and Insert: marks or unmarks the record under the cursor, and goes
@@ -864,7 +1148,7 @@ impl Viewer {
         if !self.md_file {
             return false;
         }
-        if self.data.len() > markdown::MAX_INPUT {
+        if self.data.len() > markdown::MAX_INPUT || self.windowed() {
             if self.note.is_none() {
                 self.note = Some(format!(
                     "Too large to render (over {} MiB): showing the source",
@@ -909,6 +1193,7 @@ impl Viewer {
 
     /// A viewer just read again goes back to how the old one was being looked at.
     fn restore_view(&mut self, old: Viewer) {
+        let old_line = old.top_line();
         if old.charset_manual {
             self.set_charset(old.charset);
             self.charset_manual = true;
@@ -941,6 +1226,10 @@ impl Viewer {
         });
         self.refilter();
         self.top = old.top.min(self.line_count().saturating_sub(1));
+        // A window knows only its first lines yet: there when it is counted.
+        if self.windowed() && self.mode == ViewMode::Text && old.mode == ViewMode::Text {
+            self.wish = Some(old_line);
+        }
         self.left = old.left;
         self.colors_on = old.colors_on && self.colors.is_some();
         self.wrap = old.wrap;
@@ -972,6 +1261,7 @@ impl Viewer {
     }
 
     pub fn scroll_down(&mut self, count: usize) {
+        self.fill_window();
         if self.mode == ViewMode::Text && self.wrap {
             let cw = self.content_width();
             for _ in 0..count {
@@ -1004,6 +1294,7 @@ impl Viewer {
                     self.sub_top -= 1;
                 } else if self.top > 0 {
                     self.top -= 1;
+                    self.fill_window();
                     let rows = WrapRows::new(&self.lines[self.line_index(self.top)], cw).count();
                     self.sub_top = rows.saturating_sub(1);
                 } else {
@@ -1043,7 +1334,9 @@ impl Viewer {
             self.sub_top = 0;
             self.left = 0;
             let shown = self.top_line() + 1;
-            self.note = Some(if shown == line {
+            self.note = Some(if target_1_indexed > max_line && self.counting_lines() {
+                format!("Still counting the lines: {max_line} so far")
+            } else if shown == line {
                 format!("Line {line} of {max_line}")
             } else {
                 format!("Line {line} is filtered out: showing line {shown}")
@@ -1055,7 +1348,7 @@ impl Viewer {
             self.left = 0;
             self.note = Some(format!("Line {line} of {max_line}"));
         } else {
-            let max_offset = self.data.len();
+            let max_offset = self.hex_len();
             let offset = target_1_indexed.min(max_offset);
             self.top = (offset / HEX_WIDTH).min(self.line_count().saturating_sub(1));
             self.note = Some(format!("Offset {offset:X}"));
@@ -1109,7 +1402,7 @@ impl Viewer {
         };
         let data_len = data.len() as u64;
         let text = text_lines(&charset::decode(&data, charset), line_budget(limit));
-        let (lines, bidi) = (text.lines, text.bidi);
+        let (lines, bidi) = (Text::from(text.lines), text.bidi);
         let colors = (!binary)
             .then(|| text_colors(&path, None, &lines))
             .flatten();
@@ -1150,6 +1443,9 @@ impl Viewer {
             md: None,
             md_file: false,
             partial: false,
+            seeking: None,
+            awaited: None,
+            wish: None,
         }
     }
 
@@ -1177,6 +1473,32 @@ impl Viewer {
         self.charset = charset;
         let text = charset::decode(&self.data, charset);
         let readable = !looks_binary(text.as_bytes());
+        if self.windowed() {
+            // `data` is only the start of the file: the window reads the
+            // lines again as `charset`, and a filter goes over them again.
+            if self.mode == ViewMode::Hex
+                && readable
+                && matches!(charset, Charset::Utf16Le | Charset::Utf16Be)
+            {
+                self.mode = ViewMode::Text;
+                self.top = 0;
+                self.left = 0;
+            }
+            if let Some(w) = self.lines.window_mut() {
+                w.set_charset(charset);
+            }
+            self.bidi.clear();
+            self.hit = None;
+            self.seeking = None;
+            self.awaited = None;
+            self.refilter();
+            if self.mode == ViewMode::Text {
+                self.top = self.top.min(self.text_rows().saturating_sub(1));
+            }
+            self.sub_top = 0;
+            self.fill_window();
+            return;
+        }
         if self.mode == ViewMode::Hex
             && readable
             && matches!(charset, Charset::Utf16Le | Charset::Utf16Be)
@@ -1186,7 +1508,7 @@ impl Viewer {
             self.left = 0;
         }
         let text = text_lines(&text, line_budget(self.load.limits.output));
-        self.lines = text.lines;
+        self.lines = text.lines.into();
         self.bidi = text.bidi;
         self.lines_cut = text.cut;
         self.refilter();
@@ -1222,7 +1544,10 @@ impl Viewer {
     pub fn bidi_count(&self) -> usize {
         match &self.md {
             Some(md) if self.mode == ViewMode::Rendered => md.bidi(),
-            _ => self.bidi.len(),
+            _ => self
+                .lines
+                .window()
+                .map_or(self.bidi.len(), TextWindow::bidi_total),
         }
     }
 
@@ -1262,10 +1587,29 @@ impl Viewer {
         self.problem.as_deref()
     }
 
+    /// The bytes the hex mode shows: those read, or all of a window's file.
+    fn hex_len(&self) -> usize {
+        self.lines
+            .window()
+            .map_or(self.data.len(), |w| w.size() as usize)
+    }
+
+    /// A row of the hex mode.
+    fn hex_line(&self, row: usize) -> String {
+        let offset = row * HEX_WIDTH;
+        match self.lines.window() {
+            Some(w) => {
+                let bytes = w.hex(offset as u64);
+                hex_bytes(&bytes[..bytes.len().min(HEX_WIDTH)], offset)
+            }
+            None => hex_row(&self.data, offset),
+        }
+    }
+
     pub fn line_count(&self) -> usize {
         match self.mode {
             ViewMode::Text => self.text_rows(),
-            ViewMode::Hex => self.data.len().div_ceil(HEX_WIDTH),
+            ViewMode::Hex => self.hex_len().div_ceil(HEX_WIDTH),
             ViewMode::Table => self
                 .table
                 .as_ref()
@@ -1316,6 +1660,12 @@ impl Viewer {
 
     /// Runs the filter again, after `lines` changed.
     fn refilter(&mut self) {
+        if let (Some(f), Some(w)) = (&mut self.filter, self.lines.window_mut()) {
+            f.rows.clear();
+            w.filter(Some(f.matcher.clone()));
+            self.top = 0;
+            return;
+        }
         if let Some(f) = &mut self.filter {
             let matcher = &f.matcher;
             f.rows = (0..self.lines.len())
@@ -1330,6 +1680,32 @@ impl Viewer {
     pub fn apply_line_filter(&mut self, spec: &LineFilterSpec) -> String {
         let total = self.lines.len();
         let anchor = self.top_line();
+        if self.windowed() {
+            // The file is gone over in another thread: the lines come as they
+            // are found (see `poll_text`).
+            let matcher = match (spec.text.is_empty(), LineMatcher::new(spec)) {
+                (true, _) => None,
+                (false, Ok(m)) => Some(m),
+                (false, Err(e)) => return e,
+            };
+            self.filter = matcher.clone().map(|matcher| LineFilter {
+                matcher,
+                rows: Vec::new(),
+            });
+            let on = matcher.is_some();
+            if let Some(w) = self.lines.window_mut() {
+                w.filter(matcher);
+            }
+            self.hit = self.hit.filter(|h| h.mode != ViewMode::Text);
+            self.awaited = None;
+            self.sub_top = 0;
+            self.top = if on { 0 } else { anchor };
+            return if on {
+                format!("{FILTERING_TEXT} (Esc stops)")
+            } else {
+                format!("Filter off: {total} lines")
+            };
+        }
         let (filter, note) = if spec.text.is_empty() {
             (None, format!("Filter off: {total} lines"))
         } else {
@@ -1431,7 +1807,7 @@ impl Viewer {
                 let range = self.top..(self.top + height).min(self.line_count());
                 range
                     .map(|row| {
-                        let line = hex_row(&self.data, row * HEX_WIDTH);
+                        let line = self.hex_line(row);
                         let mark = hit
                             .filter(|h| h.line == row)
                             .map(|_| (0, line.chars().count()));
@@ -1454,6 +1830,7 @@ impl Viewer {
     /// Like `visible`, split into colored pieces (syntax colors and the
     /// search match).
     pub fn styled(&mut self, height: usize) -> Vec<StyledRow> {
+        self.fill_window();
         let use_colors = self.colors_on && self.mode == ViewMode::Text;
         let hit = self.hit.filter(|h| h.mode == self.mode);
         match self.mode {
@@ -1542,7 +1919,7 @@ impl Viewer {
                 let range = self.top..(self.top + height).min(self.line_count());
                 range
                     .map(|row| {
-                        let line = hex_row(&self.data, row * HEX_WIDTH);
+                        let line = self.hex_line(row);
                         let marked = hit.is_some_and(|h| h.line == row);
                         StyledRow {
                             line_num: None,
@@ -1730,6 +2107,18 @@ impl Viewer {
             self.note = Some("Stopped: what was read so far stays".into());
             return Action::None;
         }
+        // Esc stops a search, a filter or the count of a big text first.
+        if key.code == KeyCode::Esc
+            && self.structure_view.is_none()
+            && self.sheet_list.is_none()
+            && self.mode != ViewMode::Table
+            && self.lines.window_mut().is_some_and(TextWindow::stop_work)
+        {
+            self.seeking = None;
+            self.awaited = None;
+            self.note = Some("Stopped: what was read so far stays".into());
+            return Action::None;
+        }
         if self.structure_view.is_some() {
             self.structure_key(key);
             return Action::None;
@@ -1792,6 +2181,13 @@ impl Viewer {
                     && !alt
                     && self.table.as_ref().is_some_and(TableGrid::file_changed) =>
             {
+                if let Err(e) = self.reload() {
+                    self.note = Some(format!("Cannot read the file again: {e}"));
+                }
+                Action::None
+            }
+            // The same under the window of a big text.
+            KeyCode::Char('r' | 'R') if !ctrl && !alt && self.text_changed() => {
                 if let Err(e) = self.reload() {
                     self.note = Some(format!("Cannot read the file again: {e}"));
                 }
@@ -1916,6 +2312,7 @@ impl Viewer {
                 }
                 'c' => {
                     self.note = Some(match &self.colors {
+                        None if self.windowed() => "No syntax colors in a file this big".into(),
                         None => "No syntax colors for this file".into(),
                         Some(h) => {
                             self.colors_on = !self.colors_on;
@@ -2066,13 +2463,16 @@ impl Viewer {
     /// Searches from (line, column) — in hex, the column is ignored and
     /// the position is in bytes.
     fn find_from(&mut self, pattern: &Pattern, forward: bool, (line, col): (usize, usize)) -> bool {
+        if self.windowed() && matches!(self.mode, ViewMode::Text | ViewMode::Hex) {
+            return self.find_in_window(pattern, forward, line, col);
+        }
         let hit = match self.mode {
             ViewMode::Text => self.find_text(pattern, forward, line, col),
             ViewMode::Hex => {
                 let byte = match self.hit.filter(|h| h.mode == ViewMode::Hex) {
                     Some(h) if line == h.line && col == h.start + 1 => h.start + 1,
                     Some(h) if line == h.line && col == h.start => h.start,
-                    _ if line == usize::MAX => self.data.len(),
+                    _ if line == usize::MAX => self.hex_len(),
                     _ => line.saturating_mul(HEX_WIDTH),
                 };
                 let found = if forward {
@@ -2097,6 +2497,43 @@ impl Viewer {
             }
             None => false,
         }
+    }
+
+    /// Starts a search over a window's file, from a row of the text (or, in
+    /// hex, from a row of bytes). The match is shown when it is found (see
+    /// `poll_text`); false only when there is nothing to search.
+    fn find_in_window(&mut self, pattern: &Pattern, forward: bool, row: usize, col: usize) -> bool {
+        let mode = self.mode;
+        if mode == ViewMode::Text {
+            let n = self.text_rows();
+            if n == 0 || (forward && row >= n) {
+                return false;
+            }
+            let search = TextSearch {
+                pattern: pattern.clone(),
+                forward,
+                line: self.line_index(row.min(n - 1)),
+                col,
+                kept: self.filter.as_ref().map(|f| f.rows.clone()),
+            };
+            if let Some(w) = self.lines.window_mut() {
+                w.search_text(search);
+            }
+        } else {
+            let byte = match self.hit.filter(|h| h.mode == ViewMode::Hex) {
+                Some(h) if row == h.line && col == h.start + 1 => h.start + 1,
+                Some(h) if row == h.line && col == h.start => h.start,
+                _ if row == usize::MAX => self.hex_len(),
+                _ => row.saturating_mul(HEX_WIDTH),
+            };
+            if let Some(w) = self.lines.window_mut() {
+                w.search_bytes(pattern.clone(), forward, byte as u64);
+            }
+        }
+        self.seeking = Some(mode);
+        self.awaited = None;
+        self.note = Some(format!("{SEARCHING} (Esc stops)"));
+        true
     }
 
     /// Searches the document's logical lines; `line` and `col` are in them.
@@ -2209,6 +2646,7 @@ impl Viewer {
                 self.top = row.saturating_sub(page / 3);
             }
             let cw = self.content_width();
+            self.fill_window();
             self.sub_top = WrapRows::new(&self.lines[hit.line], cw)
                 .position(|r| hit.start >= r.chars.start && hit.start < r.chars.end)
                 .unwrap_or(0);
@@ -2442,8 +2880,27 @@ pub fn looks_binary(data: &[u8]) -> bool {
     data.iter().take(BINARY_PROBE).any(|&b| b == 0)
 }
 
+/// `data` without a UTF-8 character cut at its end.
+fn whole_utf8(data: &[u8]) -> &[u8] {
+    let tail = data.len().saturating_sub(3);
+    for i in (tail..data.len()).rev() {
+        let need = match data[i] {
+            0xC0..=0xDF => 2,
+            0xE0..=0xEF => 3,
+            0xF0..=0xF7 => 4,
+            0x80..=0xBF => continue,
+            _ => break,
+        };
+        if i + need > data.len() {
+            return &data[..i];
+        }
+        break;
+    }
+    data
+}
+
 /// The syntax colors of a text: by the name they follow, else by `path`.
-fn text_colors(path: &Path, name: Option<&Path>, lines: &Lines) -> Option<Highlighter> {
+fn text_colors(path: &Path, name: Option<&Path>, lines: &Text) -> Option<Highlighter> {
     match name {
         Some(n) => Highlighter::for_name(n, lines),
         None => Highlighter::for_file(path, lines.first().unwrap_or("")),
@@ -2470,6 +2927,40 @@ struct TextLines {
     cut: bool,
 }
 
+/// Writes `line` at the end of the line of `lines` being written (number `i`):
+/// tabs expanded, control characters as `·`, and where the bidi controls were
+/// noted in `bidi`. Stops once the line and its marks cost more than `room`
+/// bytes, and gives back what it did not write.
+fn put_line<'a>(
+    lines: &mut Lines,
+    bidi: &mut Vec<(usize, usize)>,
+    i: usize,
+    line: &'a str,
+    room: usize,
+) -> &'a str {
+    let marks = bidi.len();
+    let mut col = 0;
+    let mut chars = line.chars();
+    for c in chars.by_ref() {
+        if c == '\t' {
+            let n = TAB_WIDTH - col % TAB_WIDTH;
+            lines.push_spaces(n);
+            col += n;
+        } else {
+            let hidden = crate::bidi::is_bidi(c);
+            if hidden {
+                bidi.push((i, col));
+            }
+            lines.push(if c.is_control() || hidden { '·' } else { c });
+            col += 1;
+        }
+        if (bidi.len() - marks) * MARK_COST + lines.open_len() > room {
+            break;
+        }
+    }
+    chars.as_str()
+}
+
 /// Splits into lines, expands tabs and replaces control characters with `·`,
 /// noting where the bidi controls were. Stops once the lines would cost
 /// more than `budget` bytes: a file of newlines takes `LINE_COST` times its
@@ -2489,34 +2980,13 @@ fn text_lines(text: &str, budget: usize) -> TextLines {
     let mut parts = body.split('\n').peekable();
     while let Some(line) = parts.next() {
         let line = line.strip_suffix('\r').unwrap_or(line);
-        let i = lines.len();
-        let mut col = 0;
-        let mut chars = line.chars();
-        let mut full = false;
-        for c in chars.by_ref() {
-            if c == '\t' {
-                let n = TAB_WIDTH - col % TAB_WIDTH;
-                lines.push_spaces(n);
-                col += n;
-            } else {
-                let hidden = crate::bidi::is_bidi(c);
-                if hidden {
-                    bidi.push((i, col));
-                    used += MARK_COST;
-                }
-                lines.push(if c.is_control() || hidden { '·' } else { c });
-                col += 1;
-            }
-            // One long line (of tabs or bidi marks) can be over the budget.
-            if used + lines.open_len() > budget {
-                full = true;
-                break;
-            }
-        }
-        used += LINE_COST + lines.open_len();
+        let (i, marks) = (lines.len(), bidi.len());
+        // One long line (of tabs or bidi marks) can be over the budget.
+        let rest = put_line(&mut lines, &mut bidi, i, line, budget.saturating_sub(used));
+        used += (bidi.len() - marks) * MARK_COST + LINE_COST + lines.open_len();
         lines.end_line();
-        if full || used > budget {
-            cut = !chars.as_str().is_empty() || parts.peek().is_some();
+        if used > budget {
+            cut = !rest.is_empty() || parts.peek().is_some();
             break;
         }
     }
@@ -2526,7 +2996,11 @@ fn text_lines(text: &str, budget: usize) -> TextLines {
 
 /// `00000010  48 65 6C 6C 6F 0A 00 00  00 00 00 00 00 00 00 00  |Hello...........|`
 fn hex_row(data: &[u8], offset: usize) -> String {
-    let chunk = &data[offset..(offset + HEX_WIDTH).min(data.len())];
+    hex_bytes(&data[offset..(offset + HEX_WIDTH).min(data.len())], offset)
+}
+
+/// The row of hex for `chunk`, the bytes at `offset` of the file.
+fn hex_bytes(chunk: &[u8], offset: usize) -> String {
     let mut hex = String::with_capacity(HEX_WIDTH * 3 + 1);
     for i in 0..HEX_WIDTH {
         if i == HEX_WIDTH / 2 {
@@ -5079,7 +5553,9 @@ mod tests {
         let v = Viewer::open(path, load).unwrap();
         assert_ne!(v.mode, ViewMode::Table);
         assert!(!v.partial());
-        assert_eq!(v.data_len(), text.len() as u64);
+        // Over 16 MiB: its text is seen through a window, not read.
+        assert!(v.windowed());
+        assert_eq!(v.hex_len(), text.len());
         assert_eq!(
             v.note.as_deref(),
             Some("Table mode: a record longer than 16 MiB")

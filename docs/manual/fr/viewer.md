@@ -1,6 +1,6 @@
 # La visionneuse
 
-> **Ne couvre pas encore la 0.8.0.** Les tableaux sans la limite de 50 000 lignes ne sont pour l'instant que dans la version anglaise.
+> **Ne couvre pas encore la 0.8.0.** Les tableaux sans la limite de 50 000 lignes ne sont pour l'instant que dans la version anglaise. Les grands textes lus à mesure que l'écran avance (« Big files ») aussi.
 
 `V` ouvre le fichier dans la visionneuse (Autoview, F7, l'affiche à côté de la
 liste). Les fichiers binaires s'ouvrent en hexadécimal. Pour les fichiers qui dépassent la limite de taille,

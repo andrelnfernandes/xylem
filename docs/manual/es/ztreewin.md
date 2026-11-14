@@ -1,5 +1,7 @@
 # Comparación con ZTreeWin
 
+> **Una fila aún sin actualizar.** En la tabla, el visor ya no tiene límite de tamaño para archivos en disco; vea la versión en inglés.
+
 ## Antes que nada, un agradecimiento
 
 Uso alguna variante de XTree desde los años noventa y tengo una licencia
