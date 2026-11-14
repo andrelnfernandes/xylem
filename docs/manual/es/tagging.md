@@ -60,7 +60,21 @@ cambiaron:
 | Alt+Y | Duplicados | nada (Alt+D) |
 
 Las teclas antiguas pueden volver en `[keys.any]` de la
-[configuración](configuration.md), por ejemplo `"alt+w" = "usage"`.
+[configuración](configuration.md), una o todas. Todas, como hasta la 0.7:
+
+```toml
+[keys.any]
+"alt+a" = "attributes_tagged"
+"alt+d" = "delete_tagged"
+"alt+r" = "rename_tagged"
+"alt+t" = "tag_all"
+"alt+u" = "untag_all"
+"alt+w" = "usage"
+"alt+y" = "duplicates"
+```
+
+Valen en las dos ventanas, también Alt+R en el árbol; Release queda en `-`.
+**K** en la ayuda (F1) muestra las teclas vigentes.
 
 ## Menús Ctrl y Alt (F9)
 
