@@ -3,6 +3,7 @@
 //! The normal screen has one; with the window split (F8) there are two, each with
 //! its own tree.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -153,6 +154,20 @@ pub struct Pane {
     /// Type display (Alt+F): what each file is, with the size and date it
     /// had when read, so a changed file is read again.
     pub types: HashMap<PathBuf, (u64, Option<SystemTime>, String)>,
+    /// The last DISK statistics and what they were computed from: the panel
+    /// is drawn again every half second, and the sum walks every logged file.
+    stats: RefCell<Option<(StatsKey, DiskStats)>>,
+}
+
+/// What the DISK statistics depend on: the tree as read and tagged, whether
+/// hidden entries count, the filespec, and the disk asked for (its mount
+/// point and every mount point).
+#[derive(PartialEq, Eq)]
+struct StatsKey {
+    version: u64,
+    show_hidden: bool,
+    filespec: String,
+    disk: Option<(PathBuf, HashSet<PathBuf>)>,
 }
 
 /// The entries of an open archive, by their path in it.
@@ -254,6 +269,7 @@ impl Pane {
             outer: None,
             remote: None,
             types: HashMap::new(),
+            stats: RefCell::new(None),
         };
         pane.refresh_files();
         pane
@@ -714,7 +730,37 @@ impl Pane {
     /// disk, a file with other hard links counts its bytes once in Logged and
     /// Matching, as `du` does, so that they stay within what the disk holds;
     /// Tagged counts each name, as a copy would.
+    ///
+    /// The result is kept until the tree, the filespec or the disk asked for
+    /// changes.
     pub fn disk_stats(&self, disk: Option<(&Path, &HashSet<PathBuf>)>) -> DiskStats {
+        let same = |key: &StatsKey| {
+            key.version == self.tree.version()
+                && key.show_hidden == self.tree.show_hidden
+                && key.filespec == self.filespec.text()
+                && match (&key.disk, disk) {
+                    (None, None) => true,
+                    (Some((point, points)), Some((p, ps))) => point == p && points == ps,
+                    _ => false,
+                }
+        };
+        if let Some((key, stats)) = &*self.stats.borrow()
+            && same(key)
+        {
+            return *stats;
+        }
+        let stats = self.compute_disk_stats(disk);
+        let key = StatsKey {
+            version: self.tree.version(),
+            show_hidden: self.tree.show_hidden,
+            filespec: self.filespec.text().to_string(),
+            disk: disk.map(|(point, points)| (point.to_path_buf(), points.clone())),
+        };
+        *self.stats.borrow_mut() = Some((key, stats));
+        stats
+    }
+
+    fn compute_disk_stats(&self, disk: Option<(&Path, &HashSet<PathBuf>)>) -> DiskStats {
         let mut stats = DiskStats::default();
         let add = |t: &mut Count, f: &FileEntry| {
             t.files += 1;
@@ -940,6 +986,40 @@ mod tests {
         let stats = pane.disk_stats(None);
         assert_eq!(stats.logged, count(4, 22));
         assert_eq!(stats.matching, count(2, 13));
+    }
+
+    #[test]
+    fn disk_stats_are_computed_again_when_what_they_depend_on_changes() {
+        let tmp = crate::testing::tempdir();
+        std::fs::write(tmp.path().join("a.rs"), "0123456789").unwrap();
+        std::fs::write(tmp.path().join(".b.rs"), "01234").unwrap();
+        crate::testing::hide(&tmp.path().join(".b.rs"));
+        let mut pane = Pane::new(tmp.path().to_path_buf());
+        let count = |files, bytes| Count { files, bytes };
+        let first = pane.disk_stats(None);
+        assert_eq!(first.matching, count(2, 15));
+        assert_eq!(first.tagged, count(0, 0));
+        assert_eq!(pane.disk_stats(None), first, "the kept answer");
+
+        // A tag.
+        let a = pane
+            .tree
+            .node(ROOT)
+            .files
+            .iter()
+            .position(|f| f.name == "a.rs");
+        pane.tree.file_mut(ROOT, a.unwrap()).tagged = true;
+        assert_eq!(pane.disk_stats(None).tagged, count(1, 10));
+        // Hidden files out.
+        pane.tree.show_hidden = false;
+        assert_eq!(pane.disk_stats(None).matching, count(1, 10));
+        // Another filespec.
+        pane.filespec = Filespec::parse("*.txt").unwrap();
+        assert_eq!(pane.disk_stats(None).matching, count(0, 0));
+        // A file that appeared on the disk.
+        std::fs::write(tmp.path().join("c.txt"), "012").unwrap();
+        pane.tree.rescan(ROOT);
+        assert_eq!(pane.disk_stats(None).matching, count(1, 3));
     }
 
     #[test]

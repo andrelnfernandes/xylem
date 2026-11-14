@@ -40,7 +40,17 @@ rest).
    as a usable option appears.** The author's decision. They run only with V,
    never in Autoview, and that is meant to be temporary. What to watch:
    - zstd: a way for the `parquet` crate to decode through a Rust codec; Xylem
-     already has `ruzstd` for `.zst` files.
+     already has `ruzstd` for `.zst` files. **To investigate, with no date (the
+     author asked on 2026-11-14 to be reminded of it):** not waiting for the crate,
+     and putting a small crate named `zstd` in its place with `[patch.crates-io]`,
+     backed by `ruzstd`. In `parquet` 60.1 the codec is chosen in a fixed
+     `create_codec` (`src/compression.rs`), with no hook for another one, and it
+     calls only `zstd::bulk::Compressor`, `zstd::bulk::Decompressor`,
+     `zstd_safe::get_frame_content_size` and `zstd_safe::compress_bound`; in Xylem
+     only `parquet` depends on `zstd`, so `zstd-sys` would leave the tree. Not
+     tested. To find out: how much slower `ruzstd` decodes, what to do with
+     compression (Xylem only reads Parquet today), the cost of following `parquet`
+     at each update, and a fuzz of corrupt Parquet files through it.
    - SQLite: a Rust implementation that reads real SQLite files reliably and is
      mature enough for hostile ones. Limbo is now Turso Database (crate `turso`).
      Checked on 2026-10-30, at 0.9.0-pre: not yet. Replace it when it has reached
@@ -98,7 +108,8 @@ as a link is what `cp -a` and `rsync -l` do).
   [the manual](docs/manual/viewer.md). The windowed viewer (3) is started by the
   tables, with no limit of rows in 0.8.0
   ([docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)). Still to do:
-  windows for the text (3); logs (4), of which the line filter is done; Parquet in
+  windows for the text (3), which until then is in memory twice, as the bytes read
+  and as its lines (a file of 234 MB takes 475 MB); logs (4), of which the line filter is done; Parquet in
   windows (0.9). Fixed-width and multi-record files (SDF,
   CNAB, SPED) are out, by decision (2026-11-11): they go to a separate product
   ([docs/plans/viewer-positional.md](docs/plans/viewer-positional.md)).
