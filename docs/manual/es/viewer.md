@@ -1,6 +1,6 @@
 # El visor
 
-> **Aún no cubre la 0.8.0.** Las tablas sin el límite de 50.000 filas están solo en la versión en inglés por ahora.
+> **Aún no cubre la 0.8.0.** Las tablas sin el límite de 50.000 filas están solo en la versión en inglés por ahora. Los textos grandes leídos a medida que la pantalla avanza ("Big files") también.
 
 `V` abre el archivo en el visor (Autoview, F7, lo muestra junto a la lista). Los
 archivos binarios se abren en hexadecimal. Los archivos que superan el límite de tamaño

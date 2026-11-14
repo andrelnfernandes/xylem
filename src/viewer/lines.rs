@@ -43,6 +43,7 @@ impl Lines {
         Some(&self.text[start..end])
     }
 
+    #[cfg(test)]
     pub fn first(&self) -> Option<&str> {
         self.get(0)
     }
@@ -70,6 +71,17 @@ impl Lines {
     /// Closes the line being written, which may be empty.
     pub fn end_line(&mut self) {
         self.ends.push(self.text.len());
+    }
+
+    /// The bytes of all the lines.
+    pub fn bytes(&self) -> usize {
+        self.text.len()
+    }
+
+    /// No lines, keeping the room they took.
+    pub fn clear(&mut self) {
+        self.text.clear();
+        self.ends.clear();
     }
 
     /// Gives back the room that was not used.

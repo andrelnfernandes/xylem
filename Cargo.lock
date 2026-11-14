@@ -3669,6 +3669,7 @@ dependencies = [
  "flate2",
  "globset",
  "lzma-rust2",
+ "memchr",
  "nix 0.31.3",
  "notify",
  "parquet",
