@@ -44,6 +44,8 @@ const MAX_SHEET_ROWS: u32 = 1 << 20;
 const MAX_PARQUET_PAGES: u64 = 1 << 30;
 /// A line of JSON Lines longer than this is not read as a record.
 const MAX_LINE_BYTES: u64 = 512 * 1024;
+/// A CSV record longer than this stops the reading: the reader keeps it whole.
+const MAX_RECORD_BYTES: u64 = 16 << 20;
 /// How many steps of SQLite's virtual machine between looks at the clock.
 const SQLITE_STEPS: i32 = 10_000;
 
@@ -273,12 +275,168 @@ fn guess_csv_delimiter(sample: &str) -> u8 {
     }
 }
 
-fn text_cells(record: &csv::StringRecord) -> Vec<Cell<'_>> {
+/// The values of a CSV record: text, with bytes that are not UTF-8 shown as
+/// `�` rather than stopping the reading.
+fn text_cells(record: &csv::ByteRecord) -> Vec<Cell<'_>> {
     record
         .iter()
         .take(MAX_COLS)
-        .map(|field| Cell::Text(Cow::Borrowed(field)))
+        .map(|field| Cell::Text(String::from_utf8_lossy(field)))
         .collect()
+}
+
+/// Where the record being read starts, so that the file under the CSV reader
+/// can refuse one too long: the reader keeps a whole record in memory, and a
+/// file with no line breaks is one record.
+#[derive(Default)]
+struct Fence {
+    start: std::cell::Cell<u64>,
+    too_long: std::cell::Cell<bool>,
+}
+
+/// A file read from byte `at`, stopping with the budget or when the record
+/// started at the fence grows past [`MAX_RECORD_BYTES`].
+struct Fenced {
+    file: File,
+    budget: Budget,
+    at: u64,
+    fence: std::rc::Rc<Fence>,
+}
+
+impl Read for Fenced {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.budget.over() {
+            return Err(std::io::Error::other("the reading was stopped"));
+        }
+        if self.at.saturating_sub(self.fence.start.get()) > MAX_RECORD_BYTES {
+            self.fence.too_long.set(true);
+            return Err(std::io::Error::other("a record too long"));
+        }
+        let n = self.file.read(buf)?;
+        self.at += n as u64;
+        Ok(n)
+    }
+}
+
+/// Gives `each` the CSV records of `file` from byte `from` on, each with the
+/// byte where it starts, until the end, `each` breaking, or the budget
+/// running out.
+fn each_csv_record(
+    mut file: File,
+    delimiter: u8,
+    from: u64,
+    budget: &Budget,
+    mut each: impl FnMut(u64, &csv::ByteRecord) -> ControlFlow<End>,
+) -> Result<End, String> {
+    file.seek(std::io::SeekFrom::Start(from))
+        .map_err(|e| format!("CSV read error: {e}"))?;
+    let fence = std::rc::Rc::new(Fence::default());
+    fence.start.set(from);
+    let mut reader = csv::ReaderBuilder::new()
+        .delimiter(delimiter)
+        .has_headers(false)
+        .flexible(true)
+        .from_reader(Fenced {
+            file,
+            budget: budget.clone(),
+            at: from,
+            fence: fence.clone(),
+        });
+    let mut record = csv::ByteRecord::new();
+    loop {
+        let start = from + reader.position().byte();
+        fence.start.set(start);
+        match reader.read_byte_record(&mut record) {
+            Ok(true) => {}
+            Ok(false) => return Ok(End::Complete),
+            Err(_) if fence.too_long.get() => {
+                return Err(format!(
+                    "a record longer than {} MiB",
+                    MAX_RECORD_BYTES >> 20
+                ));
+            }
+            Err(_) if budget.over() => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("CSV record error: {e}")),
+        }
+        if let ControlFlow::Break(end) = each(start, &record) {
+            return Ok(end);
+        }
+    }
+}
+
+/// How a CSV file is laid out, from its start.
+struct CsvLayout {
+    delimiter: u8,
+    /// The column names: the first record's, or letters.
+    names: Vec<String>,
+    /// The first record has more than [`MAX_COLS`] fields.
+    cut: bool,
+    /// The byte where the first record of data starts, if there is one.
+    data: Option<u64>,
+}
+
+/// Guesses the delimiter, when not given, and whether the first record names
+/// the columns. `Err(end)`: there is nothing to show, or no time to see.
+fn csv_layout(
+    path: &Path,
+    delimiter: Option<u8>,
+    budget: &Budget,
+) -> Result<Result<CsvLayout, End>, String> {
+    let open = || File::open(path).map_err(|e| format!("Failed to open CSV: {e}"));
+    let delimiter = match delimiter {
+        Some(d) => d,
+        None => {
+            let mut sample = Vec::new();
+            let _ = open()?.take(8192).read_to_end(&mut sample);
+            guess_csv_delimiter(&String::from_utf8_lossy(&sample))
+        }
+    };
+    // The first record, and where the one after it starts.
+    let mut first = None;
+    let mut second = None;
+    let end = each_csv_record(open()?, delimiter, 0, budget, |start, record| {
+        if first.is_some() {
+            second = Some(start);
+            return ControlFlow::Break(End::Refused);
+        }
+        first = Some(record.clone());
+        ControlFlow::Continue(())
+    })?;
+    if end == End::OutOfTime {
+        return Ok(Err(end));
+    }
+    let first = match first {
+        Some(first) if !first.is_empty() => first,
+        Some(_) => return Ok(Err(End::Complete)),
+        None => return Ok(Err(end)),
+    };
+    let fields: Vec<Cow<'_, str>> = first.iter().map(String::from_utf8_lossy).collect();
+    // A header when at least half the fields are text, not numbers.
+    let words = fields
+        .iter()
+        .filter(|field| {
+            let t = field.trim();
+            !t.is_empty() && t.parse::<f64>().is_err()
+        })
+        .count();
+    let header = words * 2 >= fields.len();
+    let names = if header {
+        fields
+            .iter()
+            .take(MAX_COLS)
+            .map(|s| s.trim().to_string())
+            .collect()
+    } else {
+        (0..fields.len().min(MAX_COLS)).map(column_letter).collect()
+    };
+    // With a header and no second record, there is no data.
+    let data = if header { second } else { Some(0) };
+    Ok(Ok(CsvLayout {
+        delimiter,
+        names,
+        cut: fields.len() > MAX_COLS,
+        data,
+    }))
 }
 
 /// A CSV or TSV file: every value is text, since the format has no types.
@@ -288,72 +446,30 @@ pub fn read_csv(
     budget: Budget,
     sink: &mut dyn RecordSink,
 ) -> Result<End, String> {
-    let file = File::open(path).map_err(|e| format!("Failed to open CSV: {e}"))?;
-    let mut reader = BufReader::new(file);
-
-    // Auto-detect delimiter from bounded sample
-    let delim = match delimiter {
-        Some(d) => d,
-        None => {
-            let mut sample = String::new();
-            let _ = (&mut reader).take(8192).read_to_string(&mut sample);
-            let _ = reader.seek(std::io::SeekFrom::Start(0));
-            guess_csv_delimiter(&sample)
-        }
+    let layout = match csv_layout(path, delimiter, &budget)? {
+        Ok(layout) => layout,
+        Err(end) => return Ok(end),
     };
-
-    let mut csv_reader = csv::ReaderBuilder::new()
-        .delimiter(delim)
-        .has_headers(false)
-        .flexible(true)
-        .from_reader(reader);
-
-    let mut records = csv_reader.records();
-    let first = match records.next() {
-        Some(r) => r.map_err(|e| format!("CSV read error: {e}"))?,
-        None => return Ok(End::Complete),
-    };
-    if first.is_empty() {
-        return Ok(End::Complete);
-    }
-
-    // Determine if first row is a header: at least half the fields are non-numeric strings
-    let non_numeric_count = first
-        .iter()
-        .filter(|field| {
-            let t = field.trim();
-            !t.is_empty() && t.parse::<f64>().is_err()
-        })
-        .count();
-    let has_header = non_numeric_count * 2 >= first.len();
-
     sink.sheets(&["Data".to_string()], 0);
-    if first.len() > MAX_COLS {
+    if layout.cut {
         sink.columns_cut();
     }
-    let mut pace = Pace::new(budget);
-    if has_header {
-        let names: Vec<String> = first
-            .iter()
-            .take(MAX_COLS)
-            .map(|s| s.trim().to_string())
-            .collect();
-        sink.columns(&names);
-    } else {
-        let names: Vec<String> = (0..first.len().min(MAX_COLS)).map(column_letter).collect();
-        sink.columns(&names);
-        if let Some(end) = deliver(&mut pace, sink, &text_cells(&first)) {
-            return Ok(end);
-        }
-    }
-
-    for result in records {
-        let record = result.map_err(|e| format!("CSV record error: {e}"))?;
-        if let Some(end) = deliver(&mut pace, sink, &text_cells(&record)) {
-            return Ok(end);
-        }
-    }
-    Ok(End::Complete)
+    sink.columns(&layout.names);
+    let Some(data) = layout.data else {
+        return Ok(End::Complete);
+    };
+    let file = File::open(path).map_err(|e| format!("Failed to open CSV: {e}"))?;
+    let mut pace = Pace::new(budget.clone());
+    each_csv_record(
+        file,
+        layout.delimiter,
+        data,
+        &budget,
+        |_, record| match deliver(&mut pace, sink, &text_cells(record)) {
+            Some(end) => ControlFlow::Break(end),
+            None => ControlFlow::Continue(()),
+        },
+    )
 }
 
 fn json_cell(value: Option<&JsonValue>) -> Cell<'_> {
@@ -372,61 +488,152 @@ fn json_cell(value: Option<&JsonValue>) -> Cell<'_> {
     }
 }
 
-/// A JSON Lines (.jsonl / .ndjson) file. Lines that are not objects are skipped.
-pub fn read_jsonl(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Result<End, String> {
-    let file = File::open(path).map_err(|e| format!("Failed to open JSONL: {e}"))?;
-    let mut reader = BufReader::new(file);
-
-    let mut names: Vec<String> = Vec::new();
-    let mut line = String::new();
-    let mut pace = Pace::new(budget);
-    let mut cut = false;
-
+/// Reads a line into `out`, up to `cap` bytes, and says how many bytes it
+/// took and whether it was all there: a longer line is passed over, not kept.
+fn capped_line(
+    reader: &mut impl BufRead,
+    out: &mut Vec<u8>,
+    cap: u64,
+) -> std::io::Result<(u64, bool)> {
+    out.clear();
+    let mut taken = 0u64;
+    let mut whole = true;
     loop {
-        line.clear();
-        // Read with bounded capacity per line to prevent OOM
-        let bytes_read = (&mut reader)
-            .take(MAX_LINE_BYTES)
-            .read_line(&mut line)
-            .map_err(|e| format!("Read error: {e}"))?;
-        if bytes_read == 0 {
+        let buf = reader.fill_buf()?;
+        if buf.is_empty() {
+            break;
+        }
+        let (n, ends) = match buf.iter().position(|&b| b == b'\n') {
+            Some(i) => (i + 1, true),
+            None => (buf.len(), false),
+        };
+        if whole {
+            if (out.len() + n) as u64 > cap {
+                whole = false;
+                out.clear();
+            } else {
+                out.extend_from_slice(&buf[..n]);
+            }
+        }
+        reader.consume(n);
+        taken += n as u64;
+        if ends {
+            break;
+        }
+    }
+    Ok((taken, whole))
+}
+
+/// A JSON object with at least one key: a record. Whatever else a line holds
+/// (nothing, other JSON, not JSON, a line too long) is passed over, whatever
+/// was read before it, so a record is the same counted from anywhere.
+type JsonObject = serde_json::Map<String, JsonValue>;
+
+/// Gives `each` the records of a JSON Lines file from byte `from` on, each
+/// with the byte where its line starts, until the end, `each` breaking, or
+/// the budget running out.
+fn each_json_object(
+    mut file: File,
+    from: u64,
+    budget: &Budget,
+    mut each: impl FnMut(u64, &JsonObject) -> ControlFlow<End>,
+) -> Result<End, String> {
+    file.seek(std::io::SeekFrom::Start(from))
+        .map_err(|e| format!("Read error: {e}"))?;
+    let mut reader = BufReader::new(Stoppable::new(file, budget.clone()));
+    let mut line = Vec::new();
+    let mut at = from;
+    loop {
+        let (taken, whole) = match capped_line(&mut reader, &mut line, MAX_LINE_BYTES) {
+            Ok(read) => read,
+            Err(_) if budget.over() => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("Read error: {e}")),
+        };
+        if taken == 0 {
             return Ok(End::Complete);
         }
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
+        let start = at;
+        at += taken;
+        if !whole {
             continue;
         }
-        let Ok(JsonValue::Object(map)) = serde_json::from_str(trimmed) else {
+        let Ok(JsonValue::Object(map)) = serde_json::from_slice(&line) else {
             continue;
         };
-
-        let known = names.len();
-        for key in map.keys() {
-            if names.contains(key) {
-                continue;
-            }
-            if names.len() < MAX_COLS {
-                names.push(key.clone());
-            } else if !cut {
-                cut = true;
-                sink.columns_cut();
-            }
-        }
-        if names.len() > known {
-            if known == 0 {
-                sink.sheets(&["JSONL".to_string()], 0);
-            }
-            sink.columns(&names);
-        }
-        if names.is_empty() {
+        if map.is_empty() {
             continue;
         }
-
-        let cells: Vec<Cell<'_>> = names.iter().map(|name| json_cell(map.get(name))).collect();
-        if let Some(end) = deliver(&mut pace, sink, &cells) {
+        if let ControlFlow::Break(end) = each(start, &map) {
             return Ok(end);
         }
     }
+}
+
+/// The columns of JSON Lines, found as the keys come: the first
+/// [`MAX_COLS`] of them, in the order they first appear.
+#[derive(Clone, Default)]
+struct JsonColumns {
+    names: Vec<String>,
+    known: std::collections::HashSet<String>,
+    cut: bool,
+}
+
+impl JsonColumns {
+    fn of(names: &[String]) -> Self {
+        JsonColumns {
+            names: names.to_vec(),
+            known: names.iter().cloned().collect(),
+            cut: false,
+        }
+    }
+
+    /// Takes the new keys of `map`. True if the columns grew.
+    fn learn(&mut self, map: &JsonObject) -> bool {
+        let before = self.names.len();
+        for key in map.keys() {
+            if self.known.contains(key) {
+                continue;
+            }
+            if self.names.len() < MAX_COLS {
+                self.known.insert(key.clone());
+                self.names.push(key.clone());
+            } else {
+                self.cut = true;
+            }
+        }
+        self.names.len() > before
+    }
+
+    fn cells<'a>(&self, map: &'a JsonObject) -> Vec<Cell<'a>> {
+        self.names
+            .iter()
+            .map(|name| json_cell(map.get(name)))
+            .collect()
+    }
+}
+
+/// A JSON Lines (.jsonl / .ndjson) file. Lines that are not objects are skipped.
+pub fn read_jsonl(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Result<End, String> {
+    let file = File::open(path).map_err(|e| format!("Failed to open JSONL: {e}"))?;
+    let mut columns = JsonColumns::default();
+    let mut pace = Pace::new(budget.clone());
+    each_json_object(file, 0, &budget, |_, map| {
+        let first = columns.names.is_empty();
+        let was_cut = columns.cut;
+        if columns.learn(map) {
+            if first {
+                sink.sheets(&["JSONL".to_string()], 0);
+            }
+            sink.columns(&columns.names);
+        }
+        if columns.cut && !was_cut {
+            sink.columns_cut();
+        }
+        match deliver(&mut pace, sink, &columns.cells(map)) {
+            Some(end) => ControlFlow::Break(end),
+            None => ControlFlow::Continue(()),
+        }
+    })
 }
 
 /// A dBase value. Padding is how the format stores short text, not data.
@@ -1212,9 +1419,18 @@ pub trait RowSource: Send {
         sink: &mut dyn RecordSink,
     ) -> Result<End, String>;
 
-    /// How many rows the table has; `None` if the budget ran out first.
-    fn count(&mut self, budget: Budget) -> Result<Option<usize>, String>;
+    /// How many rows the table has; `None` if the budget ran out first. On
+    /// the way it may tell `progress` the rows counted so far and, when they
+    /// grow, the columns (the file's names, not yet safe to show).
+    fn count(
+        &mut self,
+        budget: Budget,
+        progress: &mut Progress<'_>,
+    ) -> Result<Option<usize>, String>;
 }
+
+/// What a count says as it goes: the rows so far, and the columns when they grew.
+pub type Progress<'a> = dyn FnMut(usize, Option<&[String]>) + 'a;
 
 /// A table, view or query of a database, read by `LIMIT` and `OFFSET`.
 pub struct SqliteRows {
@@ -1298,13 +1514,263 @@ impl RowSource for SqliteRows {
         stream_sqlite_rows(rows, cols, budget, sink)
     }
 
-    fn count(&mut self, budget: Budget) -> Result<Option<usize>, String> {
+    fn count(&mut self, budget: Budget, _: &mut Progress<'_>) -> Result<Option<usize>, String> {
         limit_sqlite_time(&mut self.conn, &budget)?;
         let mut stmt = self.wrapped("SELECT count(*) FROM", "")?;
         match stmt.query_row([], |row| row.get::<_, i64>(0)) {
             Ok(n) => Ok(Some(usize::try_from(n).unwrap_or(0))),
             Err(e) if is_interrupted(&e) => Ok(None),
             Err(e) => Err(format!("SQL execution error: {e}")),
+        }
+    }
+}
+
+/// A file's size and time of its last change: what tells that it is still the
+/// one that was read.
+pub type Stamp = Option<(u64, std::time::SystemTime)>;
+
+pub fn file_stamp(path: &Path) -> Stamp {
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.len(), meta.modified().ok()?))
+}
+
+/// What reading a table says when its file is no longer the one it was:
+/// whatever its index knew of it no longer holds.
+pub const FILE_CHANGED: &str = "the file changed: R reloads";
+
+/// The rows from one mark of a [`RowIndex`] to the next.
+pub const MARK_EVERY: usize = 256;
+/// The most marks an index keeps: 32 MiB, and about a billion rows.
+const MAX_MARKS: usize = 1 << 22;
+
+/// Where the rows of a text table start, one row in every [`MARK_EVERY`],
+/// found by its count and shared by every reader of it: reaching row N reads
+/// from the last mark before it. Only in memory.
+pub struct RowIndex(std::sync::Mutex<Marks>);
+
+struct Marks {
+    /// The byte where row `k * MARK_EVERY` starts, for each `k` so far; the
+    /// first is put by the first reader.
+    bytes: Vec<u64>,
+    /// Set when the count reached the end: how many rows the file has.
+    rows: Option<usize>,
+    /// The columns of JSON Lines, in the order the count found them.
+    names: Vec<String>,
+}
+
+impl RowIndex {
+    /// An index with nothing in it yet; JSON Lines starts with the columns
+    /// already found, in the order they were found.
+    pub fn new(names: Vec<String>) -> Arc<Self> {
+        Arc::new(RowIndex(std::sync::Mutex::new(Marks {
+            bytes: Vec::new(),
+            rows: None,
+            names,
+        })))
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, Marks> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// The last mark at or before `row`: its row and its byte.
+    fn before(&self, row: usize) -> (usize, u64) {
+        let marks = self.lock();
+        let k = (row / MARK_EVERY).min(marks.bytes.len().saturating_sub(1));
+        (k * MARK_EVERY, marks.bytes.get(k).copied().unwrap_or(0))
+    }
+}
+
+/// How a text table is cut into records.
+#[derive(Clone, Copy)]
+enum TextKind {
+    Csv { delimiter: u8 },
+    Jsonl,
+}
+
+/// A record of a text table, as its reader gives it.
+enum TextRecord<'a> {
+    Csv(&'a csv::ByteRecord),
+    Json(&'a JsonObject),
+}
+
+/// A CSV, TSV or JSON Lines file read by its [`RowIndex`]: from the mark
+/// before a row, never more than [`MARK_EVERY`] rows to pass over, once the
+/// count has gone by it.
+pub struct TextRows {
+    path: std::path::PathBuf,
+    /// How the file was when its first rows were read.
+    stamp: Stamp,
+    index: Arc<RowIndex>,
+    kind: TextKind,
+}
+
+impl TextRows {
+    /// A CSV or TSV file, laid out as [`read_csv`] reads it.
+    pub fn csv(
+        path: &Path,
+        delimiter: Option<u8>,
+        stamp: Stamp,
+        index: Arc<RowIndex>,
+    ) -> Result<Self, String> {
+        let mut rows = TextRows {
+            path: path.to_path_buf(),
+            stamp,
+            index,
+            kind: TextKind::Jsonl,
+        };
+        rows.check()?;
+        let budget = Budget::new(Duration::from_secs(10), u64::MAX);
+        let layout = csv_layout(path, delimiter, &budget)?
+            .ok()
+            .filter(|layout| layout.data.is_some())
+            .ok_or_else(|| FILE_CHANGED.to_string())?;
+        rows.kind = TextKind::Csv {
+            delimiter: layout.delimiter,
+        };
+        let mut marks = rows.index.lock();
+        if marks.bytes.is_empty() {
+            marks.bytes.push(layout.data.unwrap_or(0));
+        }
+        drop(marks);
+        Ok(rows)
+    }
+
+    /// A JSON Lines file.
+    pub fn jsonl(path: &Path, stamp: Stamp, index: Arc<RowIndex>) -> Result<Self, String> {
+        let rows = TextRows {
+            path: path.to_path_buf(),
+            stamp,
+            index,
+            kind: TextKind::Jsonl,
+        };
+        rows.check()?;
+        let mut marks = rows.index.lock();
+        if marks.bytes.is_empty() {
+            marks.bytes.push(0);
+        }
+        drop(marks);
+        Ok(rows)
+    }
+
+    /// Whether the file is still the one the index was made of.
+    fn check(&self) -> Result<(), String> {
+        if file_stamp(&self.path) == self.stamp {
+            Ok(())
+        } else {
+            Err(FILE_CHANGED.to_string())
+        }
+    }
+
+    fn each_record(
+        &self,
+        from: u64,
+        budget: &Budget,
+        mut each: impl FnMut(u64, TextRecord<'_>) -> ControlFlow<End>,
+    ) -> Result<End, String> {
+        let file = File::open(&self.path).map_err(|_| FILE_CHANGED.to_string())?;
+        match self.kind {
+            TextKind::Csv { delimiter } => {
+                each_csv_record(file, delimiter, from, budget, |at, r| {
+                    each(at, TextRecord::Csv(r))
+                })
+            }
+            TextKind::Jsonl => {
+                each_json_object(file, from, budget, |at, m| each(at, TextRecord::Json(m)))
+            }
+        }
+    }
+}
+
+impl RowSource for TextRows {
+    fn read_from(
+        &mut self,
+        from: usize,
+        budget: Budget,
+        sink: &mut dyn RecordSink,
+    ) -> Result<End, String> {
+        self.check()?;
+        let (mut row, byte) = self.index.before(from);
+        let mut columns = JsonColumns::of(&self.index.lock().names);
+        let mut pace = Pace::new(budget.clone());
+        let end = self.each_record(byte, &budget, |_, record| {
+            // The keys of the rows passed over count too, as in the count.
+            if let TextRecord::Json(map) = record {
+                columns.learn(map);
+            }
+            let at = row;
+            row += 1;
+            if at < from {
+                return ControlFlow::Continue(());
+            }
+            let cells = match record {
+                TextRecord::Csv(r) => text_cells(r),
+                TextRecord::Json(map) => columns.cells(map),
+            };
+            match deliver(&mut pace, sink, &cells) {
+                Some(end) => ControlFlow::Break(end),
+                None => ControlFlow::Continue(()),
+            }
+        })?;
+        // Changed while it was read: what was read may not be its rows.
+        self.check()?;
+        Ok(end)
+    }
+
+    fn count(
+        &mut self,
+        budget: Budget,
+        progress: &mut Progress<'_>,
+    ) -> Result<Option<usize>, String> {
+        self.check()?;
+        let (mut row, byte, mut columns) = {
+            let marks = self.index.lock();
+            if let Some(rows) = marks.rows {
+                return Ok(Some(rows));
+            }
+            // From the last mark: a count stopped before goes on from there.
+            let k = marks.bytes.len().saturating_sub(1);
+            let byte = marks.bytes.get(k).copied().unwrap_or(0);
+            (k * MARK_EVERY, byte, JsonColumns::of(&marks.names))
+        };
+        let index = self.index.clone();
+        let end = self.each_record(byte, &budget, |start, record| {
+            if row.is_multiple_of(MARK_EVERY) {
+                let mut marks = index.lock();
+                let k = row / MARK_EVERY;
+                if k == marks.bytes.len() {
+                    if k >= MAX_MARKS {
+                        return ControlFlow::Break(End::Refused);
+                    }
+                    marks.bytes.push(start);
+                }
+            }
+            if let TextRecord::Json(map) = record
+                && columns.learn(map)
+            {
+                index.lock().names = columns.names.clone();
+                progress(row, Some(&columns.names));
+            }
+            row += 1;
+            if row.is_multiple_of(4096) {
+                progress(row, None);
+            }
+            ControlFlow::Continue(())
+        })?;
+        progress(row, None);
+        self.check()?;
+        match end {
+            End::Complete => {
+                self.index.lock().rows = Some(row);
+                Ok(Some(row))
+            }
+            End::OutOfTime => Ok(None),
+            End::Refused => Err(format!(
+                "over {} rows, the most Xylem counts",
+                thousands(MAX_MARKS * MARK_EVERY)
+            )),
         }
     }
 }
@@ -2377,5 +2843,120 @@ mod tests {
         read_csv(file.path(), None, Budget::unlimited(), &mut sink).unwrap();
         assert_eq!(sink.columns.len(), MAX_COLS);
         assert!(sink.cut);
+    }
+
+    /// A text table read through its index, with `marks` as the index.
+    fn indexed(path: &Path, json: bool, marks: Vec<u64>) -> TextRows {
+        let index = RowIndex::new(Vec::new());
+        index.lock().bytes = marks;
+        TextRows {
+            path: path.to_path_buf(),
+            stamp: file_stamp(path),
+            index,
+            kind: if json {
+                TextKind::Jsonl
+            } else {
+                TextKind::Csv { delimiter: b',' }
+            },
+        }
+    }
+
+    #[test]
+    fn the_index_reaches_a_row_past_quoted_line_breaks() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("q.csv");
+        let mut body = String::from("n,note\n");
+        for n in 0..1_000 {
+            body.push_str(&format!("{n},\"a\nb,\"\"{n}\"\"\"\n"));
+        }
+        std::fs::write(&path, &body).unwrap();
+        let mut rows =
+            TextRows::csv(&path, None, file_stamp(&path), RowIndex::new(Vec::new())).unwrap();
+        let counted = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap();
+        assert_eq!(counted, Some(1_000));
+        assert_eq!(rows.index.lock().bytes.len(), 4, "a mark every 256 rows");
+        for from in [0, 255, 256, 257, 700, 999] {
+            let mut sink = Collect {
+                stop: Some(1),
+                ..Default::default()
+            };
+            rows.read_from(from, Budget::unlimited(), &mut sink)
+                .unwrap();
+            let want = [text(&from.to_string()), text(&format!("a\nb,\"{from}\""))];
+            assert_eq!(sink.rows[0], want);
+        }
+        let mut sink = Collect::default();
+        let end = rows
+            .read_from(1_000, Budget::unlimited(), &mut sink)
+            .unwrap();
+        assert_eq!((end, sink.rows.len()), (End::Complete, 0));
+    }
+
+    #[test]
+    fn a_csv_record_too_long_stops_the_reading() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("long.csv");
+        let mut bytes = b"a,b\n1,".to_vec();
+        bytes.resize(bytes.len() + (MAX_RECORD_BYTES as usize) + 1, b'x');
+        std::fs::write(&path, &bytes).unwrap();
+        let mut sink = Collect::default();
+        let e = read_csv(&path, None, Budget::unlimited(), &mut sink).unwrap_err();
+        assert_eq!(e, "a record longer than 16 MiB");
+    }
+
+    #[test]
+    fn a_json_line_too_long_is_passed_over_whole() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("long.jsonl");
+        let long = format!(
+            "{{\"pad\": \"{}\"}} {{\"n\": 2}}\n",
+            "x".repeat(MAX_LINE_BYTES as usize)
+        );
+        // A line too long, one not UTF-8, and records around them.
+        let mut body = format!("{{\"n\": 1}}\n{long}").into_bytes();
+        body.extend_from_slice(b"{\"n\": \xff}\n{\"n\": 3}\n");
+        std::fs::write(&path, body).unwrap();
+        let mut sink = Collect::default();
+        read_jsonl(&path, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!(sink.rows, [[Owned::Int(1)], [Owned::Int(3)]]);
+    }
+
+    #[test]
+    fn a_changed_file_is_never_read_by_its_old_index() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("c.csv");
+        std::fs::write(&path, "n\n1\n2\n").unwrap();
+        let mut rows = indexed(&path, false, vec![2]);
+        std::fs::write(&path, "n\n1\n2\n3\n").unwrap();
+        let mut sink = Collect::default();
+        let e = rows
+            .read_from(0, Budget::unlimited(), &mut sink)
+            .unwrap_err();
+        assert_eq!((e.as_str(), sink.rows.len()), (FILE_CHANGED, 0));
+        let e = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap_err();
+        assert_eq!(e, FILE_CHANGED);
+    }
+
+    proptest::proptest! {
+        /// Marks that point anywhere (the middle of a record, past the end)
+        /// in any bytes give errors or odd rows, never a panic.
+        #[test]
+        fn hostile_marks_never_panic(
+            bytes in proptest::collection::vec(proptest::num::u8::ANY, 0..2048),
+            marks in proptest::collection::vec(proptest::num::u64::ANY, 1..6),
+            near in proptest::collection::vec(0u64..2100, 1..6),
+            from in 0usize..1_500,
+            json in proptest::bool::ANY,
+        ) {
+            let tmp = crate::testing::tempdir();
+            let path = tmp.path().join("t");
+            std::fs::write(&path, &bytes).unwrap();
+            for marks in [marks, near] {
+                let mut rows = indexed(&path, json, marks);
+                let _ = rows.read_from(from, Budget::unlimited(), &mut Collect::default());
+                let _ = rows.count(Budget::unlimited(), &mut |_, _| {});
+                let _ = rows.read_from(from, Budget::unlimited(), &mut Collect::default());
+            }
+        }
     }
 }

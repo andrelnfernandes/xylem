@@ -3044,10 +3044,14 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             Style::new().fg(theme().dim),
         ));
     }
-    if v.truncated() {
+    // The table says what of it is shown: the text's cut is not its own.
+    if v.truncated() && v.mode != ViewMode::Table {
         // The hex view shows every byte read: the line budget cuts only
         // the text.
-        let shown = if v.lines_cut() && v.mode == ViewMode::Text {
+        let shown = if v.partial() {
+            // The start, while the table is being read.
+            Some(format!("{} KiB", v.data_len() >> 10))
+        } else if v.lines_cut() && v.mode == ViewMode::Text {
             Some(format!("{} lines", fmt_num(v.total_lines() as u64)))
         } else if !v.bytes_cut() {
             None
@@ -3098,7 +3102,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             Style::new().fg(theme().error),
         ));
     }
-    if v.bidi_count() > 0 {
+    if v.bidi_count() > 0 && v.mode != ViewMode::Table {
         title.push(Span::styled(
             format!(
                 "  {} bidirectional control character{} (shown as ·)",
@@ -3252,7 +3256,11 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         first.spans.extend(
             menu_line(
                 "",
-                &if v.mode == ViewMode::Table {
+                &if v.mode == ViewMode::Table
+                    && v.table.as_ref().is_some_and(TableGrid::file_changed)
+                {
+                    vec![("R", "reload"), ("Esc", "close")]
+                } else if v.mode == ViewMode::Table {
                     vec![
                         ("&", "filter"),
                         ("i", "structure"),

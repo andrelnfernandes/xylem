@@ -13,9 +13,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::time::{Duration, Instant};
 
-use super::records::{Budget, Cell, End, MAX_COLS, RecordSink, RowSource};
+use super::records::{Budget, Cell, End, FILE_CHANGED, MAX_COLS, RecordSink, RowSource};
 use super::sql_filter::{self, Expr};
-use super::table::{GridRowContext, TableRow};
+use super::table::{GridRowContext, TableGrid, TableRow};
 use super::{RunningReader, StopOnDrop};
 
 /// The most rows the window keeps, and the most text in their cells.
@@ -63,6 +63,12 @@ enum Reply {
         end: Option<usize>,
     },
     FetchFailed(String),
+    /// The count is on its way: the rows so far, and the columns when they
+    /// grew (the file's names).
+    Counting {
+        rows: usize,
+        columns: Option<Vec<String>>,
+    },
     Counted(Result<Option<usize>, String>),
     Found {
         id: u64,
@@ -94,6 +100,9 @@ pub struct Window {
     pub scan: Option<Scan>,
     /// Why the rows near the cursor could not be read.
     pub problem: Option<String>,
+    /// The file is not the one read: nothing more is read from it.
+    pub changed: bool,
+    /// The columns, safe to show: JSON Lines may find more as it counts.
     headers: Vec<String>,
     opener: Opener,
     threads: Option<Threads>,
@@ -151,6 +160,7 @@ impl Window {
             counting: Progress::Running,
             scan: None,
             problem: None,
+            changed: false,
             headers,
             opener,
             threads: None,
@@ -165,7 +175,7 @@ impl Window {
 
     /// Starts the reading of rows and, if it is not over, the count.
     pub fn start(&mut self) {
-        if self.threads.is_some() {
+        if self.threads.is_some() || self.changed {
             return;
         }
         let (replies, rx) = mpsc::channel();
@@ -186,8 +196,16 @@ impl Window {
             let opener = self.opener.clone();
             let tx = threads.replies.clone();
             spawn(move || {
-                let counted = opener()
-                    .and_then(|mut source| source.count(Budget::cancellable(u64::MAX, stop)));
+                let mut said = Instant::now();
+                let mut progress = |rows: usize, columns: Option<&[String]>| {
+                    if columns.is_some() || said.elapsed() >= FLUSH {
+                        said = Instant::now();
+                        let columns = columns.map(<[String]>::to_vec);
+                        let _ = tx.send(Reply::Counting { rows, columns });
+                    }
+                };
+                let budget = Budget::cancellable(u64::MAX, stop);
+                let counted = opener().and_then(|mut source| source.count(budget, &mut progress));
                 let _ = tx.send(Reply::Counted(counted));
             });
             threads.count_stop = Some(count_stop);
@@ -253,6 +271,11 @@ impl Window {
     /// The rows kept now (for the structure of a table that declares none).
     pub fn kept(&self) -> impl Iterator<Item = &TableRow> {
         self.cache.values()
+    }
+
+    /// The columns, as many as found so far.
+    pub fn headers(&self) -> &[String] {
+        &self.headers
     }
 
     /// The rows shown: all those known, or the filter's matches.
@@ -354,6 +377,19 @@ impl Window {
                     self.asked = None;
                     self.problem = Some(e);
                 }
+                Reply::Counting { rows, columns } => {
+                    if self.counting == Progress::Running {
+                        self.rows = self.rows.max(rows);
+                    }
+                    if let Some(columns) = columns
+                        && columns.len() > self.headers.len()
+                    {
+                        self.headers = columns
+                            .iter()
+                            .map(|c| TableGrid::sanitize_cell(c))
+                            .collect();
+                    }
+                }
                 Reply::Counted(Ok(Some(rows))) => {
                     if self.counting == Progress::Running {
                         self.rows = rows;
@@ -365,6 +401,7 @@ impl Window {
                         self.counting = Progress::Stopped;
                     }
                 }
+                Reply::Counted(Err(e)) if e == FILE_CHANGED => self.problem = Some(e),
                 Reply::Counted(Err(e)) => {
                     if self.counting == Progress::Running {
                         self.counting = Progress::Failed;
@@ -380,10 +417,24 @@ impl Window {
                 } => self.found(id, matches, scanned, end, capped),
             }
         }
+        if self.problem.as_deref() == Some(FILE_CHANGED) && !self.changed {
+            self.file_changed();
+        }
         if changed {
             self.trim(focus, keep);
         }
         changed
+    }
+
+    /// The file is not the one read: every thread stops, and the rows read
+    /// stay on screen, for what they are worth, until it is read again.
+    fn file_changed(&mut self) {
+        self.changed = true;
+        self.problem = Some(FILE_CHANGED.to_string());
+        if self.counting == Progress::Running {
+            self.counting = Progress::Stopped;
+        }
+        self.pause();
     }
 
     /// The table has `rows` rows: it says so in reading past its end.
@@ -430,7 +481,11 @@ impl Window {
             }
             Some(Err(e)) => {
                 scan.state = Progress::Failed;
-                self.problem = Some(format!("the filter stopped: {e}"));
+                self.problem = Some(if e == FILE_CHANGED {
+                    e
+                } else {
+                    format!("the filter stopped: {e}")
+                });
             }
         }
         if scan.state != Progress::Running {
@@ -490,6 +545,9 @@ impl Window {
             return;
         }
         let Some(threads) = &self.threads else { return };
+        if self.changed {
+            return;
+        }
         if threads.fetch.send(missing).is_ok() {
             self.asked = Some((first, last));
         }

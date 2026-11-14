@@ -232,6 +232,8 @@ const TABLE_STOP_WAIT: Duration = Duration::from_millis(200);
 const READING_TABLE: &str = "Reading the table... Esc stops";
 const TABLE_STOPPED: &str = "Table reading stopped";
 const TABLE_BUSY: &str = "A table left behind is still being read: try again soon";
+/// How much of a file that opens as a table is read for its text at first.
+const TABLE_PEEK: u64 = 64 << 10;
 
 /// The lines of the table's frame that are not rows: the column names on top,
 /// the cell's contents at the bottom.
@@ -305,6 +307,9 @@ pub struct Viewer {
     md: Option<markdown::Doc>,
     /// The file's name says Markdown: the document follows a new encoding.
     md_file: bool,
+    /// Only the start of the file is in `data`, since it opens as a table:
+    /// the rest is read when the text or the hex is wanted (see `settle_text`).
+    partial: bool,
 }
 
 /// The line filter in effect and the lines it kept, in order.
@@ -344,25 +349,89 @@ fn sqlite_loader(
     }
 }
 
-/// What tells that a file is still the one that was read.
-fn file_stamp(path: &Path) -> Option<(u64, std::time::SystemTime)> {
-    let meta = std::fs::metadata(path).ok()?;
-    Some((meta.len(), meta.modified().ok()?))
-}
-
 impl Viewer {
-    /// Reads up to `load.limits.output` bytes of the file on disk.
+    /// Reads up to `load.limits.output` bytes of the file on disk. With V, a
+    /// file that opens as a table is read only to [`TABLE_PEEK`] for now: the
+    /// rest of its text is read if the text or the hex is wanted.
     pub fn open(path: PathBuf, load: LoadOptions) -> io::Result<Self> {
-        let file = File::open(&path)?;
+        let mut file = File::open(&path)?;
         let size = file.metadata()?.len();
+        let limit = load.limits.output as u64;
+        let peek = load.in_background && tabular_loader::is_tabular_candidate(&path);
         let mut raw = Vec::new();
-        file.take(load.limits.output as u64).read_to_end(&mut raw)?;
+        (&mut file)
+            .take(if peek { TABLE_PEEK.min(limit) } else { limit })
+            .read_to_end(&mut raw)?;
+        // A compressed file does not open as a table: all of it now.
+        let compressed = load.decompress && decompress::sniff(&raw).is_some();
+        if peek && compressed {
+            (&mut file)
+                .take(limit.saturating_sub(raw.len() as u64))
+                .read_to_end(&mut raw)?;
+        }
+        let partial = peek && !compressed && (raw.len() as u64) < size.min(limit);
         let mut v = Viewer {
             on_disk: true,
+            partial,
             ..Self::from_file(path, size, raw, load)
         };
         v.load_table();
+        v.settle_text();
         Ok(v)
+    }
+
+    /// Reads the rest of the text, if only its start was read for a table
+    /// and the text is what is shown now: the table did not open, or T or H
+    /// left it. Not while the table is still being read.
+    fn settle_text(&mut self) {
+        if self.partial && self.mode != ViewMode::Table && self.table_task.is_none() {
+            self.fill_text();
+        }
+    }
+
+    /// Reads the file again up to the limit, for its text and hex, keeping the
+    /// table and where the screen is.
+    fn fill_text(&mut self) {
+        self.partial = false;
+        let read = File::open(&self.path).and_then(|file| {
+            let size = file.metadata()?.len();
+            let mut raw = Vec::new();
+            file.take(self.load.limits.output as u64)
+                .read_to_end(&mut raw)?;
+            Ok((size, raw))
+        });
+        let (size, raw) = match read {
+            Ok(read) => read,
+            Err(e) => {
+                self.note = Some(format!("Cannot read the text of the file: {e}"));
+                return;
+            }
+        };
+        let new = Self::from_file(self.path.clone(), size, raw, self.load);
+        let charset = self.charset;
+        self.size = size;
+        self.data = new.data;
+        self.lines = new.lines;
+        self.bidi = new.bidi;
+        self.charset = new.charset;
+        self.colors = new.colors;
+        self.colors_on = new.colors_on;
+        self.compression = new.compression;
+        self.cut = new.cut;
+        self.lines_cut = new.lines_cut;
+        self.problem = new.problem;
+        self.md = new.md;
+        self.md_file = new.md_file;
+        if self.charset_manual {
+            self.set_charset(charset);
+        }
+        self.refilter();
+    }
+
+    /// Only the start of the file was read, for the table: the header does
+    /// not say the text is cut by the limit.
+    pub fn partial(&self) -> bool {
+        self.partial
     }
 
     /// Shows a tabular file as a table. Only for a file on disk: the loaders
@@ -399,9 +468,14 @@ impl Viewer {
             show: true,
             from: self.mode,
         };
-        let load_sqlite = sqlite_loader(self.load.in_background);
+        let windowed = self.load.in_background;
+        let load_sqlite = sqlite_loader(windowed);
         self.read_table(purpose, move |budget| match ext.as_str() {
+            "csv" | "tsv" | "tab" if windowed => {
+                tabular_loader::load_csv_windowed(&path, None, budget)
+            }
             "csv" | "tsv" | "tab" => tabular_loader::load_csv(&path, None, budget),
+            "jsonl" | "ndjson" if windowed => tabular_loader::load_jsonl_windowed(&path, budget),
             "jsonl" | "ndjson" => tabular_loader::load_jsonl(&path, budget),
             "xlsx" | "ods" | "xls" | "xlsb" => tabular_loader::load_spreadsheet(&path, 0, budget),
             "dbf" => tabular_loader::load_dbf(&path, budget),
@@ -476,6 +550,7 @@ impl Viewer {
             Ok(result) => {
                 let task = self.table_task.take().expect("just looked at it");
                 self.finish_table(task.purpose, result, false);
+                self.settle_text();
                 true
             }
             Err(TryRecvError::Empty) => {
@@ -489,6 +564,7 @@ impl Viewer {
             Err(TryRecvError::Disconnected) => {
                 self.table_task = None;
                 self.note = Some("Table mode: the file could not be read".into());
+                self.settle_text();
                 true
             }
         }
@@ -521,6 +597,7 @@ impl Viewer {
             Ok(result) => self.finish_table(task.purpose, result, true),
             Err(_) => self.note = Some(TABLE_STOPPED.into()),
         }
+        self.settle_text();
     }
 
     /// Takes the result of a reading, from the user's stopping it or not.
@@ -610,7 +687,7 @@ impl Viewer {
                     return Err("No table to read".into());
                 };
                 // A mark is a place in the file, and the table is read again.
-                if !t.marked.is_empty() && t.marked_stamp != file_stamp(&self.path) {
+                if !t.marked.is_empty() && t.marked_stamp != records::file_stamp(&self.path) {
                     return Err(
                         "The file changed after its records were marked: mark them again (M clears)"
                             .into(),
@@ -651,7 +728,7 @@ impl Viewer {
     /// `m` and Insert: marks or unmarks the record under the cursor, and goes
     /// to the next one.
     fn toggle_mark(&mut self) {
-        let stamp = file_stamp(&self.path);
+        let stamp = records::file_stamp(&self.path);
         let rows = self.grid_rows();
         let Some(t) = &mut self.table else { return };
         let Some(row) = t.file_row(t.cursor_row) else {
@@ -835,6 +912,8 @@ impl Viewer {
                 from: self.mode,
             };
         }
+        // Back to the text: all of it, before the place in it is kept.
+        self.settle_text();
         self.page = old.page;
         self.width = old.width;
         self.line_numbers = old.line_numbers;
@@ -1056,6 +1135,7 @@ impl Viewer {
             filter: None,
             md: None,
             md_file: false,
+            partial: false,
         }
     }
 
@@ -1693,6 +1773,18 @@ impl Viewer {
                 }
                 Action::None
             }
+            // The file changed under its window: read it again.
+            KeyCode::Char('r' | 'R')
+                if self.mode == ViewMode::Table
+                    && !ctrl
+                    && !alt
+                    && self.table.as_ref().is_some_and(TableGrid::file_changed) =>
+            {
+                if let Err(e) = self.reload() {
+                    self.note = Some(format!("Cannot read the file again: {e}"));
+                }
+                Action::None
+            }
             KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'Q' | 'v' | 'V') => Action::Close,
             KeyCode::Home if alt => Action::First,
             KeyCode::End if alt => Action::Last,
@@ -1864,6 +1956,8 @@ impl Viewer {
             },
             _ => Action::None,
         };
+        // T or H may have left the table for a text read only in part.
+        self.settle_text();
         if self.mode == ViewMode::Text && self.wrap {
             self.top = self.top.min(self.text_rows().saturating_sub(1));
         } else {
@@ -4764,5 +4858,229 @@ mod tests {
         let t = v.table.as_ref().unwrap();
         assert!(t.window.is_none());
         assert_eq!(t.cut.as_deref(), Some("showing first 50,000 rows"));
+    }
+
+    /// A CSV of `rows` rows, `n` from 0; every third has a line break inside
+    /// quotes, so its records and its lines do not agree.
+    fn big_csv(dir: &Path, rows: usize) -> PathBuf {
+        let path = dir.join("big.csv");
+        let mut text = String::from("n,note\n");
+        for n in 0..rows {
+            if n % 3 == 0 {
+                text.push_str(&format!("{n},\"two\nlines {n}\"\n"));
+            } else {
+                text.push_str(&format!("{n},r{n}\n"));
+            }
+        }
+        std::fs::write(&path, text).unwrap();
+        path
+    }
+
+    fn ctrl(v: &mut Viewer, code: KeyCode) {
+        v.handle_key(KeyEvent::new(code, KeyModifiers::CONTROL));
+    }
+
+    #[test]
+    fn a_big_csv_is_seen_to_its_last_row() {
+        let tmp = crate::testing::tempdir();
+        let path = big_csv(tmp.path(), 200_000);
+        let mut v = view_big(&path);
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.total_text(), "200,000");
+        assert_eq!(t.cut, None);
+
+        ctrl(&mut v, KeyCode::End);
+        settle(&mut v);
+        assert_eq!(cell(&v), "199999");
+        assert!(kept(&v) <= table_window::WINDOW_ROWS);
+        // Up a page at a time, across the marks of the index: each row is its own.
+        for _ in 0..40 {
+            press(&mut v, KeyCode::PageUp);
+            settle(&mut v);
+            let row = v.table.as_ref().unwrap().cursor_file_row() - 1;
+            assert_eq!(cell(&v), row.to_string());
+        }
+        let rows = v.grid_rows();
+        let t = v.table.as_mut().unwrap();
+        assert_eq!(t.goto_row(150_001, rows), "Row 150,001 of 200,000");
+        settle(&mut v);
+        assert_eq!(cell(&v), "150000");
+        press(&mut v, KeyCode::Right);
+        assert_eq!(cell(&v), "two·lines 150000");
+    }
+
+    #[test]
+    fn the_filter_finds_rows_past_the_old_limit_in_a_csv() {
+        let tmp = crate::testing::tempdir();
+        let path = big_csv(tmp.path(), 120_000);
+        let mut v = view_big(&path);
+        settle(&mut v);
+        v.sql_prompt("n > 119997 OR note = 'r60001'");
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.visible_row_count(), 3);
+        assert_eq!(t.file_row(0), Some(60_001));
+        assert_eq!(cell(&v), "60001");
+    }
+
+    #[test]
+    fn a_tsv_with_a_bom_names_its_first_column_clean() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("big.tsv");
+        let mut text = String::from("\u{feff}n\tname\n");
+        for n in 0..5_000 {
+            text.push_str(&format!("{n}\tr{n}\n"));
+        }
+        std::fs::write(&path, text).unwrap();
+        let mut v = view_big(&path);
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.headers, ["n", "name"]);
+        assert_eq!(t.total_text(), "5,000");
+        ctrl(&mut v, KeyCode::End);
+        settle(&mut v);
+        assert_eq!(cell(&v), "4999");
+    }
+
+    #[test]
+    fn json_lines_count_only_objects_and_find_columns_further_on() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("big.jsonl");
+        let mut text = String::new();
+        for n in 0..10_000 {
+            match n {
+                // Not records: they do not move the numbers of the rows.
+                _ if n % 1_000 == 500 => text.push_str("not json\n\n[1, 2]\n{}\n"),
+                _ if n >= 9_000 => text.push_str(&format!("{{\"n\": {n}, \"late\": \"l{n}\"}}\n")),
+                _ => text.push_str(&format!("{{\"n\": {n}}}\n")),
+            }
+        }
+        std::fs::write(&path, text).unwrap();
+        let mut v = view_big(&path);
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.total_text(), "9,990");
+        assert_eq!(t.headers, ["n", "late"], "a column first seen at row 9,000");
+        ctrl(&mut v, KeyCode::End);
+        settle(&mut v);
+        assert_eq!(cell(&v), "9999");
+        press(&mut v, KeyCode::Right);
+        assert_eq!(cell(&v), "l9999");
+        let rows = v.grid_rows();
+        v.table.as_mut().unwrap().goto_row(2_000, rows);
+        settle(&mut v);
+        press(&mut v, KeyCode::Left);
+        // Rows 500, 1,500 were not records: row 2,000 is n = 2,001.
+        assert_eq!(cell(&v), "2001");
+    }
+
+    /// Changes the file under the open window, moves far, and checks that no
+    /// row of it is shown as if it were the old one's.
+    fn changed_under(change: impl FnOnce(&Path)) {
+        let tmp = crate::testing::tempdir();
+        let path = big_csv(tmp.path(), 50_000);
+        let mut v = view_big(&path);
+        settle(&mut v);
+        change(&path);
+        ctrl(&mut v, KeyCode::End);
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert!(t.file_changed());
+        assert_eq!(
+            t.window.as_ref().unwrap().problem.as_deref(),
+            Some(records::FILE_CHANGED)
+        );
+        assert_eq!(cell(&v), "?", "nothing read from the changed file");
+        // R reads it again, as it is now.
+        press(&mut v, KeyCode::Char('R'));
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert!(!t.file_changed());
+        assert_eq!(v.mode, ViewMode::Table);
+    }
+
+    #[test]
+    fn a_csv_cut_short_says_it_changed() {
+        changed_under(|path| {
+            let len = std::fs::metadata(path).unwrap().len();
+            let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+            file.set_len(len / 2).unwrap();
+        });
+    }
+
+    #[test]
+    fn a_csv_that_grew_says_it_changed() {
+        changed_under(|path| {
+            let mut file = std::fs::OpenOptions::new().append(true).open(path).unwrap();
+            std::io::Write::write_all(&mut file, b"1,more\n").unwrap();
+        });
+    }
+
+    #[test]
+    fn a_csv_swapped_for_another_of_its_size_says_it_changed() {
+        changed_under(|path| {
+            let old = std::fs::metadata(path).unwrap();
+            let other = vec![b'x'; old.len() as usize];
+            std::fs::write(path, other).unwrap();
+            // A clock that did not move would leave the same stamp.
+            let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+            let later = old.modified().unwrap() + Duration::from_secs(5);
+            file.set_modified(later).unwrap();
+        });
+    }
+
+    #[test]
+    fn a_table_is_open_with_only_the_start_of_its_text_read() {
+        let tmp = crate::testing::tempdir();
+        let path = big_csv(tmp.path(), 50_000);
+        let size = std::fs::metadata(&path).unwrap().len();
+        let mut v = view_big(&path);
+        assert_eq!(v.data_len(), TABLE_PEEK);
+        assert!(v.partial());
+        // The text is read when it is wanted.
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Text);
+        assert!(!v.partial());
+        assert_eq!(v.data_len(), size);
+        assert_eq!(v.lines[1], "0,\"two");
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Table);
+        // And so is the hex.
+        drop(v);
+        let mut v = view_big(&path);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Text);
+        assert_eq!(v.data_len(), size);
+    }
+
+    #[test]
+    fn a_file_that_is_not_a_table_is_read_whole() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("odd.csv");
+        // One record past the limit of its size: not a table.
+        let mut text = b"a,b\n\"".to_vec();
+        text.resize(17 << 20, b'x');
+        std::fs::write(&path, &text).unwrap();
+        let mut load = LoadOptions::view(MAX_BYTES * 2);
+        load.in_background = true;
+        let v = Viewer::open(path, load).unwrap();
+        assert_ne!(v.mode, ViewMode::Table);
+        assert!(!v.partial());
+        assert_eq!(v.data_len(), text.len() as u64);
+        assert_eq!(
+            v.note.as_deref(),
+            Some("Table mode: a record longer than 16 MiB")
+        );
+    }
+
+    #[test]
+    fn autoview_reads_only_the_start_of_a_big_csv() {
+        let tmp = crate::testing::tempdir();
+        let path = big_csv(tmp.path(), table_window::WINDOW_ROWS * 2);
+        let v = Viewer::open(path, LoadOptions::autoview()).unwrap();
+        let t = v.table.as_ref().unwrap();
+        assert!(t.window.is_none());
+        assert!(!v.partial());
     }
 }
