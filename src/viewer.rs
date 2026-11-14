@@ -8,6 +8,7 @@ mod parquet_pages;
 pub mod records;
 pub mod sql_filter;
 pub mod table;
+pub mod table_window;
 pub mod tabular_loader;
 
 use std::fs::File;
@@ -182,7 +183,7 @@ thread_local! {
 }
 
 /// Counts as a reader for as long as it lives.
-struct RunningReader(Arc<AtomicUsize>);
+pub(crate) struct RunningReader(Arc<AtomicUsize>);
 
 impl RunningReader {
     fn new() -> Self {
@@ -211,7 +212,7 @@ fn reader_is_free() -> bool {
     true
 }
 
-struct StopOnDrop(Arc<AtomicBool>);
+pub(crate) struct StopOnDrop(Arc<AtomicBool>);
 
 impl Drop for StopOnDrop {
     fn drop(&mut self) {
@@ -331,6 +332,18 @@ impl std::ops::Deref for StyledRow {
     }
 }
 
+/// How a database's table is read: V keeps a window over a big one; Autoview,
+/// which runs on whatever the cursor passes, reads only its start.
+fn sqlite_loader(
+    windowed: bool,
+) -> fn(&Path, records::SqlitePart<'_>, Budget) -> Result<TableGrid, String> {
+    if windowed {
+        tabular_loader::load_sqlite_windowed
+    } else {
+        tabular_loader::load_sqlite
+    }
+}
+
 /// What tells that a file is still the one that was read.
 fn file_stamp(path: &Path) -> Option<(u64, std::time::SystemTime)> {
     let meta = std::fs::metadata(path).ok()?;
@@ -386,14 +399,13 @@ impl Viewer {
             show: true,
             from: self.mode,
         };
+        let load_sqlite = sqlite_loader(self.load.in_background);
         self.read_table(purpose, move |budget| match ext.as_str() {
             "csv" | "tsv" | "tab" => tabular_loader::load_csv(&path, None, budget),
             "jsonl" | "ndjson" => tabular_loader::load_jsonl(&path, budget),
             "xlsx" | "ods" | "xls" | "xlsb" => tabular_loader::load_spreadsheet(&path, 0, budget),
             "dbf" => tabular_loader::load_dbf(&path, budget),
-            "sqlite" | "sqlite3" | "db" => {
-                tabular_loader::load_sqlite(&path, records::SqlitePart::First, budget)
-            }
+            "sqlite" | "sqlite3" | "db" => load_sqlite(&path, records::SqlitePart::First, budget),
             "parquet" => tabular_loader::load_parquet(&path, budget),
             _ => Err("Not supported".to_string()),
         });
@@ -407,9 +419,15 @@ impl Viewer {
         work: impl FnOnce(Budget) -> Result<TableGrid, String> + Send + 'static,
     ) {
         self.table_task = None;
+        // The window of the table on screen reads too: it waits, and goes on
+        // if the new one cannot be read.
+        if let Some(t) = &mut self.table {
+            t.pause_window();
+        }
         if self.load.in_background {
             if !reader_is_free() {
                 self.note = Some(TABLE_BUSY.into());
+                self.resume_window();
                 return;
             }
             self.read_table_in_background(purpose, TABLE_FIRST_WAIT, work);
@@ -449,8 +467,10 @@ impl Viewer {
 
     /// Looks at a table being read. True if there is something new to show.
     pub fn poll_table(&mut self) -> bool {
+        let page = self.grid_rows();
+        let window = self.table.as_mut().is_some_and(|t| t.poll_window(page));
         let Some(task) = &self.table_task else {
-            return false;
+            return window;
         };
         match task.rx.try_recv() {
             Ok(result) => {
@@ -478,6 +498,18 @@ impl Viewer {
         self.table_task.is_some()
     }
 
+    /// A table is being read, or its window is reading rows: the screen should
+    /// look again soon.
+    pub fn table_busy(&self) -> bool {
+        self.reading_table() || self.table.as_ref().is_some_and(TableGrid::window_working)
+    }
+
+    fn resume_window(&mut self) {
+        if let Some(t) = &mut self.table {
+            t.resume_window();
+        }
+    }
+
     /// Esc while a table is read: stops it, and shows what it has if it answers in
     /// time. If it does not, it is left behind to end on its own.
     fn stop_reading_table(&mut self) {
@@ -499,6 +531,15 @@ impl Viewer {
         stopped: bool,
     ) {
         let result = result.unwrap_or_else(|| Err("the file could not be read".into()));
+        // A new table's window starts reading; the old one's goes on if there
+        // is none.
+        let result = result.map(|mut grid| {
+            grid.resume_window();
+            grid
+        });
+        if result.is_err() {
+            self.resume_window();
+        }
         // It was of the table being replaced.
         self.structure_view = None;
         if self.note.as_deref() == Some(READING_TABLE) {
@@ -507,6 +548,7 @@ impl Viewer {
         // Nothing was read: what was on screen is better than an empty table.
         if let Ok(grid) = &result
             && grid.rows.is_empty()
+            && grid.window.is_none()
             && (stopped || grid.headers.is_empty())
             && let Some(cut) = &grid.cut
         {
@@ -515,6 +557,7 @@ impl Viewer {
             } else {
                 format!("Table mode: {cut}")
             });
+            self.resume_window();
             return;
         }
         match purpose {
@@ -540,9 +583,12 @@ impl Viewer {
                 Ok(mut grid) => {
                     grid.query = Some(text);
                     grid.current_sheet = current;
-                    let rows = grid.rows.len();
-                    let word = if rows == 1 { "row" } else { "rows" };
-                    self.note = Some(format!("Query gave {rows} {word}"));
+                    let word = if grid.known_rows() == 1 {
+                        "row"
+                    } else {
+                        "rows"
+                    };
+                    self.note = Some(format!("Query gave {} {word}", grid.total_text()));
                     self.table = Some(grid);
                 }
                 Err(e) if e == records::READS_ONLY => self.note = Some(e),
@@ -608,7 +654,7 @@ impl Viewer {
         let stamp = file_stamp(&self.path);
         let rows = self.grid_rows();
         let Some(t) = &mut self.table else { return };
-        let Some(&row) = t.filtered_indices.get(t.cursor_row) else {
+        let Some(row) = t.file_row(t.cursor_row) else {
             return;
         };
         if t.marked.is_empty() {
@@ -641,9 +687,10 @@ impl Viewer {
         let Some(t) = &self.table else { return };
         let path = self.path.clone();
         let table = t.sheets[target].clone();
+        let load_sqlite = sqlite_loader(self.load.in_background);
         self.read_table(TableRead::Sheet, move |budget| {
             if tabular_loader::uses_c_parser(&path) {
-                tabular_loader::load_sqlite(&path, records::SqlitePart::Table(&table), budget)
+                load_sqlite(&path, records::SqlitePart::Table(&table), budget)
             } else {
                 tabular_loader::load_spreadsheet(&path, target, budget)
             }
@@ -1469,9 +1516,10 @@ impl Viewer {
                 current: t.current_sheet,
             };
             let (path, query) = (self.path.clone(), text.to_string());
+            let load_sqlite = sqlite_loader(self.load.in_background);
             self.read_table(purpose, move |budget| {
                 let part = records::SqlitePart::Query(&query);
-                tabular_loader::load_sqlite(&path, part, budget)
+                load_sqlite(&path, part, budget)
             });
             return;
         }
@@ -1483,6 +1531,9 @@ impl Viewer {
         }
         let filter = (!text.is_empty()).then_some(text);
         self.note = Some(match t.apply_filter(filter) {
+            Ok(_) if t.window_working() && filter.is_some() => {
+                "Filtering the whole table... Esc stops".to_string()
+            }
             Ok(count) => format!("Filter matched {count} rows"),
             Err(e) => format!("SQL error: {e}"),
         });
@@ -1576,6 +1627,15 @@ impl Viewer {
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
         if key.code == KeyCode::Esc && self.reading_table() {
             self.stop_reading_table();
+            return Action::None;
+        }
+        // Esc stops a count or a filter going over a whole table first.
+        if key.code == KeyCode::Esc
+            && self.structure_view.is_none()
+            && self.sheet_list.is_none()
+            && self.table.as_mut().is_some_and(TableGrid::stop_window_work)
+        {
+            self.note = Some("Stopped: what was read so far stays".into());
             return Action::None;
         }
         if self.structure_view.is_some() {
@@ -4510,5 +4570,199 @@ mod tests {
             }
             assert!(std::time::Instant::now() < deadline);
         }
+    }
+
+    /// A database whose table `t` has `rows` rows: `n` from 0, `odd` 0 or 1.
+    fn big_db(dir: &Path, rows: usize) -> PathBuf {
+        let path = dir.join("big.db");
+        let mut conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch("CREATE TABLE t (n INTEGER, odd INTEGER, name TEXT)")
+            .unwrap();
+        let tx = conn.transaction().unwrap();
+        {
+            let mut insert = tx.prepare("INSERT INTO t VALUES (?1, ?2, ?3)").unwrap();
+            for n in 0..rows {
+                insert
+                    .execute(rusqlite::params![n as i64, (n % 2) as i64, format!("r{n}")])
+                    .unwrap();
+            }
+        }
+        tx.commit().unwrap();
+        path
+    }
+
+    /// V on `path`, with the table read in the background, 20 rows tall.
+    fn view_big(path: &Path) -> Viewer {
+        let mut load = LoadOptions::view(MAX_BYTES);
+        load.in_background = true;
+        let mut v = Viewer::open(path.to_path_buf(), load).unwrap();
+        v.page = 20 + TABLE_CHROME;
+        assert_eq!(v.mode, ViewMode::Table);
+        v
+    }
+
+    /// Polls until the window has read what it was asked for.
+    fn settle(v: &mut Viewer) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(60);
+        v.poll_table();
+        while v.table_busy() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the window never settled"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+            v.poll_table();
+        }
+    }
+
+    fn kept(v: &Viewer) -> usize {
+        let w = v.table.as_ref().unwrap().window.as_ref().expect("a window");
+        w.kept().count()
+    }
+
+    fn cell(v: &Viewer) -> String {
+        v.table
+            .as_ref()
+            .unwrap()
+            .active_cell()
+            .unwrap_or("?")
+            .to_string()
+    }
+
+    #[test]
+    fn a_big_database_table_is_seen_to_its_last_row() {
+        let tmp = crate::testing::tempdir();
+        let path = big_db(tmp.path(), 200_000);
+        let mut v = view_big(&path);
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.total_text(), "200,000");
+        assert_eq!(t.cut, None, "nothing of it is left out");
+
+        let ctrl = |v: &mut Viewer, code| v.handle_key(KeyEvent::new(code, KeyModifiers::CONTROL));
+        ctrl(&mut v, KeyCode::End);
+        settle(&mut v);
+        assert_eq!(cell(&v), "199999");
+        assert_eq!(v.table.as_ref().unwrap().cursor_file_row(), 200_000);
+        assert!(kept(&v) <= table_window::WINDOW_ROWS);
+
+        // Up from the end, a page at a time, every row is the right one.
+        for _ in 0..30 {
+            press(&mut v, KeyCode::PageUp);
+            settle(&mut v);
+            let t = v.table.as_ref().unwrap();
+            assert_eq!(cell(&v), (t.cursor_file_row() - 1).to_string());
+            assert!(kept(&v) <= table_window::WINDOW_ROWS);
+        }
+
+        let rows = v.grid_rows();
+        let t = v.table.as_mut().unwrap();
+        assert_eq!(t.goto_row(150_000, rows), "Row 150,000 of 200,000");
+        settle(&mut v);
+        assert_eq!(cell(&v), "149999");
+        ctrl(&mut v, KeyCode::Home);
+        settle(&mut v);
+        assert_eq!(cell(&v), "0");
+    }
+
+    #[test]
+    fn the_filter_goes_over_the_whole_big_table() {
+        let tmp = crate::testing::tempdir();
+        let path = big_db(tmp.path(), 200_000);
+        let mut v = view_big(&path);
+        settle(&mut v);
+        v.sql_prompt("n >= 199990 OR n = 60000");
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.visible_row_count(), 11);
+        assert_eq!(t.file_row(0), Some(60_000));
+        assert_eq!(cell(&v), "60000");
+        assert_eq!(
+            t.filter_text().as_deref(),
+            Some("Filter: n >= 199990 OR n = 60000 (11 matches)")
+        );
+        v.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL));
+        settle(&mut v);
+        assert_eq!(cell(&v), "199999");
+        // A row the filter hides goes to the next one it kept.
+        let rows = v.grid_rows();
+        let t = v.table.as_mut().unwrap();
+        assert_eq!(
+            t.goto_row(100_000, rows),
+            "Row 100,000 is filtered out: showing row 199,991"
+        );
+        // Clearing it shows every row again.
+        v.sql_prompt("");
+        settle(&mut v);
+        assert_eq!(v.table.as_ref().unwrap().visible_row_count(), 200_000);
+    }
+
+    #[test]
+    fn a_query_on_a_big_table_is_read_in_windows_too() {
+        let tmp = crate::testing::tempdir();
+        let path = big_db(tmp.path(), 200_000);
+        let mut v = view_big(&path);
+        settle(&mut v);
+        // A `;` and a comment at the end do not break the wrapping.
+        v.sql_prompt("SELECT name, n FROM t WHERE odd = 1 ORDER BY n DESC; -- last first");
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert!(t.query.is_some());
+        assert_eq!(t.total_text(), "100,000");
+        assert_eq!(cell(&v), "r199999");
+        v.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL));
+        settle(&mut v);
+        assert_eq!(cell(&v), "r1");
+        // And the table again.
+        let current = v.table.as_ref().unwrap().current_sheet;
+        v.open_sheet(current);
+        settle(&mut v);
+        assert_eq!(v.table.as_ref().unwrap().total_text(), "200,000");
+    }
+
+    #[test]
+    fn esc_stops_a_count_that_never_ends() {
+        let tmp = crate::testing::tempdir();
+        let path = big_db(tmp.path(), 10);
+        let mut v = view_big(&path);
+        v.sql_prompt(
+            "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT x FROM c",
+        );
+        v.poll_table();
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.total_text(), "2,000+ (counting…)");
+        // The screen does not wait for it: the rows further on come.
+        let rows = v.grid_rows();
+        let t = v.table.as_mut().unwrap();
+        assert_eq!(
+            t.goto_row(5_000, rows),
+            "The count has not reached row 5,000 yet: 2,000+ (counting…) so far"
+        );
+        assert_eq!(press(&mut v, KeyCode::Esc), Action::None);
+        settle(&mut v);
+        assert_eq!(v.table.as_ref().unwrap().total_text(), "2,000+");
+        assert_eq!(press(&mut v, KeyCode::Esc), Action::Close);
+        drop(v);
+        assert!(reader_is_free(), "closing the viewer let every reader go");
+    }
+
+    #[test]
+    fn a_small_database_table_keeps_all_its_rows() {
+        let tmp = crate::testing::tempdir();
+        let path = big_db(tmp.path(), table_window::WINDOW_ROWS);
+        let v = view_big(&path);
+        let t = v.table.as_ref().unwrap();
+        assert!(t.window.is_none());
+        assert_eq!(t.rows.len(), table_window::WINDOW_ROWS);
+    }
+
+    #[test]
+    fn without_the_background_a_big_table_is_still_cut() {
+        let tmp = crate::testing::tempdir();
+        let path = big_db(tmp.path(), tabular_loader::MAX_TABLE_ROWS + 1);
+        let v = Viewer::open(path, LOAD).unwrap();
+        let t = v.table.as_ref().unwrap();
+        assert!(t.window.is_none());
+        assert_eq!(t.cut.as_deref(), Some("showing first 50,000 rows"));
     }
 }
