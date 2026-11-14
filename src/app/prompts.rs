@@ -225,10 +225,15 @@ impl Prompt {
         matches!(self.kind, PromptKind::Askpass { secret: true })
     }
 
+    pub fn is_treespec(&self) -> bool {
+        matches!(self.kind, PromptKind::Treespec { .. })
+    }
+
     pub fn is_rename_tagged(&self) -> bool {
         matches!(self.kind, PromptKind::RenameTagged { .. })
     }
 
+    #[cfg(test)]
     pub fn is_goto(&self) -> bool {
         matches!(self.kind, PromptKind::ViewerGoto)
     }
@@ -596,11 +601,40 @@ impl App {
         if list.len() > HISTORY_SIZE {
             list.remove(0);
         }
+        self.save_history();
+    }
+
+    fn save_history(&mut self) {
         if let Some(path) = &self.history_file
             && let Err(e) = state::save_history(path, &self.history)
         {
             self.message = Some(format!("Cannot save history to {}: {e}", path.display()));
         }
+    }
+
+    /// Takes out of the saved history what Del took out of the prompt's list.
+    /// A place goes also from the list Copy and Move kept before.
+    pub(crate) fn forget_history(&mut self) {
+        let Some(prompt) = &mut self.prompt else {
+            return;
+        };
+        let gone = prompt.input.take_forgotten();
+        let Some(key) = prompt.kind.history_key() else {
+            return;
+        };
+        if gone.is_empty() {
+            return;
+        }
+        let mut keys = vec![key];
+        if key == PLACES {
+            keys.push(OLD_DESTINATIONS);
+        }
+        for key in keys {
+            if let Some(list) = self.history.get_mut(key) {
+                list.retain(|t| !gone.contains(t));
+            }
+        }
+        self.save_history();
     }
 
     pub(crate) fn ask(&mut self, kind: ConfirmKind, question: String) {

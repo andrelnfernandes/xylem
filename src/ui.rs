@@ -30,7 +30,7 @@ use crate::filetype;
 use crate::git::StatusCache;
 use crate::help::{self, Help};
 use crate::icons::{DirKind, SLOT_WIDTH};
-use crate::input::Command;
+use crate::input::{Command, HistoryList, LineInput};
 use crate::model::tree::{FileEntry, FileKind, NodeId};
 use crate::ops::{Conflict, Facts, Operation};
 use crate::pane::{Count, FileDisplay, FileRef};
@@ -49,7 +49,17 @@ const SMALL_FILE_WINDOW: u16 = 5;
 const MIN_TREE_WITH_FILES: u16 = 12;
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
+    let list = || app.prompt.as_ref().and_then(|p| p.input.list());
+    if let Some(list) = list() {
+        list.anchor.set(None);
+    }
     draw_screen(frame, app);
+    if let Some(prompt) = &app.prompt
+        && let Some(list) = prompt.input.list()
+        && let Some(row) = list.anchor.get()
+    {
+        draw_history_list(frame, &prompt.input, list, row);
+    }
     if app.splash.is_some() {
         draw_splash(frame, &theme());
     }
@@ -2378,7 +2388,17 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
     let bold = Style::new().add_modifier(Modifier::BOLD);
     let col = area.x + (prompt.label.chars().count() + prompt.input.cursor) as u16;
     frame.set_cursor_position((col.min(area.right().saturating_sub(1)), area.y));
-    let help = if prompt.is_bookmark_jump() {
+    let help = if let Some(list) = prompt.input.list() {
+        // Drawn at the end, over everything: see [`draw`].
+        list.anchor.set(Some(area.y));
+        vec![
+            ("↑↓ PgUp PgDn", "choose"),
+            ("Enter", "put in the line"),
+            ("Del", "forget"),
+            ("Esc", "close"),
+            ("type", "filter"),
+        ]
+    } else if prompt.is_bookmark_jump() {
         vec![
             ("0-9, a-z", "jump"),
             ("' / Enter", "list"),
@@ -2401,7 +2421,7 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
                 ("Enter", "preview"),
                 ("Esc", "cancel"),
                 ("Ctrl+U", "clear"),
-                ("↑↓", "history"),
+                ("↑", "history"),
                 ("F1", "help"),
             ]
         } else {
@@ -2410,7 +2430,7 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
                 ("Esc", "cancel"),
                 ("↑↓", "template"),
                 ("F3", "read it"),
-                ("PgUp PgDn", "history"),
+                ("PgUp", "history"),
                 ("F1", "help"),
             ]
         }
@@ -2418,18 +2438,23 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
         vec![
             ("Enter", "rename"),
             ("F2", "case"),
-            ("↑↓", "history"),
+            ("↑", "history"),
             ("Esc", "cancel"),
             ("e.g.", "*.jpg  new_*.*  %03d  s/a/b/"),
         ]
     } else {
         let mut help = vec![("Enter", "accept"), ("Esc", "cancel"), ("Ctrl+U", "clear")];
+        if prompt.input.has_history() {
+            help.push(("↑", "history"));
+        }
         if prompt.picks_folder() {
             help.push(("F2", "tree"));
         }
+        if prompt.is_treespec() {
+            help.push(("Ctrl+←→", "folder up/back"));
+        }
         if prompt.picks_bookmark() {
             help.push(("F11", "bookmarks"));
-            help.push(("↑↓", "history"));
         }
         if prompt.toggles_paths() {
             help.push(("F6", "with/without paths"));
@@ -2438,17 +2463,12 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
         if prompt.is_search() {
             help.push(("F2", "match case"));
             help.push(("F4", "text/hex"));
-            help.push(("↑↓", "history"));
         }
         if prompt.is_line_filter() {
             help.push(("F1", "regex help"));
             help.push(("F2", "match case"));
             help.push(("F3", "invert"));
             help.push(("F4", "text/regex"));
-            help.push(("↑↓", "history"));
-        }
-        if prompt.is_goto() {
-            help.push(("↑↓", "history"));
         }
         if prompt.label.starts_with("FILESPEC") {
             help.push(("e.g.", "*.rs -*.bak >TODAY-7 >s1M"));
@@ -2466,6 +2486,79 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
         ]),
         menu_line("", &help),
     ]
+}
+
+/// The prompt's history as a list (↑), just above it, over whatever is on
+/// screen: the newest entry at the bottom, next to the line. Its entries come
+/// from a file, but the last step of [`draw`] makes the whole screen safe.
+fn draw_history_list(frame: &mut Frame, input: &LineInput, list: &HistoryList, prompt_row: u16) {
+    let t = theme();
+    let screen = frame.area();
+    // Above the prompt, below the header row.
+    let room = prompt_row.saturating_sub(screen.y + 1);
+    let longest = list
+        .shown
+        .iter()
+        .map(|&i| input.history_entry(i).chars().count())
+        .max()
+        .unwrap_or(0);
+    let width =
+        (longest.saturating_add(4).clamp(40, usize::from(u16::MAX)) as u16).min(screen.width);
+    let wanted = (list.shown.len().max(1).saturating_add(2)).min(usize::from(u16::MAX)) as u16;
+    let height = wanted.min(room);
+    if width < 12 || height < 3 {
+        return;
+    }
+    let rect = Rect {
+        x: screen.x,
+        y: prompt_row - height,
+        width,
+        height,
+    };
+    let title = if list.shown.is_empty() {
+        " History: nothing has this text ".to_string()
+    } else {
+        format!(
+            " History: {} of {} ",
+            fmt_num(list.shown.len() as u64),
+            fmt_num(input.history_len() as u64)
+        )
+    };
+    let block = panel(title, true);
+    let inner = block.inner(rect);
+    let rows = usize::from(inner.height).max(1);
+    let mut scroll = list.scroll.get();
+    if list.cursor < scroll {
+        scroll = list.cursor;
+    } else if list.cursor >= scroll + rows {
+        scroll = list.cursor + 1 - rows;
+    }
+    // A short list sits at the bottom, next to the line.
+    scroll = scroll.min(list.shown.len().saturating_sub(rows));
+    list.scroll.set(scroll);
+    let text_width = usize::from(inner.width).saturating_sub(1);
+    let lines: Vec<Line> = list
+        .shown
+        .iter()
+        .enumerate()
+        .skip(scroll)
+        .take(rows)
+        .map(|(row, &i)| {
+            let text = format!(" {}", fit(input.history_entry(i), text_width).trim_end());
+            if row == list.cursor {
+                Line::styled(text, highlight(true))
+            } else {
+                Line::raw(text)
+            }
+        })
+        .collect();
+    frame.render_widget(Clear, rect);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .style(Style::new().fg(t.text).bg(t.background)),
+        rect,
+    );
 }
 
 /// Footer during Copy/Move/Delete: current file and progress bar,
@@ -4755,6 +4848,47 @@ mod tests {
             .flat_map(|y| (0..140).map(move |x| (x, y)))
             .map(|(x, y)| buf[(x, y)].symbol())
             .collect()
+    }
+
+    #[test]
+    fn the_history_list_shows_above_the_prompt_newest_at_the_bottom() {
+        use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.history.insert(
+            "log".into(),
+            vec!["/srv/older".into(), "/srv/\u{1b}[31mnewer".into()],
+        );
+        for code in [KeyCode::Char('l'), KeyCode::Up] {
+            app.handle_key(KeyEvent::new(code, KeyModifiers::NONE));
+        }
+        let (w, h) = (100, 24);
+        let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
+        term.draw(|f| draw(f, &mut app)).unwrap();
+        let buf = term.backend().buffer();
+        let rows: Vec<String> = (0..h)
+            .map(|y| (0..w).map(|x| buf[(x, y)].symbol()).collect())
+            .collect();
+        let prompt = rows
+            .iter()
+            .position(|r| r.starts_with("LOG directory"))
+            .expect("prompt");
+        let older = rows
+            .iter()
+            .position(|r| r.contains("/srv/older"))
+            .expect("older");
+        let newer = rows
+            .iter()
+            .position(|r| r.contains("newer"))
+            .expect("newer");
+        assert!(older < newer && newer < prompt, "{rows:#?}");
+        assert!(rows[older - 1].contains("History: 2 of 2"), "{rows:#?}");
+        assert!(
+            !rows.concat().contains('\u{1b}'),
+            "no escape reaches the terminal"
+        );
+        assert!(rows[prompt + 1].contains("forget"), "{rows:#?}");
     }
 
     #[test]

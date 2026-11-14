@@ -107,7 +107,7 @@ and execute permission (run it with `X`). An existing file is not overwritten.
 
 With a table or text open in the [viewer](viewer.md), **Ctrl+B** writes one line per record, from the whole file: past the 50,000 rows of the screen, with values whole and exactly as in the file. It respects the filter in use (the SQL filter on a table, the [line filter](filter.md) on text). A table is read again when it runs; text comes as the viewer read it, up to the size limit, and the preview warns when that is not all of the file. It asks for the file, then the mask, and shows the first lines before writing: **Enter** writes, **Esc** gives up. While writing, Esc cancels and removes the incomplete file. An existing file is not overwritten.
 
-While you type the mask, a box above it shows a mask that works on this file, its fields and the templates you have, each with the first sentence of its opening comment (`%%#`). **↑↓** choose a template, **F3** shows it whole before you use it and **PgUp**/**PgDn** go through the history. The description was written by whoever wrote the template: read a template from someone else with F3 before using it. A mistake in the mask keeps the prompt open with what you typed and says what is wrong.
+While you type the mask, a box above it shows a mask that works on this file, its fields and the templates you have, each with the first sentence of its opening comment (`%%#`). **↑↓** choose a template, **F3** shows it whole before you use it and **PgUp** opens the [history](#history). The description was written by whoever wrote the template: read a template from someone else with F3 before using it. A mistake in the mask keeps the prompt open with what you typed and says what is wrong.
 
 | Field | Value |
 |---|---|
@@ -195,7 +195,22 @@ In a `.sh`, `%{$HOME}` writes the value of now, while `$HOME` is read when the s
 
 ## History
 
-At every prompt, ↑ and ↓ bring up earlier entries. Each kind of prompt
-(Filespec, destination, Log, eXecute...) has its own history, saved in
-`~/.local/state/xylem/history.toml`, readable only by you, since it may contain
-typed commands.
+At every prompt, **↑** opens the earlier entries as a list, just above the
+line, with the last one at the bottom and the cursor on it:
+
+| Key in the list | What it does |
+|---|---|
+| ↑ ↓ PgUp PgDn Home End | choose |
+| Enter | put the entry in the line, to edit or confirm with another Enter |
+| typing | show only the entries that have what is typed, in any case |
+| Del | take the entry out of the history, for good |
+| Esc | close the list, with the line as it was |
+
+What was typed before ↑ filters the list too; a text the prompt brings ready
+(the other window's directory in Copy, for example) does not, until you edit
+it. While the list is open, the prompt's own keys (F2, F11...) wait for it to
+close.
+
+Each kind of prompt (Filespec, Log and destinations, eXecute...) has its own
+history, saved in `~/.local/state/xylem/history.toml`, readable only by you,
+since it may contain typed commands.

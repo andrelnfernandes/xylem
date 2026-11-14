@@ -69,7 +69,7 @@ other programs", below.
 | Prune | deletes only the subdirectories or the current one too; only empty directories; recycle bin | always deletes the whole directory, permanently; configurable confirmation |
 | Log | several logged drives, Global, drive switching | one root per window; `L` opens another directory |
 | eXecute | batch parameters `%1`–`%8`, new window (NTW) | `sh` with `%f`, `%t` and `%d`; always in Xylem's terminal |
-| History | history window with bookmarks | ↑/↓ at the prompt, one history per type, saved between runs |
+| History | history window with bookmarks | ↑ at the prompt opens a list (filter by typing, Del forgets), one history per type, saved between runs |
 | Configuration | 7 pages, per-element color editor (F4), Alt-Export | 4 pages with the options that make sense on Linux; F4 chooses among 12 ready-made themes; individual colors in `config.toml` |
 | Split screen | optional statistics panels per side | no statistics panel |
 | Menus | Ctrl/Alt menu when holding the key | same in terminals with the kitty protocol; F9 in any terminal |
