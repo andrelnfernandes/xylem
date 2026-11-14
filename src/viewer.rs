@@ -2890,6 +2890,69 @@ mod tests {
     }
 
     #[test]
+    fn a_cut_sheet_says_to_open_it_in_a_spreadsheet_program() {
+        use std::io::Write;
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("big.xlsx");
+        // A real .xlsx of one more row than the grid keeps.
+        let ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        let pkg = "http://schemas.openxmlformats.org/package/2006";
+        let main = "application/vnd.openxmlformats-officedocument.spreadsheetml";
+        let mut rows = String::new();
+        for r in 1..=tabular_loader::MAX_TABLE_ROWS + 2 {
+            rows += &format!(r#"<row r="{r}"><c r="A{r}"><v>{r}</v></c></row>"#);
+        }
+        let parts = [
+            (
+                "[Content_Types].xml",
+                format!(
+                    r#"<Types xmlns="{pkg}/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/xl/workbook.xml" ContentType="{main}.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="{main}.worksheet+xml"/></Types>"#
+                ),
+            ),
+            (
+                "_rels/.rels",
+                format!(
+                    r#"<Relationships xmlns="{pkg}/relationships"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>"#
+                ),
+            ),
+            (
+                "xl/workbook.xml",
+                format!(
+                    r#"<workbook xmlns="{ns}" xmlns:r="{rel}"><sheets><sheet name="Data" sheetId="1" r:id="rId1"/></sheets></workbook>"#
+                ),
+            ),
+            (
+                "xl/_rels/workbook.xml.rels",
+                format!(
+                    r#"<Relationships xmlns="{pkg}/relationships"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"#
+                ),
+            ),
+            (
+                "xl/worksheets/sheet1.xml",
+                format!(r#"<worksheet xmlns="{ns}"><sheetData>{rows}</sheetData></worksheet>"#),
+            ),
+        ];
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        for (name, body) in parts {
+            zip.start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(body.as_bytes()).unwrap();
+        }
+        zip.finish().unwrap();
+
+        let v = Viewer::open(path, LOAD).unwrap();
+        let grid = v.table.as_ref().expect("opens as a table");
+        assert_eq!(grid.rows.len(), tabular_loader::MAX_TABLE_ROWS);
+        let note = v.note.as_deref().unwrap();
+        assert!(note.contains("more than 50,000 rows"), "{note}");
+        assert!(
+            note.contains("Excel or another spreadsheet program"),
+            "{note}"
+        );
+    }
+
+    #[test]
     fn autoview_does_not_read_a_spreadsheet_over_its_limit() {
         let tmp = crate::testing::tempdir();
         let path = tmp.path().join("big.xlsx");

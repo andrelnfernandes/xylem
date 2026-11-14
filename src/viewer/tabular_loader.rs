@@ -96,6 +96,16 @@ pub fn uses_c_parser(path: &Path) -> bool {
     matches!(ext.as_str(), "sqlite" | "sqlite3" | "db" | "parquet")
 }
 
+/// A spreadsheet: XLSX, XLSB, XLS or ODS.
+fn is_spreadsheet(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+    matches!(ext.as_str(), "xlsx" | "xlsb" | "xls" | "ods")
+}
+
 /// The sheets a reader builds whole before giving a row: no one can stop that part,
 /// and a small file can make it take gigabytes.
 pub fn is_built_whole(path: &Path) -> bool {
@@ -190,6 +200,14 @@ impl GridSink {
             cut.push(format!(
                 "stopped by {by}: showing {} rows",
                 thousands(self.rows.len())
+            ));
+        } else if self.rows_cut && is_spreadsheet(path) {
+            // A sheet cannot be read in windows, so the rest never shows here:
+            // say where to see it.
+            cut.push(format!(
+                "the sheet has more than {} rows, the most Xylem shows: open it in Excel \
+                 or another spreadsheet program to see them all (O)",
+                thousands(MAX_TABLE_ROWS)
             ));
         } else if self.rows_cut {
             cut.push(format!("showing first {} rows", thousands(MAX_TABLE_ROWS)));
@@ -460,6 +478,36 @@ mod tests {
         let grid = load_csv(file.path(), None, Budget::unlimited()).unwrap();
         assert_eq!(grid.rows.len(), MAX_TABLE_ROWS);
         assert_eq!(grid.cut.as_deref(), Some("showing first 50,000 rows"));
+    }
+
+    #[test]
+    fn a_sheet_over_the_limit_says_where_to_see_it_all() {
+        let full = |path: &str| {
+            let mut sink = GridSink::default();
+            sink.columns(&["n".to_string()]);
+            for i in 0..=MAX_TABLE_ROWS {
+                if sink.record(&[Cell::Int(i as i64)]).is_break() {
+                    break;
+                }
+            }
+            sink.finish(Path::new(path), End::Complete, false).cut
+        };
+        for sheet in ["big.xlsx", "big.XLS", "big.xlsb", "big.ods"] {
+            let cut = full(sheet).unwrap();
+            assert!(
+                cut.starts_with("the sheet has more than 50,000 rows"),
+                "{cut}"
+            );
+            assert!(
+                cut.contains("Excel or another spreadsheet program"),
+                "{cut}"
+            );
+        }
+        // Other tables keep their message.
+        assert_eq!(
+            full("big.csv").as_deref(),
+            Some("showing first 50,000 rows")
+        );
     }
 
     #[test]

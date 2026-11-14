@@ -120,6 +120,16 @@ A draft, with no date yet: [docs/plans/cockpit.md](docs/plans/cockpit.md). First
 searching the project, a list of `file:line` locations, and opening the editor at
 the right line.
 
+## Translations behind English
+
+During development only the English manual is updated; the other languages (pt,
+es, de, fr, zh) are synced later, in one documentation task with the website
+rework. A page listed here carries a note at the top pointing to the English
+version; the sync removes the note and the entry.
+
+- `viewer.md`: tables with no limit of 50,000 rows (0.8.0,
+  [docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)).
+
 ## Tests
 
 - **`term::tests::sync_changes_directory_and_sets_the_tagged_files` failed once
