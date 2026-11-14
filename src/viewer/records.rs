@@ -44,6 +44,8 @@ const MAX_SHEET_ROWS: u32 = 1 << 20;
 const MAX_PARQUET_PAGES: u64 = 1 << 30;
 /// A line of JSON Lines longer than this is not read as a record.
 const MAX_LINE_BYTES: u64 = 512 * 1024;
+/// A CSV record longer than this stops the reading: the reader keeps it whole.
+const MAX_RECORD_BYTES: u64 = 16 << 20;
 /// How many steps of SQLite's virtual machine between looks at the clock.
 const SQLITE_STEPS: i32 = 10_000;
 
@@ -273,12 +275,168 @@ fn guess_csv_delimiter(sample: &str) -> u8 {
     }
 }
 
-fn text_cells(record: &csv::StringRecord) -> Vec<Cell<'_>> {
+/// The values of a CSV record: text, with bytes that are not UTF-8 shown as
+/// `�` rather than stopping the reading.
+fn text_cells(record: &csv::ByteRecord) -> Vec<Cell<'_>> {
     record
         .iter()
         .take(MAX_COLS)
-        .map(|field| Cell::Text(Cow::Borrowed(field)))
+        .map(|field| Cell::Text(String::from_utf8_lossy(field)))
         .collect()
+}
+
+/// Where the record being read starts, so that the file under the CSV reader
+/// can refuse one too long: the reader keeps a whole record in memory, and a
+/// file with no line breaks is one record.
+#[derive(Default)]
+struct Fence {
+    start: std::cell::Cell<u64>,
+    too_long: std::cell::Cell<bool>,
+}
+
+/// A file read from byte `at`, stopping with the budget or when the record
+/// started at the fence grows past [`MAX_RECORD_BYTES`].
+struct Fenced {
+    file: File,
+    budget: Budget,
+    at: u64,
+    fence: std::rc::Rc<Fence>,
+}
+
+impl Read for Fenced {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.budget.over() {
+            return Err(std::io::Error::other("the reading was stopped"));
+        }
+        if self.at.saturating_sub(self.fence.start.get()) > MAX_RECORD_BYTES {
+            self.fence.too_long.set(true);
+            return Err(std::io::Error::other("a record too long"));
+        }
+        let n = self.file.read(buf)?;
+        self.at += n as u64;
+        Ok(n)
+    }
+}
+
+/// Gives `each` the CSV records of `file` from byte `from` on, each with the
+/// byte where it starts, until the end, `each` breaking, or the budget
+/// running out.
+fn each_csv_record(
+    mut file: File,
+    delimiter: u8,
+    from: u64,
+    budget: &Budget,
+    mut each: impl FnMut(u64, &csv::ByteRecord) -> ControlFlow<End>,
+) -> Result<End, String> {
+    file.seek(std::io::SeekFrom::Start(from))
+        .map_err(|e| format!("CSV read error: {e}"))?;
+    let fence = std::rc::Rc::new(Fence::default());
+    fence.start.set(from);
+    let mut reader = csv::ReaderBuilder::new()
+        .delimiter(delimiter)
+        .has_headers(false)
+        .flexible(true)
+        .from_reader(Fenced {
+            file,
+            budget: budget.clone(),
+            at: from,
+            fence: fence.clone(),
+        });
+    let mut record = csv::ByteRecord::new();
+    loop {
+        let start = from + reader.position().byte();
+        fence.start.set(start);
+        match reader.read_byte_record(&mut record) {
+            Ok(true) => {}
+            Ok(false) => return Ok(End::Complete),
+            Err(_) if fence.too_long.get() => {
+                return Err(format!(
+                    "a record longer than {} MiB",
+                    MAX_RECORD_BYTES >> 20
+                ));
+            }
+            Err(_) if budget.over() => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("CSV record error: {e}")),
+        }
+        if let ControlFlow::Break(end) = each(start, &record) {
+            return Ok(end);
+        }
+    }
+}
+
+/// How a CSV file is laid out, from its start.
+struct CsvLayout {
+    delimiter: u8,
+    /// The column names: the first record's, or letters.
+    names: Vec<String>,
+    /// The first record has more than [`MAX_COLS`] fields.
+    cut: bool,
+    /// The byte where the first record of data starts, if there is one.
+    data: Option<u64>,
+}
+
+/// Guesses the delimiter, when not given, and whether the first record names
+/// the columns. `Err(end)`: there is nothing to show, or no time to see.
+fn csv_layout(
+    path: &Path,
+    delimiter: Option<u8>,
+    budget: &Budget,
+) -> Result<Result<CsvLayout, End>, String> {
+    let open = || File::open(path).map_err(|e| format!("Failed to open CSV: {e}"));
+    let delimiter = match delimiter {
+        Some(d) => d,
+        None => {
+            let mut sample = Vec::new();
+            let _ = open()?.take(8192).read_to_end(&mut sample);
+            guess_csv_delimiter(&String::from_utf8_lossy(&sample))
+        }
+    };
+    // The first record, and where the one after it starts.
+    let mut first = None;
+    let mut second = None;
+    let end = each_csv_record(open()?, delimiter, 0, budget, |start, record| {
+        if first.is_some() {
+            second = Some(start);
+            return ControlFlow::Break(End::Refused);
+        }
+        first = Some(record.clone());
+        ControlFlow::Continue(())
+    })?;
+    if end == End::OutOfTime {
+        return Ok(Err(end));
+    }
+    let first = match first {
+        Some(first) if !first.is_empty() => first,
+        Some(_) => return Ok(Err(End::Complete)),
+        None => return Ok(Err(end)),
+    };
+    let fields: Vec<Cow<'_, str>> = first.iter().map(String::from_utf8_lossy).collect();
+    // A header when at least half the fields are text, not numbers.
+    let words = fields
+        .iter()
+        .filter(|field| {
+            let t = field.trim();
+            !t.is_empty() && t.parse::<f64>().is_err()
+        })
+        .count();
+    let header = words * 2 >= fields.len();
+    let names = if header {
+        fields
+            .iter()
+            .take(MAX_COLS)
+            .map(|s| s.trim().to_string())
+            .collect()
+    } else {
+        (0..fields.len().min(MAX_COLS)).map(column_letter).collect()
+    };
+    // With a header and no second record, there is no data.
+    let data = if header { second } else { Some(0) };
+    Ok(Ok(CsvLayout {
+        delimiter,
+        names,
+        cut: fields.len() > MAX_COLS,
+        data,
+    }))
 }
 
 /// A CSV or TSV file: every value is text, since the format has no types.
@@ -288,72 +446,30 @@ pub fn read_csv(
     budget: Budget,
     sink: &mut dyn RecordSink,
 ) -> Result<End, String> {
-    let file = File::open(path).map_err(|e| format!("Failed to open CSV: {e}"))?;
-    let mut reader = BufReader::new(file);
-
-    // Auto-detect delimiter from bounded sample
-    let delim = match delimiter {
-        Some(d) => d,
-        None => {
-            let mut sample = String::new();
-            let _ = (&mut reader).take(8192).read_to_string(&mut sample);
-            let _ = reader.seek(std::io::SeekFrom::Start(0));
-            guess_csv_delimiter(&sample)
-        }
+    let layout = match csv_layout(path, delimiter, &budget)? {
+        Ok(layout) => layout,
+        Err(end) => return Ok(end),
     };
-
-    let mut csv_reader = csv::ReaderBuilder::new()
-        .delimiter(delim)
-        .has_headers(false)
-        .flexible(true)
-        .from_reader(reader);
-
-    let mut records = csv_reader.records();
-    let first = match records.next() {
-        Some(r) => r.map_err(|e| format!("CSV read error: {e}"))?,
-        None => return Ok(End::Complete),
-    };
-    if first.is_empty() {
-        return Ok(End::Complete);
-    }
-
-    // Determine if first row is a header: at least half the fields are non-numeric strings
-    let non_numeric_count = first
-        .iter()
-        .filter(|field| {
-            let t = field.trim();
-            !t.is_empty() && t.parse::<f64>().is_err()
-        })
-        .count();
-    let has_header = non_numeric_count * 2 >= first.len();
-
     sink.sheets(&["Data".to_string()], 0);
-    if first.len() > MAX_COLS {
+    if layout.cut {
         sink.columns_cut();
     }
-    let mut pace = Pace::new(budget);
-    if has_header {
-        let names: Vec<String> = first
-            .iter()
-            .take(MAX_COLS)
-            .map(|s| s.trim().to_string())
-            .collect();
-        sink.columns(&names);
-    } else {
-        let names: Vec<String> = (0..first.len().min(MAX_COLS)).map(column_letter).collect();
-        sink.columns(&names);
-        if let Some(end) = deliver(&mut pace, sink, &text_cells(&first)) {
-            return Ok(end);
-        }
-    }
-
-    for result in records {
-        let record = result.map_err(|e| format!("CSV record error: {e}"))?;
-        if let Some(end) = deliver(&mut pace, sink, &text_cells(&record)) {
-            return Ok(end);
-        }
-    }
-    Ok(End::Complete)
+    sink.columns(&layout.names);
+    let Some(data) = layout.data else {
+        return Ok(End::Complete);
+    };
+    let file = File::open(path).map_err(|e| format!("Failed to open CSV: {e}"))?;
+    let mut pace = Pace::new(budget.clone());
+    each_csv_record(
+        file,
+        layout.delimiter,
+        data,
+        &budget,
+        |_, record| match deliver(&mut pace, sink, &text_cells(record)) {
+            Some(end) => ControlFlow::Break(end),
+            None => ControlFlow::Continue(()),
+        },
+    )
 }
 
 fn json_cell(value: Option<&JsonValue>) -> Cell<'_> {
@@ -372,61 +488,152 @@ fn json_cell(value: Option<&JsonValue>) -> Cell<'_> {
     }
 }
 
-/// A JSON Lines (.jsonl / .ndjson) file. Lines that are not objects are skipped.
-pub fn read_jsonl(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Result<End, String> {
-    let file = File::open(path).map_err(|e| format!("Failed to open JSONL: {e}"))?;
-    let mut reader = BufReader::new(file);
-
-    let mut names: Vec<String> = Vec::new();
-    let mut line = String::new();
-    let mut pace = Pace::new(budget);
-    let mut cut = false;
-
+/// Reads a line into `out`, up to `cap` bytes, and says how many bytes it
+/// took and whether it was all there: a longer line is passed over, not kept.
+fn capped_line(
+    reader: &mut impl BufRead,
+    out: &mut Vec<u8>,
+    cap: u64,
+) -> std::io::Result<(u64, bool)> {
+    out.clear();
+    let mut taken = 0u64;
+    let mut whole = true;
     loop {
-        line.clear();
-        // Read with bounded capacity per line to prevent OOM
-        let bytes_read = (&mut reader)
-            .take(MAX_LINE_BYTES)
-            .read_line(&mut line)
-            .map_err(|e| format!("Read error: {e}"))?;
-        if bytes_read == 0 {
+        let buf = reader.fill_buf()?;
+        if buf.is_empty() {
+            break;
+        }
+        let (n, ends) = match buf.iter().position(|&b| b == b'\n') {
+            Some(i) => (i + 1, true),
+            None => (buf.len(), false),
+        };
+        if whole {
+            if (out.len() + n) as u64 > cap {
+                whole = false;
+                out.clear();
+            } else {
+                out.extend_from_slice(&buf[..n]);
+            }
+        }
+        reader.consume(n);
+        taken += n as u64;
+        if ends {
+            break;
+        }
+    }
+    Ok((taken, whole))
+}
+
+/// A JSON object with at least one key: a record. Whatever else a line holds
+/// (nothing, other JSON, not JSON, a line too long) is passed over, whatever
+/// was read before it, so a record is the same counted from anywhere.
+type JsonObject = serde_json::Map<String, JsonValue>;
+
+/// Gives `each` the records of a JSON Lines file from byte `from` on, each
+/// with the byte where its line starts, until the end, `each` breaking, or
+/// the budget running out.
+fn each_json_object(
+    mut file: File,
+    from: u64,
+    budget: &Budget,
+    mut each: impl FnMut(u64, &JsonObject) -> ControlFlow<End>,
+) -> Result<End, String> {
+    file.seek(std::io::SeekFrom::Start(from))
+        .map_err(|e| format!("Read error: {e}"))?;
+    let mut reader = BufReader::new(Stoppable::new(file, budget.clone()));
+    let mut line = Vec::new();
+    let mut at = from;
+    loop {
+        let (taken, whole) = match capped_line(&mut reader, &mut line, MAX_LINE_BYTES) {
+            Ok(read) => read,
+            Err(_) if budget.over() => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("Read error: {e}")),
+        };
+        if taken == 0 {
             return Ok(End::Complete);
         }
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
+        let start = at;
+        at += taken;
+        if !whole {
             continue;
         }
-        let Ok(JsonValue::Object(map)) = serde_json::from_str(trimmed) else {
+        let Ok(JsonValue::Object(map)) = serde_json::from_slice(&line) else {
             continue;
         };
-
-        let known = names.len();
-        for key in map.keys() {
-            if names.contains(key) {
-                continue;
-            }
-            if names.len() < MAX_COLS {
-                names.push(key.clone());
-            } else if !cut {
-                cut = true;
-                sink.columns_cut();
-            }
-        }
-        if names.len() > known {
-            if known == 0 {
-                sink.sheets(&["JSONL".to_string()], 0);
-            }
-            sink.columns(&names);
-        }
-        if names.is_empty() {
+        if map.is_empty() {
             continue;
         }
-
-        let cells: Vec<Cell<'_>> = names.iter().map(|name| json_cell(map.get(name))).collect();
-        if let Some(end) = deliver(&mut pace, sink, &cells) {
+        if let ControlFlow::Break(end) = each(start, &map) {
             return Ok(end);
         }
     }
+}
+
+/// The columns of JSON Lines, found as the keys come: the first
+/// [`MAX_COLS`] of them, in the order they first appear.
+#[derive(Clone, Default)]
+struct JsonColumns {
+    names: Vec<String>,
+    known: std::collections::HashSet<String>,
+    cut: bool,
+}
+
+impl JsonColumns {
+    fn of(names: &[String]) -> Self {
+        JsonColumns {
+            names: names.to_vec(),
+            known: names.iter().cloned().collect(),
+            cut: false,
+        }
+    }
+
+    /// Takes the new keys of `map`. True if the columns grew.
+    fn learn(&mut self, map: &JsonObject) -> bool {
+        let before = self.names.len();
+        for key in map.keys() {
+            if self.known.contains(key) {
+                continue;
+            }
+            if self.names.len() < MAX_COLS {
+                self.known.insert(key.clone());
+                self.names.push(key.clone());
+            } else {
+                self.cut = true;
+            }
+        }
+        self.names.len() > before
+    }
+
+    fn cells<'a>(&self, map: &'a JsonObject) -> Vec<Cell<'a>> {
+        self.names
+            .iter()
+            .map(|name| json_cell(map.get(name)))
+            .collect()
+    }
+}
+
+/// A JSON Lines (.jsonl / .ndjson) file. Lines that are not objects are skipped.
+pub fn read_jsonl(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Result<End, String> {
+    let file = File::open(path).map_err(|e| format!("Failed to open JSONL: {e}"))?;
+    let mut columns = JsonColumns::default();
+    let mut pace = Pace::new(budget.clone());
+    each_json_object(file, 0, &budget, |_, map| {
+        let first = columns.names.is_empty();
+        let was_cut = columns.cut;
+        if columns.learn(map) {
+            if first {
+                sink.sheets(&["JSONL".to_string()], 0);
+            }
+            sink.columns(&columns.names);
+        }
+        if columns.cut && !was_cut {
+            sink.columns_cut();
+        }
+        match deliver(&mut pace, sink, &columns.cells(map)) {
+            Some(end) => ControlFlow::Break(end),
+            None => ControlFlow::Continue(()),
+        }
+    })
 }
 
 /// A dBase value. Padding is how the format stores short text, not data.
@@ -531,8 +738,7 @@ fn dbase_structure(path: &Path, fields: &[dbase::FieldInfo], about: Vec<String>)
 
 /// A dBase / Clipper / FoxPro .dbf file (with companion .dbt memo file if present).
 pub fn read_dbf(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Result<End, String> {
-    let mut reader = dbase::Reader::from_path(path)
-        .map_err(|e| format!("Failed to open DBF {}: {e}", path.display()))?;
+    let (mut reader, edge) = open_dbf(path, &budget)?;
 
     let total = reader.fields().len();
     let names: Vec<String> = reader
@@ -569,9 +775,117 @@ pub fn read_dbf(path: &Path, budget: Budget, sink: &mut dyn RecordSink) -> Resul
     ];
     sink.structure(dbase_structure(path, reader.fields(), about));
 
-    let mut pace = Pace::new(budget);
+    each_dbf_record(&mut reader, &edge, &budget, &names, sink)
+}
+
+/// The file under a dBase reader: it ends where the header says the records
+/// end, so that the reader stops there even when it started past the first,
+/// and it stops with the budget.
+struct DbfFile {
+    file: File,
+    /// Where it is, and where it ends (`u64::MAX` for a memo file).
+    at: u64,
+    end: u64,
+    budget: Budget,
+    edge: std::rc::Rc<std::cell::Cell<bool>>,
+}
+
+impl Read for DbfFile {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.budget.over() {
+            return Err(std::io::Error::other("the reading was stopped"));
+        }
+        let room = self.end.saturating_sub(self.at);
+        if room == 0 && !buf.is_empty() {
+            self.edge.set(true);
+            return Ok(0);
+        }
+        let len = buf.len().min(usize::try_from(room).unwrap_or(usize::MAX));
+        let n = self.file.read(&mut buf[..len])?;
+        self.at += n as u64;
+        Ok(n)
+    }
+}
+
+impl Seek for DbfFile {
+    fn seek(&mut self, to: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.at = self.file.seek(to)?;
+        Ok(self.at)
+    }
+}
+
+type DbfReader = dbase::Reader<BufReader<DbfFile>>;
+
+/// Opens a dBase file and, when it has memo fields, its memo file, as
+/// `dbase::Reader::from_path` does: `.fpt` for the FoxPro versions, `.dbt`
+/// for the others. The flag tells that the reader got to the end of the
+/// records.
+fn open_dbf(
+    path: &Path,
+    budget: &Budget,
+) -> Result<(DbfReader, std::rc::Rc<std::cell::Cell<bool>>), String> {
+    let failed = |e: &dyn std::fmt::Display| format!("Failed to open DBF {}: {e}", path.display());
+    let edge = std::rc::Rc::new(std::cell::Cell::new(false));
+    let open = |p: &Path, end: u64| -> Result<BufReader<DbfFile>, String> {
+        let file = File::open(p).map_err(|e| failed(&e))?;
+        Ok(BufReader::new(DbfFile {
+            file,
+            at: 0,
+            end,
+            budget: budget.clone(),
+            edge: edge.clone(),
+        }))
+    };
+    // The header first, for where the records end.
+    let probe = dbase::ReaderBuilder::new()
+        .build(open(path, u64::MAX)?)
+        .map_err(|e| failed(&e))?;
+    let header = probe.header();
+    let end = u64::from(header.offset_to_first_record)
+        + u64::from(header.num_records) * u64::from(header.size_of_record);
+    let memo = probe
+        .fields()
+        .iter()
+        .any(|f| f.field_type() == dbase::FieldType::Memo);
+    let fox = format!("{:?}", header.file_type).contains("Fox");
+    let builder = dbase::ReaderBuilder::new();
+    let reader = if memo {
+        let memo_path = path.with_extension(if fox { "fpt" } else { "dbt" });
+        let memo_file =
+            open(&memo_path, u64::MAX).map_err(|_| failed(&"the memo file could not be opened"))?;
+        builder.build_with_memo(open(path, end)?, memo_file)
+    } else {
+        builder.build(open(path, end)?)
+    }
+    .map_err(|e| failed(&e))?;
+    Ok((reader, edge))
+}
+
+/// Gives the sink the records from where the reader is, until the end of
+/// them, the sink refusing, or the budget running out.
+fn each_dbf_record(
+    reader: &mut DbfReader,
+    edge: &std::cell::Cell<bool>,
+    budget: &Budget,
+    names: &[String],
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
+    let mut pace = Pace::new(budget.clone());
     for record in reader.iter_records() {
-        let record = record.map_err(|e| format!("Error reading DBF record: {e}"))?;
+        let record = match record {
+            Ok(record) => record,
+            // Past the last record the header declares, when the reading
+            // started further on: the records ended.
+            Err(e)
+                if edge.get()
+                    && matches!(e.kind(), dbase::ErrorKind::IoError(io)
+                        if io.kind() == std::io::ErrorKind::UnexpectedEof) =>
+            {
+                return Ok(End::Complete);
+            }
+            Err(_) if budget.over() => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("Error reading DBF record: {e}")),
+        };
         let cells: Vec<Cell<'_>> = names
             .iter()
             .map(|name| record.get(name).map_or(Cell::Null, dbase_cell))
@@ -986,15 +1300,9 @@ fn query_structure(stmt: &rusqlite::Statement<'_>, cols: usize) -> Structure {
     }
 }
 
-/// A table or query result from an SQLite database in strictly defensive
-/// read-only mode.
-pub fn read_sqlite(
-    path: &Path,
-    part: SqlitePart<'_>,
-    budget: Budget,
-    sink: &mut dyn RecordSink,
-) -> Result<End, String> {
-    use rusqlite::fallible_iterator::FallibleIterator;
+/// A database opened in strictly defensive read-only mode, with no time limit
+/// yet (see [`limit_sqlite_time`]).
+fn open_sqlite(path: &Path) -> Result<rusqlite::Connection, String> {
     use rusqlite::{Connection, OpenFlags, ffi};
 
     // Open connection strictly READONLY (no URI scheme expansion)
@@ -1003,7 +1311,7 @@ pub fn read_sqlite(
         .to_str()
         .ok_or_else(|| "Invalid UTF-8 in SQLite path".to_string())?;
 
-    let mut conn = Connection::open_with_flags(path_str, flags)
+    let conn = Connection::open_with_flags(path_str, flags)
         .map_err(|e| format!("Failed to open SQLite database: {e}"))?;
 
     // Hardening: Defensive mode + Disable extensions
@@ -1029,14 +1337,36 @@ pub fn read_sqlite(
 
     // Opening a view runs what the file wrote in it: nothing it names may be unsafe.
     let _ = conn.execute_batch("PRAGMA query_only = ON; PRAGMA trusted_schema = OFF;");
+    Ok(conn)
+}
 
-    // A query can take forever without giving a single row.
+/// A query can take forever without giving a single row: SQLite looks at the
+/// budget every so many steps. Without it the query has no limit, so it is
+/// better not to read at all.
+fn limit_sqlite_time(conn: &mut rusqlite::Connection, budget: &Budget) -> Result<(), String> {
     if budget.deadline.is_some() || budget.cancel.is_some() {
         let budget = budget.clone();
-        // Without it the query has no limit: better not to open the file.
         conn.progress_handler(SQLITE_STEPS, Some(move || budget.over()))
             .map_err(|e| format!("Failed to limit the time of the query: {e}"))?;
     }
+    Ok(())
+}
+
+/// What of a database is read: its tables and views, from which of them on
+/// they are views, the SQL that gives the rows, and which table that is.
+struct SqliteChoice {
+    tables: Vec<String>,
+    first_view: usize,
+    query: String,
+    active: usize,
+}
+
+/// Lists the tables and picks the part. `None`: the database has no tables.
+fn choose_sqlite_part(
+    conn: &rusqlite::Connection,
+    part: SqlitePart<'_>,
+) -> Result<Option<SqliteChoice>, String> {
+    use rusqlite::fallible_iterator::FallibleIterator;
 
     // List user tables, then views (bounded to prevent DoS from DB with millions of tables)
     let mut table_stmt = conn
@@ -1054,9 +1384,7 @@ pub fn read_sqlite(
     let tables: Vec<String> = listed.into_iter().map(|(name, _)| name).collect();
 
     if tables.is_empty() && !matches!(part, SqlitePart::Query(_)) {
-        sink.columns(&["Status".to_string()]);
-        let _ = sink.record(&[Cell::Text(Cow::Borrowed("(Database has no tables)"))]);
-        return Ok(End::Complete);
+        return Ok(None);
     }
 
     // A table's name comes from the file: it is only ever a name, never SQL.
@@ -1070,7 +1398,7 @@ pub fn read_sqlite(
             if !reads {
                 return Err(READS_ONLY.to_string());
             }
-            let mut statements = rusqlite::Batch::new(&conn, q);
+            let mut statements = rusqlite::Batch::new(conn, q);
             let first = statements
                 .next()
                 .map_err(|e| format!("SQL statement error: {e}"))?;
@@ -1096,6 +1424,66 @@ pub fn read_sqlite(
         }
         SqlitePart::First => (select(0), 0),
     };
+    Ok(Some(SqliteChoice {
+        tables,
+        first_view,
+        query,
+        active,
+    }))
+}
+
+/// Gives the sink each row SQLite gives, `cols` values of it, until the end,
+/// the sink refusing, or the time running out.
+fn stream_sqlite_rows(
+    mut rows: rusqlite::Rows<'_>,
+    cols: usize,
+    budget: Budget,
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
+    let mut pace = Pace::new(budget);
+    loop {
+        let row = match rows.next() {
+            Ok(Some(row)) => row,
+            Ok(None) => return Ok(End::Complete),
+            Err(e) if is_interrupted(&e) => return Ok(End::OutOfTime),
+            Err(e) => return Err(format!("Row read error: {e}")),
+        };
+        let cells: Vec<Cell<'_>> = (0..cols)
+            .map(|i| match row.get_ref(i) {
+                Ok(rusqlite::types::ValueRef::Null) | Err(_) => Cell::Null,
+                Ok(rusqlite::types::ValueRef::Integer(i)) => Cell::Int(i),
+                Ok(rusqlite::types::ValueRef::Real(r)) => Cell::Float(r),
+                Ok(rusqlite::types::ValueRef::Text(t)) => Cell::Text(String::from_utf8_lossy(t)),
+                Ok(rusqlite::types::ValueRef::Blob(b)) => Cell::Bytes(b),
+            })
+            .collect();
+        if let Some(end) = deliver(&mut pace, sink, &cells) {
+            return Ok(end);
+        }
+    }
+}
+
+/// A table or query result from an SQLite database in strictly defensive
+/// read-only mode.
+pub fn read_sqlite(
+    path: &Path,
+    part: SqlitePart<'_>,
+    budget: Budget,
+    sink: &mut dyn RecordSink,
+) -> Result<End, String> {
+    let mut conn = open_sqlite(path)?;
+    limit_sqlite_time(&mut conn, &budget)?;
+    let Some(SqliteChoice {
+        tables,
+        first_view,
+        query,
+        active,
+    }) = choose_sqlite_part(&conn, part)?
+    else {
+        sink.columns(&["Status".to_string()]);
+        let _ = sink.record(&[Cell::Text(Cow::Borrowed("(Database has no tables)"))]);
+        return Ok(End::Complete);
+    };
     sink.sheets(&tables, active);
     sink.first_view(first_view);
 
@@ -1120,30 +1508,536 @@ pub fn read_sqlite(
         sink.structure(structure);
     }
 
-    let mut rows = stmt
+    let rows = stmt
         .query([])
         .map_err(|e| format!("SQL execution error: {e}"))?;
+    stream_sqlite_rows(rows, cols, budget, sink)
+}
 
-    let mut pace = Pace::new(budget);
-    loop {
-        let row = match rows.next() {
-            Ok(Some(row)) => row,
-            Ok(None) => return Ok(End::Complete),
-            Err(e) if is_interrupted(&e) => return Ok(End::OutOfTime),
-            Err(e) => return Err(format!("Row read error: {e}")),
-        };
-        let cells: Vec<Cell<'_>> = (0..cols)
-            .map(|i| match row.get_ref(i) {
-                Ok(rusqlite::types::ValueRef::Null) | Err(_) => Cell::Null,
-                Ok(rusqlite::types::ValueRef::Integer(i)) => Cell::Int(i),
-                Ok(rusqlite::types::ValueRef::Real(r)) => Cell::Float(r),
-                Ok(rusqlite::types::ValueRef::Text(t)) => Cell::Text(String::from_utf8_lossy(t)),
-                Ok(rusqlite::types::ValueRef::Blob(b)) => Cell::Bytes(b),
-            })
-            .collect();
-        if let Some(end) = deliver(&mut pace, sink, &cells) {
-            return Ok(end);
+/// A table that can be read from any of its rows, again and again, as the
+/// viewer's window over it moves (see `table_window`). Each thread opens its own.
+pub trait RowSource: Send {
+    /// Gives the sink the records from row `from` (from 0) on, as `read_*` do:
+    /// until the end, the sink refusing, or the budget running out.
+    fn read_from(
+        &mut self,
+        from: usize,
+        budget: Budget,
+        sink: &mut dyn RecordSink,
+    ) -> Result<End, String>;
+
+    /// How many rows the table has; `None` if the budget ran out first. On
+    /// the way it may tell `progress` the rows counted so far and, when they
+    /// grow, the columns (the file's names, not yet safe to show).
+    fn count(
+        &mut self,
+        budget: Budget,
+        progress: &mut Progress<'_>,
+    ) -> Result<Option<usize>, String>;
+}
+
+/// What a count says as it goes: the rows so far, and the columns when they grew.
+pub type Progress<'a> = dyn FnMut(usize, Option<&[String]>) + 'a;
+
+/// A table, view or query of a database, read by `LIMIT` and `OFFSET`.
+pub struct SqliteRows {
+    conn: rusqlite::Connection,
+    /// The SQL that gives the rows, to be wrapped as `SELECT * FROM (…)`.
+    query: String,
+    cols: usize,
+}
+
+impl SqliteRows {
+    /// Opens the part of the database as [`read_sqlite`] does, checking a typed
+    /// query in the same way.
+    pub fn open(path: &Path, part: SqlitePart<'_>) -> Result<Self, String> {
+        let conn = open_sqlite(path)?;
+        let choice = choose_sqlite_part(&conn, part)?
+            .ok_or_else(|| "the database has no tables".to_string())?;
+        // Wrapped, a `;` would end the statement early, and a `--` comment
+        // would hide the parenthesis that closes it (hence the line breaks).
+        let query = first_statement(&conn, &choice.query)?
+            .trim_end_matches(|c: char| c == ';' || c.is_whitespace())
+            .to_string();
+        let cols = conn
+            .prepare(&query)
+            .map_err(|e| format!("SQL statement error: {e}"))?
+            .column_count()
+            .min(MAX_COLS);
+        Ok(SqliteRows { conn, query, cols })
+    }
+
+    /// The query, wrapped with `tail`: whatever was typed, it stays one
+    /// statement that only reads.
+    fn wrapped(&self, head: &str, tail: &str) -> Result<rusqlite::Statement<'_>, String> {
+        let sql = format!("{head} (\n{}\n){tail}", self.query);
+        let stmt = self
+            .conn
+            .prepare(&sql)
+            .map_err(|e| format!("SQL statement error: {e}"))?;
+        if !stmt.readonly() {
+            return Err(READS_ONLY.to_string());
         }
+        Ok(stmt)
+    }
+}
+
+/// The text of the first statement of `sql`, up to where SQLite says it ends:
+/// whatever comes after it (a comment, more `;`) is left out.
+fn first_statement<'a>(conn: &rusqlite::Connection, sql: &'a str) -> Result<&'a str, String> {
+    use rusqlite::ffi;
+    let text = std::ffi::CString::new(sql).map_err(|_| "a NUL in the query".to_string())?;
+    let mut stmt = std::ptr::null_mut();
+    let mut tail = std::ptr::null();
+    // SAFETY: the handle is a valid connection, `text` lives through the call
+    // and ends in NUL, and the statement prepared is finalized right away.
+    let rc = unsafe {
+        let rc = ffi::sqlite3_prepare_v2(conn.handle(), text.as_ptr(), -1, &mut stmt, &mut tail);
+        ffi::sqlite3_finalize(stmt);
+        rc
+    };
+    if rc != ffi::SQLITE_OK || tail.is_null() {
+        return Err("SQL statement error: the query could not be read again".to_string());
+    }
+    let end = (tail as usize).saturating_sub(text.as_ptr() as usize);
+    sql.get(..end)
+        .ok_or_else(|| "SQL statement error: the query could not be read again".to_string())
+}
+
+impl RowSource for SqliteRows {
+    fn read_from(
+        &mut self,
+        from: usize,
+        budget: Budget,
+        sink: &mut dyn RecordSink,
+    ) -> Result<End, String> {
+        limit_sqlite_time(&mut self.conn, &budget)?;
+        let cols = self.cols;
+        let mut stmt = self.wrapped("SELECT * FROM", " LIMIT -1 OFFSET ?1")?;
+        let from = i64::try_from(from).map_err(|_| "row out of range".to_string())?;
+        let rows = stmt
+            .query([from])
+            .map_err(|e| format!("SQL execution error: {e}"))?;
+        stream_sqlite_rows(rows, cols, budget, sink)
+    }
+
+    fn count(&mut self, budget: Budget, _: &mut Progress<'_>) -> Result<Option<usize>, String> {
+        limit_sqlite_time(&mut self.conn, &budget)?;
+        let mut stmt = self.wrapped("SELECT count(*) FROM", "")?;
+        match stmt.query_row([], |row| row.get::<_, i64>(0)) {
+            Ok(n) => Ok(Some(usize::try_from(n).unwrap_or(0))),
+            Err(e) if is_interrupted(&e) => Ok(None),
+            Err(e) => Err(format!("SQL execution error: {e}")),
+        }
+    }
+}
+
+/// A file's size and time of its last change: what tells that it is still the
+/// one that was read.
+pub type Stamp = Option<(u64, std::time::SystemTime)>;
+
+pub fn file_stamp(path: &Path) -> Stamp {
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.len(), meta.modified().ok()?))
+}
+
+/// Whether the file is still the one an index was made of.
+fn still(path: &Path, stamp: Stamp) -> Result<(), String> {
+    if file_stamp(path) == stamp {
+        Ok(())
+    } else {
+        Err(FILE_CHANGED.to_string())
+    }
+}
+
+/// What reading a table says when its file is no longer the one it was:
+/// whatever its index knew of it no longer holds.
+pub const FILE_CHANGED: &str = "the file changed: R reloads";
+
+/// The rows from one mark of a [`RowIndex`] to the next.
+pub const MARK_EVERY: usize = 256;
+/// The most marks an index keeps: 32 MiB, and about a billion rows.
+const MAX_MARKS: usize = 1 << 22;
+
+/// Where the rows of a text table start, one row in every [`MARK_EVERY`],
+/// found by its count and shared by every reader of it: reaching row N reads
+/// from the last mark before it. Only in memory.
+pub struct RowIndex(std::sync::Mutex<Marks>);
+
+struct Marks {
+    /// The byte where row `k * MARK_EVERY` starts, for each `k` so far; the
+    /// first is put by the first reader.
+    bytes: Vec<u64>,
+    /// Set when the count reached the end: how many rows the file has.
+    rows: Option<usize>,
+    /// The columns of JSON Lines, in the order the count found them.
+    names: Vec<String>,
+}
+
+impl RowIndex {
+    /// An index with nothing in it yet; JSON Lines starts with the columns
+    /// already found, in the order they were found.
+    pub fn new(names: Vec<String>) -> Arc<Self> {
+        Arc::new(RowIndex(std::sync::Mutex::new(Marks {
+            bytes: Vec::new(),
+            rows: None,
+            names,
+        })))
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, Marks> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Notes that `row` starts at `at`, if it is the next mark to note.
+    /// False when the index is full.
+    fn note(&self, row: usize, at: u64) -> bool {
+        if !row.is_multiple_of(MARK_EVERY) {
+            return true;
+        }
+        let mut marks = self.lock();
+        let k = row / MARK_EVERY;
+        if k == marks.bytes.len() {
+            if k >= MAX_MARKS {
+                return false;
+            }
+            marks.bytes.push(at);
+        }
+        true
+    }
+
+    /// Where a count goes on from: the last mark, or the whole count if it
+    /// is done.
+    fn resume(&self) -> Result<(usize, u64), usize> {
+        let marks = self.lock();
+        if let Some(rows) = marks.rows {
+            return Err(rows);
+        }
+        let k = marks.bytes.len().saturating_sub(1);
+        Ok((k * MARK_EVERY, marks.bytes.get(k).copied().unwrap_or(0)))
+    }
+
+    /// How a count ended: with the rows, out of time, or the index full.
+    fn counted(&self, end: End, rows: usize) -> Result<Option<usize>, String> {
+        match end {
+            End::Complete => {
+                self.lock().rows = Some(rows);
+                Ok(Some(rows))
+            }
+            End::OutOfTime => Ok(None),
+            End::Refused => Err(format!(
+                "over {} rows, the most Xylem counts",
+                thousands(MAX_MARKS * MARK_EVERY)
+            )),
+        }
+    }
+
+    /// The first mark, at the start of the rows, if there is none yet.
+    fn start_at(&self, at: u64) {
+        let mut marks = self.lock();
+        if marks.bytes.is_empty() {
+            marks.bytes.push(at);
+        }
+    }
+
+    /// The last mark at or before `row`: its row and its byte.
+    fn before(&self, row: usize) -> (usize, u64) {
+        let marks = self.lock();
+        let k = (row / MARK_EVERY).min(marks.bytes.len().saturating_sub(1));
+        (k * MARK_EVERY, marks.bytes.get(k).copied().unwrap_or(0))
+    }
+}
+
+/// How a text table is cut into records.
+#[derive(Clone, Copy)]
+enum TextKind {
+    Csv { delimiter: u8 },
+    Jsonl,
+}
+
+/// A record of a text table, as its reader gives it.
+enum TextRecord<'a> {
+    Csv(&'a csv::ByteRecord),
+    Json(&'a JsonObject),
+}
+
+/// A CSV, TSV or JSON Lines file read by its [`RowIndex`]: from the mark
+/// before a row, never more than [`MARK_EVERY`] rows to pass over, once the
+/// count has gone by it.
+pub struct TextRows {
+    path: std::path::PathBuf,
+    /// How the file was when its first rows were read.
+    stamp: Stamp,
+    index: Arc<RowIndex>,
+    kind: TextKind,
+}
+
+impl TextRows {
+    /// A CSV or TSV file, laid out as [`read_csv`] reads it.
+    pub fn csv(
+        path: &Path,
+        delimiter: Option<u8>,
+        stamp: Stamp,
+        index: Arc<RowIndex>,
+    ) -> Result<Self, String> {
+        let mut rows = TextRows {
+            path: path.to_path_buf(),
+            stamp,
+            index,
+            kind: TextKind::Jsonl,
+        };
+        rows.check()?;
+        let budget = Budget::new(Duration::from_secs(10), u64::MAX);
+        let layout = csv_layout(path, delimiter, &budget)?
+            .ok()
+            .filter(|layout| layout.data.is_some())
+            .ok_or_else(|| FILE_CHANGED.to_string())?;
+        rows.kind = TextKind::Csv {
+            delimiter: layout.delimiter,
+        };
+        rows.index.start_at(layout.data.unwrap_or(0));
+        Ok(rows)
+    }
+
+    /// A JSON Lines file.
+    pub fn jsonl(path: &Path, stamp: Stamp, index: Arc<RowIndex>) -> Result<Self, String> {
+        let rows = TextRows {
+            path: path.to_path_buf(),
+            stamp,
+            index,
+            kind: TextKind::Jsonl,
+        };
+        rows.check()?;
+        rows.index.start_at(0);
+        Ok(rows)
+    }
+
+    fn check(&self) -> Result<(), String> {
+        still(&self.path, self.stamp)
+    }
+
+    fn each_record(
+        &self,
+        from: u64,
+        budget: &Budget,
+        mut each: impl FnMut(u64, TextRecord<'_>) -> ControlFlow<End>,
+    ) -> Result<End, String> {
+        let file = File::open(&self.path).map_err(|_| FILE_CHANGED.to_string())?;
+        match self.kind {
+            TextKind::Csv { delimiter } => {
+                each_csv_record(file, delimiter, from, budget, |at, r| {
+                    each(at, TextRecord::Csv(r))
+                })
+            }
+            TextKind::Jsonl => {
+                each_json_object(file, from, budget, |at, m| each(at, TextRecord::Json(m)))
+            }
+        }
+    }
+}
+
+impl RowSource for TextRows {
+    fn read_from(
+        &mut self,
+        from: usize,
+        budget: Budget,
+        sink: &mut dyn RecordSink,
+    ) -> Result<End, String> {
+        self.check()?;
+        let (mut row, byte) = self.index.before(from);
+        let mut columns = JsonColumns::of(&self.index.lock().names);
+        let mut pace = Pace::new(budget.clone());
+        let end = self.each_record(byte, &budget, |_, record| {
+            // The keys of the rows passed over count too, as in the count.
+            if let TextRecord::Json(map) = record {
+                columns.learn(map);
+            }
+            let at = row;
+            row += 1;
+            if at < from {
+                return ControlFlow::Continue(());
+            }
+            let cells = match record {
+                TextRecord::Csv(r) => text_cells(r),
+                TextRecord::Json(map) => columns.cells(map),
+            };
+            match deliver(&mut pace, sink, &cells) {
+                Some(end) => ControlFlow::Break(end),
+                None => ControlFlow::Continue(()),
+            }
+        })?;
+        // Changed while it was read: what was read may not be its rows.
+        self.check()?;
+        Ok(end)
+    }
+
+    fn count(
+        &mut self,
+        budget: Budget,
+        progress: &mut Progress<'_>,
+    ) -> Result<Option<usize>, String> {
+        self.check()?;
+        // From the last mark: a count stopped before goes on from there.
+        let (mut row, byte) = match self.index.resume() {
+            Ok(from) => from,
+            Err(rows) => return Ok(Some(rows)),
+        };
+        let mut columns = JsonColumns::of(&self.index.lock().names);
+        let index = self.index.clone();
+        let end = self.each_record(byte, &budget, |start, record| {
+            if !index.note(row, start) {
+                return ControlFlow::Break(End::Refused);
+            }
+            if let TextRecord::Json(map) = record
+                && columns.learn(map)
+            {
+                index.lock().names = columns.names.clone();
+                progress(row, Some(&columns.names));
+            }
+            row += 1;
+            if row.is_multiple_of(4096) {
+                progress(row, None);
+            }
+            ControlFlow::Continue(())
+        })?;
+        progress(row, None);
+        self.check()?;
+        self.index.counted(end, row)
+    }
+}
+
+/// The names of a dBase file's first [`MAX_COLS`] fields.
+fn dbf_names(reader: &DbfReader) -> Vec<String> {
+    reader
+        .fields()
+        .iter()
+        .take(MAX_COLS)
+        .map(|f| f.name().to_string())
+        .collect()
+}
+
+/// The flag of a record that was deleted: the reader passes over it.
+const DBF_DELETED: u8 = 0x2A;
+
+/// A dBase file read by its [`RowIndex`], whose marks are numbers of
+/// records: the records have a fixed size, so the reader goes straight to
+/// one, and the index is there for the deleted ones, which are not rows.
+pub struct DbfRows {
+    path: std::path::PathBuf,
+    stamp: Stamp,
+    index: Arc<RowIndex>,
+}
+
+impl DbfRows {
+    pub fn open(path: &Path, stamp: Stamp, index: Arc<RowIndex>) -> Result<Self, String> {
+        still(path, stamp)?;
+        index.start_at(0);
+        Ok(DbfRows {
+            path: path.to_path_buf(),
+            stamp,
+            index,
+        })
+    }
+}
+
+/// Passes over the first `left` records it gets, then hands them on.
+struct Skip<'a> {
+    left: usize,
+    sink: &'a mut dyn RecordSink,
+}
+
+impl RecordSink for Skip<'_> {
+    fn sheets(&mut self, _: &[String], _: usize) {}
+    fn columns(&mut self, _: &[String]) {}
+    fn columns_cut(&mut self) {}
+
+    fn record(&mut self, cells: &[Cell<'_>]) -> ControlFlow<()> {
+        if self.left > 0 {
+            self.left -= 1;
+            return ControlFlow::Continue(());
+        }
+        self.sink.record(cells)
+    }
+}
+
+impl RowSource for DbfRows {
+    fn read_from(
+        &mut self,
+        from: usize,
+        budget: Budget,
+        sink: &mut dyn RecordSink,
+    ) -> Result<End, String> {
+        still(&self.path, self.stamp)?;
+        let (row, record) = self.index.before(from);
+        let (mut reader, edge) = open_dbf(&self.path, &budget)?;
+        let record = usize::try_from(record).map_err(|_| FILE_CHANGED.to_string())?;
+        reader
+            .seek(record)
+            .map_err(|e| format!("Error reading DBF record: {e}"))?;
+        let names = dbf_names(&reader);
+        let mut skip = Skip {
+            left: from - row,
+            sink,
+        };
+        let end = each_dbf_record(&mut reader, &edge, &budget, &names, &mut skip)?;
+        still(&self.path, self.stamp)?;
+        Ok(end)
+    }
+
+    fn count(
+        &mut self,
+        budget: Budget,
+        progress: &mut Progress<'_>,
+    ) -> Result<Option<usize>, String> {
+        still(&self.path, self.stamp)?;
+        let (mut row, mut record) = match self.index.resume() {
+            Ok(from) => from,
+            Err(rows) => return Ok(Some(rows)),
+        };
+        let (first, size, records) = {
+            let (reader, _) = open_dbf(&self.path, &budget)?;
+            let header = reader.header();
+            (
+                u64::from(header.offset_to_first_record),
+                u64::from(header.size_of_record).max(1),
+                u64::from(header.num_records),
+            )
+        };
+        // Only the flag of each record is looked at, in one pass over them.
+        let mut file = File::open(&self.path).map_err(|_| FILE_CHANGED.to_string())?;
+        file.seek(std::io::SeekFrom::Start(first + record * size))
+            .map_err(|e| format!("Error reading DBF record: {e}"))?;
+        let mut reader = BufReader::with_capacity(1 << 16, Stoppable::new(file, budget.clone()));
+        let mut buf = vec![0; usize::try_from(size).unwrap_or(1)];
+        let mut end = End::Complete;
+        while record < records {
+            match reader.read_exact(&mut buf) {
+                Ok(()) => {}
+                // A file shorter than its header says: its last whole record.
+                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+                Err(_) if budget.over() => {
+                    end = End::OutOfTime;
+                    break;
+                }
+                Err(e) => return Err(format!("Error reading DBF record: {e}")),
+            }
+            if buf[0] != DBF_DELETED {
+                if !self.index.note(row, record) {
+                    end = End::Refused;
+                    break;
+                }
+                row += 1;
+                if row.is_multiple_of(4096) {
+                    progress(row, None);
+                }
+            }
+            record += 1;
+        }
+        progress(row, None);
+        still(&self.path, self.stamp)?;
+        self.index.counted(end, row)
     }
 }
 
@@ -2215,5 +3109,314 @@ mod tests {
         read_csv(file.path(), None, Budget::unlimited(), &mut sink).unwrap();
         assert_eq!(sink.columns.len(), MAX_COLS);
         assert!(sink.cut);
+    }
+
+    /// A text table read through its index, with `marks` as the index.
+    fn indexed(path: &Path, json: bool, marks: Vec<u64>) -> TextRows {
+        let index = RowIndex::new(Vec::new());
+        index.lock().bytes = marks;
+        TextRows {
+            path: path.to_path_buf(),
+            stamp: file_stamp(path),
+            index,
+            kind: if json {
+                TextKind::Jsonl
+            } else {
+                TextKind::Csv { delimiter: b',' }
+            },
+        }
+    }
+
+    #[test]
+    fn the_index_reaches_a_row_past_quoted_line_breaks() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("q.csv");
+        let mut body = String::from("n,note\n");
+        for n in 0..1_000 {
+            body.push_str(&format!("{n},\"a\nb,\"\"{n}\"\"\"\n"));
+        }
+        std::fs::write(&path, &body).unwrap();
+        let mut rows =
+            TextRows::csv(&path, None, file_stamp(&path), RowIndex::new(Vec::new())).unwrap();
+        let counted = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap();
+        assert_eq!(counted, Some(1_000));
+        assert_eq!(rows.index.lock().bytes.len(), 4, "a mark every 256 rows");
+        for from in [0, 255, 256, 257, 700, 999] {
+            let mut sink = Collect {
+                stop: Some(1),
+                ..Default::default()
+            };
+            rows.read_from(from, Budget::unlimited(), &mut sink)
+                .unwrap();
+            let want = [text(&from.to_string()), text(&format!("a\nb,\"{from}\""))];
+            assert_eq!(sink.rows[0], want);
+        }
+        let mut sink = Collect::default();
+        let end = rows
+            .read_from(1_000, Budget::unlimited(), &mut sink)
+            .unwrap();
+        assert_eq!((end, sink.rows.len()), (End::Complete, 0));
+    }
+
+    #[test]
+    fn a_csv_record_too_long_stops_the_reading() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("long.csv");
+        let mut bytes = b"a,b\n1,".to_vec();
+        bytes.resize(bytes.len() + (MAX_RECORD_BYTES as usize) + 1, b'x');
+        std::fs::write(&path, &bytes).unwrap();
+        let mut sink = Collect::default();
+        let e = read_csv(&path, None, Budget::unlimited(), &mut sink).unwrap_err();
+        assert_eq!(e, "a record longer than 16 MiB");
+    }
+
+    #[test]
+    fn a_json_line_too_long_is_passed_over_whole() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("long.jsonl");
+        let long = format!(
+            "{{\"pad\": \"{}\"}} {{\"n\": 2}}\n",
+            "x".repeat(MAX_LINE_BYTES as usize)
+        );
+        // A line too long, one not UTF-8, and records around them.
+        let mut body = format!("{{\"n\": 1}}\n{long}").into_bytes();
+        body.extend_from_slice(b"{\"n\": \xff}\n{\"n\": 3}\n");
+        std::fs::write(&path, body).unwrap();
+        let mut sink = Collect::default();
+        read_jsonl(&path, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!(sink.rows, [[Owned::Int(1)], [Owned::Int(3)]]);
+    }
+
+    #[test]
+    fn a_changed_file_is_never_read_by_its_old_index() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("c.csv");
+        std::fs::write(&path, "n\n1\n2\n").unwrap();
+        let mut rows = indexed(&path, false, vec![2]);
+        std::fs::write(&path, "n\n1\n2\n3\n").unwrap();
+        let mut sink = Collect::default();
+        let e = rows
+            .read_from(0, Budget::unlimited(), &mut sink)
+            .unwrap_err();
+        assert_eq!((e.as_str(), sink.rows.len()), (FILE_CHANGED, 0));
+        let e = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap_err();
+        assert_eq!(e, FILE_CHANGED);
+    }
+
+    /// A dBase III file with a number `N` and a memo `M` per record, and its
+    /// `.dbt`, made by hand: the crate writes no memo files. Records listed in
+    /// `deleted` are flagged as deleted.
+    fn memo_dbf(dir: &Path, memos: &[&str], deleted: &[usize]) -> std::path::PathBuf {
+        let path = dir.join("m.dbf");
+        let fields: [(&[u8], u8, u8); 2] = [(b"N", b'N', 6), (b"M", b'M', 10)];
+        let size = 1 + fields.iter().map(|f| u16::from(f.2)).sum::<u16>();
+        let header_len = 32 + 32 * fields.len() as u16 + 1;
+        let mut dbf = vec![0x83, 126, 11, 13];
+        dbf.extend((memos.len() as u32).to_le_bytes());
+        dbf.extend(header_len.to_le_bytes());
+        dbf.extend(size.to_le_bytes());
+        dbf.resize(32, 0);
+        for (name, kind, len) in fields {
+            let mut field = name.to_vec();
+            field.resize(11, 0);
+            field.push(kind);
+            field.extend([0; 4]);
+            field.extend([len, 0]);
+            field.resize(32, 0);
+            dbf.extend(field);
+        }
+        dbf.push(0x0D);
+        // Block 0 says where the free blocks start; memo `i` is block `i + 1`.
+        let mut dbt = vec![0; 512];
+        dbt[..4].copy_from_slice(&(memos.len() as u32 + 1).to_le_bytes());
+        for (i, memo) in memos.iter().enumerate() {
+            dbf.push(if deleted.contains(&i) {
+                DBF_DELETED
+            } else {
+                b' '
+            });
+            dbf.extend(format!("{i:>6}{:>10}", i + 1).into_bytes());
+            let mut block = memo.as_bytes().to_vec();
+            block.extend([0x1A, 0x1A]);
+            block.resize(512, 0);
+            dbt.extend(block);
+        }
+        dbf.push(0x1A);
+        std::fs::write(&path, dbf).unwrap();
+        std::fs::write(path.with_extension("dbt"), dbt).unwrap();
+        path
+    }
+
+    #[test]
+    fn a_dbf_with_memos_reads_them_from_its_dbt() {
+        let tmp = crate::testing::tempdir();
+        let path = memo_dbf(tmp.path(), &["first note", "second"], &[]);
+        let mut sink = Collect::default();
+        read_dbf(&path, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!(sink.columns, ["N", "M"]);
+        assert_eq!(sink.rows[0][1], text("first note"));
+        assert_eq!(sink.rows[1][1], text("second"));
+        // Without its memo file it does not open, as the crate's own reader.
+        std::fs::remove_file(path.with_extension("dbt")).unwrap();
+        let e = read_dbf(&path, Budget::unlimited(), &mut Collect::default()).unwrap_err();
+        assert!(e.contains("the memo file could not be opened"), "{e}");
+    }
+
+    #[test]
+    fn a_dbf_is_read_by_its_rows_passing_over_the_deleted_records() {
+        let tmp = crate::testing::tempdir();
+        let memos: Vec<String> = (0..1_000).map(|i| format!("m{i}")).collect();
+        let memos: Vec<&str> = memos.iter().map(String::as_str).collect();
+        // The first record, a run across a mark, and the last are deleted.
+        let mut deleted = vec![0, 999];
+        deleted.extend(250..270);
+        let path = memo_dbf(tmp.path(), &memos, &deleted);
+        let stamp = file_stamp(&path);
+        let mut rows = DbfRows::open(&path, stamp, RowIndex::new(Vec::new())).unwrap();
+        let counted = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap();
+        assert_eq!(counted, Some(1_000 - 22));
+        // Row r is the r-th record not deleted.
+        let live: Vec<usize> = (0..1_000).filter(|i| !deleted.contains(i)).collect();
+        for from in [0, 1, 248, 249, 255, 256, 600, 977] {
+            let mut sink = Collect {
+                stop: Some(1),
+                ..Default::default()
+            };
+            rows.read_from(from, Budget::unlimited(), &mut sink)
+                .unwrap();
+            let n = live[from];
+            assert_eq!(sink.rows[0][1], text(&format!("m{n}")), "row {from}");
+        }
+        // Past the last one the records end, with nothing made up.
+        let mut sink = Collect::default();
+        let end = rows.read_from(970, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!((end, sink.rows.len()), (End::Complete, 8));
+        let end = rows.read_from(978, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!((end, sink.rows.len()), (End::Complete, 8));
+        // And the file that changed is not read.
+        std::fs::write(&path, b"other").unwrap();
+        let e = rows
+            .read_from(0, Budget::unlimited(), &mut sink)
+            .unwrap_err();
+        assert_eq!(e, FILE_CHANGED);
+    }
+
+    #[test]
+    fn a_dbf_shorter_than_its_header_counts_its_whole_records() {
+        let tmp = crate::testing::tempdir();
+        let path = memo_dbf(tmp.path(), &["a", "b", "c"], &[]);
+        let bytes = std::fs::read(&path).unwrap();
+        // Half of the last record gone.
+        std::fs::write(&path, &bytes[..bytes.len() - 9]).unwrap();
+        let mut rows = DbfRows::open(&path, file_stamp(&path), RowIndex::new(Vec::new())).unwrap();
+        let counted = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap();
+        assert_eq!(counted, Some(2));
+    }
+
+    /// Stops the reading (as Esc does) at its `at`-th record.
+    struct StopAt(Arc<AtomicBool>, usize);
+
+    impl RecordSink for StopAt {
+        fn sheets(&mut self, _: &[String], _: usize) {}
+        fn columns(&mut self, _: &[String]) {}
+        fn columns_cut(&mut self) {}
+        fn record(&mut self, _: &[Cell<'_>]) -> ControlFlow<()> {
+            self.1 = self.1.saturating_sub(1);
+            if self.1 == 0 {
+                self.0.store(true, Ordering::Relaxed);
+            }
+            ControlFlow::Continue(())
+        }
+    }
+
+    /// Esc in the middle of the count and of the filter's scan: both stop,
+    /// and the count goes on from its last mark to the right total.
+    fn esc_stops_and_the_count_goes_on(rows: &mut dyn RowSource, total: usize) {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let budget = Budget::cancellable(u64::MAX, cancel.clone());
+        let mut seen = 0;
+        let stopped = rows
+            .count(budget, &mut |n, _| {
+                seen = n;
+                if n >= 8_192 {
+                    cancel.store(true, Ordering::Relaxed);
+                }
+            })
+            .unwrap();
+        assert_eq!(stopped, None, "Esc stopped the count");
+        assert!((8_192..total).contains(&seen), "{seen}");
+        let counted = rows.count(Budget::unlimited(), &mut |_, _| {}).unwrap();
+        assert_eq!(counted, Some(total));
+
+        let cancel = Arc::new(AtomicBool::new(false));
+        let budget = Budget::cancellable(u64::MAX, cancel.clone());
+        let mut sink = StopAt(cancel, 5_000);
+        let end = rows.read_from(0, budget, &mut sink).unwrap();
+        assert_eq!(end, End::OutOfTime, "Esc stopped the scan");
+    }
+
+    #[test]
+    fn esc_stops_a_text_tables_count_and_scan() {
+        let tmp = crate::testing::tempdir();
+        let csv = tmp.path().join("e.csv");
+        let jsonl = tmp.path().join("e.jsonl");
+        let (mut a, mut b) = (String::from("n\n"), String::new());
+        for n in 0..300_000 {
+            a.push_str(&format!("{n}\n"));
+            b.push_str(&format!("{{\"n\": {n}}}\n"));
+        }
+        std::fs::write(&csv, a).unwrap();
+        std::fs::write(&jsonl, b).unwrap();
+        let index = RowIndex::new(Vec::new());
+        let mut rows = TextRows::csv(&csv, None, file_stamp(&csv), index).unwrap();
+        esc_stops_and_the_count_goes_on(&mut rows, 300_000);
+        let index = RowIndex::new(vec!["n".to_string()]);
+        let mut rows = TextRows::jsonl(&jsonl, file_stamp(&jsonl), index).unwrap();
+        esc_stops_and_the_count_goes_on(&mut rows, 300_000);
+    }
+
+    #[test]
+    fn esc_stops_a_dbfs_count_and_scan() {
+        let tmp = crate::testing::tempdir();
+        let memos: Vec<String> = (0..100_000).map(|i| i.to_string()).collect();
+        let memos: Vec<&str> = memos.iter().map(String::as_str).collect();
+        let path = memo_dbf(tmp.path(), &memos, &[7]);
+        let index = RowIndex::new(Vec::new());
+        let mut rows = DbfRows::open(&path, file_stamp(&path), index).unwrap();
+        esc_stops_and_the_count_goes_on(&mut rows, 99_999);
+    }
+
+    proptest::proptest! {
+        /// Marks that point anywhere (the middle of a record, past the end)
+        /// in any bytes give errors or odd rows, never a panic.
+        #[test]
+        fn hostile_marks_never_panic(
+            bytes in proptest::collection::vec(proptest::num::u8::ANY, 0..2048),
+            marks in proptest::collection::vec(proptest::num::u64::ANY, 1..6),
+            near in proptest::collection::vec(0u64..2100, 1..6),
+            from in 0usize..1_500,
+            json in proptest::bool::ANY,
+        ) {
+            let tmp = crate::testing::tempdir();
+            let path = tmp.path().join("t");
+            std::fs::write(&path, &bytes).unwrap();
+            for marks in [marks, near] {
+                let mut rows = indexed(&path, json, marks.clone());
+                let _ = rows.read_from(from, Budget::unlimited(), &mut Collect::default());
+                let _ = rows.count(Budget::unlimited(), &mut |_, _| {});
+                let _ = rows.read_from(from, Budget::unlimited(), &mut Collect::default());
+                // A dBase header on the same bytes, with marks as records.
+                let mut dbf = vec![0x03, 126, 1, 1];
+                dbf.extend(bytes.iter().take(28));
+                dbf.extend_from_slice(&bytes);
+                std::fs::write(&path, &dbf).unwrap();
+                let index = RowIndex::new(Vec::new());
+                index.lock().bytes = marks;
+                let mut rows = DbfRows { path: path.clone(), stamp: file_stamp(&path), index };
+                let _ = rows.read_from(from, Budget::unlimited(), &mut Collect::default());
+                let _ = rows.count(Budget::unlimited(), &mut |_, _| {});
+                std::fs::write(&path, &bytes).unwrap();
+            }
+        }
     }
 }
