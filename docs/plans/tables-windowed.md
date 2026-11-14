@@ -8,11 +8,12 @@ o `less` (subprojeto 3 de [viewers.md](viewers.md)), e abre caminho para os logs
 **Estado: aprovado pelo autor em 2026-11-13, com as recomendações abaixo ("Decisões"),
 para a 0.8.0.** Em implementação na branch `tables-windowed`:
 
-- **Feitas:** fatia 4 (2951f8e), fatia 1 (5277b52) e fatia 2. A janela está em
-  `src/viewer/table_window.rs`: `Window`, as threads de leitura, contagem e filtro, e o
-  trait `RowSource` em `records.rs`, com `SqliteRows` e `TextRows` (CSV, TSV, JSONL) como
-  fontes. A grade (`table.rs`) usa `row`, `file_row`, `known_rows` e `total_text`, e o
-  viewer chama `poll_window`, `pause_window` e `resume_window`.
+- **Feitas:** fatia 4 (2951f8e), fatia 1 (5277b52), fatia 2 (2c47cff) e fatia 3. A
+  janela está em `src/viewer/table_window.rs`: `Window`, as threads de leitura, contagem
+  e filtro, e o trait `RowSource` em `records.rs`, com `SqliteRows`, `TextRows` (CSV,
+  TSV, JSONL) e `DbfRows` como fontes. A grade (`table.rs`) usa `row`, `file_row`,
+  `known_rows` e `total_text`, e o viewer chama `poll_window`, `pause_window` e
+  `resume_window`.
 - **Fatia 2, como ficou:**
   - `RowIndex` (em `records.rs`) guarda o byte de uma linha a cada 256, compartilhado por
     todas as threads da janela; quem o preenche é a contagem, que retoma da última marca
@@ -35,7 +36,19 @@ para a 0.8.0.** Em implementação na branch `tables-windowed`:
     (`TABLE_PEEK`); o resto é lido (`fill_text`) ao ir para T ou H, se a tabela não abrir,
     ou ao voltar ao texto num reload. Na tabela, o cabeçalho não diz mais `(showing first
     N MiB)` nem os controles bidi do texto.
-- **Próxima:** fatia 3, o DBF pelo `seek`.
+- **Fatia 3, como ficou:** `DbfRows` em `records.rs`, com o mesmo `RowIndex`, mas as
+  marcas são números de registro, não bytes: um registro apagado não é linha, então a
+  linha N não é o registro N. A contagem só lê a marca de apagado de cada registro, numa
+  passada; a leitura vai à marca pelo `seek` do `dbase` e passa por no máximo 255 linhas.
+  - O `dbase` 0.8 não para depois de um `seek`: o iterador conta desde 0 até
+    `num_records` e leria além do fim. Por isso o arquivo fica sob um `DbfFile`, que
+    termina onde o cabeçalho diz que os registros terminam (e para com o tempo e o Esc).
+  - O leitor é montado pelo `ReaderBuilder` sobre esse arquivo, também para as primeiras
+    linhas (`read_dbf`), e o arquivo de memo é escolhido como no `from_path` do crate
+    (`.fpt` nas versões FoxPro, `.dbt` nas outras), já que ele não expõe essa escolha.
+  - Um arquivo mais curto que o cabeçalho conta só os registros inteiros.
+- **Próxima:** ao fim, o manual nas 6 línguas, as notas da 0.8.0, o BACKLOG e o
+  `viewers.md` (abaixo).
 - **Manual:** durante o desenvolvimento, só o inglês (`docs/manual/viewer.md`, seção
   "Big tables"); as traduções ficam pendentes no BACKLOG.
 

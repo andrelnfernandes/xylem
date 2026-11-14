@@ -478,6 +478,7 @@ impl Viewer {
             "jsonl" | "ndjson" if windowed => tabular_loader::load_jsonl_windowed(&path, budget),
             "jsonl" | "ndjson" => tabular_loader::load_jsonl(&path, budget),
             "xlsx" | "ods" | "xls" | "xlsb" => tabular_loader::load_spreadsheet(&path, 0, budget),
+            "dbf" if windowed => tabular_loader::load_dbf_windowed(&path, budget),
             "dbf" => tabular_loader::load_dbf(&path, budget),
             "sqlite" | "sqlite3" | "db" => load_sqlite(&path, records::SqlitePart::First, budget),
             "parquet" => tabular_loader::load_parquet(&path, budget),
@@ -5072,6 +5073,63 @@ mod tests {
             v.note.as_deref(),
             Some("Table mode: a record longer than 16 MiB")
         );
+    }
+
+    /// A dBase file of `rows` records, `N` from 0; every seventh is deleted.
+    fn big_dbf(dir: &Path, rows: usize) -> PathBuf {
+        use dbase::{FieldName, FieldValue, Record, TableWriterBuilder};
+        let path = dir.join("big.dbf");
+        let mut writer = TableWriterBuilder::new()
+            .add_numeric_field(FieldName::try_from("N").unwrap(), 9, 0)
+            .build_with_file_dest(&path)
+            .unwrap();
+        for n in 0..rows {
+            let mut record = Record::default();
+            record.insert("N".into(), FieldValue::Numeric(Some(n as f64)));
+            writer.write_record(&record).unwrap();
+        }
+        drop(writer);
+        // The writer has no deleted records: flag them by hand.
+        let mut bytes = std::fs::read(&path).unwrap();
+        let first = u16::from_le_bytes([bytes[8], bytes[9]]) as usize;
+        let size = u16::from_le_bytes([bytes[10], bytes[11]]) as usize;
+        for n in (0..rows).filter(|n| n % 7 == 3) {
+            bytes[first + n * size] = 0x2A;
+        }
+        std::fs::write(&path, bytes).unwrap();
+        path
+    }
+
+    #[test]
+    fn a_big_dbf_is_seen_to_its_last_row() {
+        let tmp = crate::testing::tempdir();
+        let path = big_dbf(tmp.path(), 70_000);
+        let mut v = view_big(&path);
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.total_text(), "60,000", "the deleted ones are not rows");
+        assert_eq!(t.cut, None);
+        // Row r is the r-th of those not deleted.
+        let live = |row: usize| (0..70_000).filter(|n| n % 7 != 3).nth(row).unwrap();
+        ctrl(&mut v, KeyCode::End);
+        settle(&mut v);
+        assert_eq!(cell(&v), "69999");
+        for _ in 0..20 {
+            press(&mut v, KeyCode::PageUp);
+            settle(&mut v);
+            let row = v.table.as_ref().unwrap().cursor_file_row() - 1;
+            assert_eq!(cell(&v), live(row).to_string());
+        }
+        let rows = v.grid_rows();
+        v.table.as_mut().unwrap().goto_row(30_001, rows);
+        settle(&mut v);
+        assert_eq!(cell(&v), live(30_000).to_string());
+        // The filter goes over all of it too.
+        v.sql_prompt("N >= 69990");
+        settle(&mut v);
+        let t = v.table.as_ref().unwrap();
+        assert_eq!(t.visible_row_count(), 9);
+        assert!(kept(&v) <= table_window::WINDOW_ROWS);
     }
 
     #[test]
