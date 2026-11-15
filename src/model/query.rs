@@ -591,6 +591,16 @@ pub enum Known {
     Binary,
 }
 
+/// Tells what a file is, as Alt+F shows it, from where the window reads its
+/// files: the disk, an open archive (by its name only), or a remote machine.
+pub type TypeOf = Box<dyn Fn(&Path, &FileEntry) -> String>;
+
+/// What a file is, read from this machine's disk, for the tests.
+#[cfg(test)]
+pub fn local_type() -> TypeOf {
+    Box::new(|path, f| crate::filetype::describe(path, f.kind, f.size, true))
+}
+
 /// The index's answer for a file, when it has the file as it is now.
 pub type IndexAnswer<'a> = &'a dyn Fn(&Candidate) -> Option<Known>;
 
@@ -600,6 +610,8 @@ pub type IndexAnswer<'a> = &'a dyn Fn(&Candidate) -> Option<Known>;
 pub struct ContentJob {
     query: FileQuery,
     open: Opener,
+    /// For the `type` column.
+    type_of: TypeOf,
     /// The files to read, and how many of them are done.
     items: Vec<Item>,
     next: usize,
@@ -620,6 +632,7 @@ impl ContentJob {
         query: FileQuery,
         candidates: Vec<Candidate>,
         open: Opener,
+        type_of: TypeOf,
         now: SystemTime,
         index: IndexAnswer<'_>,
     ) -> Self {
@@ -634,14 +647,7 @@ impl ContentJob {
                 depth: c.depth,
             };
             let mut found = vec![None; terms];
-            let lazy_type: &dyn Fn() -> Option<String> = &|| {
-                Some(crate::filetype::describe(
-                    &c.path,
-                    c.file.kind,
-                    c.file.size,
-                    true,
-                ))
-            };
+            let lazy_type: &dyn Fn() -> Option<String> = &|| Some(type_of(&c.path, &c.file));
             let ctx = QueryContext {
                 place: Some(place),
                 git: c.git.as_deref(),
@@ -680,6 +686,7 @@ impl ContentJob {
         ContentJob {
             query,
             open,
+            type_of,
             items,
             next: 0,
             reading: None,
@@ -737,14 +744,8 @@ impl ContentJob {
             dir: &item.c.dir,
             depth: item.c.depth,
         };
-        let lazy_type: &dyn Fn() -> Option<String> = &|| {
-            Some(crate::filetype::describe(
-                &item.c.path,
-                item.c.file.kind,
-                item.c.file.size,
-                true,
-            ))
-        };
+        let type_of = &self.type_of;
+        let lazy_type: &dyn Fn() -> Option<String> = &|| Some(type_of(&item.c.path, &item.c.file));
         let ctx = QueryContext {
             place: Some(place),
             git: item.c.git.as_deref(),
@@ -1088,6 +1089,7 @@ mod tests {
             q,
             list,
             Box::new(crate::search::open_file),
+            local_type(),
             SystemTime::now(),
             &|_| None,
         );
@@ -1219,6 +1221,7 @@ mod tests {
             q,
             list,
             Box::new(crate::search::open_file),
+            local_type(),
             SystemTime::now(),
             &index,
         );

@@ -415,6 +415,7 @@ impl App {
             query,
             candidates,
             self.content_opener(),
+            self.type_of(),
             std::time::SystemTime::now(),
             &|c| lookup.answer(c),
         );

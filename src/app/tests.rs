@@ -5303,3 +5303,31 @@ fn search_box_navigation_and_esc() {
     press(&mut app, KeyCode::Esc);
     assert!(app.search_box.is_none());
 }
+
+/// The search runs in `tick`, which the main loop calls only while `busy()`:
+/// the box once waited there for ever, and found nothing.
+#[test]
+#[cfg(feature = "index")]
+fn the_search_box_keeps_the_loop_awake_until_it_has_searched() {
+    let (tmp, mut app) = sample();
+    crate::index::TEST_BASE.with_borrow_mut(|b| *b = Some(tmp.path().join(".indexes")));
+    app.apply(Command::Branch);
+    app.apply(Command::Back);
+    alt(&mut app, 'n');
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+    app.apply(Command::Branch);
+    press(&mut app, KeyCode::Char('p'));
+    assert!(!app.busy(), "an empty box has nothing to do");
+    type_text(&mut app, "main");
+    assert!(app.busy(), "the typing waits for a tick");
+    // As the main loop does.
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+    let sb = app.search_box.as_ref().unwrap();
+    assert_eq!(sb.results.len(), 1);
+    assert_eq!(sb.results[0].name, "a.rs");
+}

@@ -934,13 +934,9 @@ impl App {
             _ => {
                 let old_text = sb.input.text.clone();
                 sb.input.handle_key(key);
+                // The search runs in `tick`, once the typing pauses.
                 if sb.input.text != old_text {
                     sb.last_edit = Instant::now();
-                    #[cfg(test)]
-                    {
-                        let pane = &self.panes[self.active];
-                        sb.update_search(pane);
-                    }
                 }
             }
         }
