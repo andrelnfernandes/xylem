@@ -6,9 +6,8 @@
 //! unindexed files are read on confirmation.
 
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::io::BufRead;
+use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
 use crate::input::LineInput;
@@ -44,6 +43,10 @@ pub struct SearchBox {
     pub unindexed_job: Option<ContentJob>,
     pub reading_unindexed: bool,
     pub confirming_unindexed: bool,
+    /// Opens a result for its snippet, as the pane reads its files (on disk,
+    /// or inside an open archive); `None` on a remote machine, where the
+    /// screen would wait for the network.
+    open: Option<crate::search::Opener>,
 }
 
 /// Maximum bytes read from a single file to find a snippet.
@@ -106,17 +109,11 @@ pub fn sanitize_snippet(line: &str, terms: &[Term], max_len: usize) -> String {
         .flatten()
         .collect();
 
-    let clean_lower = clean.to_lowercase();
-    let mut first_match_char_idx = None;
-    for pat in &pats {
-        if let Some(byte_idx) = clean_lower.find(&pat.word) {
-            let char_idx = clean[..byte_idx].chars().count();
-            first_match_char_idx = Some(match first_match_char_idx {
-                Some(cur) => usize::min(cur, char_idx),
-                None => char_idx,
-            });
-        }
-    }
+    // Where the first word that matches starts, in characters of `clean`.
+    // Found word by word, as `words()` sees them: a lower case letter can
+    // take more or fewer bytes than its capital, so a position in a lower
+    // case copy of the text is not one in `clean`.
+    let first_match_char_idx = first_match(clean, &pats);
 
     let total_chars = clean.chars().count();
     if total_chars <= max_len {
@@ -140,9 +137,33 @@ pub fn sanitize_snippet(line: &str, terms: &[Term], max_len: usize) -> String {
     result
 }
 
-/// Opens `path` safely and reads up to 1 MB / 1000 lines to find the first line
-/// where the words of `terms` appear.
-pub fn find_snippet(path: &Path, terms: &[Term]) -> Option<(usize, String)> {
+/// The position, in characters, of the first word of `text` that one of
+/// `pats` takes.
+fn first_match(text: &str, pats: &[&WordPat]) -> Option<usize> {
+    let mut word = String::new();
+    let mut start = 0;
+    for (i, c) in text.chars().chain(std::iter::once(' ')).enumerate() {
+        if c.is_alphanumeric() {
+            if word.is_empty() {
+                start = i;
+            }
+            word.push(c);
+        } else if !word.is_empty() {
+            let found = words_of(&word)
+                .first()
+                .is_some_and(|w| pats.iter().any(|p| p.matches(w)));
+            if found {
+                return Some(start);
+            }
+            word.clear();
+        }
+    }
+    None
+}
+
+/// Reads the start of a file (up to 1 MiB, 1,000 lines) to find the first
+/// line where the words of `terms` appear.
+pub fn find_snippet(reader: impl BufRead, terms: &[Term]) -> Option<(usize, String)> {
     let pats: Vec<&WordPat> = terms
         .iter()
         .filter_map(|t| t.words.as_ref())
@@ -152,8 +173,9 @@ pub fn find_snippet(path: &Path, terms: &[Term]) -> Option<(usize, String)> {
         return None;
     }
 
-    let file = File::open(path).ok()?;
-    let mut reader = BufReader::new(file);
+    let mut reader = reader;
+    // Every byte read counts, also those of a line too long that are passed
+    // over: a file of one huge line is not read whole.
     let mut bytes_read = 0;
     let mut line_buf = Vec::new();
     let mut first_partial: Option<(usize, String)> = None;
@@ -173,6 +195,7 @@ pub fn find_snippet(path: &Path, terms: &[Term]) -> Option<(usize, String)> {
                 let actual = take.min(MAX_LINE_READ.saturating_sub(read_for_line));
                 line_buf.extend_from_slice(&chunk[..actual]);
                 reader.consume(take);
+                bytes_read += take;
                 read_for_line += actual;
                 hit_newline = true;
                 break;
@@ -180,22 +203,25 @@ pub fn find_snippet(path: &Path, terms: &[Term]) -> Option<(usize, String)> {
             let take = chunk.len().min(MAX_LINE_READ.saturating_sub(read_for_line));
             line_buf.extend_from_slice(&chunk[..take]);
             reader.consume(take);
+            bytes_read += take;
             read_for_line += take;
         }
 
         if !hit_newline && read_for_line >= MAX_LINE_READ {
             // Discard remainder of oversized line up to newline
-            loop {
+            while bytes_read < MAX_SNIPPET_BYTES {
                 let chunk = reader.fill_buf().ok()?;
                 if chunk.is_empty() {
                     break;
                 }
                 if let Some(pos) = chunk.iter().position(|&b| b == b'\n') {
                     reader.consume(pos + 1);
+                    bytes_read += pos + 1;
                     break;
                 }
                 let len = chunk.len();
                 reader.consume(len);
+                bytes_read += len;
             }
         }
 
@@ -208,7 +234,6 @@ pub fn find_snippet(path: &Path, terms: &[Term]) -> Option<(usize, String)> {
             return None;
         }
 
-        bytes_read += line_buf.len();
         let line_str = String::from_utf8_lossy(&line_buf);
         let words_in_line = words_of(&line_str);
 
@@ -253,7 +278,14 @@ impl SearchBox {
             unindexed_job: None,
             reading_unindexed: false,
             confirming_unindexed: false,
+            open: None,
         }
+    }
+
+    /// The box has work for `tick`: a search waiting for the pause in the
+    /// typing, or files without an index being read.
+    pub fn wants_tick(&self) -> bool {
+        self.last_searched != self.input.text || self.reading_unindexed
     }
 
     /// Re-evaluates search query against candidates and index.
@@ -301,7 +333,10 @@ impl SearchBox {
 
         let now = SystemTime::now();
         let opener = pane.content_opener();
-        let job = ContentJob::new(query, candidates, opener, now, &|c| lookup.answer(c));
+        self.open = pane.remote.is_none().then(|| pane.content_opener());
+        let job = ContentJob::new(query, candidates, opener, pane.type_of(), now, &|c| {
+            lookup.answer(c)
+        });
 
         self.unindexed_count = job.total();
         self.unindexed_bytes = job.bytes_total;
@@ -353,7 +388,13 @@ impl SearchBox {
         let end = (self.scroll + self.page.max(10)).min(self.results.len());
         for i in start..end {
             if self.results[i].snippet.is_none() {
-                if let Some((line, snip)) = find_snippet(&self.results[i].path, &self.terms) {
+                let (path, terms) = (&self.results[i].path, &self.terms);
+                // A file that makes the reading fail shows no snippet.
+                let found = self.open.as_ref().and_then(|open| {
+                    let reader = open(path).ok()?;
+                    crate::panic_guard::catch(|| find_snippet(reader, terms)).flatten()
+                });
+                if let Some((line, snip)) = found {
                     self.results[i].line = Some(line);
                     self.results[i].snippet = Some(snip);
                 } else {
@@ -462,6 +503,7 @@ impl SearchBox {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Read;
 
     #[test]
     fn format_query_appends_prefix_star_to_last_word_unless_trailing_space() {
@@ -499,5 +541,59 @@ mod tests {
         assert!(!clean.contains('\n'));
         assert!(!crate::bidi::has_bidi(&clean));
         assert!(clean.contains("fatura"));
+    }
+
+    fn term(word: &str) -> Vec<Term> {
+        vec![Term {
+            text: word.into(),
+            words: Some(vec![WordPat {
+                word: word.into(),
+                prefix: false,
+            }]),
+        }]
+    }
+
+    /// A lower case letter can take more bytes than its capital: `İ` (2
+    /// bytes) is `i̇` (3). The snippet once cut the line where the lower case
+    /// copy said, in the middle of an `é`, and Xylem fell.
+    #[test]
+    fn a_snippet_is_cut_between_characters() {
+        let line = format!("{}tantivy{}", "İ".repeat(30), "é".repeat(100));
+        let snippet = sanitize_snippet(&line, &term("tantivy"), 80);
+        assert!(snippet.contains("tantivy"), "{snippet}");
+        // The words are found without accents, as words() finds them.
+        let line = format!("{} a Ação final", "x".repeat(100));
+        let snippet = sanitize_snippet(&line, &term("acao"), 40);
+        assert!(snippet.contains("Ação"), "{snippet}");
+    }
+
+    /// Counts what is read through it.
+    struct Counting<R> {
+        inner: R,
+        read: usize,
+    }
+
+    impl<R: std::io::Read> std::io::Read for Counting<R> {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let n = self.inner.read(buf)?;
+            self.read += n;
+            Ok(n)
+        }
+    }
+
+    /// A file of one huge line was read whole to find a snippet.
+    #[test]
+    fn a_snippet_reads_at_most_its_limit() {
+        let mut counting = Counting {
+            inner: std::io::repeat(b'a').take(64 << 20),
+            read: 0,
+        };
+        let reader = std::io::BufReader::new(&mut counting);
+        assert_eq!(find_snippet(reader, &term("tantivy")), None);
+        assert!(
+            counting.read <= MAX_SNIPPET_BYTES + (64 << 10),
+            "{} bytes read",
+            counting.read
+        );
     }
 }

@@ -495,8 +495,8 @@ impl App {
         }
     }
 
-    /// There is ongoing work that does not depend on the user.
-    pub fn busy(&self) -> bool {
+    /// Work going on other than the search box's.
+    fn busy_without_box(&self) -> bool {
         self.job.is_some()
             || self.cloud_log.is_some()
             || self.batch_job.is_some()
@@ -508,6 +508,15 @@ impl App {
             || self.op.as_ref().is_some_and(|op| op.conflict.is_none())
     }
 
+    /// There is ongoing work that does not depend on the user.
+    pub fn busy(&self) -> bool {
+        self.busy_without_box()
+            || self
+                .search_box
+                .as_ref()
+                .is_some_and(crate::search_box::SearchBox::wants_tick)
+    }
+
     /// Menu to show in the footer.
     pub fn menu_mode(&self) -> MenuMode {
         self.held.unwrap_or(self.sticky)
@@ -515,6 +524,31 @@ impl App {
 
     /// Advances the ongoing work by at most `budget`.
     pub fn tick(&mut self, budget: Duration) {
+        // The search box first, and without returning: a log or a copy going
+        // on behind it goes on too.
+        if let Some(sb) = &mut self.search_box {
+            #[cfg(not(test))]
+            const DEBOUNCE: Duration = Duration::from_millis(150);
+            #[cfg(test)]
+            const DEBOUNCE: Duration = Duration::ZERO;
+
+            if sb.last_searched != sb.input.text {
+                let waited = sb.last_edit.elapsed();
+                if waited >= DEBOUNCE {
+                    let pane = &self.panes[self.active];
+                    sb.update_search(pane);
+                } else if !self.busy_without_box() {
+                    // Nothing else to do: wait for the pause in the typing
+                    // instead of spinning.
+                    std::thread::sleep((DEBOUNCE - waited).min(budget));
+                    return;
+                }
+            }
+            if let Some(sb) = &mut self.search_box {
+                let pane = &self.panes[self.active];
+                sb.step_unindexed(budget, pane);
+            }
+        }
         if self.batch_job.is_some() {
             self.batch_tick(budget);
             return;
@@ -578,20 +612,6 @@ impl App {
             if op.is_done() {
                 self.finish_op("");
             }
-            return;
-        }
-        if let Some(sb) = &mut self.search_box {
-            #[cfg(not(test))]
-            const DEBOUNCE: Duration = Duration::from_millis(150);
-            #[cfg(test)]
-            const DEBOUNCE: Duration = Duration::ZERO;
-
-            if sb.last_searched != sb.input.text && sb.last_edit.elapsed() >= DEBOUNCE {
-                let pane = &self.panes[self.active];
-                sb.update_search(pane);
-            }
-            let pane = &self.panes[self.active];
-            sb.step_unindexed(budget, pane);
             return;
         }
         let Some(job) = &mut self.job else { return };

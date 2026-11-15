@@ -132,6 +132,45 @@ Lido por quem retoma o trabalho; atualizado ao fim de cada etapa.
   - Teclas na caixa: ↑↓, PgUp/PgDn, Ctrl+Home/Ctrl+End navegam na lista de resultados; Enter vai direto ao arquivo na janela de arquivos e fecha a caixa; `Ctrl+V` abre no viewer posicionado na linha do trecho; `Ctrl+T` alterna a marcação (tag) do arquivo diretamente na caixa; `Alt+R` confirma e inicia a leitura de arquivos não indexados; `Esc` cancela leitura em andamento ou fecha a caixa.
   - Manual atualizado em `docs/manual/filespec.md`, `tree.md` e `files.md`.
   - Testes unitários em `src/search_box.rs` e testes no nível de app em `src/app/tests.rs` cobrindo fluxo com índice, busca em marcados com `Ctrl+P`, leitura de arquivos sem índice com confirmação, `Ctrl+V`, `Ctrl+T`, e navegação/Esc.
+- **Revisão da etapa 5 e das colunas (2026-11-15, Claude, branch `query-next`):**
+  - **Corrigido:**
+    - **A caixa não buscava no app real:** a busca roda no `tick`, que o laço
+      principal só chama com `busy()`, e a caixa não estava nele (os testes buscavam
+      na hora de digitar, por um `#[cfg(test)]`). Agora `busy()` inclui a caixa enquanto
+      ela espera a pausa na digitação ou lê arquivos (`SearchBox::wants_tick`), o
+      `tick` dorme até a pausa em vez de girar, e o atalho dos testes saiu.
+    - **A caixa parava o log:** o `tick` retornava na caixa antes do trabalho de logar;
+      agora ela roda primeiro e o resto segue.
+    - **Um arquivo hostil derrubava o Xylem:** `sanitize_snippet` cortava a linha pela
+      posição achada numa cópia em minúsculas (`İ` vira `i̇`, um byte a mais), no meio
+      de um caractere. Agora a palavra é achada caractere a caractere, como `words()`
+      as separa (`first_match`), e o trecho é calculado sob `panic_guard`.
+    - **O trecho lia sem limite:** o resto de uma linha longa era descartado sem contar;
+      um arquivo de 64 MiB sem quebras era lido inteiro. Agora todo byte lido conta no
+      limite de 1 MiB.
+    - **Remoto e arquivo compactado:** o trecho abria o caminho com `File::open`; agora
+      lê pelo `content_opener` da janela, e numa máquina remota não mostra trecho (a
+      tela esperaria a rede). A coluna `type` no `ContentJob` lia o caminho local; agora
+      usa `Pane::type_of`, o mesmo do Alt+F (pela rede no remoto, só pelo nome num
+      arquivo compactado).
+    - Testes que falhavam antes: `a_snippet_is_cut_between_characters`,
+      `a_snippet_reads_at_most_its_limit`,
+      `the_search_box_keeps_the_loop_awake_until_it_has_searched`.
+    - **Conferido no app real** (debug, HOME isolado), na árvore do Xylem: sem índice, a
+      caixa diz "9 unindexed files (170.1 KiB) · Alt+R to read", o Alt+R pergunta, e com
+      "y" acha `Cargo.lock` e `Cargo.toml`; depois do Alt+N, em Branch, acha 5 arquivos
+      pelo índice, com o trecho e a linha (`L48: memchr = "2"`), e avisa "26,375
+      unindexed files (17.6 GiB)" (o `target/`).
+  - **Ainda em aberto:**
+    - a coluna `type` em `refresh_files` lê o começo dos arquivos na thread da tela,
+      também numa máquina remota (pela rede) e numa montagem de nuvem (um download por
+      arquivo); o cache de tipos é zerado ao passar de 10.000 entradas;
+    - cada pausa na digitação refaz candidatos, `Lookup` e trechos na thread da tela
+      (~0,6 s por consulta em 200.000 arquivos, pela medição do passo 1);
+    - `o'brien` vira `words('o''brien*')`, que o mini-SQL recusa (ele não entende `''`
+      como o SQLite), e a caixa fica vazia sem dizer por quê;
+    - a árvore de 200.000 arquivos das medições não existe mais em
+      `~/.cache/xt-dev/bigtree/`: os números não foram reconferidos.
 - **Etapa 3:** depois dela, pelo SQLite (decidido).
 
 ## A ideia

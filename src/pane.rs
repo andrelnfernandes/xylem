@@ -428,6 +428,25 @@ impl Pane {
         }
     }
 
+    /// What a file is, as Alt+F tells it, read from where this window reads
+    /// its files: over the network on a remote machine, by its name only
+    /// inside an archive.
+    pub fn type_of(&self) -> crate::model::query::TypeOf {
+        if let Some(remote) = self.remote.clone() {
+            return Box::new(move |path, f| {
+                crate::filetype::describe_with(
+                    path,
+                    f.kind,
+                    f.size,
+                    || remote.read(path, crate::filetype::HEAD_BYTES).ok(),
+                    || remote.read_link(path).ok(),
+                )
+            });
+        }
+        let read = self.archive.is_none();
+        Box::new(move |path, f| crate::filetype::describe(path, f.kind, f.size, read))
+    }
+
     /// Git status of `path` (`" M"`, `"  "`, etc.), or `None` if outside a repo
     /// or Git is off.
     pub fn file_git(&self, path: &Path) -> Option<String> {
