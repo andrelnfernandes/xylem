@@ -69,10 +69,11 @@ On a cloud mount, `contains` is refused: each file would have to be downloaded. 
 
 ### Whole words, and an index: words()
 
-`words('invoice march')` is true for a file that has all those words, in any order and anywhere in it. A word is a run of letters and digits, compared without case and without accents: `words('acao')` finds `Ação`. Unlike `contains`, it does not find a piece of a word: `words('invoice')` does not find `invoices`.
+`words('invoice march')` is true for a file that has all those words, in any order and anywhere in it. A word is a run of letters and digits, compared without case and without accents: `words('acao')` finds `Ação`. Unlike `contains`, it does not find a piece of a word: `words('invoice')` does not find `invoices`. A `*` right after a word takes any word that starts with it: `words('invoice*')` finds `invoice` and `invoices`, and `words('andre*')` finds `André` and `Andrea`.
 
 ```sql
 words('invoice 2024') AND ext IN ('txt', 'md', 'csv')
+words('fatur* 2024')
 ```
 
 `words` can be answered by an **index** of the branch, and then nothing is read. **Alt+N** in the tree (or in the file window, for the folder of the file) indexes the logged files of the branch, after asking: it reads them once, in the background, with **Esc** stopping it and keeping what was done. Doing it again reads only the files that changed, and drops those that are gone. On a branch that has an index, Alt+N offers to index it again or to delete the index.
@@ -81,7 +82,7 @@ words('invoice 2024') AND ext IN ('txt', 'md', 'csv')
 |---|---|---|
 | Answer | each file is read when W runs | at once |
 | Cost | time at every condition | time and space when indexing |
-| Looks for | a piece of text (`contains`) or words (`words`) | words (`words`) |
+| Looks for | a piece of text (`contains`) or words and prefixes (`words`) | words and prefixes (`words`) |
 | A file changed since | its contents now | read again, as with no index |
 | Where | anywhere logged | only in the branches indexed with Alt+N |
 
