@@ -156,7 +156,14 @@ impl App {
                 if view.files.is_empty() {
                     view.toggle_folders();
                 }
-                self.duplicates = Some(view);
+                let pane = &mut self.panes[self.active];
+                pane.duplicate_groups.clear();
+                for (g, group) in view.files.iter().enumerate() {
+                    for item in &group.items {
+                        pane.duplicate_groups.insert(item.path.clone(), g + 1);
+                    }
+                }
+                pane.duplicates = Some(view);
             }
             Err(Fail::Cancelled) => self.message = Some("Cancelled".into()),
             Err(Fail::Stopped(why)) => self.message = Some(format!("Cannot compare: {why}")),

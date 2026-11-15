@@ -29,6 +29,7 @@ mod platform;
 mod rclone;
 mod remote;
 mod search;
+mod search_box;
 mod settings;
 mod shell;
 mod state;

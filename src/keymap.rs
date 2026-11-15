@@ -63,6 +63,16 @@ const COMMANDS: &[(&str, Command, &str)] = &[
         Command::Where { tagged: true },
         "keep the tagged files that meet a SQL condition",
     ),
+    (
+        "search_box",
+        Command::SearchBox { tagged: false },
+        "search box: find files by words as you type",
+    ),
+    (
+        "search_box_tagged",
+        Command::SearchBox { tagged: true },
+        "search box on tagged files",
+    ),
     ("showall", Command::Showall, "show all logged files"),
     (
         "showall_tagged",
@@ -446,6 +456,8 @@ const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("f", Any, "filespec"),
     ("w", Any, "where"),
     ("ctrl+w", Any, "where_tagged"),
+    ("p", Any, "search_box"),
+    ("ctrl+p", Any, "search_box_tagged"),
     ("alt+n", Any, "index_branch"),
     ("i", Any, "invert"),
     ("q", Any, "quit"),

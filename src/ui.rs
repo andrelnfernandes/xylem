@@ -26,7 +26,6 @@ use crate::charset::Charset;
 use crate::config::{
     self, IconStyle, TerminalTheme, Theme, formats, group_digits, one_decimal, theme,
 };
-use crate::filetype;
 use crate::git::StatusCache;
 use crate::help::{self, Help};
 use crate::icons::{DirKind, SLOT_WIDTH};
@@ -59,6 +58,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         && let Some(row) = list.anchor.get()
     {
         draw_history_list(frame, &prompt.input, list, row);
+    }
+    if let Some(sb) = &mut app.search_box {
+        draw_search_box(frame, sb, frame.area());
     }
     if app.splash.is_some() {
         draw_splash(frame, &theme());
@@ -112,7 +114,8 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
         return;
     }
     draw_menu(frame, app, menu);
-    let git = app.options.git.then_some(&app.git_status);
+    let git_borrow = app.git_status.borrow();
+    let git = app.options.git.then_some(&*git_borrow);
 
     // Alt+X: the terminal takes the bottom of the screen; the tree stays
     // above it, following the shell's `cd`s. Alt+Z: the whole screen.
@@ -1368,27 +1371,7 @@ fn file_detail(pane: &mut Pane, f: FileRef) -> Detail {
         FileDisplay::Type => {
             let path = pane.file_path(f);
             let e = pane.file(f);
-            let (size, modified, kind) = (e.size, e.modified, e.kind);
-            if let Some((s, m, what)) = pane.types.get(&path)
-                && (*s, *m) == (size, modified)
-            {
-                return Detail::Type(what.clone());
-            }
-            let what = match &pane.remote {
-                Some(remote) => filetype::describe_with(
-                    &path,
-                    kind,
-                    size,
-                    || remote.read(&path, filetype::HEAD_BYTES).ok(),
-                    || remote.read_link(&path).ok(),
-                ),
-                None => filetype::describe(&path, kind, size, pane.archive.is_none()),
-            };
-            if pane.types.len() > 10_000 {
-                pane.types.clear();
-            }
-            pane.types.insert(path, (size, modified, what.clone()));
-            Detail::Type(what)
+            Detail::Type(pane.describe_file(&path, e))
         }
         _ => Detail::Standard,
     }
@@ -2098,6 +2081,7 @@ const DIR_WORDS: &[&str] = &[
     "Makedir",
     "New date",
     "Oops",
+    "Phrase",
     "Rename",
     "Showall",
     "Tag",
@@ -2118,6 +2102,7 @@ const FILE_WORDS: &[&str] = &[
     "Move",
     "New date",
     "Open",
+    "Phrase",
     "Rename",
     "Showall",
     "Tag",
@@ -2135,6 +2120,7 @@ const CTRL_TREE_WORDS: &[&str] = &[
     "Delete",
     "Git",
     "Move",
+    "Phrase",
     "Rename",
     "Showall",
     "Tag",
@@ -2151,6 +2137,7 @@ const CTRL_FILE_WORDS: &[&str] = &[
     "Move",
     "New date",
     "Open",
+    "Phrase",
     "Rename",
     "Search",
     "Tag",
@@ -2621,6 +2608,156 @@ fn draw_history_list(frame: &mut Frame, input: &LineInput, list: &HistoryList, p
             .style(Style::new().fg(t.text).bg(t.background)),
         rect,
     );
+}
+
+/// Floating modal for the search box (P / Ctrl+P).
+fn draw_search_box(frame: &mut Frame, sb: &mut crate::search_box::SearchBox, screen: Rect) {
+    let t = theme();
+    let width = (screen.width * 85 / 100).clamp(50, 120).min(screen.width);
+    let height = (screen.height * 75 / 100).clamp(10, 30).min(screen.height);
+    let x = screen.x + (screen.width.saturating_sub(width)) / 2;
+    let y = screen.y + (screen.height.saturating_sub(height)) / 2;
+    let area = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
+
+    frame.render_widget(Clear, area);
+
+    let title = if sb.tagged {
+        " Search Box (tagged files) "
+    } else {
+        " Search Box "
+    };
+    let count_text = format!(" {} results ", fmt_num(sb.results.len() as u64));
+    let block = panel(title, true).title_top(Line::from(count_text));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let [results_area, status_area, input_area] = Layout::vertical([
+        Constraint::Min(3),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .areas(inner);
+
+    sb.page = usize::from(results_area.height);
+    sb.keep_visible();
+    sb.ensure_snippets();
+
+    let mut lines = Vec::new();
+    if sb.results.is_empty() {
+        let msg = if sb.input.text.trim().is_empty() {
+            "  Type words to search files in the branch... "
+        } else if sb.unindexed_count > 0 && !sb.reading_unindexed {
+            "  No indexed results. Press Alt+R or Enter to read unindexed files. "
+        } else {
+            "  No files match the query. "
+        };
+        lines.push(Line::styled(msg, Style::new().fg(t.dim)));
+    } else {
+        let start = sb.scroll;
+        let end = (sb.scroll + sb.page).min(sb.results.len());
+        let name_col_width = 22;
+        let dir_col_width = 24;
+
+        for (row_idx, res) in sb.results[start..end].iter().enumerate() {
+            let actual_idx = start + row_idx;
+            let is_selected = actual_idx == sb.selected;
+
+            let tag_span = if res.tagged {
+                Span::styled("* ", Style::new().fg(t.tagged))
+            } else {
+                Span::raw("  ")
+            };
+
+            let name_fitted = fit(&res.name.to_string_lossy(), name_col_width);
+            let name_span = Span::styled(
+                format!("{:<width$} ", name_fitted, width = name_col_width),
+                Style::new().fg(t.text).add_modifier(Modifier::BOLD),
+            );
+
+            let dir_str = res.dir.to_string_lossy();
+            let dir_fitted = fit_tail(&dir_str, dir_col_width);
+            let dir_span = Span::styled(
+                format!("{:<width$} ", dir_fitted, width = dir_col_width),
+                Style::new().fg(t.dim),
+            );
+
+            let date_str = res.modified.map_or(String::new(), fmt_time);
+            let date_span = Span::styled(format!("{:<16} ", date_str), Style::new().fg(t.dim));
+
+            let divider_span = Span::styled("│ ", Style::new().fg(t.border));
+
+            let mut spans = vec![tag_span, name_span, dir_span, date_span, divider_span];
+
+            if let Some(snip) = &res.snippet
+                && !snip.is_empty()
+            {
+                if let Some(line) = res.line {
+                    spans.push(Span::styled(format!("L{line}: "), Style::new().fg(t.dim)));
+                }
+                spans.push(Span::styled(snip.clone(), Style::new().fg(t.text)));
+            }
+
+            let line = Line::from(spans);
+            if is_selected {
+                lines.push(line.style(highlight(true)));
+            } else {
+                lines.push(line);
+            }
+        }
+    }
+
+    frame.render_widget(Paragraph::new(lines), results_area);
+
+    let status_line = if sb.confirming_unindexed {
+        Line::styled(
+            format!(
+                " No index: read {} unindexed files ({})? (y/n) ",
+                fmt_num(sb.unindexed_count as u64),
+                crate::usage::size(sb.unindexed_bytes)
+            ),
+            Style::new().fg(t.key).add_modifier(Modifier::BOLD),
+        )
+    } else if sb.reading_unindexed {
+        Line::styled(
+            " Reading unindexed files... (Esc to stop) ",
+            Style::new().fg(t.dim),
+        )
+    } else if sb.unindexed_count > 0 {
+        Line::styled(
+            format!(
+                " {} unindexed files ({}) · Alt+R to read ",
+                fmt_num(sb.unindexed_count as u64),
+                crate::usage::size(sb.unindexed_bytes)
+            ),
+            Style::new().fg(t.dim),
+        )
+    } else if !sb.results.is_empty() {
+        Line::styled(
+            " Enter: jump to file · Ctrl+V: viewer · Ctrl+T: tag · Esc: close ",
+            Style::new().fg(t.dim),
+        )
+    } else {
+        Line::raw("")
+    };
+    frame.render_widget(status_line, status_area);
+
+    let input_line = Line::from(vec![
+        Span::styled(
+            " Search: ",
+            Style::new().fg(t.key).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(&sb.input.text, Style::new().fg(t.text)),
+    ]);
+    frame.render_widget(input_line, input_area);
+
+    let cursor_x = input_area.x + 9 + (sb.input.cursor as u16);
+    let cursor_y = input_area.y;
+    frame.set_cursor_position((cursor_x.min(input_area.right().saturating_sub(1)), cursor_y));
 }
 
 /// Footer during Copy/Move/Delete: current file and progress bar,

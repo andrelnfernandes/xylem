@@ -48,6 +48,9 @@ Cada arquivo é uma linha com estas colunas:
 | `mode` | as permissões como são escritas: `mode = 644` |
 | `kind` | `file`, `link` ou `other` |
 | `tagged` | se o arquivo está marcado: `NOT tagged` |
+| `git` | o status do Git em duas letras (`' M'`, `'M '`, `'??'`, `'  '` se limpo); `NULL` fora de repositório ou com Git desligado |
+| `type` | o tipo do arquivo, como no Alt+F (`'PNG image, 800 x 600'`, `'Rust source'`, `'empty'`); lido só quando a condição precisa |
+| `dup` | número do grupo de duplicados (1, 2...), se o Alt+D já calculou; `NULL` se não for duplicado |
 
 Os operadores são os do [filtro de tabelas](viewer.md#the-sql-filter): `=`, `<>`, `<`, `<=`, `>`, `>=`, `LIKE`, `ILIKE`, `IN`, `IS NULL`, `AND`, `OR`, `NOT` e parênteses. Números são escritos por extenso (`10000000`, não `10e6`). Um nome de coluna inexistente é recusado mostrando a lista das colunas válidas, e uma condição que nenhum arquivo satisfaz não altera a lista.
 
@@ -91,9 +94,26 @@ words('andre*')
 
 Antes de ler, a confirmação informa ambos: `Index: 3,120 files up to date. No index: read the contents of 12 files (1.2 MiB)?`. Quando o índice responde por todos os arquivos, não há pergunta, e a mensagem informa `answered by the index`. O índice nunca produz resposta desatualizada: um arquivo alterado após ter sido indexado (outro tamanho ou data) é lido novamente na hora.
 
-O que fica fora do índice: arquivos binários, arquivos acima de 64 MiB (W os lê quando necessário), links simbólicos, e estas pastas e arquivos, que são grandes e mudam o tempo todo ou guardam segredos: `.git`, `target`, `node_modules`, `.ssh`, `.gnupg`, `.env`, `*.key`, `*.pem`, `id_rsa`, `id_ed25519`. Arquivos em máquina remota, dentro de pacote compactado ou em montagem de nuvem não são indexados.
+O que fica fora do índice: arquivos binários, arquivos acima de 64 MiB (W os lê quando necessário), links simbólicos, e pastas e arquivos configurados em `index_ignore` no `config.toml` (ou em F12, página 4, opção E; por padrão: `.git`, `target`, `node_modules`, `.ssh`, `.gnupg`, `.env`, `*.key`, `*.pem`, `id_rsa`, `id_ed25519`). Remover os padrões de segredos copia senhas e chaves privadas para o índice. Arquivos em máquina remota, dentro de pacote compactado ou em montagem de nuvem não são indexados.
 
 O índice é uma cópia das palavras dos arquivos, mantida no cache do Xylem (`~/.cache/xylem/index`, em uma pasta que só o seu usuário pode ler; `%LOCALAPPDATA%\xylem\cache\index` no Windows) até que você o apague com Alt+N ou exclua essa pasta. Um índice ilegível (corrompido ou de outra versão do Xylem) é informado na confirmação, seus arquivos são lidos normalmente, e Alt+N o reconstrói.
+
+## A caixa de busca (P)
+
+A experiência do Google Desktop sem SQL: pressione **P** (ou **Ctrl+P** nos arquivos marcados) para abrir uma caixa de busca flutuante.
+
+À medida que você digita palavras, os arquivos correspondentes aparecem na hora:
+- A correspondência é por palavras inteiras, e a última palavra usa busca por prefixo enquanto se digita (`fatura mar` procura `fatura mar*`).
+- Quando um ramo possui índice (**Alt+N**), os resultados dos arquivos indexados aparecem imediatamente.
+- Se houver arquivos sem índice, a linha de status informa quantos arquivos e bytes não indexados existem. Eles só são lidos mediante confirmação explícita (pressione **Alt+R**, ou **Enter** quando ainda não houver resultados indexados).
+- Cada resultado exibe indicador de marcação (`*`), nome do arquivo, diretório, data de modificação e um trecho limpo (~80 caracteres, livre de controles e de overrides bidirecionais) da primeira linha que contém as palavras.
+- Teclas na caixa de busca:
+  - **↑ / ↓**, **PgUp / PgDn**, **Ctrl+Home / Ctrl+End**: navegam na lista de resultados.
+  - **Enter**: vai direto ao arquivo selecionado na janela de arquivos e fecha a caixa de busca.
+  - **Ctrl+V**: abre o arquivo no visualizador posicionado diretamente na linha do trecho.
+  - **Ctrl+T**: alterna a marcação (tag) do arquivo selecionado diretamente na caixa.
+  - **Alt+R**: solicita e inicia a leitura dos arquivos não indexados.
+  - **Esc**: cancela a leitura dos arquivos não indexados, ou fecha a caixa de busca.
 
 W é o primeiro passo de consulta ao disco: resultados em formato de tabela virão depois.
 

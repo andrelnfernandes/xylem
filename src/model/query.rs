@@ -25,7 +25,7 @@ use crate::viewer::sql_filter::{
 /// The columns of `files`, in the order the help shows them.
 pub const COLUMNS: &[&str] = &[
     "name", "ext", "path", "dir", "depth", "size", "disk", "modified", "age_days", "mode", "kind",
-    "tagged",
+    "tagged", "git", "type", "dup",
 ];
 
 /// Conditions for the prompt's history the first time it opens: who does not
@@ -219,6 +219,16 @@ fn check_calls(expr: &Expr, standing: bool, terms: &mut Vec<Term>) -> Result<(),
     }
 }
 
+/// Context beyond what [`FileEntry`] holds: location, Git status, duplicate
+/// group, and a lazy reader for the file's type.
+#[derive(Default)]
+pub struct QueryContext<'a> {
+    pub place: Option<Place<'a>>,
+    pub git: Option<&'a str>,
+    pub dup: Option<i64>,
+    pub lazy_type: Option<&'a dyn Fn() -> Option<String>>,
+}
+
 impl FileQuery {
     /// Reads the condition; `tagged` keeps it to the tagged files. An error
     /// says what is wrong, or which columns there are.
@@ -238,9 +248,12 @@ impl FileQuery {
         }
         let mut terms = Vec::new();
         check_calls(&expr, true, &mut terms)?;
-        let places = used
-            .iter()
-            .any(|c| matches!(c.to_ascii_lowercase().as_str(), "path" | "dir" | "depth"));
+        let places = used.iter().any(|c| {
+            matches!(
+                c.to_ascii_lowercase().as_str(),
+                "path" | "dir" | "depth" | "git" | "type" | "dup"
+            )
+        });
         Ok(FileQuery {
             text: text.to_string(),
             expr,
@@ -253,6 +266,13 @@ impl FileQuery {
 
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    /// Whether the condition asks for the Git status.
+    pub fn uses_git(&self) -> bool {
+        let mut used = Vec::new();
+        columns_in(&self.expr, &mut used);
+        used.iter().any(|c| c.eq_ignore_ascii_case("git"))
     }
 
     /// Only the tagged files are looked at.
@@ -276,25 +296,26 @@ impl FileQuery {
         !self.terms.is_empty()
     }
 
-    /// Whether the list keeps `file`. `place` may be left out when
-    /// `needs_place` says so. A comparison that makes no sense (a text with
-    /// a number) takes no file. With `contains`, the files found when they
-    /// were read; none before that.
-    pub fn matches(&self, file: &FileEntry, place: Option<Place<'_>>, now: SystemTime) -> bool {
+    /// Whether the list keeps `file`. `ctx` gives the place, Git status,
+    /// duplicate group and lazy type evaluation when needed.
+    pub fn matches(&self, file: &FileEntry, ctx: &QueryContext<'_>, now: SystemTime) -> bool {
         if self.tagged && !file.tagged {
             return false;
         }
         if self.reads_contents() {
-            return match (&self.hits, place) {
+            return match (&self.hits, ctx.place) {
                 (Some(hits), Some(place)) => hits.contains(&place.dir.join(&file.name)),
                 _ => false,
             };
         }
         let row = Row {
             file,
-            place,
+            place: ctx.place,
             now,
             found: None,
+            git: ctx.git,
+            dup: ctx.dup,
+            lazy_type: ctx.lazy_type,
         };
         eval_expr(&self.expr, &row).is_ok_and(|v| v.is_truthy())
     }
@@ -302,10 +323,10 @@ impl FileQuery {
     /// Whether the file meets the condition, knowing for each term whether
     /// the file has it (`found`, in the order of the terms); without that,
     /// `None` when only its contents can tell.
-    fn decide(
+    pub fn decide(
         &self,
         file: &FileEntry,
-        place: Option<Place<'_>>,
+        ctx: &QueryContext<'_>,
         now: SystemTime,
         found: &[Option<bool>],
     ) -> Option<bool> {
@@ -314,9 +335,12 @@ impl FileQuery {
         }
         let row = Row {
             file,
-            place,
+            place: ctx.place,
             now,
             found: Some((self.terms.as_slice(), found)),
+            git: ctx.git,
+            dup: ctx.dup,
+            lazy_type: ctx.lazy_type,
         };
         decide(&self.expr, &row)
     }
@@ -367,6 +391,9 @@ struct Row<'a> {
     now: SystemTime,
     /// The terms of `contains`, and whether the file has each one.
     found: Option<(&'a [Term], &'a [Option<bool>])>,
+    git: Option<&'a str>,
+    dup: Option<i64>,
+    lazy_type: Option<&'a dyn Fn() -> Option<String>>,
 }
 
 impl RowContext for Row<'_> {
@@ -414,6 +441,19 @@ impl RowContext for Row<'_> {
                 .to_string(),
             )),
             "tagged" => Some(Value::Bool(f.tagged)),
+            "git" => self.git.map(|s| Value::Text(s.to_string())),
+            "dup" => self.dup.map(Value::Int),
+            "type" => {
+                let what = if let Some(f) = self.lazy_type {
+                    f()
+                } else {
+                    self.place.map(|place| {
+                        let path = place.dir.join(&self.file.name);
+                        crate::filetype::describe(&path, self.file.kind, self.file.size, true)
+                    })
+                };
+                what.map(Value::Text)
+            }
             _ => None,
         }
     }
@@ -425,6 +465,8 @@ pub struct Candidate {
     pub dir: PathBuf,
     pub depth: usize,
     pub file: FileEntry,
+    pub git: Option<String>,
+    pub dup: Option<i64>,
 }
 
 /// Splits a text read in pieces into [`words_of`]'s words, the same as if it
@@ -592,12 +634,26 @@ impl ContentJob {
                 depth: c.depth,
             };
             let mut found = vec![None; terms];
-            let mut decided = query.decide(&c.file, Some(place), now, &found);
+            let lazy_type: &dyn Fn() -> Option<String> = &|| {
+                Some(crate::filetype::describe(
+                    &c.path,
+                    c.file.kind,
+                    c.file.size,
+                    true,
+                ))
+            };
+            let ctx = QueryContext {
+                place: Some(place),
+                git: c.git.as_deref(),
+                dup: c.dup,
+                lazy_type: Some(lazy_type),
+            };
+            let mut decided = query.decide(&c.file, &ctx, now, &found);
             if decided.is_none() {
                 match index(&c) {
                     Some(Known::Terms(known)) => {
                         found = known;
-                        decided = query.decide(&c.file, Some(place), now, &found);
+                        decided = query.decide(&c.file, &ctx, now, &found);
                         from_index += usize::from(decided.is_some());
                     }
                     Some(Known::Binary) => {
@@ -658,6 +714,10 @@ impl ContentJob {
         self.hits.len()
     }
 
+    pub fn hits(&self) -> &HashSet<PathBuf> {
+        &self.hits
+    }
+
     fn skip(&mut self, why: fn(&mut Skipped) -> &mut usize, error: Option<String>) {
         *why(&mut self.skipped) += 1;
         if self.first_error.is_none() {
@@ -677,9 +737,23 @@ impl ContentJob {
             dir: &item.c.dir,
             depth: item.c.depth,
         };
+        let lazy_type: &dyn Fn() -> Option<String> = &|| {
+            Some(crate::filetype::describe(
+                &item.c.path,
+                item.c.file.kind,
+                item.c.file.size,
+                true,
+            ))
+        };
+        let ctx = QueryContext {
+            place: Some(place),
+            git: item.c.git.as_deref(),
+            dup: item.c.dup,
+            lazy_type: Some(lazy_type),
+        };
         let decided = self
             .query
-            .decide(&item.c.file, Some(place), SystemTime::now(), &item.found);
+            .decide(&item.c.file, &ctx, SystemTime::now(), &item.found);
         let term = item.found.iter().position(Option::is_none);
         let (Some(term), None) = (term, decided) else {
             if decided == Some(true) {
@@ -828,9 +902,13 @@ mod tests {
             depth: 1,
         };
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000 * 86_400);
+        let ctx = QueryContext {
+            place: Some(place),
+            ..Default::default()
+        };
         FileQuery::parse(query, false)
             .unwrap()
-            .matches(f, Some(place), now)
+            .matches(f, &ctx, now)
     }
 
     #[test]
@@ -850,6 +928,76 @@ mod tests {
         assert!(takes("NOT tagged", &f));
         // No extension is the empty text.
         assert!(takes("ext = ''", &file("Makefile", 1)));
+    }
+
+    #[test]
+    fn git_dup_and_type_columns_filter_and_short_circuit() {
+        let f = file("image.png", 100);
+        let place = Place {
+            dir: Path::new("/data"),
+            depth: 0,
+        };
+        let now = SystemTime::now();
+
+        let ctx = |git, dup| QueryContext {
+            place: Some(place),
+            git,
+            dup,
+            lazy_type: None,
+        };
+
+        // git column
+        let q_git_mod = FileQuery::parse("git = ' M'", false).unwrap();
+        let q_git_clean = FileQuery::parse("git = '  '", false).unwrap();
+        let q_git_null = FileQuery::parse("git IS NULL", false).unwrap();
+        let q_git_not_null = FileQuery::parse("git IS NOT NULL", false).unwrap();
+
+        assert!(q_git_mod.matches(&f, &ctx(Some(" M"), None), now));
+        assert!(!q_git_mod.matches(&f, &ctx(Some("  "), None), now));
+        assert!(q_git_clean.matches(&f, &ctx(Some("  "), None), now));
+        assert!(q_git_null.matches(&f, &ctx(None, None), now));
+        assert!(!q_git_null.matches(&f, &ctx(Some("??"), None), now));
+        assert!(q_git_not_null.matches(&f, &ctx(Some("??"), None), now));
+
+        // dup column
+        let q_dup_1 = FileQuery::parse("dup = 1", false).unwrap();
+        let q_dup_null = FileQuery::parse("dup IS NULL", false).unwrap();
+        let q_dup_not_null = FileQuery::parse("dup IS NOT NULL", false).unwrap();
+
+        assert!(q_dup_1.matches(&f, &ctx(None, Some(1)), now));
+        assert!(!q_dup_1.matches(&f, &ctx(None, Some(2)), now));
+        assert!(!q_dup_1.matches(&f, &ctx(None, None), now));
+        assert!(q_dup_null.matches(&f, &ctx(None, None), now));
+        assert!(q_dup_not_null.matches(&f, &ctx(None, Some(1)), now));
+
+        // type column & lazy evaluation
+        let called = std::sync::atomic::AtomicBool::new(false);
+        let lazy: &dyn Fn() -> Option<String> = &|| {
+            called.store(true, std::sync::atomic::Ordering::SeqCst);
+            Some("PNG image, 100 x 100".to_string())
+        };
+        let ctx_lazy = QueryContext {
+            place: Some(place),
+            git: None,
+            dup: None,
+            lazy_type: Some(lazy),
+        };
+
+        // When left condition is false, right condition (type) should not be evaluated
+        let q_short = FileQuery::parse("ext = 'jpg' AND type LIKE 'PNG%'", false).unwrap();
+        assert!(!q_short.matches(&f, &ctx_lazy, now));
+        assert!(
+            !called.load(std::sync::atomic::Ordering::SeqCst),
+            "lazy_type should not be called when short-circuited"
+        );
+
+        // When left condition is true, right condition is evaluated
+        let q_eval = FileQuery::parse("ext = 'png' AND type LIKE 'PNG%'", false).unwrap();
+        assert!(q_eval.matches(&f, &ctx_lazy, now));
+        assert!(
+            called.load(std::sync::atomic::Ordering::SeqCst),
+            "lazy_type should be called"
+        );
     }
 
     #[test]
@@ -873,9 +1021,9 @@ mod tests {
     fn with_ctrl_only_the_tagged_files_are_looked_at() {
         let mut f = file("a.txt", 1);
         let query = FileQuery::parse("size > 0", true).unwrap();
-        assert!(!query.matches(&f, None, SystemTime::now()));
+        assert!(!query.matches(&f, &QueryContext::default(), SystemTime::now()));
         f.tagged = true;
-        assert!(query.matches(&f, None, SystemTime::now()));
+        assert!(query.matches(&f, &QueryContext::default(), SystemTime::now()));
         assert!(!query.needs_place());
         assert!(FileQuery::parse("depth > 2", false).unwrap().needs_place());
     }
@@ -926,6 +1074,8 @@ mod tests {
                     dir: dir.clone(),
                     depth: 0,
                     file: file(name, text.len() as u64),
+                    git: None,
+                    dup: None,
                 }
             })
             .collect();
@@ -1006,6 +1156,8 @@ mod tests {
             dir: tmp.path().to_path_buf(),
             depth: 0,
             file: link,
+            git: None,
+            dup: None,
         });
         let job = run("contains('key')", list);
         assert_eq!(job.skipped.binary, 1);

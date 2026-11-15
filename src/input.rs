@@ -112,6 +112,10 @@ pub enum Command {
     Where {
         tagged: bool,
     },
+    /// P: search box with as-you-type words; `tagged` (Ctrl+P), on tagged files.
+    SearchBox {
+        tagged: bool,
+    },
     Showall,
     /// Ctrl+S in the tree: Showall of the tagged files only.
     ShowallTagged,

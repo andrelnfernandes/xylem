@@ -18,7 +18,9 @@ impl App {
             .filter(|p| !p.tree.reads_slowly(&p.current_path()))
             .map(|p| p.current_path())
             .collect();
-        self.git_status.refresh(dirs, &self.options.git_trusted);
+        self.git_status
+            .borrow_mut()
+            .refresh(dirs, &self.options.git_trusted);
     }
 
     /// Ctrl+G: opens the Git menu, if the current directory is in a
@@ -43,6 +45,7 @@ impl App {
         self.options.git
             && self
                 .git_status
+                .borrow()
                 .marker(file)
                 .is_some_and(|xy| xy != *b"??" && xy != *b"!!")
     }
@@ -161,7 +164,7 @@ impl App {
                     Ok(Err(msg)) => format!("Git: {msg}"),
                     Err(e) => format!("Git: {e}"),
                 });
-                self.git_status.invalidate();
+                self.git_status.borrow_mut().invalidate();
             }
         }
     }
