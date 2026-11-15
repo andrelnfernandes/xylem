@@ -76,7 +76,9 @@ Lido por quem retoma o trabalho; atualizado ao fim de cada etapa.
   - **`words('a b')`:** todas as palavras, inteiras, sem diferença de maiúsculas nem de
     acentos. A separação de palavras é nossa (`words_of`, `WordSplitter`), a mesma ao
     indexar e ao ler um arquivo; o índice guarda as palavras já separadas e só as
-    divide nos espaços (`whitespace`). Prefixo (`fatur*`) ficou para depois.
+    divide nos espaços (`whitespace`). Prefixo (`fatur*`): feito pelo autor em 2026-11-15 (`WordPat`, e `PhrasePrefixQuery`
+    de uma palavra só no índice, que vira uma busca por faixa no dicionário e não
+    pede reindexar; sem limite de expansões, para o índice nunca responder errado).
   - **Índice:** em `~/.cache/xylem/index/<FNV-1a do caminho do ramo>/`, modo 0700,
     com o caminho do ramo num arquivo `branch` e a versão em `version`. Por arquivo:
     caminho, tamanho, data e as palavras. Indexar de novo lê só o que mudou e tira o
@@ -349,7 +351,9 @@ locais do cockpit e o trecho mostrado na caixa de busca (etapa 5).
 ## Fora deste estudo
 
 - Indexador do disco inteiro em segundo plano, com o Xylem fechado.
-- PDF, DOCX e outros formatos que pedem leitor novo.
+- PDF, DOCX e outros formatos que pedem leitor novo. Os metadados de dentro dos
+  arquivos (EXIF das fotos, ID3 das músicas, autor dos documentos) têm um estudo à
+  parte: [query-metadata.md](query-metadata.md).
 - E-mail, histórico do navegador e o resto do que o Google Desktop indexava.
 - Busca por significado (embeddings) e qualquer coisa que mande conteúdo para fora da
   máquina.
