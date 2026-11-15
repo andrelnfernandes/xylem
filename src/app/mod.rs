@@ -175,6 +175,8 @@ pub struct App {
     pub cloud_log: Option<CloudLog>,
     /// Ongoing Ctrl+S.
     pub search_job: Option<SearchJob<FileRef>>,
+    /// P / Ctrl+P: floating search box by words.
+    pub search_box: Option<crate::search_box::SearchBox>,
     /// W with `contains`: the files being read, in the window `.1`; `.2` once
     /// the user said yes to reading them.
     pub content_job: Option<(crate::model::query::ContentJob, usize, bool)>,
@@ -258,7 +260,7 @@ pub struct App {
     /// Menu chosen with F9; the next letter receives that modifier.
     pub sticky: MenuMode,
     /// Git status of the files on screen (when `git` is on).
-    pub git_status: git::StatusCache,
+    pub git_status: std::rc::Rc<std::cell::RefCell<git::StatusCache>>,
     /// F2 in a prompt that asks for a folder.
     pub picker: Option<Picker>,
     /// What Ctrl+← took off the Treespec path, the last one on top, for
@@ -314,8 +316,12 @@ const JOB_FIRST_STEP: Duration = Duration::from_secs(60);
 
 impl App {
     pub fn new(root: PathBuf) -> Self {
+        let git_status = std::rc::Rc::new(std::cell::RefCell::new(git::StatusCache::default()));
+        let mut pane = Pane::new(root);
+        pane.git_status = Some(git_status.clone());
+        pane.git_enabled = true;
         App {
-            panes: vec![Pane::new(root)],
+            panes: vec![pane],
             active: 0,
             prompt: None,
             confirm: None,
@@ -323,6 +329,7 @@ impl App {
             job: None,
             cloud_log: None,
             search_job: None,
+            search_box: None,
             content_job: None,
             index_job: None,
             search: None,
@@ -364,7 +371,7 @@ impl App {
             quit_dir: None,
             held: None,
             sticky: MenuMode::Normal,
-            git_status: git::StatusCache::default(),
+            git_status,
             picker: None,
             treespec_back: Vec::new(),
             terminal: None,
@@ -402,13 +409,14 @@ impl App {
         config::set_formats(config.options.formats());
         self.options = config.options.clone();
         // Trust may have changed: nothing read under the old one stays.
-        self.git_status.invalidate();
+        self.git_status.borrow_mut().invalidate();
         self.viewer_limit = config
             .options
             .viewer_max_size
             .bytes(platform::memory().map(|m| m.total));
         self.config = config.clone();
         for pane in &mut self.panes {
+            pane.git_enabled = config.options.git;
             let hidden_changed = pane.tree.show_hidden != config.options.show_hidden;
             pane.tree.show_hidden = config.options.show_hidden;
             if hidden_changed {
@@ -570,6 +578,20 @@ impl App {
             if op.is_done() {
                 self.finish_op("");
             }
+            return;
+        }
+        if let Some(sb) = &mut self.search_box {
+            #[cfg(not(test))]
+            const DEBOUNCE: Duration = Duration::from_millis(150);
+            #[cfg(test)]
+            const DEBOUNCE: Duration = Duration::ZERO;
+
+            if sb.last_searched != sb.input.text && sb.last_edit.elapsed() >= DEBOUNCE {
+                let pane = &self.panes[self.active];
+                sb.update_search(pane);
+            }
+            let pane = &self.panes[self.active];
+            sb.step_unindexed(budget, pane);
             return;
         }
         let Some(job) = &mut self.job else { return };
@@ -783,7 +805,7 @@ impl App {
         for pane in &mut self.panes {
             pane.rescan_paths(dirs);
         }
-        self.git_status.invalidate();
+        self.git_status.borrow_mut().invalidate();
     }
 
     /// F8: splits the screen into two windows, or goes back to one. The new window
@@ -821,6 +843,8 @@ impl App {
     /// apply to every window (show hidden files).
     pub(crate) fn new_pane(&self, root: PathBuf) -> Pane {
         let mut pane = Pane::new(root);
+        pane.git_status = Some(self.git_status.clone());
+        pane.git_enabled = self.options.git;
         if pane.tree.show_hidden != self.options.show_hidden {
             pane.tree.show_hidden = self.options.show_hidden;
             pane.after_change();

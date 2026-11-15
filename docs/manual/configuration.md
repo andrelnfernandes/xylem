@@ -10,7 +10,7 @@ window and never reaches Xylem) opens four pages:
 | 1. Programs and formats | editor, open editor inside Xylem's frame, Xylem theme in the editor, edit binary files with E, binary editor, help language, opener, date format, number format, Git commands, trusted Git folders |
 | 2. Display and sorting | hidden files, initial sort order and direction, what Enter does in the file window, initial display mode, syntax colors, soft wrap, line numbers, compressed files, the charset of old text files, the size limit of what the viewer reads, icons and glyphs (Nerd Fonts), file names colored by type, window borders, colors of the built-in terminal, seconds in the clock |
 | 3. Confirmations and history | confirm on quit, delete to trash, Prune confirmation, entries with `@` not saved, the built-in terminal's own history |
-| 4. Copy, compare and refresh | ignore 2 s, ignore 1 h, automatic refresh, where Alt+C/Alt+M paths start |
+| 4. Copy, compare and refresh | ignore 2 s, ignore 1 h, automatic refresh, where Alt+C/Alt+M paths start, files and folders left out of the index |
 
 The viewer's size limit (**L** on page 2) costs memory and time: with `1024` MiB, opening an ordinary text file that big takes roughly 2.5 GiB of RAM and about 5 s, and files of very short lines cost more per byte (see [the viewer](viewer.md)).
 

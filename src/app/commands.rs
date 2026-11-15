@@ -59,6 +59,11 @@ impl App {
             return;
         }
 
+        if self.search_box.is_some() {
+            self.search_box_key(key);
+            return;
+        }
+
         if self.opening.is_some()
             && self.prompt.is_none()
             && self.confirm.is_none()
@@ -644,6 +649,9 @@ impl App {
                 };
                 self.open_prompt(PromptKind::Where { tagged }, label.into(), &text);
             }
+            Command::SearchBox { tagged } => {
+                self.open_search_box(tagged);
+            }
             Command::Showall => self.set_view(FileView::Showall),
             Command::ShowallTagged => {
                 let refs = self.logged_matching_files();
@@ -666,7 +674,7 @@ impl App {
             Command::View => self.open_viewer(),
             Command::Git => self.open_git_menu(),
             Command::Relog => {
-                self.git_status.invalidate();
+                self.git_status.borrow_mut().invalidate();
                 let id = self.header_dir();
                 self.tree.rescan(id);
                 self.after_change();
@@ -817,6 +825,124 @@ impl App {
                 "Binary file: no hex editor found (install hexedit, heh or bvi, or set one in F12). O opens it in its own program"
                     .into(),
             ),
+        }
+    }
+
+    pub(crate) fn open_search_box(&mut self, tagged: bool) {
+        let mut sb = crate::search_box::SearchBox::new(tagged);
+        sb.update_search(&self.panes[self.active]);
+        self.search_box = Some(sb);
+    }
+
+    pub(crate) fn search_box_key(&mut self, key: KeyEvent) {
+        let Some(sb) = &mut self.search_box else {
+            return;
+        };
+
+        if sb.confirming_unindexed {
+            match key.code {
+                KeyCode::Char('y' | 'Y') | KeyCode::Enter => {
+                    sb.start_reading_unindexed();
+                }
+                KeyCode::Char('n' | 'N') | KeyCode::Esc => {
+                    sb.confirming_unindexed = false;
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        match key.code {
+            KeyCode::Esc => {
+                if sb.reading_unindexed {
+                    sb.reading_unindexed = false;
+                } else {
+                    self.search_box = None;
+                }
+            }
+            KeyCode::Enter => {
+                if sb.results.is_empty() && sb.unindexed_count > 0 {
+                    sb.confirming_unindexed = true;
+                } else if let Some(res) = sb.results.get(sb.selected) {
+                    let dir = res.dir.clone();
+                    let name = res.name.clone();
+                    self.search_box = None;
+                    self.goto(&dir);
+                    self.focus = Focus::Files;
+                    if let Some(i) = self.files.iter().position(|&f| self.file(f).name == name) {
+                        self.file_state.select(Some(i));
+                    }
+                }
+            }
+            KeyCode::Up => {
+                sb.move_cursor(-1);
+            }
+            KeyCode::Down => {
+                sb.move_cursor(1);
+            }
+            KeyCode::PageUp => {
+                let page = sb.page.max(5) as isize;
+                sb.move_cursor(-page);
+            }
+            KeyCode::PageDown => {
+                let page = sb.page.max(5) as isize;
+                sb.move_cursor(page);
+            }
+            KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                sb.selected = 0;
+                sb.keep_visible();
+                sb.ensure_snippets();
+            }
+            KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                sb.selected = sb.results.len().saturating_sub(1);
+                sb.keep_visible();
+                sb.ensure_snippets();
+            }
+            KeyCode::Char('v') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Some(res) = sb.results.get(sb.selected) {
+                    let path = res.path.clone();
+                    let size = res.size;
+                    let line = res.line;
+                    self.search_box = None;
+                    match self.load_viewer(path, size) {
+                        Ok(mut v) => {
+                            if let Some(line) = line {
+                                v.goto_line(line);
+                            }
+                            self.viewer = Some(v);
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Cannot view file: {e}"));
+                        }
+                    }
+                }
+            }
+            KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Some(res) = sb.results.get_mut(sb.selected) {
+                    let path = res.path.clone();
+                    let active = self.active;
+                    if let Some(t) = self.panes[active].toggle_tag_path(&path) {
+                        res.tagged = t;
+                    }
+                }
+            }
+            KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::ALT) => {
+                if sb.unindexed_count > 0 && !sb.reading_unindexed {
+                    sb.confirming_unindexed = true;
+                }
+            }
+            _ => {
+                let old_text = sb.input.text.clone();
+                sb.input.handle_key(key);
+                if sb.input.text != old_text {
+                    sb.last_edit = Instant::now();
+                    #[cfg(test)]
+                    {
+                        let pane = &self.panes[self.active];
+                        sb.update_search(pane);
+                    }
+                }
+            }
         }
     }
 }

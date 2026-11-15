@@ -44,6 +44,7 @@ pub enum Opt {
     AutoRefresh,
     Git,
     GitTrusted,
+    IndexIgnore,
     CopyPaths,
     TerminalTheme,
     TerminalHistory,
@@ -176,6 +177,11 @@ pub const PAGES: &[Page] = &[
                 "Alt+C / Alt+M recreate paths from (F7 at the prompt)",
                 Opt::CopyPaths,
             ),
+            (
+                'E',
+                "Folders and files the index leaves out, separated by ;",
+                Opt::IndexIgnore,
+            ),
         ],
     ),
 ];
@@ -280,6 +286,8 @@ impl Opt {
             Opt::Git => yes_no(o.git),
             Opt::GitTrusted if o.git_trusted.is_empty() => "(none: all are hostile)".into(),
             Opt::GitTrusted => o.git_trusted.join("; "),
+            Opt::IndexIgnore if o.index_ignore.is_empty() => "(none)".into(),
+            Opt::IndexIgnore => o.index_ignore.join("; "),
             Opt::CopyPaths => match o.copy_paths {
                 CopyPaths::Full => "Full (root of the disk)",
                 CopyPaths::Tree => "Tree (root of Xylem's tree)",
@@ -305,7 +313,9 @@ impl Opt {
     fn cycle(self, c: &mut Config) -> bool {
         let o = &mut c.options;
         match self {
-            Opt::Editor | Opt::Opener | Opt::BinaryEditor | Opt::GitTrusted => return false,
+            Opt::Editor | Opt::Opener | Opt::BinaryEditor | Opt::GitTrusted | Opt::IndexIgnore => {
+                return false;
+            }
             Opt::EditorInFrame => o.editor_in_frame = !o.editor_in_frame,
             Opt::EditorTheme => o.editor_theme = !o.editor_theme,
             Opt::EditBinary => o.edit_binary = !o.edit_binary,
@@ -438,6 +448,17 @@ impl Settings {
                             self.message = git::trusted_warning(&folders);
                             self.config.options.git_trusted = folders;
                         }
+                        Opt::IndexIgnore => {
+                            let patterns: Vec<String> = text
+                                .split(';')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                            if crate::index::has_removed_secrets(&patterns) {
+                                self.message = Some("Secrets may be copied into the index".into());
+                            }
+                            self.config.options.index_ignore = patterns;
+                        }
                         _ => self.config.options.editor = text,
                     }
                     self.editing = None;
@@ -512,6 +533,7 @@ impl Settings {
                 Opt::Opener => self.config.options.opener.clone(),
                 Opt::BinaryEditor => self.config.options.binary_editor.clone(),
                 Opt::GitTrusted => self.config.options.git_trusted.join("; "),
+                Opt::IndexIgnore => self.config.options.index_ignore.join("; "),
                 _ => self.config.options.editor.clone(),
             };
             self.editing = Some((opt, LineInput::new(&current)));
@@ -671,6 +693,18 @@ mod tests {
         s.editing.as_mut().unwrap().1 = LineInput::new("");
         press(&mut s, KeyCode::Enter);
         assert!(s.config.options.git_trusted.is_empty());
+    }
+
+    #[test]
+    fn index_ignore_is_typed_with_separator_and_warns_on_secrets() {
+        let mut s = Settings::new(Config::default(), None);
+        s.page = 3;
+        press(&mut s, KeyCode::Char('e'));
+        assert!(s.editing.is_some());
+        s.editing.as_mut().unwrap().1 = LineInput::new(".git; target");
+        press(&mut s, KeyCode::Enter);
+        assert_eq!(s.config.options.index_ignore, [".git", "target"]);
+        assert!(s.message.as_deref().unwrap().contains("Secrets"));
     }
 
     #[test]
