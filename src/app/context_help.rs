@@ -24,6 +24,7 @@ impl App {
                 ConfirmKind::Kbyte(_) => "info",
                 ConfirmKind::OpenHidden { .. } => "files",
                 ConfirmKind::KeepListing => "cloud",
+                ConfirmKind::ReadContents | ConfirmKind::IndexBranch { .. } => "filespec",
                 ConfirmKind::DeleteFolders { .. } | ConfirmKind::ReadThroughNetwork(_) => {
                     "duplicates"
                 }
@@ -57,7 +58,7 @@ impl App {
         if let Some(prompt) = &self.prompt {
             return match prompt.kind {
                 PromptKind::Transfer { .. } => "copy-move",
-                PromptKind::Filespec => "filespec",
+                PromptKind::Filespec | PromptKind::Where { .. } => "filespec",
                 PromptKind::ExportDuplicates => "duplicates",
                 PromptKind::Log | PromptKind::Treespec { .. } => "treespec",
                 PromptKind::Execute | PromptKind::BatchFile | PromptKind::BatchMask { .. } => {

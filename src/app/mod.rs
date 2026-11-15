@@ -175,6 +175,11 @@ pub struct App {
     pub cloud_log: Option<CloudLog>,
     /// Ongoing Ctrl+S.
     pub search_job: Option<SearchJob<FileRef>>,
+    /// W with `contains`: the files being read, in the window `.1`; `.2` once
+    /// the user said yes to reading them.
+    pub content_job: Option<(crate::model::query::ContentJob, usize, bool)>,
+    /// Alt+N: a branch being indexed, in another thread.
+    pub index_job: Option<crate::index::IndexJob>,
     /// Last search term (Ctrl+S and the viewer share it, so that
     /// Space in Ctrl+V continues the search done with Ctrl+S).
     pub search: Option<SearchSpec>,
@@ -318,6 +323,8 @@ impl App {
             job: None,
             cloud_log: None,
             search_job: None,
+            content_job: None,
+            index_job: None,
             search: None,
             batch_preview: None,
             batch_job: None,
@@ -486,6 +493,8 @@ impl App {
             || self.cloud_log.is_some()
             || self.batch_job.is_some()
             || self.search_job.is_some()
+            || self.content_job.as_ref().is_some_and(|(_, _, go)| *go)
+            || self.index_job.is_some()
             || self.archive_job.is_some()
             || self.duplicates_job.is_some()
             || self.op.as_ref().is_some_and(|op| op.conflict.is_none())
@@ -529,6 +538,18 @@ impl App {
                     Err(e) => format!("Cannot create archive: {e}"),
                 });
             }
+            return;
+        }
+        if let Some(job) = &self.index_job {
+            match job.poll() {
+                Some(result) => self.finish_index(result),
+                // The thread works by itself: only a little wait here.
+                None => std::thread::sleep(budget.min(Duration::from_millis(20))),
+            }
+            return;
+        }
+        if self.content_job.as_ref().is_some_and(|(_, _, go)| *go) {
+            self.content_tick(budget);
             return;
         }
         if let Some(job) = &mut self.search_job {

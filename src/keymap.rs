@@ -48,6 +48,21 @@ const COMMANDS: &[(&str, Command, &str)] = &[
     ),
     ("back", Command::Back, "back to tree / close archive"),
     ("filespec", Command::Filespec, "filespec: filter files"),
+    (
+        "where",
+        Command::Where { tagged: false },
+        "keep the files of the list that meet a SQL condition",
+    ),
+    (
+        "index_branch",
+        Command::IndexBranch,
+        "index the contents of this branch, for words() in W",
+    ),
+    (
+        "where_tagged",
+        Command::Where { tagged: true },
+        "keep the tagged files that meet a SQL condition",
+    ),
     ("showall", Command::Showall, "show all logged files"),
     (
         "showall_tagged",
@@ -429,6 +444,9 @@ const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("shift+del", Any, "delete_permanent"),
     ("shift+delete", Any, "delete_permanent"),
     ("f", Any, "filespec"),
+    ("w", Any, "where"),
+    ("ctrl+w", Any, "where_tagged"),
+    ("alt+n", Any, "index_branch"),
     ("i", Any, "invert"),
     ("q", Any, "quit"),
     ("alt+q", Any, "quit_cd"),

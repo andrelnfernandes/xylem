@@ -27,6 +27,8 @@ pub enum Command {
     Log,
     /// Alt+L: the directory under the cursor becomes the root of the window.
     LogHere,
+    /// Alt+N: index the contents of the branch, for `words()` in W.
+    IndexBranch,
     /// Compares with the other window's directory and tags files.
     Compare,
     /// Opens a ZIP/TAR as if it were a directory (Alt+F5).
@@ -105,6 +107,11 @@ pub enum Command {
     Right,
     Back,
     Filespec,
+    /// W: a SQL condition over the files of the list; `tagged` (Ctrl+W),
+    /// over the tagged ones.
+    Where {
+        tagged: bool,
+    },
     Showall,
     /// Ctrl+S in the tree: Showall of the tagged files only.
     ShowallTagged,
