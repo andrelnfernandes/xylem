@@ -166,6 +166,20 @@ impl App {
             }
             return;
         }
+        if let Some(job) = &self.index_job {
+            if key.code == KeyCode::Esc {
+                job.stop();
+                let result = job.wait();
+                self.finish_index(result);
+            }
+            return;
+        }
+        if self.content_job.as_ref().is_some_and(|(_, _, go)| *go) {
+            if key.code == KeyCode::Esc {
+                self.finish_content(true);
+            }
+            return;
+        }
         if let Some(job) = &self.search_job {
             if key.code == KeyCode::Esc {
                 self.message = Some(format!(
@@ -508,6 +522,7 @@ impl App {
             // F2 picks one in the tree, from the current directory.
             Command::Log => self.open_prompt(PromptKind::Log, "LOG directory: ".into(), ""),
             Command::LogHere => self.log_here(),
+            Command::IndexBranch => self.ask_index(),
             Command::Back if in_files => self.back_to_tree(),
             Command::Back => self.close_archive(),
             Command::OpenArchive => self.open_archive(),
@@ -611,6 +626,23 @@ impl App {
             Command::Filespec => {
                 let text = self.filespec.text().to_string();
                 self.open_prompt(PromptKind::Filespec, "FILESPEC: ".into(), &text);
+            }
+            Command::Where { tagged } => {
+                // The first time, examples to copy and change.
+                let history = self.history.entry("where".into()).or_default();
+                if history.is_empty() {
+                    history.extend(crate::model::query::EXAMPLES.iter().map(|s| s.to_string()));
+                }
+                let text = match &self.query {
+                    Some(q) if q.tagged() == tagged => q.text().to_string(),
+                    _ => String::new(),
+                };
+                let label = if tagged {
+                    "WHERE (tagged files): "
+                } else {
+                    "WHERE (files of the list): "
+                };
+                self.open_prompt(PromptKind::Where { tagged }, label.into(), &text);
             }
             Command::Showall => self.set_view(FileView::Showall),
             Command::ShowallTagged => {

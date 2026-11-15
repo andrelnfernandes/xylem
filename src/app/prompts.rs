@@ -10,6 +10,11 @@ pub struct Prompt {
 
 pub(crate) enum PromptKind {
     Filespec,
+    /// W: a SQL condition over the files of the list (the tagged ones with
+    /// Ctrl+W).
+    Where {
+        tagged: bool,
+    },
     /// Duplicates: where to write the list.
     ExportDuplicates,
     Transfer {
@@ -95,6 +100,7 @@ impl PromptKind {
     fn history_key(&self) -> Option<&'static str> {
         Some(match self {
             PromptKind::Filespec => "filespec",
+            PromptKind::Where { .. } => "where",
             PromptKind::ExportDuplicates => "export",
             // One list of places: those logged and those copied or moved to.
             PromptKind::Transfer { .. } | PromptKind::Log => PLACES,
@@ -307,6 +313,8 @@ pub struct Confirm {
 }
 
 const YES_NO: &[&str] = &["Yes", "No"];
+/// Alt+N on a branch that has an index.
+pub(crate) const INDEX_OPTIONS: &[&str] = &["Index again", "Delete the index", "No"];
 const COMPARE_OPTIONS: &[&str] = &[
     "Unique",
     "Newer",
@@ -334,6 +342,13 @@ pub(crate) enum ConfirmKind {
     ReadThroughNetwork(NodeId),
     /// `*` in the cloud: the service keeps refusing requests.
     KeepListing,
+    /// W with `contains`: read the contents of the files, with no index?
+    ReadContents,
+    /// Alt+N: index this branch (or, with an index, do it again or delete it).
+    IndexBranch {
+        id: NodeId,
+        exists: bool,
+    },
     DeleteDir {
         id: NodeId,
         to_trash: bool,
@@ -661,6 +676,7 @@ impl App {
                 self.filespec = spec;
                 self.refresh_files();
             }),
+            PromptKind::Where { tagged } => self.set_query(&text, tagged),
             PromptKind::Log => self.log(&text),
             PromptKind::Askpass { .. } => {
                 self.answer_askpass(Some(&text));
@@ -1027,6 +1043,23 @@ impl App {
                     _ => SortKey::Size,
                 };
                 self.set_sort(sort);
+            }
+            ConfirmKind::ReadContents => match (&mut self.content_job, yes) {
+                (Some((_, _, go)), true) => {
+                    *go = true;
+                    self.tick(Duration::from_millis(30));
+                }
+                _ => {
+                    self.content_job = None;
+                    self.message = Some("Nothing read: the list did not change".into());
+                }
+            },
+            ConfirmKind::IndexBranch { id, exists } => {
+                if exists && choice == 'd' {
+                    self.delete_index(id);
+                } else if (exists && choice == 'i') || (!exists && yes) {
+                    self.start_index(id);
+                }
             }
             ConfirmKind::KeepListing => {
                 if choice == 's' {

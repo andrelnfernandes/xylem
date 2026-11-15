@@ -354,6 +354,253 @@ impl App {
         (self.disk_stats(Some((&point, &points))), Some(point))
     }
 
+    /// W and Ctrl+W: keeps in the list only the files that meet the SQL
+    /// condition `text` (the tagged ones, with `tagged`); with no text, the
+    /// list is whole again. A condition that keeps nothing changes nothing.
+    pub(crate) fn set_query(&mut self, text: &str, tagged: bool) -> Result<(), String> {
+        if text.trim().is_empty() {
+            self.query = None;
+            self.refresh_files();
+            self.message = Some(format!("Condition off: {} files", self.files.len()));
+            return Ok(());
+        }
+        let query = crate::model::query::FileQuery::parse(text, tagged)?;
+        if query.reads_contents() {
+            return self.start_content(query);
+        }
+        let old = self.query.replace(query);
+        self.refresh_files();
+        if self.files.is_empty() {
+            self.query = old;
+            self.refresh_files();
+            let which = if tagged {
+                "tagged file"
+            } else {
+                "file of the list"
+            };
+            return Err(format!("No {which} meets the condition"));
+        }
+        let n = self.files.len();
+        let files = if n == 1 { "file meets" } else { "files meet" };
+        self.message = Some(format!(
+            "{n} {files} the condition: Ctrl+T tags them, W with no text shows all again"
+        ));
+        Ok(())
+    }
+
+    /// W with `contains`: what the rest of the condition decides is decided at
+    /// once; the other files are read, with no index, once the user agrees.
+    fn start_content(&mut self, query: crate::model::query::FileQuery) -> Result<(), String> {
+        let root = self.tree.path(ROOT);
+        if self.remote.is_none() && self.archive.is_none() && self.tree.reads_slowly(&root) {
+            return Err(
+                "contains() does not read files on a cloud mount: each one would be downloaded"
+                    .into(),
+            );
+        }
+        let candidates = self.query_candidates(query.tagged());
+        // The indexes answer for `words`, on this machine.
+        let uses_index = query.terms().iter().any(|t| t.words.is_some())
+            && self.remote.is_none()
+            && self.archive.is_none();
+        let lookup = if uses_index {
+            crate::index::lookup(&crate::index::touching(&root), query.terms())
+        } else {
+            crate::index::Lookup::default()
+        };
+        let job = crate::model::query::ContentJob::new(
+            query,
+            candidates,
+            self.content_opener(),
+            std::time::SystemTime::now(),
+            &|c| lookup.answer(c),
+        );
+        let (n, bytes, indexed) = (job.total(), job.bytes_total, job.from_index);
+        self.content_job = Some((job, self.active, false));
+        let broken = lookup.broken.first().map(|(root, why)| {
+            format!(
+                " The index of {} could not be read ({why}): Alt+N there makes it again.",
+                root.display()
+            )
+        });
+        if n == 0 {
+            self.finish_content(false);
+            if let (Some(broken), Some(m)) = (&broken, &mut self.message) {
+                m.push_str(broken);
+            }
+            return Ok(());
+        }
+        let files = if n == 1 { "file" } else { "files" };
+        let index = if indexed > 0 {
+            format!("Index: {} files up to date. ", info::group(indexed as u64))
+        } else {
+            String::new()
+        };
+        let over = if self.remote.is_some() {
+            ", downloading them through SSH"
+        } else {
+            ""
+        };
+        let question = format!(
+            "{index}No index: read the contents of {} {files} ({}){over}?{}",
+            info::group(n as u64),
+            crate::usage::size(bytes),
+            broken.unwrap_or_default()
+        );
+        self.ask(crate::app::prompts::ConfirmKind::ReadContents, question);
+        Ok(())
+    }
+
+    /// Alt+N: asks to index the branch under the cursor (the folder of the
+    /// file, in the file window), or what to do with its index.
+    pub(crate) fn ask_index(&mut self) {
+        if !crate::index::available() {
+            self.message = Some("This Xylem was built without the index".into());
+            return;
+        }
+        if self.remote.is_some() || self.archive.is_some() {
+            self.message = Some("The index is only for folders of this machine".into());
+            return;
+        }
+        let id = match self.focus {
+            Focus::Tree => self.current(),
+            Focus::Files => self.header_dir(),
+        };
+        let root = self.tree.path(id);
+        if self.tree.reads_slowly(&root) {
+            self.message = Some("No index on a cloud mount: each file would be downloaded".into());
+            return;
+        }
+        let files = self.index_files(id);
+        let bytes: u64 = files.iter().map(|f| f.stamp.size).sum();
+        let what = format!(
+            "{} logged files of {} ({})",
+            info::group(files.len() as u64),
+            root.display(),
+            crate::usage::size(bytes)
+        );
+        if crate::index::roots().contains(&root) {
+            self.ask_options(
+                crate::app::prompts::ConfirmKind::IndexBranch { id, exists: true },
+                format!("This branch has an index. Index the {what} again?"),
+                crate::app::prompts::INDEX_OPTIONS,
+            );
+        } else {
+            self.ask(
+                crate::app::prompts::ConfirmKind::IndexBranch { id, exists: false },
+                format!("Index the {what}? It is a copy of their words, kept in your cache"),
+            );
+        }
+    }
+
+    /// The logged files of the branch `id` the index takes.
+    fn index_files(&self, id: NodeId) -> Vec<crate::index::ToIndex> {
+        let root = self.tree.path(id);
+        let mut out = Vec::new();
+        for dir in self.tree.subtree(id) {
+            let path = self.tree.path(dir);
+            for f in &self.tree.node(dir).files {
+                let file = path.join(&f.name);
+                let relative = file.strip_prefix(&root).unwrap_or(&file);
+                if f.kind == crate::model::tree::FileKind::File && !crate::index::left_out(relative)
+                {
+                    out.push(crate::index::ToIndex {
+                        path: file,
+                        stamp: crate::index::Stamp::of(f.size, f.modified),
+                    });
+                }
+            }
+        }
+        out
+    }
+
+    pub(crate) fn start_index(&mut self, id: NodeId) {
+        let root = self.tree.path(id);
+        let files = self.index_files(id);
+        self.index_job = Some(crate::index::IndexJob::start(root, files));
+    }
+
+    pub(crate) fn delete_index(&mut self, id: NodeId) {
+        let root = self.tree.path(id);
+        self.message = Some(match crate::index::delete(&root) {
+            Ok(true) => format!("The index of {} was deleted", root.display()),
+            Ok(false) => format!("{} has no index", root.display()),
+            Err(e) => format!("Cannot delete the index of {}: {e}", root.display()),
+        });
+    }
+
+    /// The indexing is over, or Esc stopped it.
+    pub(crate) fn finish_index(&mut self, result: Result<crate::index::Report, String>) {
+        let Some(job) = self.index_job.take() else {
+            return;
+        };
+        let g = |n: usize| info::group(n as u64);
+        self.message = Some(match result {
+            Err(e) => format!("Cannot index {}: {e}", job.root.display()),
+            Ok(r) => {
+                let mut m = format!(
+                    "{} {}: {} files indexed, {} already up to date",
+                    if r.stopped {
+                        "Stopped indexing"
+                    } else {
+                        "Indexed"
+                    },
+                    job.root.display(),
+                    g(r.indexed),
+                    g(r.kept)
+                );
+                if r.removed > 0 {
+                    m.push_str(&format!(", {} gone", g(r.removed)));
+                }
+                let left: Vec<String> = [
+                    (r.binary, "binary"),
+                    (r.too_big, "over 64 MiB"),
+                    (r.unreadable, "unreadable"),
+                ]
+                .iter()
+                .filter(|(n, _)| *n > 0)
+                .map(|(n, what)| format!("{} {what}", g(*n)))
+                .collect();
+                if !left.is_empty() {
+                    m.push_str(&format!("; left out: {}", left.join(", ")));
+                }
+                if r.rebuilt {
+                    m.push_str(" (its old index could not be read and was made again)");
+                }
+                m
+            }
+        });
+    }
+
+    /// Reads more of the contents for W.
+    pub(crate) fn content_tick(&mut self, budget: std::time::Duration) {
+        let Some((job, _, _)) = &mut self.content_job else {
+            return;
+        };
+        job.step(budget);
+        if job.is_done() {
+            self.finish_content(false);
+        }
+    }
+
+    /// The reading for W is over (or Esc stopped it): the list shows what was
+    /// found. Nothing found leaves the list as it was.
+    pub(crate) fn finish_content(&mut self, stopped: bool) {
+        let Some((job, pane, _)) = self.content_job.take() else {
+            return;
+        };
+        let summary = job.summary(stopped);
+        let found = job.found();
+        let pane = &mut self.panes[pane];
+        if found > 0 {
+            pane.query = Some(job.finish());
+            pane.refresh_files();
+            self.message = Some(format!("{summary}: Ctrl+T tags them"));
+        } else {
+            self.message = Some(format!("{summary}: the list did not change"));
+        }
+    }
+
     /// ?: statistics of the active window.
     pub(crate) fn stats_text(&self) -> String {
         let g = info::group;
