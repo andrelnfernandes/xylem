@@ -63,9 +63,27 @@ pub struct FileQuery {
 pub struct Term {
     /// The text in quotes.
     pub text: String,
-    /// `words`: the words of the text, as [`words_of`] splits them; `None`
+    /// `words`: the words of the text, as [`word_pats`] splits them; `None`
     /// for `contains`, which looks for the text as it is.
-    pub words: Option<Vec<String>>,
+    pub words: Option<Vec<WordPat>>,
+}
+
+/// One word `words()` looks for: the whole word, or any word that starts with
+/// it (`fatur*`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WordPat {
+    pub word: String,
+    pub prefix: bool,
+}
+
+impl WordPat {
+    pub fn matches(&self, word: &str) -> bool {
+        if self.prefix {
+            word.starts_with(&self.word)
+        } else {
+            word == self.word
+        }
+    }
 }
 
 /// Splits a text into the words `words()` and the index look for: runs of
@@ -88,6 +106,33 @@ pub fn words_of(text: &str) -> Vec<String> {
     }
     // A word that long is not a word: the index leaves it out too.
     out.retain(|w| w.len() <= MAX_WORD);
+    out
+}
+
+/// Splits the argument of `words()` into the words it looks for, with `prefix`
+/// on those followed by `*` (`fatur*`).
+pub fn word_pats(text: &str) -> Vec<WordPat> {
+    let mut out = Vec::new();
+    let mut word = String::new();
+    for c in text.chars() {
+        if c.is_alphanumeric() {
+            for low in c.to_lowercase() {
+                word.push(fold(low));
+            }
+        } else if !word.is_empty() {
+            out.push(WordPat {
+                word: std::mem::take(&mut word),
+                prefix: c == '*',
+            });
+        }
+    }
+    if !word.is_empty() {
+        out.push(WordPat {
+            word,
+            prefix: false,
+        });
+    }
+    out.retain(|w| w.word.len() <= MAX_WORD);
     out
 }
 
@@ -134,7 +179,7 @@ fn check_calls(expr: &Expr, standing: bool, terms: &mut Vec<Term>) -> Result<(),
                     "{name}() takes one text in quotes: {name}('invoice')"
                 ));
             };
-            let words = (name == "words").then(|| words_of(text));
+            let words = (name == "words").then(|| word_pats(text));
             if text.is_empty() || words.as_ref().is_some_and(Vec::is_empty) {
                 return Err(format!("{name}('{text}') has nothing to look for"));
             }
@@ -427,7 +472,7 @@ enum Scan {
     /// `contains`: what the next step needs of what was read.
     Text(Vec<u8>),
     /// `words`: the words not found yet.
-    Words(WordSplitter, HashSet<String>),
+    Words(WordSplitter, Vec<WordPat>),
 }
 
 /// The file being read, from one step to the next.
@@ -443,7 +488,7 @@ struct Reading {
 fn scan_words(
     reader: &mut dyn BufRead,
     splitter: &mut WordSplitter,
-    left: &mut HashSet<String>,
+    left: &mut Vec<WordPat>,
     until: Instant,
 ) -> std::io::Result<Option<bool>> {
     loop {
@@ -458,13 +503,13 @@ fn scan_words(
         };
         if chunk.is_empty() {
             splitter.finish(|w| {
-                left.remove(&w);
+                left.retain(|p| !p.matches(&w));
             });
             return Ok(Some(left.is_empty()));
         }
         let n = chunk.len();
         splitter.feed(chunk, |w| {
-            left.remove(&w);
+            left.retain(|p| !p.matches(&w));
         });
         reader.consume(n);
         if Instant::now() >= until {
@@ -654,7 +699,7 @@ impl ContentJob {
         });
         let scan = match &self.query.terms[term].words {
             None => Scan::Text(Vec::new()),
-            Some(words) => Scan::Words(WordSplitter::default(), words.iter().cloned().collect()),
+            Some(words) => Scan::Words(WordSplitter::default(), words.clone()),
         };
         match opened {
             Ok((true, _)) => self.skip(|s| &mut s.binary, None),
@@ -1004,6 +1049,10 @@ mod tests {
         ];
         let (_tmp, list) = candidates(texts);
         assert_eq!(names(run("words('fatura marco')", list)), ["a"]);
+        let (_tmp, list) = candidates(texts);
+        assert_eq!(names(run("words('fatur*')", list)), ["a", "b"]);
+        let (_tmp, list) = candidates(texts);
+        assert_eq!(names(run("words('fatur* anual')", list)), ["b"]);
         let (_tmp, list) = candidates(texts);
         assert_eq!(names(run("contains('fatura')", list)), ["a", "b"]);
     }

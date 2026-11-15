@@ -308,7 +308,7 @@ mod imp {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     use tantivy::collector::DocSetCollector;
-    use tantivy::query::{BooleanQuery, Query, TermQuery};
+    use tantivy::query::{BooleanQuery, PhrasePrefixQuery, Query, TermQuery};
     use tantivy::schema::{
         Field, INDEXED, IndexRecordOption, STORED, STRING, Schema, TextFieldIndexing, TextOptions,
         Value,
@@ -428,8 +428,14 @@ mod imp {
             let parts: Vec<Box<dyn Query>> = words
                 .iter()
                 .map(|w| {
-                    let word = Word::from_field_text(f.body, w);
-                    Box::new(TermQuery::new(word, IndexRecordOption::Basic)) as Box<dyn Query>
+                    let word = Word::from_field_text(f.body, &w.word);
+                    if w.prefix {
+                        let mut q = PhrasePrefixQuery::new(vec![word]);
+                        q.set_max_expansions(u32::MAX);
+                        Box::new(q) as Box<dyn Query>
+                    } else {
+                        Box::new(TermQuery::new(word, IndexRecordOption::Basic)) as Box<dyn Query>
+                    }
                 })
                 .collect();
             let found = searcher
@@ -668,6 +674,12 @@ mod tests {
         assert!(found.broken.is_empty());
         let a = candidate(root.join("a.txt"));
         assert_eq!(found.answer(&a), Some(Known::Terms(vec![Some(true), None])));
+        let prefix = FileQuery::parse("words('fatur* marc*')", false).unwrap();
+        let found_prefix = lookup(&touching(&root), prefix.terms());
+        assert_eq!(
+            found_prefix.answer(&a),
+            Some(Known::Terms(vec![Some(true)]))
+        );
         assert_eq!(
             found.answer(&candidate(root.join("b.txt"))),
             Some(Known::Terms(vec![Some(false), None]))
