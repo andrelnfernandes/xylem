@@ -1,12 +1,113 @@
-# Estudo: consultar o disco, por fora e por dentro dos arquivos
+# Spec: consultar o disco, por fora e por dentro dos arquivos
 
 Origem: conversa de 2026-11-14. Um recurso necessário, para o qual não há
 implementações robustas no mercado. A sugestão foi consultar os arquivos da árvore
 com SQL e agir sobre o resultado; o autor perguntou se valeria para o **conteúdo** dos arquivos,
 como o Google Desktop fazia, com a preocupação da performance.
 
-**Estado: proposta para estudo. Nada aprovado, nada implementado.** As decisões em
-aberto estão marcadas com **(?)**, com a recomendação, e reunidas no fim.
+**Estado: aprovado pelo autor em 2026-11-14** ("a busca em arquivos usando SQL e
+indexando com a tantivy está aprovada"). **Nada implementado.** A aprovação é do
+recurso e do motor do índice; as decisões marcadas com **(?)**, reunidas no fim,
+continuam em aberto até o autor confirmar cada uma, e a ordem das etapas é a deste
+documento.
+
+## Andamento
+
+Lido por quem retoma o trabalho; atualizado ao fim de cada etapa.
+
+- **Decidido pelo autor em 2026-11-14:**
+  - o motor da etapa 3 é o **SQLite que já está no projeto**, lendo a árvore por uma
+    tabela virtual (`files`) e o conteúdo por funções (`contains`, `words`): ele só
+    interpreta e calcula, não guarda nada. As etapas 1 e 2 usam o mini-SQL
+    (`sql_filter.rs`), mantido como subconjunto da sintaxe do SQLite;
+  - a tecla é provisória: **`W`** (de WHERE) para os arquivos da lista e **`Ctrl+W`**
+    para os marcados, até o autor escolher a definitiva;
+  - o autor pediu o desenvolvimento sem a presença dele na madrugada de 2026-11-15,
+    até onde for possível.
+- **Etapa 1: feita** na branch `query` (sem commit, esperando autorização).
+  - `src/model/query.rs`: `FileQuery` (a condição, pelo `sql_filter.rs`) e as colunas
+    de `files`: `name`, `ext`, `path`, `dir`, `depth`, `size`, `disk`, `modified`,
+    `age_days`, `mode`, `kind`, `tagged`. `git`, `type` e `dup` ficaram para depois.
+  - `modified` é texto na hora local (`2026-11-15 09:30:00`), que compara como texto
+    com uma data; a idade é a coluna `age_days`, em vez de `now - 30d`, que pediria
+    estender o mini-SQL.
+  - `Pane::query`, aplicada em `refresh_files` e `branch_matching_files` (então
+    Ctrl+T na árvore também marca só o que a condição mostra). `W` e `Ctrl+W`
+    abrem o prompt; o histórico começa com quatro exemplos; uma condição que não
+    pega nada não muda a lista. O título da lista mostra a condição.
+  - O mini-SQL não lê `10e6`: os números vão por extenso.
+  - Manual: a seção "A SQL condition (W)" em `filespec.md` (só inglês).
+  - Conferido no app real (build de debug): em Branch no `src` do Xylem,
+    `ext = 'rs' AND size > 100000` deixou os 5 arquivos que o `find` acha, e o título
+    mostrou a condição.
+- **Etapa 2: feita** na branch `query` (sem commit), na madrugada de 2026-11-15, sem o
+  autor.
+  - O mini-SQL ganhou chamada de função (`Expr::Call`), aceita só por
+    `SqlFilter::parse_with_calls`: o filtro de tabelas do viewer continua recusando.
+  - `contains('texto')`: só como condição por si (sob `AND`, `OR`, `NOT`), com um
+    texto entre aspas; mesmo casamento do Ctrl+S (`Pattern`, sem diferença de
+    maiúsculas, `*` dentro da linha).
+  - **A ordem é a performance,** por lógica de três valores (`decide`): o que o resto
+    da condição decide não é lido, em `AND` e em `OR`. Não reordena nada.
+  - `ContentJob` lê em passos no `tick`, como o Ctrl+S; com vários termos, lê o
+    arquivo uma vez por termo. Esc para e a lista mostra o que achou.
+  - **Regra 3 do autor:** antes de ler, uma confirmação diz que é sem índice, quantos
+    arquivos e quantos bytes (`No index: read the contents of N files (X)?`); por SSH
+    acrescenta que serão baixados. O rodapé mostra o progresso, e a mensagem final
+    diz `N files read, with no index` e o que ficou de fora.
+  - **Ficam de fora,** e a mensagem conta cada um: binários (byte zero nos primeiros
+    8 KiB), links simbólicos, arquivos acima de 256 MiB e ilegíveis. Um arquivo de
+    fora nunca é resultado, nem de `NOT contains(...)`.
+  - **Decisão 4 (recomendação seguida):** recusado em montagem de nuvem; por SSH,
+    confirmação (a mesma de sempre, com o aviso do download).
+  - O resultado fica guardado como conjunto de caminhos (`FileQuery::hits`): um
+    arquivo mudado ou novo só aparece rodando W de novo.
+  - Conferido no app real (build de debug): `ext = 'rs' AND contains('LineSource')`
+    em Branch no `src` perguntou "No index: read the contents of 70 files (2.3 MiB)?"
+    e deixou os 3 arquivos que o `grep` acha.
+- **Etapa 4: feita** na branch `query` (sem commit), na mesma madrugada, sem o autor.
+  - `tantivy` 0.27 como dependência **opcional e ligada por padrão** (feature
+    `index`, com `default-features = false` e `mmap`, `lz4-compression`: nenhum C
+    novo; o único `zstd-sys` continua sendo o do Parquet). Compila com e sem ela.
+  - **Tecla provisória: `Alt+N`** (iNdex) no ramo sob o cursor (na lista, a pasta do
+    arquivo). `Alt+W` estava livre, mas era a tecla antiga do Usage, que um teste
+    exige continuar livre. Num ramo com índice, Alt+N oferece "Index again", "Delete
+    the index" ou "No".
+  - **`words('a b')`:** todas as palavras, inteiras, sem diferença de maiúsculas nem de
+    acentos. A separação de palavras é nossa (`words_of`, `WordSplitter`), a mesma ao
+    indexar e ao ler um arquivo; o índice guarda as palavras já separadas e só as
+    divide nos espaços (`whitespace`). Prefixo (`fatur*`) ficou para depois.
+  - **Índice:** em `~/.cache/xylem/index/<FNV-1a do caminho do ramo>/`, modo 0700,
+    com o caminho do ramo num arquivo `branch` e a versão em `version`. Por arquivo:
+    caminho, tamanho, data e as palavras. Indexar de novo lê só o que mudou e tira o
+    que sumiu; commit a cada 2.000 arquivos, e Esc guarda o que foi feito.
+  - **Na consulta:** um arquivo com tamanho e data iguais aos do índice é respondido
+    por ele; os outros são lidos. A pergunta diz os dois números (regra 3), e sem nada
+    a ler não pergunta.
+  - **Ficam fora do índice:** binários, arquivos acima de 64 MiB (W lê esses quando
+    pedido), links, `.git`, `target`, `node_modules`, `.ssh`, `.gnupg`, `.env`,
+    `*.key`, `*.pem`, `id_rsa`, `id_ed25519`. A lista **não é configurável ainda**.
+    Remoto, arquivo compactado e nuvem: sem índice.
+  - **Índice ilegível** (estragado ou de outra versão): a consulta avisa e lê os
+    arquivos; Alt+N o refaz do zero. Os erros e pânicos da tantivy passam por
+    `panic_guard`.
+  - Um binário entra no índice marcado como tal (sem palavras): a consulta o deixa de
+    fora sem lê-lo. Versão do índice: 2 (uma de outra versão é refeita).
+  - O mini-SQL passou a aceitar `NOT LIKE` e `NOT ILIKE`, como o SQLite.
+  - **Conferido no app real** (release e debug, HOME isolado): a árvore do Xylem (429
+    arquivos logados fora de `target`) indexada em 1,5 s no release, índice de 452 KB;
+    indexar de novo leu só o arquivo que mudou; `dir NOT LIKE '%/target%' AND dir NOT
+    LIKE '%/.git%' AND words('memchr')` respondeu sem pergunta ("420 answered by the
+    index") os mesmos 4 arquivos que o `grep -w`. O binário release foi de 17,4 MB para
+    20,5 MB, e a compilação do release de cerca de 2 min para 3 min 45 s.
+  - Não medido: um ramo grande (centenas de milhares de arquivos), o tempo de carregar
+    o índice nesse caso (`stamps` lê todos os documentos), e fuzz de índice corrompido
+    (só o teste de arquivos trocados por lixo).
+  - Só UTF-8 é indexado direito (outra codificação vira `�` nas palavras); as células
+    das tabelas (CSV, XLSX...) entram como texto cru, não pelos leitores do viewer.
+- **Etapa 5:** não começada, de propósito: é a parte mais visível (a caixa que
+  mostra resultados enquanto se digita, com trechos), e vale o autor ver as etapas 1,
+  2 e 4 antes. **Etapa 3:** depois dela, pelo SQLite (decidido).
 
 ## A ideia
 

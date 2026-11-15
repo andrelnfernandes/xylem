@@ -4845,3 +4845,166 @@ fn a_cloud_mount_is_not_watched() {
     app.panes[0] = Pane::slow(tmp.path().to_path_buf());
     assert!(app.watched_dirs().is_empty());
 }
+
+#[test]
+fn w_keeps_the_files_that_meet_a_sql_condition() {
+    let (_tmp, mut app) = sample();
+    app.apply(Command::Branch);
+    // Sorted by name across the folders.
+    assert_eq!(names(&app), ["a.rs", "a.rs", "b.txt", "c.rs"]);
+
+    // The first time, the history has examples to copy.
+    press(&mut app, KeyCode::Char('w'));
+    let prompt = app.prompt.as_ref().expect("the prompt opens");
+    assert_eq!(prompt.label, "WHERE (files of the list): ");
+    assert!(!app.history.get("where").unwrap().is_empty());
+    answer_prompt(&mut app, "ext = 'rs' AND depth >= 1");
+    assert_eq!(names(&app), ["a.rs", "c.rs"]);
+    let said = app.message.take().unwrap();
+    assert!(said.starts_with("2 files meet the condition"), "{said}");
+
+    // Ctrl+T tags what the list shows.
+    ctrl(&mut app, 't');
+    let tagged = |app: &App| {
+        let mut all = Vec::new();
+        for f in app.logged_matching_files() {
+            if app.file(f).tagged {
+                all.push(app.file(f).name.to_string_lossy().into_owned());
+            }
+        }
+        all.sort();
+        all
+    };
+    assert_eq!(tagged(&app), ["a.rs", "c.rs"]);
+
+    // A condition that keeps nothing changes nothing, and says why.
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "size > 1000000");
+    assert_eq!(names(&app), ["a.rs", "c.rs"]);
+    assert_eq!(
+        app.message.as_deref(),
+        Some("No file of the list meets the condition")
+    );
+
+    // A wrong one neither.
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "colour = 'red'");
+    assert_eq!(names(&app), ["a.rs", "c.rs"]);
+    assert!(
+        app.message
+            .take()
+            .unwrap()
+            .starts_with("No column \"colour\"")
+    );
+
+    // Ctrl+W looks only at the tagged files.
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "");
+    assert_eq!(names(&app).len(), 4);
+    ctrl(&mut app, 'w');
+    assert_eq!(app.prompt.as_ref().unwrap().label, "WHERE (tagged files): ");
+    answer_prompt(&mut app, "size < 2");
+    assert_eq!(names(&app), ["c.rs"]);
+}
+
+#[test]
+fn w_with_contains_reads_the_files_after_asking() {
+    let (_tmp, mut app) = sample();
+    app.apply(Command::Branch);
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "ext = 'rs' AND contains('MAIN')");
+    // Three .rs files to read; b.txt is decided without reading it.
+    let question = &app.confirm.as_ref().expect("it asks first").question;
+    assert!(
+        question.starts_with("No index: read the contents of 3 files ("),
+        "{question}"
+    );
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(50));
+    }
+    assert_eq!(names(&app), ["a.rs"]);
+    let said = app.message.take().unwrap();
+    assert!(
+        said.starts_with("1 file meets the condition (3 files read, with no index)"),
+        "{said}"
+    );
+
+    // No: nothing is read and the list stays.
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "contains('deep')");
+    press(&mut app, KeyCode::Char('n'));
+    assert!(app.content_job.is_none());
+    assert_eq!(names(&app), ["a.rs"]);
+
+    // Esc while reading: the list shows what was found so far.
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "contains('deep')");
+    press(&mut app, KeyCode::Char('y'));
+    if app.busy() {
+        press(&mut app, KeyCode::Esc);
+    }
+    assert!(!app.busy());
+    assert!(app.message.is_some());
+}
+
+#[cfg(feature = "index")]
+#[test]
+fn alt_n_indexes_the_branch_and_w_uses_it() {
+    let (tmp, mut app) = sample();
+    crate::index::TEST_BASE.with_borrow_mut(|b| *b = Some(tmp.path().join(".indexes")));
+    app.apply(Command::Branch);
+    app.apply(Command::Back);
+
+    // Indexing asks first, saying what it is.
+    alt(&mut app, 'n');
+    let question = &app.confirm.as_ref().expect("it asks").question;
+    assert!(
+        question.starts_with("Index the 4 logged files of"),
+        "{question}"
+    );
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+    let said = app.message.take().unwrap();
+    assert!(
+        said.contains("4 files indexed, 0 already up to date"),
+        "{said}"
+    );
+
+    // words() is answered by the index: nothing to read, nothing to ask.
+    app.apply(Command::Branch);
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "words('main')");
+    assert!(app.confirm.is_none());
+    assert_eq!(names(&app), ["a.rs"]);
+    let said = app.message.take().unwrap();
+    assert!(
+        said.contains("0 files read, with no index; 4 answered by the index"),
+        "{said}"
+    );
+
+    // A file changed since is read again, and the question says how many.
+    write(tmp.path().join("b.txt"), "main too").unwrap();
+    app.rescan_everywhere(&[tmp.path()]);
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "words('main')");
+    let question = &app.confirm.as_ref().expect("one file to read").question;
+    assert!(
+        question.starts_with("Index: 3 files up to date. No index: read the contents of 1 file"),
+        "{question}"
+    );
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+    assert_eq!(names(&app), ["a.rs", "b.txt"]);
+
+    // Again on an index: the choice to delete it.
+    app.apply(Command::Back);
+    alt(&mut app, 'n');
+    press(&mut app, KeyCode::Char('d'));
+    assert!(app.message.take().unwrap().contains("was deleted"));
+    assert!(crate::index::roots().is_empty());
+}

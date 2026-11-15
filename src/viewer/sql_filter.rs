@@ -108,6 +108,12 @@ pub enum Expr {
         list: Vec<Expr>,
         negated: bool,
     },
+    /// `name(args)`: only where the caller asked for functions (see
+    /// [`SqlFilter::parse_with_calls`]), and answered by [`RowContext::call`].
+    Call {
+        name: String,
+        args: Vec<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -300,21 +306,29 @@ impl<'a> Lexer<'a> {
 pub struct SqlFilter {
     tokens: Vec<Token>,
     pos: usize,
+    /// `name(...)` is a call; elsewhere it is refused.
+    calls: bool,
 }
 
 impl SqlFilter {
     /// Parse a query string like `WHERE age > 30 AND status = 'active'` or `age > 30`.
     pub fn parse(input: &str) -> Result<Expr, String> {
-        Self::parse_in(input, false)
+        Self::parse_in(input, false, false)
+    }
+
+    /// The same language with calls of functions, `contains('x')`, which the
+    /// caller checks and answers.
+    pub fn parse_with_calls(input: &str) -> Result<Expr, String> {
+        Self::parse_in(input, false, true)
     }
 
     /// The same language, for a condition of a Batch template, where `#` and
     /// `#line` are fields too. The filter on the screen has no such columns.
     pub fn parse_with_marks(input: &str) -> Result<Expr, String> {
-        Self::parse_in(input, true)
+        Self::parse_in(input, true, false)
     }
 
-    fn parse_in(input: &str, marks: bool) -> Result<Expr, String> {
+    fn parse_in(input: &str, marks: bool, calls: bool) -> Result<Expr, String> {
         if input.len() > 1024 {
             return Err("Query string too long (maximum 1024 bytes)".to_string());
         }
@@ -325,7 +339,11 @@ impl SqlFilter {
         if tokens.len() > 128 {
             return Err("Query too complex (maximum 128 tokens)".to_string());
         }
-        let mut parser = SqlFilter { tokens, pos: 0 };
+        let mut parser = SqlFilter {
+            tokens,
+            pos: 0,
+            calls,
+        };
         // Optional leading WHERE keyword
         if parser.peek() == Some(&Token::Where) {
             parser.pos += 1;
@@ -496,8 +514,23 @@ impl SqlFilter {
             Some(Token::In) | Some(Token::Not) => {
                 let negated = if self.peek() == Some(&Token::Not) {
                     self.next();
+                    // `x NOT LIKE p`, as in SQLite: `NOT (x LIKE p)`.
+                    if let Some(op @ (Token::Like | Token::ILike)) = self.peek().cloned() {
+                        self.next();
+                        let right = self.parse_primary(depth + 1)?;
+                        let op = if op == Token::Like {
+                            BinaryOp::Like
+                        } else {
+                            BinaryOp::ILike
+                        };
+                        return Ok(Expr::Not(Box::new(Expr::Binary {
+                            op,
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        })));
+                    }
                     if self.peek() != Some(&Token::In) {
-                        return Err("Expected IN after NOT".to_string());
+                        return Err("Expected IN, LIKE or ILIKE after NOT".to_string());
                     }
                     self.next();
                     true
@@ -539,6 +572,26 @@ impl SqlFilter {
                     return Err("Unclosed parenthesis".to_string());
                 }
                 Ok(expr)
+            }
+            Some(Token::Ident(name)) if self.peek() == Some(&Token::LParen) => {
+                if !self.calls {
+                    return Err(format!("No function {name}() here"));
+                }
+                self.next();
+                let mut args = Vec::new();
+                if self.peek() == Some(&Token::RParen) {
+                    self.next();
+                } else {
+                    loop {
+                        args.push(self.parse_or(depth + 1)?);
+                        match self.next() {
+                            Some(Token::Comma) => {}
+                            Some(Token::RParen) => break,
+                            _ => return Err(format!("Expected ')' closing {name}(")),
+                        }
+                    }
+                }
+                Ok(Expr::Call { name, args })
             }
             Some(Token::Ident(name)) => Ok(Expr::Column(name)),
             Some(Token::StringLit(s)) => Ok(Expr::Literal(Value::Text(s))),
@@ -616,12 +669,22 @@ pub fn columns_in<'a>(expr: &'a Expr, found: &mut Vec<&'a str>) {
                 columns_in(item, found);
             }
         }
+        Expr::Call { args, .. } => {
+            for arg in args {
+                columns_in(arg, found);
+            }
+        }
     }
 }
 
 /// Context providing access to row values by column name or 0-indexed column letter.
 pub trait RowContext {
     fn get_value(&self, column: &str) -> Option<Value>;
+
+    /// The value of `name(args)`; only a context that takes functions has any.
+    fn call(&self, name: &str, _args: &[Value]) -> Result<Value, String> {
+        Err(format!("No function {name}()"))
+    }
 }
 
 /// Evaluate an AST expression against a row context.
@@ -629,6 +692,13 @@ pub fn eval_expr<R: RowContext>(expr: &Expr, ctx: &R) -> Result<Value, String> {
     match expr {
         Expr::Literal(v) => Ok(v.clone()),
         Expr::Column(col) => Ok(ctx.get_value(col).unwrap_or(Value::Null)),
+        Expr::Call { name, args } => {
+            let values = args
+                .iter()
+                .map(|a| eval_expr(a, ctx))
+                .collect::<Result<Vec<_>, _>>()?;
+            ctx.call(name, &values)
+        }
         Expr::Not(inner) => {
             let v = eval_expr(inner, ctx)?;
             Ok(Value::Bool(!v.is_truthy()))
@@ -732,6 +802,22 @@ fn values_cmp(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn not_like_is_the_negation_of_like() {
+        let expr = SqlFilter::parse("name NOT LIKE 'a%' AND name NOT ILIKE 'B%'").unwrap();
+        struct Row(&'static str);
+        impl RowContext for Row {
+            fn get_value(&self, _: &str) -> Option<Value> {
+                Some(Value::Text(self.0.into()))
+            }
+        }
+        let takes = |name| eval_expr(&expr, &Row(name)).unwrap().is_truthy();
+        assert!(takes("cat"));
+        assert!(!takes("apple"));
+        assert!(!takes("banana"));
+        assert!(SqlFilter::parse("name NOT = 1").is_err());
+    }
 
     #[test]
     fn a_mark_is_a_name_only_where_it_was_asked_for() {
