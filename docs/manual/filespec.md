@@ -45,6 +45,9 @@ Each file is a row with these columns:
 | `mode` | the permissions as they are written: `mode = 644` |
 | `kind` | `file`, `link` or `other` |
 | `tagged` | whether the file is tagged: `NOT tagged` |
+| `git` | the two-letter Git status (`' M'`, `'M '`, `'??'`, `'  '` if clean); `NULL` outside a repository or when Git is off |
+| `type` | what the file is, as in Alt+F (`'PNG image, 800 x 600'`, `'Rust source'`, `'empty'`); read only when the condition needs it |
+| `dup` | duplicate group number (1, 2...), if Alt+D has run; `NULL` if not a duplicate |
 
 The operators are those of the [table filter](viewer.md#the-sql-filter): `=`, `<>`, `<`, `<=`, `>`, `>=`, `LIKE`, `ILIKE`, `IN`, `IS NULL`, `AND`, `OR`, `NOT` and parentheses. Numbers are written whole (`10000000`, not `10e6`). A name of a column that does not exist is refused with the list of those that do, and a condition that no file meets changes nothing.
 
@@ -69,10 +72,11 @@ On a cloud mount, `contains` is refused: each file would have to be downloaded. 
 
 ### Whole words, and an index: words()
 
-`words('invoice march')` is true for a file that has all those words, in any order and anywhere in it. A word is a run of letters and digits, compared without case and without accents: `words('acao')` finds `Ação`. Unlike `contains`, it does not find a piece of a word: `words('invoice')` does not find `invoices`.
+`words('invoice march')` is true for a file that has all those words, in any order and anywhere in it. A word is a run of letters and digits, compared without case and without accents: `words('acao')` finds `Ação`. Unlike `contains`, it does not find a piece of a word: `words('invoice')` does not find `invoices`. A `*` right after a word takes any word that starts with it: `words('invoice*')` finds `invoice` and `invoices`, and `words('andre*')` finds `André` and `Andrea`.
 
 ```sql
 words('invoice 2024') AND ext IN ('txt', 'md', 'csv')
+words('fatur* 2024')
 ```
 
 `words` can be answered by an **index** of the branch, and then nothing is read. **Alt+N** in the tree (or in the file window, for the folder of the file) indexes the logged files of the branch, after asking: it reads them once, in the background, with **Esc** stopping it and keeping what was done. Doing it again reads only the files that changed, and drops those that are gone. On a branch that has an index, Alt+N offers to index it again or to delete the index.
@@ -81,15 +85,32 @@ words('invoice 2024') AND ext IN ('txt', 'md', 'csv')
 |---|---|---|
 | Answer | each file is read when W runs | at once |
 | Cost | time at every condition | time and space when indexing |
-| Looks for | a piece of text (`contains`) or words (`words`) | words (`words`) |
+| Looks for | a piece of text (`contains`) or words and prefixes (`words`) | words and prefixes (`words`) |
 | A file changed since | its contents now | read again, as with no index |
 | Where | anywhere logged | only in the branches indexed with Alt+N |
 
 Before reading, the question says both: `Index: 3,120 files up to date. No index: read the contents of 12 files (1.2 MiB)?`. When the index answers for every file, there is no question, and the message says `answered by the index`. The index never makes a condition wrong: a file changed after it was indexed (another size or date) is read again.
 
-What the index leaves out: binary files, files over 64 MiB (W reads them when asked), symbolic links, and these folders and files, which are big and change all the time or hold secrets: `.git`, `target`, `node_modules`, `.ssh`, `.gnupg`, `.env`, `*.key`, `*.pem`, `id_rsa`, `id_ed25519`. Files on a remote machine, in an archive or on a cloud mount are not indexed.
+What the index leaves out: binary files, files over 64 MiB (W reads them when asked), symbolic links, and these folders and files, which are big and change all the time or hold secrets: `.git`, `target`, `node_modules`, `.ssh`, `.gnupg`, `.env`, `*.key`, `*.pem`, `id_rsa`, `id_ed25519`. The list of ignored patterns can be configured with `index_ignore` in `config.toml` or on the setup screen (F12, page 4, E). Removing secret patterns copies them into the index. Files on a remote machine, in an archive or on a cloud mount are not indexed.
 
 The index is a copy of the words of the files, kept in Xylem's cache (`~/.cache/xylem/index`, in a folder only you can read; `%LOCALAPPDATA%\xylem\cache\index` on Windows) until you delete it with Alt+N, or delete that folder. An index that cannot be read (damaged, or of another version of Xylem) is said in the question, its files are read instead, and Alt+N makes it again.
+
+## The search box (P)
+
+A Google Desktop experience without SQL: press **P** (or **Ctrl+P** on tagged files) to open a floating search box.
+
+As you type words, files matching them appear as you type:
+- Words match whole words, and the last word uses prefix search while typing (`fatura mar` looks for `fatura mar*`).
+- When a branch has an index (**Alt+N**), results from indexed files appear instantly.
+- If there are unindexed files, the status line says how many unindexed files and bytes there are. They are only read with explicit confirmation (press **Alt+R**, or **Enter** when there are no indexed results yet).
+- Each result shows its tag indicator (`*`), file name, directory, modification date, and a clean snippet (~80 characters, free of controls and bidirectional overrides) from the first line matching the query.
+- Keys inside the search box:
+  - **↑ / ↓**, **PgUp / PgDn**, **Ctrl+Home / Ctrl+End**: navigate the results list.
+  - **Enter**: goes directly to the selected file in the file window and closes the search box.
+  - **Ctrl+V**: opens the file in the viewer directly at the line of the snippet.
+  - **Ctrl+T**: toggles the tag on the selected file directly in the search box.
+  - **Alt+R**: asks and starts reading unindexed files.
+  - **Esc**: cancels reading unindexed files, or closes the search box.
 
 W is a first step of querying the disk: results as a table come later.
 

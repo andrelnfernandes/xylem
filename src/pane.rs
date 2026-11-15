@@ -14,7 +14,7 @@ use ratatui::widgets::ListState;
 use crate::archive::{self, EntryKind};
 use crate::input::Command;
 use crate::model::filespec::Filespec;
-use crate::model::query::{FileQuery, Place};
+use crate::model::query::{FileQuery, Place, QueryContext};
 use crate::model::sort::{self, Sort};
 use crate::model::tree::{FileEntry, FileKind, NodeId, ROOT, Tree, VisibleRow};
 use crate::ops::Source;
@@ -138,6 +138,8 @@ pub struct Pane {
     pub usage: Option<crate::usage::UsageView>,
     /// Alt+D: the Duplicates view, in place of the tree and the files.
     pub duplicates: Option<crate::duplicates::DuplicatesView>,
+    /// Duplicate group numbers computed by Alt+D (path -> 1-based group).
+    pub duplicate_groups: HashMap<PathBuf, usize>,
     /// Alt+F: how the file window displays the list.
     pub display: FileDisplay,
     /// File window columns as of the last draw (multi-column modes),
@@ -156,11 +158,17 @@ pub struct Pane {
     pub remote: Option<std::sync::Arc<crate::remote::Remote>>,
     /// Type display (Alt+F): what each file is, with the size and date it
     /// had when read, so a changed file is read again.
-    pub types: HashMap<PathBuf, (u64, Option<SystemTime>, String)>,
+    pub types: RefCell<TypeCache>,
+    /// Status of the files in the repositories being displayed.
+    pub git_status: Option<std::rc::Rc<RefCell<crate::git::StatusCache>>>,
+    pub git_enabled: bool,
     /// The last DISK statistics and what they were computed from: the panel
     /// is drawn again every half second, and the sum walks every logged file.
     stats: RefCell<Option<(StatsKey, DiskStats)>>,
 }
+
+/// Cache of file type descriptions for Alt+F and SQL queries.
+pub type TypeCache = HashMap<PathBuf, (u64, Option<SystemTime>, String)>;
 
 /// What the DISK statistics depend on: the tree as read and tagged, whether
 /// hidden entries count, the filespec, and the disk asked for (its mount
@@ -264,6 +272,7 @@ impl Pane {
             kbyte: Kbyte::default(),
             usage: None,
             duplicates: None,
+            duplicate_groups: HashMap::new(),
             display: FileDisplay::default(),
             file_cols: 1,
             tree_page: 1,
@@ -272,7 +281,9 @@ impl Pane {
             archive_entries: ArchiveEntries::default(),
             outer: None,
             remote: None,
-            types: HashMap::new(),
+            types: RefCell::new(HashMap::new()),
+            git_status: None,
+            git_enabled: true,
             stats: RefCell::new(None),
         };
         pane.refresh_files();
@@ -347,6 +358,24 @@ impl Pane {
         }
     }
 
+    /// Toggles the tag of `path` if it exists in the tree, returning the new state.
+    pub fn toggle_tag_path(&mut self, path: &Path) -> Option<bool> {
+        let dir = path.parent()?;
+        let name = path.file_name()?;
+        for id in self.tree.visible_subtree(ROOT) {
+            if self.tree.path(id) == dir {
+                for (idx, f) in self.tree.node(id).files.iter().enumerate() {
+                    if f.name == name {
+                        let entry = self.tree.file_mut(id, idx);
+                        entry.tagged = !entry.tagged;
+                        return Some(entry.tagged);
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// The files the list would show with no condition of W, as a condition
     /// with `contains` reads them; `tagged` keeps only the tagged ones.
     pub fn query_candidates(&self, tagged: bool) -> Vec<crate::model::query::Candidate> {
@@ -368,16 +397,100 @@ impl Pane {
                 let shown = self.tree.show_hidden || !f.is_hidden();
                 let wanted = !(tagged || self.tags_only) || f.tagged;
                 if shown && wanted && self.filespec.matches_entry(f) {
+                    let full = path.join(&f.name);
+                    let git = self.file_git(&full);
+                    let dup = self.dup_group(&full).map(|g| g as i64);
                     out.push(crate::model::query::Candidate {
-                        path: path.join(&f.name),
+                        path: full,
                         dir: path.clone(),
                         depth,
                         file: f.clone(),
+                        git,
+                        dup,
                     });
                 }
             }
         }
         out
+    }
+
+    /// Reads a file's contents for search: from disk, or from inside the open archive/remote.
+    pub fn content_opener(&self) -> crate::search::Opener {
+        if let Some(remote) = self.remote.clone() {
+            return Box::new(move |path: &Path| {
+                let file = remote.open(path)?;
+                Ok(Box::new(std::io::BufReader::new(file)) as Box<dyn std::io::BufRead>)
+            });
+        }
+        match &self.archive {
+            Some(root) => crate::archive::search_opener(root),
+            None => Box::new(crate::search::open_file),
+        }
+    }
+
+    /// What a file is, as Alt+F tells it, read from where this window reads
+    /// its files: over the network on a remote machine, by its name only
+    /// inside an archive.
+    pub fn type_of(&self) -> crate::model::query::TypeOf {
+        if let Some(remote) = self.remote.clone() {
+            return Box::new(move |path, f| {
+                crate::filetype::describe_with(
+                    path,
+                    f.kind,
+                    f.size,
+                    || remote.read(path, crate::filetype::HEAD_BYTES).ok(),
+                    || remote.read_link(path).ok(),
+                )
+            });
+        }
+        let read = self.archive.is_none();
+        Box::new(move |path, f| crate::filetype::describe(path, f.kind, f.size, read))
+    }
+
+    /// Git status of `path` (`" M"`, `"  "`, etc.), or `None` if outside a repo
+    /// or Git is off.
+    pub fn file_git(&self, path: &Path) -> Option<String> {
+        if !self.git_enabled || self.archive.is_some() || self.remote.is_some() {
+            return None;
+        }
+        let git = self.git_status.as_ref()?;
+        git.borrow().file_status(path)
+    }
+
+    /// Duplicate group number of `path` (1-based), if Alt+D has calculated it.
+    pub fn dup_group(&self, path: &Path) -> Option<usize> {
+        self.duplicate_groups
+            .get(path)
+            .copied()
+            .or_else(|| self.duplicates.as_ref().and_then(|v| v.group_of(path)))
+    }
+
+    /// Describes what `f` is, remembering results in `types`.
+    pub fn describe_file(&self, path: &Path, f: &FileEntry) -> String {
+        let (size, modified, kind) = (f.size, f.modified, f.kind);
+        if let Ok(types) = self.types.try_borrow()
+            && let Some((s, m, what)) = types.get(path)
+            && (*s, *m) == (size, modified)
+        {
+            return what.clone();
+        }
+        let what = match &self.remote {
+            Some(remote) => crate::filetype::describe_with(
+                path,
+                kind,
+                size,
+                || remote.read(path, crate::filetype::HEAD_BYTES).ok(),
+                || remote.read_link(path).ok(),
+            ),
+            None => crate::filetype::describe(path, kind, size, self.archive.is_none()),
+        };
+        if let Ok(mut types) = self.types.try_borrow_mut() {
+            if types.len() > 10_000 {
+                types.clear();
+            }
+            types.insert(path.to_path_buf(), (size, modified, what.clone()));
+        }
+        what
     }
 
     /// Where the files of `dir` are, if the condition of W asks for it: its
@@ -401,10 +514,26 @@ impl Pane {
         now: SystemTime,
     ) -> bool {
         self.query.as_ref().is_none_or(|q| {
-            let place = place
+            let place_obj = place
                 .as_ref()
                 .map(|(dir, depth)| Place { dir, depth: *depth });
-            q.matches(f, place, now)
+            let path = place.as_ref().map(|(dir, _)| dir.join(&f.name));
+            let git = path.as_ref().and_then(|p| self.file_git(p));
+            let dup = path
+                .as_ref()
+                .and_then(|p| self.dup_group(p))
+                .map(|g| g as i64);
+            let lazy_type: &dyn Fn() -> Option<String> = &|| {
+                let p = path.as_ref()?;
+                Some(self.describe_file(p, f))
+            };
+            let ctx = QueryContext {
+                place: place_obj,
+                git: git.as_deref(),
+                dup,
+                lazy_type: Some(lazy_type),
+            };
+            q.matches(f, &ctx, now)
         })
     }
 

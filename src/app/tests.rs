@@ -2004,13 +2004,13 @@ fn git_menu() {
     // Status letters in the list, before and after Add.
     app.refresh_git();
     let a = app.current_path().join("a.rs");
-    assert_eq!(app.git_status.marker(&a), Some(*b" M"));
+    assert_eq!(app.git_status.borrow().marker(&a), Some(*b" M"));
     ctrl(&mut app, 'g');
     press(&mut app, KeyCode::Char('a'));
     assert_eq!(app.message.as_deref(), Some("Added a.rs"));
     std::thread::sleep(std::time::Duration::from_millis(600));
     app.refresh_git();
-    assert_eq!(app.git_status.marker(&a), Some(*b"M "));
+    assert_eq!(app.git_status.borrow().marker(&a), Some(*b"M "));
 
     // Commit goes to git's editor, in the repository.
     ctrl(&mut app, 'g');
@@ -4806,17 +4806,20 @@ fn git_status_is_not_automatic_on_a_cloud_mount() {
     app.options.git = true;
     app.panes[0] = Pane::slow(tmp.path().to_path_buf());
     app.refresh_git();
-    assert!(!app.git_status.in_repo(tmp.path()), "not read yet");
+    assert!(!app.git_status.borrow().in_repo(tmp.path()), "not read yet");
     while app.reading() {
         app.apply_reads();
         std::thread::sleep(Duration::from_millis(5));
     }
     app.refresh_git();
-    assert!(!app.git_status.in_repo(tmp.path()), "not even once read");
+    assert!(
+        !app.git_status.borrow().in_repo(tmp.path()),
+        "not even once read"
+    );
     // The same folder, off the mount.
     app.panes[0] = Pane::new(tmp.path().to_path_buf());
     app.refresh_git();
-    assert!(app.git_status.in_repo(tmp.path()));
+    assert!(app.git_status.borrow().in_repo(tmp.path()));
 }
 
 #[test]
@@ -5007,4 +5010,324 @@ fn alt_n_indexes_the_branch_and_w_uses_it() {
     press(&mut app, KeyCode::Char('d'));
     assert!(app.message.take().unwrap().contains("was deleted"));
     assert!(crate::index::roots().is_empty());
+}
+
+#[cfg(feature = "index")]
+#[test]
+fn index_ignore_configured_leaves_matching_files_out() {
+    let (tmp, mut app) = sample();
+    crate::index::TEST_BASE.with_borrow_mut(|b| *b = Some(tmp.path().join(".indexes2")));
+    app.options.index_ignore = vec!["sub".into(), "*.txt".into()];
+    app.apply(Command::Branch);
+    app.apply(Command::Back);
+
+    alt(&mut app, 'n');
+    let question = &app.confirm.as_ref().expect("it asks").question;
+    assert!(
+        question.starts_with("Index the 1 logged files of"),
+        "{question}"
+    );
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+    let said = app.message.take().unwrap();
+    assert!(
+        said.contains("1 files indexed, 0 already up to date"),
+        "{said}"
+    );
+}
+
+#[test]
+fn w_filters_by_git_type_and_dup_columns() {
+    let (tmp, mut app) = sample();
+    let p = tmp.path();
+
+    // 1. Outside git repo: git is NULL for all files.
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "git IS NULL");
+    assert_eq!(names(&app), ["a.rs", "b.txt"]);
+
+    // 2. Type column: 'a.rs' is "Rust, ASCII text", 'b.txt' is "ASCII text".
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "type LIKE 'Rust%'");
+    assert_eq!(names(&app), ["a.rs"]);
+
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "type = 'ASCII text'");
+    assert_eq!(names(&app), ["b.txt"]);
+
+    // 3. Duplicates: before Alt+D, dup is NULL.
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "dup IS NULL");
+    assert_eq!(names(&app), ["a.rs", "b.txt"]);
+
+    // Set up a duplicate file
+    std::fs::write(p.join("a_dup.rs"), "fn main() {}\n").unwrap();
+    app.apply(Command::Relog);
+    assert!(names(&app).contains(&"a_dup.rs".to_string()));
+
+    // Run duplicates (Alt+D) with min_size = 0
+    app.options.duplicates_min_size = 0;
+    alt(&mut app, 'd');
+    finish_duplicates(&mut app);
+    assert!(app.duplicates.is_some(), "duplicates view opened");
+    // Return from duplicates view with Esc
+    press(&mut app, KeyCode::Esc);
+    assert!(app.duplicates.is_none(), "returned to file list");
+
+    // Now a.rs and a_dup.rs are in duplicate group 1
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "dup = 1");
+    assert_eq!(names(&app), ["a.rs", "a_dup.rs"]);
+
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "dup IS NULL");
+    assert_eq!(names(&app), ["b.txt"]);
+
+    // 4. Git status: init repo and track b.txt
+    app.options.git = true;
+    for pane in &mut app.panes {
+        pane.git_enabled = true;
+    }
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(p)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(p)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(p)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["add", "b.txt"])
+        .current_dir(p)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "init"])
+        .current_dir(p)
+        .output()
+        .unwrap();
+
+    // Now b.txt is tracked and clean ("  "), a.rs and a_dup.rs are untracked ("??")
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "git = '??'");
+    assert_eq!(names(&app), ["a.rs", "a_dup.rs"]);
+
+    press(&mut app, KeyCode::Char('w'));
+    answer_prompt(&mut app, "git = '  '");
+    assert_eq!(names(&app), ["b.txt"]);
+}
+
+#[test]
+#[cfg(feature = "index")]
+fn p_opens_search_box_and_finds_files_by_words() {
+    let (tmp, mut app) = sample();
+    crate::index::TEST_BASE.with_borrow_mut(|b| *b = Some(tmp.path().join(".indexes")));
+    app.apply(Command::Branch);
+    app.apply(Command::Back);
+
+    // Index the branch first with Alt+N
+    alt(&mut app, 'n');
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+
+    // Open Search Box with 'p' in Branch view
+    app.apply(Command::Branch);
+    press(&mut app, KeyCode::Char('p'));
+    assert!(app.search_box.is_some());
+    assert!(!app.search_box.as_ref().unwrap().tagged);
+
+    // Type query "main"
+    type_text(&mut app, "main");
+    app.tick(Duration::from_millis(10));
+
+    let sb = app.search_box.as_ref().unwrap();
+    assert_eq!(sb.results.len(), 1);
+    assert_eq!(sb.results[0].name, "a.rs");
+    assert!(sb.results[0].snippet.is_some());
+    assert!(sb.results[0].snippet.as_ref().unwrap().contains("main"));
+
+    // Enter selects the file in the pane and closes the search box
+    press(&mut app, KeyCode::Enter);
+    assert!(app.search_box.is_none());
+    let a_ref = app.selected_file().unwrap();
+    assert_eq!(app.file(a_ref).name, "a.rs");
+
+    // Press 't' to tag it in the list (tags a_ref and moves cursor down)
+    press(&mut app, KeyCode::Char('t'));
+    assert!(app.file(a_ref).tagged);
+}
+
+#[test]
+#[cfg(feature = "index")]
+fn ctrl_p_searches_tagged_files_in_search_box() {
+    let (tmp, mut app) = sample();
+    crate::index::TEST_BASE.with_borrow_mut(|b| *b = Some(tmp.path().join(".indexes")));
+    app.apply(Command::Branch);
+    app.apply(Command::Back);
+
+    alt(&mut app, 'n');
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+
+    app.apply(Command::Branch);
+
+    // Ctrl+P opens search box for tagged files
+    ctrl(&mut app, 'p');
+    assert!(app.search_box.as_ref().unwrap().tagged);
+
+    // No files are tagged, so results is empty
+    type_text(&mut app, "main");
+    app.tick(Duration::from_millis(10));
+    assert_eq!(app.search_box.as_ref().unwrap().results.len(), 0);
+
+    // Close box with Esc
+    press(&mut app, KeyCode::Esc);
+    assert!(app.search_box.is_none());
+
+    // Tag a.rs
+    for f in app.files.clone() {
+        if app.file(f).name == "a.rs" {
+            app.tree.file_mut(f.dir, f.idx).tagged = true;
+        }
+    }
+
+    // Now Ctrl+P finds a.rs
+    ctrl(&mut app, 'p');
+    type_text(&mut app, "main");
+    app.tick(Duration::from_millis(10));
+    assert_eq!(app.search_box.as_ref().unwrap().results.len(), 1);
+}
+
+#[test]
+fn search_box_confirms_and_reads_unindexed_files() {
+    let (_tmp, mut app) = sample();
+    app.apply(Command::Branch);
+
+    // Without index, search box finds nothing initially but notes unindexed files
+    press(&mut app, KeyCode::Char('p'));
+    type_text(&mut app, "main");
+    app.tick(Duration::from_millis(10));
+
+    let sb = app.search_box.as_ref().unwrap();
+    assert_eq!(sb.results.len(), 0);
+    assert!(sb.unindexed_count > 0);
+
+    // Enter when empty asks to read unindexed files
+    press(&mut app, KeyCode::Enter);
+    assert!(app.search_box.as_ref().unwrap().confirming_unindexed);
+
+    // Confirm with 'y'
+    press(&mut app, KeyCode::Char('y'));
+    assert!(app.search_box.as_ref().unwrap().reading_unindexed);
+
+    // Tick to step through reading
+    while app
+        .search_box
+        .as_ref()
+        .is_some_and(|sb| sb.reading_unindexed)
+    {
+        app.tick(Duration::from_millis(20));
+    }
+
+    // Now a.rs is found from content reading!
+    let sb = app.search_box.as_ref().unwrap();
+    assert_eq!(sb.results.len(), 1);
+    assert_eq!(sb.results[0].name, "a.rs");
+    assert!(sb.results[0].snippet.as_ref().unwrap().contains("main"));
+}
+
+#[test]
+#[cfg(feature = "index")]
+fn search_box_ctrl_v_and_ctrl_t() {
+    let (tmp, mut app) = sample();
+    crate::index::TEST_BASE.with_borrow_mut(|b| *b = Some(tmp.path().join(".indexes")));
+    app.apply(Command::Branch);
+    app.apply(Command::Back);
+
+    alt(&mut app, 'n');
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+
+    app.apply(Command::Branch);
+    press(&mut app, KeyCode::Char('p'));
+    type_text(&mut app, "main");
+    app.tick(Duration::from_millis(10));
+
+    // Ctrl+T inside box toggles tag
+    assert!(!app.search_box.as_ref().unwrap().results[0].tagged);
+    ctrl(&mut app, 't');
+    assert!(app.search_box.as_ref().unwrap().results[0].tagged);
+
+    // Ctrl+V inside box opens file in viewer at snippet line
+    ctrl(&mut app, 'v');
+    assert!(app.search_box.is_none());
+    assert!(app.viewer.is_some());
+    assert_eq!(
+        app.viewer.as_ref().unwrap().note.as_deref(),
+        Some("Line 1 of 1")
+    );
+}
+
+#[test]
+fn search_box_navigation_and_esc() {
+    let (_tmp, mut app) = sample();
+    app.apply(Command::Branch);
+    press(&mut app, KeyCode::Char('p'));
+    assert!(app.search_box.is_some());
+
+    type_text(&mut app, "main");
+    app.tick(Duration::from_millis(10));
+
+    // Move cursor down and up
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Up);
+    press(&mut app, KeyCode::PageDown);
+    press(&mut app, KeyCode::PageUp);
+
+    // Esc closes search box
+    press(&mut app, KeyCode::Esc);
+    assert!(app.search_box.is_none());
+}
+
+/// The search runs in `tick`, which the main loop calls only while `busy()`:
+/// the box once waited there for ever, and found nothing.
+#[test]
+#[cfg(feature = "index")]
+fn the_search_box_keeps_the_loop_awake_until_it_has_searched() {
+    let (tmp, mut app) = sample();
+    crate::index::TEST_BASE.with_borrow_mut(|b| *b = Some(tmp.path().join(".indexes")));
+    app.apply(Command::Branch);
+    app.apply(Command::Back);
+    alt(&mut app, 'n');
+    press(&mut app, KeyCode::Char('y'));
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+    app.apply(Command::Branch);
+    press(&mut app, KeyCode::Char('p'));
+    assert!(!app.busy(), "an empty box has nothing to do");
+    type_text(&mut app, "main");
+    assert!(app.busy(), "the typing waits for a tick");
+    // As the main loop does.
+    while app.busy() {
+        app.tick(Duration::from_millis(20));
+    }
+    let sb = app.search_box.as_ref().unwrap();
+    assert_eq!(sb.results.len(), 1);
+    assert_eq!(sb.results[0].name, "a.rs");
 }

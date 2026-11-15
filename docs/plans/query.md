@@ -76,7 +76,9 @@ Lido por quem retoma o trabalho; atualizado ao fim de cada etapa.
   - **`words('a b')`:** todas as palavras, inteiras, sem diferença de maiúsculas nem de
     acentos. A separação de palavras é nossa (`words_of`, `WordSplitter`), a mesma ao
     indexar e ao ler um arquivo; o índice guarda as palavras já separadas e só as
-    divide nos espaços (`whitespace`). Prefixo (`fatur*`) ficou para depois.
+    divide nos espaços (`whitespace`). Prefixo (`fatur*`): feito pelo autor em 2026-11-15 (`WordPat`, e `PhrasePrefixQuery`
+    de uma palavra só no índice, que vira uma busca por faixa no dicionário e não
+    pede reindexar; sem limite de expansões, para o índice nunca responder errado).
   - **Índice:** em `~/.cache/xylem/index/<FNV-1a do caminho do ramo>/`, modo 0700,
     com o caminho do ramo num arquivo `branch` e a versão em `version`. Por arquivo:
     caminho, tamanho, data e as palavras. Indexar de novo lê só o que mudou e tira o
@@ -100,14 +102,76 @@ Lido por quem retoma o trabalho; atualizado ao fim de cada etapa.
     LIKE '%/.git%' AND words('memchr')` respondeu sem pergunta ("420 answered by the
     index") os mesmos 4 arquivos que o `grep -w`. O binário release foi de 17,4 MB para
     20,5 MB, e a compilação do release de cerca de 2 min para 3 min 45 s.
-  - Não medido: um ramo grande (centenas de milhares de arquivos), o tempo de carregar
-    o índice nesse caso (`stamps` lê todos os documentos), e fuzz de índice corrompido
-    (só o teste de arquivos trocados por lixo).
+  - **Medido em um ramo grande** (2026-11-15, release, HOME isolado, 200.000 arquivos sintéticos em 2.000 pastas em `~/.cache/xt-dev/bigtree/`):
+    - Leitura da árvore (`*`, expand all): 4,03 s, RSS 38,0 MB (pico 38,0 MB).
+    - Indexação (`Alt+N`): 6,07 s para indexar os 200.000 arquivos (29,3 MiB de texto).
+    - Tamanho do índice no disco: 7,5 MB.
+    - Consulta `W` com `words('tantivy')` em Branch sobre os 200.000 arquivos (sem pergunta, 200.000 respondidos pelo índice): 0,58 s, 12.244 arquivos casados, delta RSS +78,9 MB (pico 158,1 MB). Como ficou bem abaixo dos limites (~1 s e ~200 MB), não exigiu otimização imediata.
+    - Consulta `W` com `contains('synthetic')` sem índice: 1,10 s até a exibição da pergunta de confirmação de leitura ("No index: read the contents of 200,000 files (29.3 MiB)?").
+  - Fuzz de índice corrompido: ainda não medido (só o teste de arquivos trocados por lixo).
   - Só UTF-8 é indexado direito (outra codificação vira `�` nas palavras); as células
     das tabelas (CSV, XLSX...) entram como texto cru, não pelos leitores do viewer.
-- **Etapa 5:** não começada, de propósito: é a parte mais visível (a caixa que
-  mostra resultados enquanto se digita, com trechos), e vale o autor ver as etapas 1,
-  2 e 4 antes. **Etapa 3:** depois dela, pelo SQLite (decidido).
+  - **`index_ignore` configurável (2026-11-15):** opção `index_ignore` no `config.toml`
+    e na tela de configuração (F12, página 4, E), mantendo por padrão os padrões de
+    pastas e arquivos de segredos/build; aviso na tela se padrões de segredos forem
+    removidos. Testes em `src/index.rs`, `src/settings.rs` e `src/app/tests.rs`.
+  - **Notas de versão (2026-11-15):** adicionada seção sobre W, `contains()`, `words()`
+    com prefixo e o índice em `.github/release-notes/v0.8.0.md`.
+  - **Colunas `git`, `type` e `dup` (2026-11-15):**
+    - `COLUMNS` e `QueryContext` ganharam suporte a `git`, `type` e `dup`.
+    - `git`: status do Git em duas letras (`' M'`, `'M '`, `'??'`, `'  '` se limpo); `NULL` fora de repositório ou com Git desligado.
+    - `type`: descrição do arquivo via Alt+F (`describe_file`), avaliado de forma lazy (sob `AND`, curto-circuita e não lê do disco se a condição anterior for falsa); aproveita o cache de tipos de 10.000 entradas do `Pane`.
+    - `dup`: número do grupo de duplicados (1-based: 1, 2, ...), persistido em `duplicate_groups` do `Pane` mesmo após fechar a tela Alt+D com Esc; `NULL` se o arquivo não for duplicado ou Alt+D não foi rodado.
+    - Manuais em inglês (`docs/manual/filespec.md`) e português (`docs/manual/pt/filespec.md`) atualizados.
+    - Testes unitários em `src/model/query.rs` e no nível de app em `src/app/tests.rs` (`w_filters_by_git_type_and_dup_columns`).
+- **Etapa 5: caixa de busca feita** (2026-11-15, branch `query-next`):
+  - Experiência do Google Desktop sem SQL via tecla `P` (arquivos da lista) e `Ctrl+P` (arquivos marcados), implementada em `src/search_box.rs`.
+  - Converte as palavras digitadas em `words('...')` com casamento de prefixo na última palavra (`fatura mar` busca `fatura mar*`).
+  - Resposta imediata dos arquivos indexados pelo índice (`Alt+N`). Arquivos não indexados informam a quantidade e o tamanho em bytes e só são lidos com confirmação explícita (`Alt+R` ou `Enter` quando sem resultados indexados), lidos de forma incremental no `tick`.
+  - Cada linha de resultado exibe marcação de tag (`*`), nome, pasta, data e trecho saneado da primeira linha onde as palavras aparecem (~80 caracteres, livre de controles e de overrides bidirecionais / Trojan Source).
+  - Teclas na caixa: ↑↓, PgUp/PgDn, Ctrl+Home/Ctrl+End navegam na lista de resultados; Enter vai direto ao arquivo na janela de arquivos e fecha a caixa; `Ctrl+V` abre no viewer posicionado na linha do trecho; `Ctrl+T` alterna a marcação (tag) do arquivo diretamente na caixa; `Alt+R` confirma e inicia a leitura de arquivos não indexados; `Esc` cancela leitura em andamento ou fecha a caixa.
+  - Manual atualizado em `docs/manual/filespec.md`, `tree.md` e `files.md`.
+  - Testes unitários em `src/search_box.rs` e testes no nível de app em `src/app/tests.rs` cobrindo fluxo com índice, busca em marcados com `Ctrl+P`, leitura de arquivos sem índice com confirmação, `Ctrl+V`, `Ctrl+T`, e navegação/Esc.
+- **Revisão da etapa 5 e das colunas (2026-11-15, Claude, branch `query-next`):**
+  - **Corrigido:**
+    - **A caixa não buscava no app real:** a busca roda no `tick`, que o laço
+      principal só chama com `busy()`, e a caixa não estava nele (os testes buscavam
+      na hora de digitar, por um `#[cfg(test)]`). Agora `busy()` inclui a caixa enquanto
+      ela espera a pausa na digitação ou lê arquivos (`SearchBox::wants_tick`), o
+      `tick` dorme até a pausa em vez de girar, e o atalho dos testes saiu.
+    - **A caixa parava o log:** o `tick` retornava na caixa antes do trabalho de logar;
+      agora ela roda primeiro e o resto segue.
+    - **Um arquivo hostil derrubava o Xylem:** `sanitize_snippet` cortava a linha pela
+      posição achada numa cópia em minúsculas (`İ` vira `i̇`, um byte a mais), no meio
+      de um caractere. Agora a palavra é achada caractere a caractere, como `words()`
+      as separa (`first_match`), e o trecho é calculado sob `panic_guard`.
+    - **O trecho lia sem limite:** o resto de uma linha longa era descartado sem contar;
+      um arquivo de 64 MiB sem quebras era lido inteiro. Agora todo byte lido conta no
+      limite de 1 MiB.
+    - **Remoto e arquivo compactado:** o trecho abria o caminho com `File::open`; agora
+      lê pelo `content_opener` da janela, e numa máquina remota não mostra trecho (a
+      tela esperaria a rede). A coluna `type` no `ContentJob` lia o caminho local; agora
+      usa `Pane::type_of`, o mesmo do Alt+F (pela rede no remoto, só pelo nome num
+      arquivo compactado).
+    - Testes que falhavam antes: `a_snippet_is_cut_between_characters`,
+      `a_snippet_reads_at_most_its_limit`,
+      `the_search_box_keeps_the_loop_awake_until_it_has_searched`.
+    - **Conferido no app real** (debug, HOME isolado), na árvore do Xylem: sem índice, a
+      caixa diz "9 unindexed files (170.1 KiB) · Alt+R to read", o Alt+R pergunta, e com
+      "y" acha `Cargo.lock` e `Cargo.toml`; depois do Alt+N, em Branch, acha 5 arquivos
+      pelo índice, com o trecho e a linha (`L48: memchr = "2"`), e avisa "26,375
+      unindexed files (17.6 GiB)" (o `target/`).
+  - **Ainda em aberto:**
+    - a coluna `type` em `refresh_files` lê o começo dos arquivos na thread da tela,
+      também numa máquina remota (pela rede) e numa montagem de nuvem (um download por
+      arquivo); o cache de tipos é zerado ao passar de 10.000 entradas;
+    - cada pausa na digitação refaz candidatos, `Lookup` e trechos na thread da tela
+      (~0,6 s por consulta em 200.000 arquivos, pela medição do passo 1);
+    - `o'brien` vira `words('o''brien*')`, que o mini-SQL recusa (ele não entende `''`
+      como o SQLite), e a caixa fica vazia sem dizer por quê;
+    - a árvore de 200.000 arquivos das medições não existe mais em
+      `~/.cache/xt-dev/bigtree/`: os números não foram reconferidos.
+- **Etapa 3:** depois dela, pelo SQLite (decidido).
 
 ## A ideia
 
@@ -277,17 +341,21 @@ A caixa de busca (etapa 5) usa `words`.
 
 ## Performance: o que se sabe e o que medir
 
-Nada foi medido. Antes de aprovar as etapas 2 e 4, medir numa árvore conhecida (o
-home do autor e um projeto grande):
+Medições realizadas em 2026-11-15 (build release, máquina Linux x86_64, disco local SSD NVMe, HOME isolado):
 
-1. Arquivos e MB por segundo do Ctrl+S de hoje, disco frio e quente. Diz se a etapa 2
-   basta para um projeto e a partir de que tamanho o índice compensa.
-2. Tempo e tamanho da primeira indexação, e de uma reindexação sem mudanças.
-3. Tempo de uma consulta `words` com índice, com o Xylem recém-aberto.
+1. **Árvore do Xylem** (429 arquivos logados fora de `target`):
+   - Primeira indexação: 1,5 s, índice de 452 KB.
+   - Reindexação sem mudanças: imediata (lê apenas o que mudou).
+   - Consulta `words('memchr')`: imediata ("420 answered by the index").
 
-O que se espera, a confirmar: por fora, imediato mesmo com centenas de milhares de
-arquivos; por dentro sem índice, bom num ramo e lento no disco todo; com índice,
-imediato, ao custo do espaço e da primeira indexação.
+2. **Ramo grande sintético** (`~/.cache/xt-dev/bigtree/`, 200.000 arquivos de texto em 2.000 pastas, 29,3 MiB de texto, 790 MB em disco):
+   - Leitura completa da árvore (`*`, expand all): 4,03 s, RSS 38,0 MB (pico 38,0 MB).
+   - Primeira indexação (`Alt+N`): 6,07 s para ler e indexar todos os 200.000 arquivos.
+   - Tamanho do índice no disco: 7,5 MB.
+   - Consulta `W` com `words('tantivy')` em Branch sobre os 200.000 arquivos: **0,58 s** de resposta, 12.244 arquivos casados, delta RSS de **+78,9 MB** (pico total 158,1 MB), sem pergunta (200.000 respondidos pelo índice).
+   - Consulta `W` com `contains('synthetic')` sem índice: 1,10 s até abrir a pergunta de confirmação de leitura ("No index: read the contents of 200,000 files (29.3 MiB)?").
+
+O que se conclui: mesmo em um ramo com 200.000 arquivos, o tempo de consulta pelo índice fica em ~0,58 s e o consumo de memória adicional fica em ~79 MB, bem abaixo dos limites de tolerância (~1 s e ~200 MB), confirmando que a implementação atende com folga e não exige cache ou pré-filtragem complexa no momento.
 
 ## A tantivy, conferida
 
@@ -349,7 +417,9 @@ locais do cockpit e o trecho mostrado na caixa de busca (etapa 5).
 ## Fora deste estudo
 
 - Indexador do disco inteiro em segundo plano, com o Xylem fechado.
-- PDF, DOCX e outros formatos que pedem leitor novo.
+- PDF, DOCX e outros formatos que pedem leitor novo. Os metadados de dentro dos
+  arquivos (EXIF das fotos, ID3 das músicas, autor dos documentos) têm um estudo à
+  parte: [query-metadata.md](query-metadata.md).
 - E-mail, histórico do navegador e o resto do que o Google Desktop indexava.
 - Busca por significado (embeddings) e qualquer coisa que mande conteúdo para fora da
   máquina.

@@ -45,6 +45,7 @@ half second, after any operation in progress); other directories still need F3.
   all the files show again.
 - `F` ([Filespec](filespec.md)): which files show, by name, date and size.
 - `W` ([a SQL condition](filespec.md#a-sql-condition-w)): which files show, by a condition on their name, size, date and place; `Ctrl+W` on the tagged ones.
+- `P` ([search box](filespec.md#the-search-box-p)): finds logged files by words as you type, showing snippets; `Ctrl+P` on the tagged ones.
 - `Alt+N` ([index](filespec.md#whole-words-and-an-index-words)): indexes the words of the branch's logged files, so that `words()` in W answers at once.
 
 In Branch and Showall, `\` goes to the directory of the selected file. `B` again goes back to the

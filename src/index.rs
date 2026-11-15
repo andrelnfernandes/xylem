@@ -21,10 +21,36 @@ use crate::model::query::{Candidate, Known, Term};
 #[cfg_attr(not(feature = "index"), allow(dead_code))]
 pub const MAX_INDEXED: u64 = 64 << 20;
 
-/// Folders and files the index leaves out: they are big and change all the
+/// Default folders and files the index leaves out: they are big and change all the
 /// time, or they hold secrets that should not be copied.
-const LEFT_OUT_DIRS: &[&str] = &[".git", "target", "node_modules", ".ssh", ".gnupg"];
-const LEFT_OUT_FILES: &[&str] = &[".env", "*.key", "*.pem", "id_rsa", "id_ed25519"];
+pub const DEFAULT_INDEX_IGNORE: &[&str] = &[
+    ".git",
+    "target",
+    "node_modules",
+    ".ssh",
+    ".gnupg",
+    ".env",
+    "*.key",
+    "*.pem",
+    "id_rsa",
+    "id_ed25519",
+];
+
+const DEFAULT_SECRETS: &[&str] = &[
+    ".ssh",
+    ".gnupg",
+    ".env",
+    "*.key",
+    "*.pem",
+    "id_rsa",
+    "id_ed25519",
+];
+
+/// Whether any of the default secret patterns was removed.
+pub fn has_removed_secrets(patterns: &[String]) -> bool {
+    let lower: HashSet<String> = patterns.iter().map(|s| s.to_lowercase()).collect();
+    DEFAULT_SECRETS.iter().any(|s| !lower.contains(*s))
+}
 
 /// What a file was when it was indexed.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,20 +75,27 @@ pub fn available() -> bool {
 }
 
 /// Whether the index leaves the file out, by its path below the branch.
-pub fn left_out(relative: &Path) -> bool {
+pub fn left_out<S: AsRef<str>>(relative: &Path, ignore: &[S]) -> bool {
     let mut parts = relative.components().peekable();
     while let Some(part) = parts.next() {
         let name = part.as_os_str().to_string_lossy();
-        if parts.peek().is_some() {
-            if LEFT_OUT_DIRS.contains(&name.as_ref()) {
+        let is_dir = parts.peek().is_some();
+        let lower = name.to_lowercase();
+        for pattern in ignore {
+            let pat = pattern.as_ref().trim();
+            let pat = pat.strip_suffix('/').unwrap_or(pat);
+            let pat_lower = pat.to_lowercase();
+            if is_dir {
+                if !pat_lower.starts_with('*') && lower == pat_lower {
+                    return true;
+                }
+            } else if let Some(ext) = pat_lower.strip_prefix('*') {
+                if lower.ends_with(ext) {
+                    return true;
+                }
+            } else if lower == pat_lower {
                 return true;
             }
-        } else {
-            let lower = name.to_lowercase();
-            return LEFT_OUT_FILES.iter().any(|p| match p.strip_prefix('*') {
-                Some(ext) => lower.ends_with(ext),
-                None => lower == *p,
-            });
         }
     }
     false
@@ -308,7 +341,7 @@ mod imp {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     use tantivy::collector::DocSetCollector;
-    use tantivy::query::{BooleanQuery, Query, TermQuery};
+    use tantivy::query::{BooleanQuery, PhrasePrefixQuery, Query, TermQuery};
     use tantivy::schema::{
         Field, INDEXED, IndexRecordOption, STORED, STRING, Schema, TextFieldIndexing, TextOptions,
         Value,
@@ -428,8 +461,14 @@ mod imp {
             let parts: Vec<Box<dyn Query>> = words
                 .iter()
                 .map(|w| {
-                    let word = Word::from_field_text(f.body, w);
-                    Box::new(TermQuery::new(word, IndexRecordOption::Basic)) as Box<dyn Query>
+                    let word = Word::from_field_text(f.body, &w.word);
+                    if w.prefix {
+                        let mut q = PhrasePrefixQuery::new(vec![word]);
+                        q.set_max_expansions(u32::MAX);
+                        Box::new(q) as Box<dyn Query>
+                    } else {
+                        Box::new(TermQuery::new(word, IndexRecordOption::Basic)) as Box<dyn Query>
+                    }
                 })
                 .collect();
             let found = searcher
@@ -635,6 +674,8 @@ mod tests {
             dir: path.parent().unwrap().to_path_buf(),
             depth: 0,
             path,
+            git: None,
+            dup: None,
         }
     }
 
@@ -668,6 +709,12 @@ mod tests {
         assert!(found.broken.is_empty());
         let a = candidate(root.join("a.txt"));
         assert_eq!(found.answer(&a), Some(Known::Terms(vec![Some(true), None])));
+        let prefix = FileQuery::parse("words('fatur* marc*')", false).unwrap();
+        let found_prefix = lookup(&touching(&root), prefix.terms());
+        assert_eq!(
+            found_prefix.answer(&a),
+            Some(Known::Terms(vec![Some(true)]))
+        );
         assert_eq!(
             found.answer(&candidate(root.join("b.txt"))),
             Some(Known::Terms(vec![Some(false), None]))
@@ -723,10 +770,20 @@ mod tests {
             "keys/server.PEM",
             ".ssh/id_rsa",
         ] {
-            assert!(left_out(Path::new(path)), "{path}");
+            assert!(left_out(Path::new(path), DEFAULT_INDEX_IGNORE), "{path}");
         }
         for path in ["src/main.rs", "docs/target.md", "environment.txt"] {
-            assert!(!left_out(Path::new(path)), "{path}");
+            assert!(!left_out(Path::new(path), DEFAULT_INDEX_IGNORE), "{path}");
         }
+        assert!(!has_removed_secrets(&[
+            ".ssh".into(),
+            ".gnupg".into(),
+            ".env".into(),
+            "*.key".into(),
+            "*.pem".into(),
+            "id_rsa".into(),
+            "id_ed25519".into(),
+        ]));
+        assert!(has_removed_secrets(&[".git".into(), "target".into()]));
     }
 }

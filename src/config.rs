@@ -108,6 +108,11 @@ duplicates_min_size = 1024
 # Duplicates: folders with these names are not looked into, and what holds them
 # is never called a copy of another folder.
 duplicates_ignore = [".git", "node_modules"]
+# Index (Alt+N and words()): folders and files left out of the index.
+# Big folders that change all the time (.git, target, node_modules) and
+# secrets (.env, *.key, *.pem, id_rsa, id_ed25519) are left out by default.
+# WARNING: removing secret patterns copies credentials and keys into the index!
+index_ignore = [".git", "target", "node_modules", ".ssh", ".gnupg", ".env", "*.key", "*.pem", "id_rsa", "id_ed25519"]
 # Alt+C / Alt+M (copy/move tagged files with their paths): from where each
 # file's path is recreated at the destination (F7 changes it at the prompt):
 # "full" (from the root of the disk, as in ZTreeWin), "tree" (from the root
@@ -266,6 +271,8 @@ pub struct Options {
     pub duplicates_min_size: u64,
     /// Duplicates: names of folders left out.
     pub duplicates_ignore: Vec<String>,
+    /// Index: names and patterns of folders and files left out.
+    pub index_ignore: Vec<String>,
     /// Alt+C / Alt+M: initial path mode.
     pub copy_paths: CopyPaths,
     pub history_skip_at: bool,
@@ -315,6 +322,10 @@ impl Default for Options {
             prune_confirmation: PruneConfirm::Prune,
             duplicates_min_size: 1024,
             duplicates_ignore: vec![".git".into(), "node_modules".into()],
+            index_ignore: crate::index::DEFAULT_INDEX_IGNORE
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect(),
             copy_paths: CopyPaths::Full,
             history_skip_at: false,
             compare_ignore_2s: true,
@@ -377,6 +388,10 @@ impl Options {
             (
                 "duplicates_ignore",
                 Value::Array(self.duplicates_ignore.iter().map(String::as_str).collect()),
+            ),
+            (
+                "index_ignore",
+                Value::Array(self.index_ignore.iter().map(String::as_str).collect()),
             ),
             ("copy_paths", s(self.copy_paths.as_str())),
             ("history_skip_at", Value::from(self.history_skip_at)),
