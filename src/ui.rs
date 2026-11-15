@@ -1097,8 +1097,13 @@ fn draw_files(
     } else {
         kind.to_string()
     };
+    // The condition of W, after the filespec: the list is what meets both.
+    let query = pane.query.as_ref().map_or(String::new(), |q| {
+        let tagged = if q.tagged() { "tagged, " } else { "" };
+        format!(" where {tagged}{}", q.text())
+    });
     let mut title = format!(
-        " {}{kind}: {} ({}) {} ",
+        " {}{kind}: {}{query} ({}) {} ",
         crate::icons::view_icon(pane.view, icons).unwrap_or_default(),
         pane.filespec.text(),
         fmt_num(pane.files.len() as u64),
@@ -1931,6 +1936,47 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                 ],
             ),
         ]
+    } else if let Some(job) = &app.index_job {
+        vec![
+            Line::from(vec![
+                Span::styled(
+                    format!(
+                        "Indexing {} of {}: ",
+                        fmt_num(job.done() as u64),
+                        fmt_num(job.total as u64)
+                    ),
+                    bold,
+                ),
+                Span::raw(job.root.to_string_lossy().into_owned()),
+            ]),
+            menu_line("", &[("Esc", "stop: what was indexed stays")]),
+        ]
+    } else if let Some((job, _, true)) = &app.content_job {
+        let name = job
+            .current()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        vec![
+            Line::from(vec![
+                Span::styled(
+                    format!(
+                        "No index: reading {} of {} ({} of {}): ",
+                        fmt_num(job.done() as u64 + 1),
+                        fmt_num(job.total() as u64),
+                        crate::usage::size(job.bytes_done),
+                        crate::usage::size(job.bytes_total)
+                    ),
+                    bold,
+                ),
+                Span::raw(name),
+                Span::styled(
+                    format!("   {} found", fmt_num(job.found() as u64)),
+                    Style::new().fg(theme().dim),
+                ),
+            ]),
+            menu_line("", &[("Esc", "stop: the list shows what was found")]),
+        ]
     } else if let Some(job) = &app.search_job {
         let name = job
             .current()
@@ -2056,6 +2102,7 @@ const DIR_WORDS: &[&str] = &[
     "Showall",
     "Tag",
     "Untag",
+    "Where",
     "eXecute",
     "Yank",
     "Quit",
@@ -2076,6 +2123,7 @@ const FILE_WORDS: &[&str] = &[
     "Tag",
     "Untag",
     "View",
+    "Where",
     "eXecute",
     "Yank",
     "Quit",
@@ -2091,6 +2139,7 @@ const CTRL_TREE_WORDS: &[&str] = &[
     "Showall",
     "Tag",
     "Untag",
+    "Where",
     "Yank",
 ];
 const CTRL_FILE_WORDS: &[&str] = &[
@@ -2107,6 +2156,7 @@ const CTRL_FILE_WORDS: &[&str] = &[
     "Tag",
     "Untag",
     "View",
+    "Where",
     "Yank",
 ];
 const ALT_TREE_WORDS: &[&str] = &[
@@ -2123,6 +2173,7 @@ const ALT_TREE_WORDS: &[&str] = &[
     "Release",
     "Sort",
     "Usage",
+    "iNdex",
 ];
 const ALT_FILE_WORDS: &[&str] = &[
     "Bookmarks",
@@ -2136,6 +2187,7 @@ const ALT_FILE_WORDS: &[&str] = &[
     "Quit here",
     "Sort",
     "Usage",
+    "iNdex",
 ];
 
 /// Footer menu when nothing is in progress: the normal one or the Ctrl/Alt
@@ -2263,11 +2315,13 @@ fn idle_menu_spec(app: &App, focus: Focus, mode: MenuMode) -> MenuSpec {
                 vec![
                     "Compare/Duplicates/Prune/Release/Usage: the whole branch",
                     "Log: this directory as the root",
+                    "iNdex: the branch, for words() in W",
                 ]
             } else {
                 vec![
                     "Copy/Move: the tagged files, with their paths",
                     "Log: this directory as the root",
+                    "iNdex: this folder's branch, for words() in W",
                 ]
             };
             MenuSpec {

@@ -14,6 +14,7 @@ use ratatui::widgets::ListState;
 use crate::archive::{self, EntryKind};
 use crate::input::Command;
 use crate::model::filespec::Filespec;
+use crate::model::query::{FileQuery, Place};
 use crate::model::sort::{self, Sort};
 use crate::model::tree::{FileEntry, FileKind, NodeId, ROOT, Tree, VisibleRow};
 use crate::ops::Source;
@@ -128,6 +129,8 @@ pub struct Pane {
     pub files: Vec<FileRef>,
     pub file_state: ListState,
     pub filespec: Filespec,
+    /// W: a condition the files of the list must also meet.
+    pub query: Option<FileQuery>,
     pub sort: Sort,
     /// Alt+K: size or file count next to each directory.
     pub kbyte: Kbyte,
@@ -256,6 +259,7 @@ impl Pane {
             files: Vec::new(),
             file_state: ListState::default().with_selected(Some(0)),
             filespec: Filespec::default(),
+            query: None,
             sort: Sort::default(),
             kbyte: Kbyte::default(),
             usage: None,
@@ -343,6 +347,67 @@ impl Pane {
         }
     }
 
+    /// The files the list would show with no condition of W, as a condition
+    /// with `contains` reads them; `tagged` keeps only the tagged ones.
+    pub fn query_candidates(&self, tagged: bool) -> Vec<crate::model::query::Candidate> {
+        let dirs = match self.view {
+            FileView::Dir => vec![self.current()],
+            FileView::Branch(id) => self.tree.visible_subtree(id),
+            FileView::Showall => self.tree.visible_subtree(ROOT),
+        };
+        let mut out = Vec::new();
+        for dir in dirs {
+            let path = self.tree.path(dir);
+            let mut depth = 0;
+            let mut at = dir;
+            while let Some(parent) = self.tree.node(at).parent {
+                depth += 1;
+                at = parent;
+            }
+            for f in &self.tree.node(dir).files {
+                let shown = self.tree.show_hidden || !f.is_hidden();
+                let wanted = !(tagged || self.tags_only) || f.tagged;
+                if shown && wanted && self.filespec.matches_entry(f) {
+                    out.push(crate::model::query::Candidate {
+                        path: path.join(&f.name),
+                        dir: path.clone(),
+                        depth,
+                        file: f.clone(),
+                    });
+                }
+            }
+        }
+        out
+    }
+
+    /// Where the files of `dir` are, if the condition of W asks for it: its
+    /// path and how many folders below the root it is.
+    fn query_place(&self, dir: NodeId) -> Option<(PathBuf, usize)> {
+        self.query.as_ref().filter(|q| q.needs_place())?;
+        let mut depth = 0;
+        let mut at = dir;
+        while let Some(parent) = self.tree.node(at).parent {
+            depth += 1;
+            at = parent;
+        }
+        Some((self.tree.path(dir), depth))
+    }
+
+    /// Whether the condition of W, if there is one, takes the file.
+    fn query_takes(
+        &self,
+        f: &FileEntry,
+        place: &Option<(PathBuf, usize)>,
+        now: SystemTime,
+    ) -> bool {
+        self.query.as_ref().is_none_or(|q| {
+            let place = place
+                .as_ref()
+                .map(|(dir, depth)| Place { dir, depth: *depth });
+            q.matches(f, place, now)
+        })
+    }
+
     /// All logged files that match the filespec.
     pub fn logged_matching_files(&self) -> Vec<FileRef> {
         self.branch_matching_files(ROOT)
@@ -351,10 +416,12 @@ impl Pane {
     /// The logged files of the branch of `id` that match the filespec.
     pub fn branch_matching_files(&self, id: NodeId) -> Vec<FileRef> {
         let mut refs = Vec::new();
+        let now = SystemTime::now();
         for dir in self.tree.visible_subtree(id) {
+            let place = self.query_place(dir);
             for (idx, f) in self.tree.node(dir).files.iter().enumerate() {
                 let shown = self.tree.show_hidden || !f.is_hidden();
-                if shown && self.filespec.matches_entry(f) {
+                if shown && self.filespec.matches_entry(f) && self.query_takes(f, &place, now) {
                     refs.push(FileRef { dir, idx });
                 }
             }
@@ -833,11 +900,17 @@ impl Pane {
             FileView::Showall => self.tree.visible_subtree(ROOT),
         };
         let mut files = Vec::new();
+        let now = SystemTime::now();
         for (rank, dir) in dirs.into_iter().enumerate() {
+            let place = self.query_place(dir);
             for (idx, f) in self.tree.node(dir).files.iter().enumerate() {
                 let shown = self.tree.show_hidden || !f.is_hidden();
                 let tagged = f.tagged || !self.tags_only;
-                if shown && tagged && self.filespec.matches_entry(f) {
+                if shown
+                    && tagged
+                    && self.filespec.matches_entry(f)
+                    && self.query_takes(f, &place, now)
+                {
                     files.push((FileRef { dir, idx }, rank));
                 }
             }

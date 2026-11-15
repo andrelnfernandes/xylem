@@ -180,7 +180,7 @@ impl Pattern {
     /// line: `None` if it has not found out yet. `kept` is what the next call
     /// needs of what was read, and starts empty. A reader that has nothing yet
     /// (`WouldBlock`) also means `None`, with nothing lost.
-    fn scan(
+    pub(crate) fn scan(
         &self,
         reader: &mut dyn BufRead,
         kept: &mut Vec<u8>,

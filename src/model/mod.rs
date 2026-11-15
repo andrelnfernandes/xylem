@@ -2,6 +2,7 @@
 
 pub mod compare;
 pub mod filespec;
+pub mod query;
 pub mod rename_mask;
 pub mod sort;
 pub mod tree;

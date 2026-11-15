@@ -94,6 +94,12 @@ as a link is what `cp -a` and `rsync -l` do).
   on the main thread, and Esc cannot stop it; while an archive on a mount was being
   read in the background, the main thread was also seen waiting for rclone, for a
   reason not found yet.
+- **Querying the disk, by name and by content**
+  ([docs/plans/query.md](docs/plans/query.md)): approved by the author on 2026-11-14,
+  nothing done yet. A SQL condition over the logged files of the list (name, size,
+  date), then over their contents: read directly, or through an index kept by
+  `tantivy` for each branch, with the difference between the two said on screen.
+  Five stages; the key and a few other decisions are still open there.
 - **From ZTreeWin, next:** JFC (compare the contents of two files), and saving
   and loading the log (Zlist), so that the tree of a disk or a Drive opens at once.
 - Postponed by choice: macros, chown, Graft. macOS: to look at again when there
@@ -147,6 +153,9 @@ version; the sync removes the note and the entry.
 
 - `viewer.md`: tables with no limit of 50,000 rows (0.8.0,
   [docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)).
+- `filespec.md` ("A SQL condition (W)", with "Inside the files: contains()" and "Whole words, and an index: words()") and `tree.md` (the line for `W`): the
+  condition over the files of the list ([docs/plans/query.md](docs/plans/query.md),
+  stage 1).
 - `viewer.md` ("Big files") and `ztreewin.md` (the Viewer row): big text files read
   as the screen moves ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)).
 
