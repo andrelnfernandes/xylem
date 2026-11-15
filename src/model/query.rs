@@ -797,7 +797,10 @@ mod tests {
         assert!(takes("name LIKE 'Beach%'", &f));
         assert!(takes("ext IN ('png', 'jpg')", &f));
         assert!(takes("dir = '/data/photos' AND depth = 1", &f));
-        assert!(takes("path LIKE '%photos/Beach.JPG'", &f));
+        // The path is joined as the system joins it (`\` on Windows).
+        let path = Path::new("/data/photos").join("Beach.JPG");
+        assert!(takes(&format!("path = '{}'", path.display()), &f));
+        assert!(takes("path LIKE '%Beach.JPG'", &f));
         assert!(takes("mode = 644 AND kind = 'file'", &f));
         assert!(takes("NOT tagged", &f));
         // No extension is the empty text.
