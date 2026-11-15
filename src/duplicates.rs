@@ -1051,6 +1051,16 @@ impl DuplicatesView {
         }
     }
 
+    /// The 1-based number of the duplicate group `path` belongs to, if it is
+    /// in one.
+    pub fn group_of(&self, path: &Path) -> Option<usize> {
+        self.files
+            .iter()
+            .enumerate()
+            .find(|(_, g)| g.items.iter().any(|item| item.path == path))
+            .map(|(i, _)| i + 1)
+    }
+
     /// Group and item under the cursor (a group's title counts as its first).
     fn cursor(&self) -> Option<(usize, usize)> {
         match self.rows().get(self.at)? {

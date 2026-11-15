@@ -368,6 +368,17 @@ impl StatusCache {
             .any(|d| repo.untracked_dirs.contains(d))
             .then_some(*b"??")
     }
+
+    /// Two-letter status (`" M"`, `"??"`, `"  "` for clean) if `file` is in
+    /// a tracked repository; `None` if outside.
+    pub fn file_status(&self, file: &Path) -> Option<String> {
+        let _ = self
+            .repos
+            .keys()
+            .find(|root| file.starts_with(root.as_path()))?;
+        let status = self.marker(file).unwrap_or(*b"  ");
+        Some(String::from_utf8_lossy(&status).into_owned())
+    }
 }
 
 /// Reads the status by itself, just because the user walked into the

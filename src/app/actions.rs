@@ -365,6 +365,9 @@ impl App {
             return Ok(());
         }
         let query = crate::model::query::FileQuery::parse(text, tagged)?;
+        if query.uses_git() {
+            self.refresh_git();
+        }
         if query.reads_contents() {
             return self.start_content(query);
         }
@@ -412,6 +415,7 @@ impl App {
             query,
             candidates,
             self.content_opener(),
+            self.type_of(),
             std::time::SystemTime::now(),
             &|c| lookup.answer(c),
         );
@@ -502,7 +506,8 @@ impl App {
             for f in &self.tree.node(dir).files {
                 let file = path.join(&f.name);
                 let relative = file.strip_prefix(&root).unwrap_or(&file);
-                if f.kind == crate::model::tree::FileKind::File && !crate::index::left_out(relative)
+                if f.kind == crate::model::tree::FileKind::File
+                    && !crate::index::left_out(relative, &self.options.index_ignore)
                 {
                     out.push(crate::index::ToIndex {
                         path: file,

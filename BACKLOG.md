@@ -153,9 +153,6 @@ version; the sync removes the note and the entry.
 
 - `viewer.md`: tables with no limit of 50,000 rows (0.8.0,
   [docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)).
-- `filespec.md` ("A SQL condition (W)", with "Inside the files: contains()" and "Whole words, and an index: words()") and `tree.md` (the line for `W`): the
-  condition over the files of the list ([docs/plans/query.md](docs/plans/query.md),
-  stage 1).
 - `viewer.md` ("Big files") and `ztreewin.md` (the Viewer row): big text files read
   as the screen moves ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)).
 

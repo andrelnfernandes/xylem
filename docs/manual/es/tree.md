@@ -45,6 +45,9 @@ demás directorios siguen necesitando F3.
   ZTreeWin). Los archivos que se desmarcan en él siguen en la lista hasta que
   se vuelve a leer (F3); sin ninguna marca, vuelven todos los archivos.
 - `F` ([Filespec](filespec.md)): qué archivos se muestran, por nombre, fecha y tamaño.
+- `W` ([una condición SQL](filespec.md#una-condicion-sql-w)): qué archivos se muestran, por una condición sobre su nombre, tamaño, fecha y lugar; `Ctrl+W` sobre los marcados.
+- `P` ([caja de búsqueda](filespec.md#la-caja-de-busqueda-p)): busca archivos registrados por palabras mientras escribes, mostrando fragmentos; `Ctrl+P` sobre los marcados.
+- `Alt+N` ([índice](filespec.md#palabras-enteras-y-un-indice-words)): indexa las palabras de los archivos registrados de la rama, para que `words()` en W responda al instante.
 
 En Branch y Showall, `\` va al directorio del archivo seleccionado. `B` de nuevo vuelve
 a la lista del propio directorio.

@@ -241,7 +241,7 @@ impl App {
             if in_diff {
                 let file = self.viewer.take().and_then(|v| v.behind).map(|b| *b);
                 self.viewer = file;
-                self.git_status.invalidate();
+                self.git_status.borrow_mut().invalidate();
                 self.refresh_git();
                 self.toggle_diff();
             }
