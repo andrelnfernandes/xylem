@@ -82,6 +82,14 @@ pub struct StructureView {
     pub scroll: usize,
 }
 
+/// The record under the cursor as a form, while it is open (Enter): which
+/// field is highlighted, and the first one on screen.
+#[derive(Debug, Clone, Default)]
+pub struct RecordView {
+    pub field: usize,
+    pub scroll: usize,
+}
+
 /// A structured tabular dataset (from CSV, spreadsheet, SQLite or DBF).
 #[derive(Debug)]
 pub struct TableGrid {
@@ -560,6 +568,37 @@ impl TableGrid {
             None => self.filtered_indices.len(),
             Some(w) => w.visible(),
         }
+    }
+
+    /// The record under the cursor, each column's name with its value, as the
+    /// grid has them: made safe when read. `None` while a window reads it.
+    pub fn cursor_record(&self) -> Option<Vec<(&str, &str)>> {
+        let row = self.row(self.file_row(self.cursor_row)?)?;
+        Some(
+            self.headers
+                .iter()
+                .enumerate()
+                .map(|(i, name)| (name.as_str(), row.cells.get(i).map_or("", String::as_str)))
+                .collect(),
+        )
+    }
+
+    /// The record under the cursor as text to paste elsewhere: a line per field,
+    /// `NAME : value`, with the names lined up. Safe for a terminal, as the grid.
+    pub fn record_text(&self) -> Option<String> {
+        let record = self.cursor_record()?;
+        let width = record
+            .iter()
+            .map(|(name, _)| name.chars().count())
+            .max()
+            .unwrap_or(0);
+        let mut text = String::new();
+        for (name, value) in record {
+            let line = format!("{name:<width$} : {value}");
+            text.push_str(line.trim_end());
+            text.push('\n');
+        }
+        Some(text)
     }
 
     /// Get current active cell contents.
