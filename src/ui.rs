@@ -3456,6 +3456,9 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     if let Some(view) = &mut v.structure_view {
         draw_structure(frame, view, body);
     }
+    if let (Some(view), Some(grid)) = (&mut v.record_view, &v.table) {
+        draw_record(frame, view, grid, body);
+    }
     if let Some(guide) = app.prompt.as_ref().and_then(app::Prompt::batch_guide) {
         match &guide.reading {
             Some(reading) => draw_template_reading(frame, reading, body),
@@ -3519,6 +3522,30 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     let note = v.note.clone();
     let lines = if let Some(prompt) = &app.prompt {
         prompt_lines(frame, prompt, menu)
+    } else if let (Some(_), Some(t)) = (&v.record_view, &v.table) {
+        let second = note.unwrap_or_else(|| {
+            format!(
+                "Record {} of {}",
+                fmt_num(t.cursor_file_row() as u64),
+                t.total_text()
+            )
+        });
+        vec![
+            menu_line(
+                "RECORD",
+                &[
+                    ("← →", "record"),
+                    ("↑↓", "field"),
+                    ("c", "copy record"),
+                    ("y", "copy field"),
+                    ("Esc", "back"),
+                ],
+            ),
+            Line::styled(
+                format!("{:9}{second}", ""),
+                Style::new().fg(theme().message),
+            ),
+        ]
     } else if v.structure_view.is_some() {
         vec![menu_line(
             "COLUMNS",
@@ -3568,6 +3595,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                     vec![("R", "reload"), ("Esc", "close")]
                 } else if v.mode == ViewMode::Table {
                     vec![
+                        ("Enter", "record"),
                         ("&", "filter"),
                         ("i", "structure"),
                         ("m", "mark"),
@@ -3840,6 +3868,148 @@ fn draw_structure(frame: &mut Frame, view: &mut crate::viewer::table::StructureV
     frame.render_widget(
         Paragraph::new(lines)
             .block(block)
+            .style(Style::new().fg(t.text).bg(t.background)),
+        rect,
+    );
+}
+
+/// The widest a field's name gets in the record's form.
+const RECORD_NAME_CHARS: usize = 32;
+
+/// The lines of a value in the record's form, `width` characters each, cut at
+/// `most` lines; an empty value is one empty line.
+fn record_value_lines(value: &str, width: usize, most: usize) -> Vec<String> {
+    let chars: Vec<char> = value.chars().collect();
+    let mut lines: Vec<String> = chars
+        .chunks(width.max(1))
+        .take(most.max(1))
+        .map(|c| c.iter().collect())
+        .collect();
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    if chars.len() > width.max(1) * most.max(1)
+        && let Some(last) = lines.last_mut()
+    {
+        last.pop();
+        last.push('…');
+    }
+    lines
+}
+
+/// The record under the cursor (Enter), over the grid: a field per line, the
+/// names lined up, and a long value going on in the lines under it. The texts
+/// were made safe when the table was read.
+fn draw_record(
+    frame: &mut Frame,
+    view: &mut crate::viewer::table::RecordView,
+    grid: &TableGrid,
+    area: Rect,
+) {
+    let t = theme();
+    // As wide as the longest name and value need, within the screen.
+    let wanted_width = grid.cursor_record().map_or(40, |record| {
+        let names = record
+            .iter()
+            .map(|(n, _)| n.chars().count())
+            .max()
+            .unwrap_or(0);
+        let values = record
+            .iter()
+            .map(|(_, v)| v.chars().count())
+            .max()
+            .unwrap_or(0);
+        names.min(RECORD_NAME_CHARS) + values + 6
+    });
+    let width = (wanted_width.clamp(40, 120) as u16).min(area.width.saturating_sub(4));
+    let height = area.height.saturating_sub(2);
+    if width < 20 || height < 4 {
+        return;
+    }
+    let total = grid.total_text();
+    let title = format!(
+        " Record {} of {total} ",
+        fmt_num(grid.cursor_file_row() as u64)
+    );
+    let Some(record) = grid.cursor_record() else {
+        let rect = Rect {
+            x: area.x + (area.width - width) / 2,
+            y: area.y + (area.height - 3) / 2,
+            width,
+            height: 3,
+        };
+        frame.render_widget(Clear, rect);
+        frame.render_widget(
+            Paragraph::new(" Reading the record…")
+                .block(panel(title, true))
+                .style(Style::new().fg(t.dim).bg(t.background)),
+            rect,
+        );
+        return;
+    };
+    view.field = view.field.min(record.len().saturating_sub(1));
+    let inner_width = usize::from(width.saturating_sub(2));
+    let name_width = record
+        .iter()
+        .map(|(name, _)| name.chars().count())
+        .max()
+        .unwrap_or(0)
+        .min(RECORD_NAME_CHARS)
+        .min(inner_width / 2);
+    let value_width = inner_width.saturating_sub(name_width + 4).max(1);
+    let rows = usize::from(height.saturating_sub(2)).max(1);
+    let fields: Vec<Vec<String>> = record
+        .iter()
+        .map(|(_, value)| record_value_lines(value, value_width, rows))
+        .collect();
+    // The highlighted field is all on screen, from the top if need be.
+    if view.field < view.scroll {
+        view.scroll = view.field;
+    }
+    while view.scroll < view.field
+        && fields[view.scroll..=view.field]
+            .iter()
+            .map(Vec::len)
+            .sum::<usize>()
+            > rows
+    {
+        view.scroll += 1;
+    }
+    let wanted = fields.iter().map(Vec::len).sum::<usize>().min(rows) + 2;
+    let height = height.min(wanted as u16);
+    let rect = Rect {
+        x: area.x + (area.width - width) / 2,
+        y: area.y + (area.height - height) / 2,
+        width,
+        height,
+    };
+    let mut lines = Vec::new();
+    for (i, ((name, _), values)) in record.iter().zip(&fields).enumerate().skip(view.scroll) {
+        for (n, value) in values.iter().enumerate() {
+            if lines.len() == rows {
+                break;
+            }
+            let label = if n == 0 {
+                fit(name, name_width)
+            } else {
+                " ".repeat(name_width)
+            };
+            let colon = if n == 0 { ':' } else { ' ' };
+            let text = format!(" {label} {colon} {value}");
+            lines.push(if i == view.field {
+                Line::styled(fit(&text, inner_width), highlight(true))
+            } else {
+                Line::from(vec![
+                    Span::styled(format!(" {label} {colon} "), Style::new().fg(t.dim)),
+                    Span::raw(value.clone()),
+                ])
+            });
+        }
+    }
+    frame.render_widget(Clear, rect);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(panel(title, true))
             .style(Style::new().fg(t.text).bg(t.background)),
         rect,
     );
@@ -5228,6 +5398,42 @@ mod tests {
             "{screen}"
         );
         assert!(screen.contains("COLUMNS  ↑↓ PgUp PgDn scroll"), "{screen}");
+    }
+
+    #[test]
+    fn the_record_shows_a_field_per_line_and_wraps_a_long_value() {
+        use crate::viewer::{LoadOptions, Viewer};
+        use ratatui::crossterm::event::{KeyCode, KeyEvent};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let path = tmp.path().join("d.csv");
+        let long = "x".repeat(150);
+        std::fs::write(&path, format!("code,description\n7,{long}y\n")).unwrap();
+        app.viewer = Some(Viewer::open(path, LoadOptions::view(1 << 20)).unwrap());
+        let screen = draw_text(&mut app);
+        assert!(screen.contains("Enter record"), "{screen}");
+        let v = app.viewer.as_mut().unwrap();
+        v.handle_key(KeyEvent::from(KeyCode::Enter));
+        let screen = draw_text(&mut app);
+        assert!(screen.contains("Record 1 of 1"), "{screen}");
+        assert!(screen.contains(" code        : 7 "), "{screen}");
+        assert!(screen.contains(" description : xxxx"), "{screen}");
+        assert!(
+            screen.contains("xy "),
+            "the rest on the next line: {screen}"
+        );
+        assert!(screen.contains("RECORD   ← → record"), "{screen}");
+        assert!(screen.contains("c copy record"), "{screen}");
+    }
+
+    #[test]
+    fn a_long_value_is_cut_at_the_lines_there_are() {
+        assert_eq!(record_value_lines("", 5, 3), [""]);
+        assert_eq!(record_value_lines("abcdefg", 5, 3), ["abcde", "fg"]);
+        assert_eq!(
+            record_value_lines(&"a".repeat(20), 5, 2),
+            ["aaaaa", "aaaa…"]
+        );
     }
 
     /// Cut by the line budget, not by the bytes read: the header counts lines.

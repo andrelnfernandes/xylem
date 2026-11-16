@@ -133,6 +133,7 @@ Das CSV-Trennzeichen (Komma, Semikolon, Tabulator oder senkrechter Strich) wird 
 | `m` oder Insert | markiert den Datensatz unter dem Cursor oder hebt die Markierung auf und geht zum nächsten; **Ctrl+B** schreibt dann nur die markierten |
 | `M` | löscht die Markierungen |
 | `i` | die Struktur der Tabelle: was die Datei über jede Spalte sagt (siehe unten) |
+| Enter | der Datensatz unter dem Cursor als Formular, ein Feld pro Zeile: ↑ ↓ wählen das Feld, ← → gehen zum vorigen oder nächsten Datensatz, `c` kopiert den ganzen Datensatz (`NAME : Wert`, eine Zeile pro Feld) und `y` den Wert des Feldes, zum Einfügen in einen Editor oder ein Terminal; Esc geht zurück. Kopiert wird, was der Bildschirm zeigt: Steuer- und Textrichtungszeichen, auch Zeilenumbrüche, werden zu `·`, sodass das Einfügen in ein Terminal nichts ausführt. Außerhalb der Tabelle schließt Enter den Viewer |
 | `T` | zum Text der Datei und zurück |
 | `H` | von der Tabelle zum Text, dann Hex, dann zurück zur Tabelle |
 
