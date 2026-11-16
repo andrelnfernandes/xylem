@@ -80,16 +80,16 @@ seguida, com a visualização ainda aberta.
   Ctrl+D apaga esses. As marcas continuam quando a visualização fecha, para Copy
   ou Move.
 - **Outro disco nunca é tocado.** Uma linha `>` não pode ser marcada nem apagada,
-  e marcar ou apagar um ramo para onde há outro disco montado. Del recusa uma pasta
+  e marcar ou apagar um ramo se detém onde há outro disco montado. Del recusa uma pasta
   com um disco montado dentro; Alt+P apaga tudo menos ele.
-- Num archive ou numa máquina remota, só marcar e ver funcionam.
+- Num arquivo compactado ou numa máquina remota, só marcar e ver funcionam.
 
 ## Teclas
 
 | Tecla | O que faz |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | move o cursor |
-| Enter ou → | entra na pasta (em `>`: analisa aquele disco); num arquivo, abre o viewer |
+| Enter ou → | entra na pasta (em `>`: analisa aquele disco); num arquivo, abre o visualizador |
 | Backspace ou ← | volta para a pasta acima |
 | `\` | fecha a visualização, posicionando a árvore na pasta listada |
 | `A` | alterna entre espaço no disco e aparente |
@@ -100,7 +100,7 @@ seguida, com a visualização ainda aberta.
 | Del, Shift+Del | apaga o arquivo ou a pasta (Shift: de forma permanente) |
 | Ctrl+D, Ctrl+Shift+Del | apaga os arquivos marcados na pasta listada (Shift: de forma permanente) |
 | Alt+P | faz o [Prune](delete.md) da pasta |
-| `V` | abre o arquivo no viewer |
+| `V` | abre o arquivo no visualizador |
 | `D` | procura [duplicados](duplicates.md) na pasta listada |
 | F3 | relê a pasta listada |
 | Esc ou Alt+U | fecha |

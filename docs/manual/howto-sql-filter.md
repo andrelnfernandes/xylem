@@ -31,7 +31,7 @@ quotes, and numbers are written whole.
 | files not tagged yet | `NOT tagged` |
 | files that contain a text | `contains('invoice')` |
 
-[A SQL condition](filespec.md#a-sql-condition-w) lists the columns.
+[A SQL condition](sql.md#a-sql-condition-w) lists the columns.
 
 ## When it does not do what you expect
 

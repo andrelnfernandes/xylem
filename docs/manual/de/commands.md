@@ -13,7 +13,7 @@ Baum und verschiebt eine Datei im Dateifenster.
 In der Reihenfolge der Menüs. „Baum" und „Dateien" geben an, wo die Taste
 funktioniert.
 
-| Taste | Command | Baum | Dateien | Funktion |
+| Taste | Befehl | Baum | Dateien | Funktion |
 |---|---|---|---|---|
 | `A` | Available | ja | | Listet die eingehängten Dateisysteme mit Gesamtspeicher, belegtem und freiem Platz auf. [Informationen](info.md) |
 | `A` | Attributes | | ja | Ändert die Dateiberechtigungen in Oktalform. [Berechtigungen und Datum](attributes.md) |
@@ -30,13 +30,13 @@ funktioniert.
 | `N` | New date | ja | ja | Ändert das Änderungsdatum der Datei oder des Verzeichnisses. [Berechtigungen und Datum](attributes.md) |
 | `O` | Oops | ja | | Stellt das zuletzt in den Papierkorb Verschobene wieder her. Im Dateifenster Ctrl+Z. [Löschen](delete.md) |
 | `O` | Open | | ja | Öffnet die Datei mit dem Standardprogramm des Systems. [Das Dateifenster](files.md) |
-| `P` | Phrase | ja | ja | Öffnet das Suchfeld: listet eingelesene Dateien auf, die die eingegebenen Wörter enthalten. [Das Suchfeld](filespec.md#das-suchfeld-p) |
+| `P` | Phrase | ja | ja | Öffnet das Suchfeld: listet eingelesene Dateien auf, die die eingegebenen Wörter enthalten. [Das Suchfeld](sql.md#das-suchfeld-p) |
 | `R` | Rename | ja | ja | Benennt die Datei oder das Verzeichnis um. [Umbenennen](rename.md) |
 | `S` | Showall | ja | ja | Listet alle eingelesenen Dateien des Fensters auf. |
 | `T` | Tag | ja | ja | Dateien: markiert die Datei und rückt nach unten. Baum: markiert die Dateien des Verzeichnisses. [Markierungen und Gruppenoperationen](tagging.md) |
 | `U` | Untag | ja | ja | Dateien: hebt die Markierung der Datei auf und rückt nach unten. Baum: hebt die Markierung der Verzeichnisdateien auf. |
 | `V` | View | | ja | Öffnet die Datei im Betrachter: Text, Hexadezimal oder Tabelle. [Der Betrachter](viewer.md) |
-| `W` | Where | ja | ja | Behält die Dateien in der Liste, die einer SQL-Bedingung entsprechen. [Eine SQL-Bedingung](filespec.md#eine-sql-bedingung-w) |
+| `W` | Where | ja | ja | Behält die Dateien in der Liste, die einer SQL-Bedingung entsprechen. [Eine SQL-Bedingung](sql.md#eine-sql-bedingung-w) |
 | `X` | eXecute | ja | ja | Führt einen Shell-Befehl aus. `%f` steht für die Datei, `%t` für die markierten Dateien. [eXecute](execute.md) |
 | `Y` | Yank | ja | ja | Kopiert den Pfad der Datei oder des Verzeichnisses in die Zwischenablage. |
 | `Q` | Quit | ja | ja | Beendet das Programm nach Bestätigung. [Beenden und Verzeichnis der Shell wechseln](quit.md) |
@@ -68,5 +68,5 @@ werden können, werden nicht aufgeführt.
 
 Siehe [Archive](archives.md) und [entfernte Rechner](remote.md).
 
-Siehe auch: [das Strg-Menü](commands-ctrl.md), [das Alt-Menü](commands-alt.md),
+Siehe auch: [das Ctrl-Menü](commands-ctrl.md), [das Alt-Menü](commands-alt.md),
 [die Menüs](menus.md).

@@ -8,7 +8,7 @@ menus. O título à esquerda indica qual deles está sendo exibido.
 | DIR | a árvore tem o foco | o diretório sob o cursor |
 | FILE | a janela de arquivos tem o foco | o arquivo sob o cursor |
 | CTRL | Ctrl é mantido pressionado, ou após F9 | os arquivos marcados |
-| ALT | Alt é mantido pressionado, ou após F9 duas vezes | veja [o menu Alt](#alt-a-outra-versao-de-um-comando) |
+| ALT | Alt é mantido pressionado, ou após F9 duas vezes | veja [o menu Alt](#alt-a-outra-versão-de-um-comando) |
 
 Dentro de um arquivo compactado o título é ARCHIVE, e em uma máquina remota
 REMOTE. Ambos deixam de fora os comandos que não funcionam ali.

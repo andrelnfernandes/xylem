@@ -10,7 +10,7 @@ agote la memoria. Si esto ocurre, se trata de un error que debe notificarse.
 
 | Riesgo | Medida |
 |---|---|
-| Archivo manipulado explota el lector | Texto, hexadecimal, codificaciones, archivos comprimidos, Markdown, hojas de cálculo, CSV, JSON Lines y DBF se leen con analizadores escritos en Rust. SQLite y Parquet se leen mediante bibliotecas escritas en C únicamente cuando se abre el archivo con `V`, nunca en Autoview. |
+| Archivo manipulado explota el lector | Texto, hexadecimal, codificaciones, archivos comprimidos, archivadores, Markdown, hojas de cálculo, CSV, JSON Lines y DBF se leen con analizadores escritos en Rust. SQLite y Parquet se leen mediante bibliotecas escritas en C únicamente cuando se abre el archivo con `V`, nunca en Autoview. |
 | Archivo ejecuta un programa | Ningún programa externo se ejecuta sobre un archivo a menos que lo solicites con `E`, `O` o `X`. |
 | Archivo pequeño se expande para agotar memoria o disco | Cada lector tiene límites sobre cuánto lee, cuánto descomprime, cuánto tiempo tarda y cuánta memoria emplea el descompresor. Solo se deshace un nivel de compresión. Visualizar un archivo no escribe nada en el disco. |
 | Nombre oculta lo que realmente es | Los caracteres de control y los controles bidireccionales (Trojan Source) no se envían a la terminal. Los nombres con caracteres de dirección ocultos se marcan en rojo y `O` pide confirmación antes de abrirlos. |

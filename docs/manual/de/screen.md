@@ -25,7 +25,7 @@
 | 2 | Baum | Die eingelesenen Verzeichnisse. Die Zahl im oberen Rahmen nennt Cursor- und Gesamtzeilenzahl. |
 | 3 | Dateifenster | Dateien des Verzeichnisses unter dem Baum-Cursor. Der Titel enthält Filespec, Dateianzahl und Sortierung. |
 | 4 | Statistiken | Filespec, Festplatte sowie die unten beschriebenen Datei- und Byte-Zähler. |
-| 5 | Fußzeile | Das Menü des aktiven Fensters. Eine Eingabeaufforderung oder Meldung belegt die erste Zeile, falls vorhanden. |
+| 5 | Fußzeile | Das Menü des aktiven Fensters. Eine Eingabezeile oder Meldung belegt die erste Zeile, falls vorhanden. |
 
 Das aktive Fenster mit dem Fokus hebt sich durch einen hellen Rahmen ab.
 
@@ -47,7 +47,7 @@ Verzeichnisses ein. Siehe [Informationen](info.md).
 
 Befindet sich der Fokus im Baum, bleibt das Dateifenster verkleinert darunter
 und folgt dem Baum-Cursor. **Enter** übergibt ihm den Fokus und vergrößert es
-auf fast die gesamte Bildschirmhöhe; der Baum bleibt bis Enter oder Esc
+auf die gesamte Bildschirmhöhe; der Baum bleibt bis Enter oder Esc
 ausgeblendet.
 
 `B` (Branch) und `S` (Showall) öffnen ebenfalls das große Dateifenster und

@@ -14,8 +14,8 @@ den Speicher erschöpft. [Sicherheit](security.md) beschreibt die Maßnahmen und
 was nicht abgedeckt ist.
 
 **F1** (oder **Alt+H** für Terminals, die F1 selbst belegen) öffnet die Hilfe zu
-dem, was auf dem Bildschirm zu sehen ist: in einer Eingabeaufforderung das Thema
-dieser Eingabe; im Baum- oder Dateifenster das Thema dieses Fensters.
+dem, was auf dem Bildschirm zu sehen ist: in einer Eingabezeile das Thema
+dieser Eingabezeile; im Baum- oder Dateifenster das Thema dieses Fensters.
 
 | Taste in der Hilfe | Funktion |
 |---|---|
@@ -36,13 +36,13 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 - [Was Xylem ist](overview.md): Einlesen, Markierungen und was XTree nicht hat
 - [Installieren und die ersten fünf Minuten](start.md)
 - [Der Bildschirm](screen.md): Baum, Dateifenster, Statistiken, Menüleiste
-- [Die Menüs, Strg und Alt](menus.md): Buchstabe allein, mit Strg, mit Alt, und F9
+- [Die Menüs, Ctrl und Alt](menus.md): Buchstabe allein, mit Ctrl, mit Alt, und F9
 - [Vokabular](glossary.md): Log, Branch, Tag, Filespec
 
 ## Befehle
 
 - [Die Menüs DIR und FILE](commands.md): die einzelnen Buchstaben
-- [Das Strg-Menü](commands-ctrl.md): die markierten Dateien
+- [Das Ctrl-Menü](commands-ctrl.md): die markierten Dateien
 - [Das Alt-Menü](commands-alt.md): der Zweig, die Pfade und die Werkzeuge
 - [Git](git.md): das Git-Menü (Ctrl+G)
 - [Funktionstasten und Symbole](commands-keys.md)
@@ -78,6 +78,8 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 - [Das integrierte Terminal](terminal.md)
 - [Entfernte Rechner (SSH)](remote.md): ein entfernter Rechner oder Container als Baum
 - [Cloud-Speicher (rclone)](cloud.md): Google Drive, S3 und andere
+- [Dateien mit SQL finden](sql.md): eine Bedingung über die Dateien und ihren Inhalt (W), und die Wörter darin (P)
+- [Tabellen](tables.md): Tabellenkalkulationen, CSV, dBase, SQLite und Parquet als Raster, mit SQL-Filter und jedem Datensatz als Formular
 - [Lesezeichen](bookmarks.md)
 
 ## Anleitungen

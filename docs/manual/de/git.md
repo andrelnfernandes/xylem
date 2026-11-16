@@ -1,7 +1,7 @@
 # Git
 
 Git ist standardmäßig deaktiviert. Schalten Sie es mit F12 (Seite 1,
-„Git-Befehle") oder über `git = true` unter `[options]` in der
+„Git commands") oder über `git = true` unter `[options]` in der
 [Konfiguration](configuration.md) ein. Das Programm `git` muss installiert sein.
 XTree und ZTreeWin enthalten keine Git-Befehle.
 
@@ -28,7 +28,7 @@ verwenden Sie [Ausführen](execute.md) (`X`), z. B. `git push`.
 
 Die Dateiliste zeigt vor dem Namen jeder Datei deren Status mit den zwei
 Zeichen von `git status --short` an: `M ` vorgemerkt (staged), ` M` geändert,
-aber nicht vorgemerkt, `A ` hinzugefügt, `??`unversioniert, `R ` umbenannt.
+aber nicht vorgemerkt, `A ` hinzugefügt, `??` unversioniert, `R ` umbenannt.
 Unveränderte Dateien zeigen Leerzeichen. Der Status wird nach eigenen
 Operationen von Xylem, nach F3 sowie alle 10 Sekunden neu eingelesen (um
 Commits zu erfassen, die in einem anderen Terminal ausgeführt wurden).

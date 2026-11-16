@@ -31,7 +31,7 @@ va entre comillas simples y los números se escriben enteros.
 | archivos no marcados todavía | `NOT tagged` |
 | archivos que contienen un texto | `contains('invoice')` |
 
-[Una condición SQL](filespec.md#una-condicion-sql-w) lista todas las columnas.
+[Una condición SQL](sql.md#una-condición-sql-w) lista todas las columnas.
 
 ## Cuando no hace lo que esperas
 

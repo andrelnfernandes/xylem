@@ -8,7 +8,7 @@ memória, permitindo que uma única lista reúna arquivos de todo um ramo e um
 marcados nele.
 
 O Xylem trata arquivos que não criou como hostis: o conteúdo ou o nome de um
-arquivo nunca deve fazê-lo travar, congelar, executar código, gravar fora do
+arquivo nunca deve fazê-lo quebrar, travar, executar código, gravar fora do
 destino ou esgotar a memória. [Segurança](security.md) lista as medidas
 adotadas e o que não está coberto.
 
@@ -77,6 +77,8 @@ revisadas por falantes nativos. Correções:
 - [O terminal integrado](terminal.md)
 - [Máquinas remotas (SSH)](remote.md): outra máquina ou container como uma árvore
 - [Armazenamento na nuvem (rclone)](cloud.md): Google Drive, S3 e outros
+- [Encontrar arquivos com SQL](sql.md): uma condição sobre os arquivos e o conteúdo deles (W), e as palavras que contêm (P)
+- [Tabelas](tables.md): planilhas, CSV, dBase, SQLite e Parquet como uma grade, com filtro SQL e cada registro como ficha
 - [Favoritos](bookmarks.md)
 
 ## Como fazer

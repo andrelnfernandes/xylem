@@ -17,7 +17,7 @@ Pour afficher ce menu, maintenez Ctrl enfoncé ou appuyez sur F9. Voir
 Dans l'ordre du menu. « Arborescence » et « Fichiers » indiquent où la touche
 fonctionne.
 
-| Touche | Command | Arborescence | Fichiers | Action |
+| Touche | Commande | Arborescence | Fichiers | Action |
 |---|---|---|---|---|
 | Ctrl+A | Attributes | oui | oui | Modifie les permissions des fichiers marqués. [Permissions et dates](attributes.md) |
 | Ctrl+B | Bookmark | oui | | Enregistre le répertoire sous le curseur comme signet. N'utilise pas les marques. [Signets](bookmarks.md) |
@@ -28,14 +28,14 @@ fonctionne.
 | Ctrl+M | Move | oui | oui | Déplace les fichiers marqués dans un dossier de destination. Sur les terminaux sans protocole clavier kitty, appuyez sur `F9` `M`. [Copier et Déplacer](copy-move.md) |
 | Ctrl+N | New date | | oui | Modifie la date de modification des fichiers marqués. [Permissions et dates](attributes.md) |
 | Ctrl+O | Open | | oui | Ouvre chaque fichier marqué dans le programme par défaut du système. [La fenêtre de fichiers](files.md) |
-| Ctrl+P | Phrase | oui | oui | Ouvre la boîte de recherche sur les fichiers marqués : liste ceux contenant les mots saisis. [La boîte de recherche](filespec.md#la-boite-de-recherche-p) |
+| Ctrl+P | Phrase | oui | oui | Ouvre la boîte de recherche sur les fichiers marqués : liste ceux contenant les mots saisis. [La boîte de recherche](sql.md#la-boîte-de-recherche-p) |
 | Ctrl+R | Rename | oui | oui | Renomme les fichiers marqués avec un masque. [Renommer](rename.md) |
 | Ctrl+S | Showall | oui | | Liste les fichiers marqués de tout ce qui a été lu. [La fenêtre d'arborescence](tree.md) |
 | Ctrl+S | Search | | oui | Cherche un texte dans les fichiers marqués et démarque ceux qui ne le contiennent pas. [Rechercher dans les fichiers marqués](search.md) |
 | Ctrl+T | Tag | oui | oui | Fichiers : marque toute la liste. Arborescence : marque tout ce qui est lu et correspond au Filespec. [Marquage et opérations groupées](tagging.md) |
 | Ctrl+U | Untag | oui | oui | Fichiers : démarque toute la liste. Arborescence : démarque tout ce qui est lu et correspond au Filespec. |
 | Ctrl+V | View | | oui | Ouvre les fichiers marqués dans la visionneuse, l'un après l'autre ; `N` et `P` font défiler les fichiers. [Rechercher dans les fichiers marqués](search.md) |
-| Ctrl+W | Where | oui | oui | Conserve dans la liste les fichiers marqués répondant à une condition SQL. [Une condition SQL](filespec.md#une-condition-sql-w) |
+| Ctrl+W | Where | oui | oui | Conserve dans la liste les fichiers marqués répondant à une condition SQL. [Une condition SQL](sql.md#une-condition-sql-w) |
 | Ctrl+Y | Yank | oui | oui | Copie les chemins des fichiers marqués dans le presse-papiers. |
 
 ## Touches de fonction

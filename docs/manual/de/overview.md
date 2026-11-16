@@ -49,7 +49,7 @@ werden von keinem Befehl berührt.
   Siehe [Cloud-Speicher](cloud.md).
 - Eine SQL-Bedingung auf der Dateiliste (`W`):
   `ext = 'jpg' AND size > 10000000` behält passende Dateien.
-  Siehe [Filespec](filespec.md#eine-sql-bedingung-w).
+  Siehe [Filespec](sql.md#eine-sql-bedingung-w).
 - SQL auf dem Inhalt einer Datei: Der Betrachter stellt Tabellenkalkulationen,
   CSV, JSON Lines, DBF, SQLite und Parquet als Tabellen dar und filtert sie mit
   einer `WHERE`-Bedingung. Siehe [der Betrachter](viewer.md).
@@ -68,5 +68,5 @@ nicht besitzt, sowie abweichende Tastenkürzel.
 Xylem liest jede Datei so ein, als wäre sie darauf ausgelegt, das Programm
 anzugreifen. Das Anzeigen einer Datei führt nichts daraus aus, das Entpacken
 eines Archivs schreibt nicht außerhalb des Zielorts und jeder Leser stoppt an
-einem Größenlimit. [Sicherheit](security.md) listet die Limits und Ausnahmen
-auf.
+einem Größenlimit. [Sicherheit](security.md) listet die Limits auf und was nicht
+abgedeckt ist.

@@ -50,8 +50,8 @@ texto permanece en el portapapeles tras cerrar Xylem.
 Los iconos (F12, página 2) requieren una tipografía con glifos de Nerd Fonts. Sin
 ellos, la terminal dibuja un recuadro vacío por cada icono. Si las columnas se
 desalinean al activar los iconos, la terminal está dibujando caracteres de "ancho
-ambiguo" como anchos; configure esa opción en la terminal como estrecho
-(*narrow*) o desactive los iconos.
+ambiguo" como anchos; configura esa opción en la terminal como estrecho
+(*narrow*) o desactiva los iconos.
 
 ## Tamaño de pantalla
 

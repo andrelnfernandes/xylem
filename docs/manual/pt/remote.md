@@ -70,7 +70,7 @@ recriados lá, e isso é avisado.
 **Mover** funciona em todas as direções: daqui para a máquina remota e de
 volta (o original só é apagado depois que a cópia está no lugar e conferida), e
 dentro da máquina remota (um renomear lá). **Excluir**, **Prune** e as mesmas
-ações na Usage também funcionam. Numa máquina remota **não há lixeira**: a
+ações na tela de Uso também funcionam. Numa máquina remota **não há lixeira**: a
 pergunta diz isso, e o Oops não tem o que restaurar. Nada é apagado através de
 um link simbólico: um link é apagado como ele mesmo. O Prune deixa de fora
 outros discos montados dentro do ramo, distinguidos pela extensão `statvfs` do

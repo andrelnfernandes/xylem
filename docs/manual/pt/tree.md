@@ -44,9 +44,9 @@ qualquer operação em andamento); outros diretórios ainda precisam de F3.
   arquivos desmarcados nele continuam na lista até ela ser relida (F3); sem
   nenhuma marca, voltam todos os arquivos.
 - `F` ([Filespec](filespec.md)): quais arquivos são exibidos, por nome, data e tamanho.
-- `W` ([uma condição SQL](filespec.md#uma-condicao-sql-w)): quais arquivos são exibidos, por uma condição sobre nome, tamanho, data, local e conteúdo; `Ctrl+W` sobre os marcados.
-- `P` ([caixa de busca](filespec.md#a-caixa-de-busca-p)): localiza arquivos lidos por palavras enquanto você digita, mostrando trechos; `Ctrl+P` sobre os marcados.
-- `Alt+N` ([índice](filespec.md#palavras-inteiras-prefixos-e-indice-words)): indexa as palavras dos arquivos lidos do ramo, para que `words()` em W responda na hora.
+- `W` ([uma condição SQL](sql.md#uma-condição-sql-w)): quais arquivos são exibidos, por uma condição sobre nome, tamanho, data, local e conteúdo; `Ctrl+W` sobre os marcados.
+- `P` ([caixa de busca](sql.md#a-caixa-de-busca-p)): localiza arquivos lidos por palavras enquanto você digita, mostrando trechos; `Ctrl+P` sobre os marcados.
+- `Alt+N` ([índice](sql.md#palavras-inteiras-prefixos-e-índice-words)): indexa as palavras dos arquivos lidos do ramo, para que `words()` em W responda na hora.
 
 Em Branch e Showall, `\` vai para o diretório do arquivo selecionado. `B` de novo volta
 para a lista do próprio diretório.

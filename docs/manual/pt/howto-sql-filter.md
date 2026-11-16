@@ -22,7 +22,7 @@ lista completa; as marcas são preservadas.
 ## Como escrever a condição
 
 A condição corresponde ao que se segue a `WHERE` em uma consulta SQL. Textos
-ficam entre aspas simples e números são grafados por extenso.
+ficam entre aspas simples e números são escritos inteiros.
 
 | Para manter | Condição |
 |---|---|
@@ -32,7 +32,7 @@ ficam entre aspas simples e números são grafados por extenso.
 | arquivos ainda não marcados | `NOT tagged` |
 | arquivos que contenham um texto | `contains('invoice')` |
 
-[Uma condição SQL](filespec.md#uma-condicao-sql-w) lista todas as colunas
+[Uma condição SQL](sql.md#uma-condição-sql-w) lista todas as colunas
 disponíveis.
 
 ## Quando não se comporta como esperado

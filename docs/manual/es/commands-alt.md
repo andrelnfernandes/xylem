@@ -5,14 +5,14 @@ rama bajo el cursor. En la ventana de archivos, Alt+C y Alt+M actúan sobre los
 archivos marcados conservando sus rutas. Las demás opciones abren herramientas
 que no operan sobre un único archivo.
 
-Para mostrar este menú, mantén pulsado Alt o presiona F9 dos veces. Vea
+Para mostrar este menú, mantén pulsado Alt o pulsa F9 dos veces. Consulta
 [los menús](menus.md).
 
 ## Comandos
 
 En el orden del menú. "Árbol" y "Archivos" indican dónde funciona la tecla.
 
-| Tecla | Command | Árbol | Archivos | Qué hace |
+| Tecla | Comando | Árbol | Archivos | Qué hace |
 |---|---|---|---|---|
 | Alt+B | Bookmarks | sí | sí | Abre el gestor de marcadores: saltar a un directorio guardado, asignarle nombre o eliminarlo. [Marcadores](bookmarks.md) |
 | Alt+C | Compare | sí | | Compara toda la rama con la de la otra ventana por ruta relativa y abre un Branch con los archivos marcados. [Comparar](compare.md) |
@@ -29,7 +29,7 @@ En el orden del menú. "Árbol" y "Archivos" indican dónde funciona la tecla.
 | Alt+R | Release | sí | | Libera la rama de la memoria, como hace `-`. Las marcas se pierden. |
 | Alt+S | Sort | sí | sí | Ordena la ventana de archivos por nombre, extensión, fecha o tamaño. [Ordenar](sort.md) |
 | Alt+U | Usage | sí | sí | Lista las carpetas y archivos de la rama según el espacio que ocupan, de mayor a menor. [Uso de disco](usage.md) |
-| Alt+N | iNdex | sí | sí | Indexa las palabras de los archivos registrados de la rama para que `words()` en una condición SQL responda al instante. [El índice](filespec.md#palabras-enteras-y-un-indice-words) |
+| Alt+N | iNdex | sí | sí | Indexa las palabras de los archivos registrados de la rama para que `words()` en una condición SQL responda al instante. [El índice](sql.md#palabras-enteras-y-un-índice-words) |
 
 ## Otras teclas
 

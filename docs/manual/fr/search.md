@@ -4,8 +4,7 @@
 
 Recherche du texte dans tous les fichiers marqués de la liste et **démarque ceux
 qui ne le contiennent pas**, avec progression et `Esc` pour arrêter. À l'invite,
-**F2** active ou désactive la sensibilité à la casse (en ignorant la casse, les
-accents sont aussi pris en compte : `AÇÃO` trouve `ação`) et **F4** bascule
+**F2** active ou désactive la sensibilité à la casse (en ignorant la casse, cela vaut aussi pour les lettres accentuées : `AÇÃO` trouve `ação`) et **F4** bascule
 entre texte et hexadécimal (paires d'octets telles que `4d 5a`). Un `*` au
 milieu du terme correspond à n'importe quoi sur la même ligne (`error*disk`) ;
 un terme ne s'étend jamais sur plusieurs lignes. Cela fonctionne aussi à

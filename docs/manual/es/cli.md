@@ -14,7 +14,7 @@ xy [--cwd-file ARCHIVO] [DÓNDE]
 | `ssh://[user@]host[:puerto][/RUTA]` | lo mismo, especificando el puerto |
 | `docker://[user@]container[/RUTA]` | un contenedor en ejecución, mediante `docker exec` |
 
-Las mismas direcciones funcionan en el comando `L` (Log) dentro de Xylem. Vea
+Las mismas direcciones funcionan en el comando `L` (Log) dentro de Xylem. Consulta
 [máquinas remotas](remote.md).
 
 ## Opciones
@@ -53,7 +53,7 @@ Esto sobrescribe un `config.toml` existente.
 | `XY_DOCKER` | El programa usado para direcciones `docker://`. `XY_DOCKER=podman` utiliza Podman. |
 
 Dentro de la terminal integrada, Xylem establece `XY_TERMINAL=1` y, en bash,
-zsh y fish, `XY_TAGGED` con los archivos marcados. Vea
+zsh y fish, `XY_TAGGED` con los archivos marcados. Consulta
 [la terminal integrada](terminal.md).
 
 Véase también: [configuración](configuration.md).

@@ -47,7 +47,7 @@ affectés par aucune commande.
   Voir [stockage cloud](cloud.md).
 - Une condition SQL sur la liste de fichiers (`W`) :
   `ext = 'jpg' AND size > 10000000` retient les fichiers correspondants.
-  Voir [Filespec](filespec.md#une-condition-sql-w).
+  Voir [Filespec](sql.md#une-condition-sql-w).
 - SQL sur le contenu d'un fichier : la visionneuse affiche feuilles de calcul,
   CSV, JSON Lines, DBF, SQLite et Parquet comme tableaux et les filtre avec une
   condition `WHERE`. Voir [la visionneuse](viewer.md).

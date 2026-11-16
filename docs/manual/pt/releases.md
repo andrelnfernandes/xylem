@@ -49,9 +49,9 @@ altura da tela.
 - `W` mantém na lista os arquivos que atendem a uma condição SQL; Ctrl+W filtra
   dentre os arquivos marcados. `contains('texto')` lê o conteúdo dos arquivos e
   `words('texto')` consulta o índice construído com Alt+N.
-  [Uma condição SQL](filespec.md#uma-condicao-sql-w)
+  [Uma condição SQL](sql.md#uma-condição-sql-w)
 - `P` abre uma caixa de busca que lista os arquivos pelas palavras digitadas.
-  [A caixa de busca](filespec.md#a-caixa-de-busca-p)
+  [A caixa de busca](sql.md#a-caixa-de-busca-p)
 - Tabelas CSV, TSV, JSON Lines, DBF e SQLite não têm mais limite de linhas no
   visualizador. Planilhas mantêm o limite de 50.000 linhas.
   [O visualizador](viewer.md)
@@ -111,7 +111,7 @@ RUSTSEC-2026-0436.
   [Filtrar linhas](filter.md)
 - `*` em pasta montada via rclone solicita o ramo inteiro em uma única
   requisição.
-- Navegar por repositório Git nada executa dos scripts do repositório, exceto se
+- Olhar um repositório Git não executa nada que o repositório indique, exceto se
   a pasta constar em `git_trusted`. [Git](git.md)
 
 ## 0.5.0
@@ -122,7 +122,7 @@ abre o editor dentro da moldura do Xylem.
 **Novidades.**
 
 - Medidas de segurança para arquivos hostis: limites de descompressão,
-  verificação de caminhos extraídos, retenção de caracteres de controle antes do
+  verificação de caminhos extraídos, caracteres de controle barrados antes do
   terminal. [Segurança](security.md)
 - O visualizador quebra linhas (`W`), numera linhas (`#`), pula para uma linha
   (`g`), exibe arquivos `.gz`, `.xz`, `.zst` e `.bz2` descomprimidos e
@@ -147,7 +147,7 @@ abre o editor dentro da moldura do Xylem.
 - Google Drive, S3 e outros serviços de armazenamento via rclone.
   [Armazenamento na nuvem (rclone)](cloud.md)
 - Temas slate, graphite, daylight e vivid.
-- `[editors]` no `config.toml` escolhe o editor pela extensão do arquivo, e `E`
+- `[editors]` no `config.toml` escolhe o editor pelo nome do arquivo, e `E`
   recusa arquivos binários que não possuem editor configurado.
 - `xy --man` exibe a página de manual.
 

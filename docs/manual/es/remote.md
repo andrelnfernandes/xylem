@@ -59,7 +59,7 @@ deja ambos.
 
 **Copiar a la máquina remota** también funciona: desde la ventana de esta
 máquina; con la pantalla dividida, la ventana remota es el destino sugerido; o
-escriba una ruta de la ventana remota, o su dirección (`usuario@host:/srv/www`,
+escribe una ruta de la ventana remota, o su dirección (`usuario@host:/srv/www`,
 dentro de la carpeta con la que se abrió la ventana). Cada archivo se escribe
 en un archivo temporal junto al destino, se comprueba su tamaño, recibe sus
 permisos (sin setuid ni setgid) y su fecha, y solo entonces se pone en su
@@ -150,18 +150,18 @@ Un contenedor de esta máquina se abre igual, sin `sshd` dentro:
 
 Xylem ejecuta `docker exec` y, dentro del contenedor, su propio `sftp-server`,
 el mismo programa que usa un servidor SSH. La mayoría de las imágenes no lo
-tienen: instálelo en el contenedor (`apk add openssh-sftp-server` en Alpine,
+tienen: instálalo en el contenedor (`apk add openssh-sftp-server` en Alpine,
 `apt install openssh-sftp-server` en Debian y Ubuntu, `dnf install
 openssh-server` en Fedora), o Xylem dirá que falta. La imagen necesita `sh`,
 así que las imágenes distroless quedan fuera.
 
-Todo lo anterior funciona ahí como en una máquina remota, y **Alt+X** abre un
-shell en el contenedor, en la carpeta de la ventana. Con **Podman**, inicie
+Todo lo anterior funciona ahí como en una máquina remota, y **Alt+X** abre
+una shell en el contenedor, en la carpeta de la ventana. Con **Podman**, inicia
 Xylem con `XY_DOCKER=podman`. `DOCKER_HOST` y los contextos de docker valen
 como siempre.
 
 Xylem solo ejecuta `docker exec`: no inicia, no cambia ni descarga ningún
-contenedor. Lo que escriba va al contenedor, salvo en carpetas montadas desde
+contenedor. Lo que escribes va al contenedor, salvo en carpetas montadas desde
 esta máquina (`-v`): esas son archivos de esta máquina.
 
 Para Google Drive, S3 y otros servicios de almacenamiento en la nube, véase

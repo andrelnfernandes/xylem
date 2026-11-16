@@ -11,7 +11,7 @@ Para exibir este menu, segure Alt ou pressione F9 duas vezes. Veja [os menus](me
 
 Na ordem do menu. "Árvore" e "Arquivos" indicam onde a tecla funciona.
 
-| Tecla | Command | Árvore | Arquivos | O que faz |
+| Tecla | Comando | Árvore | Arquivos | O que faz |
 |---|---|---|---|---|
 | Alt+B | Bookmarks | sim | sim | Abre o gerenciador de favoritos: ir para um diretório salvo, nomeá-lo, removê-lo. [Favoritos](bookmarks.md) |
 | Alt+C | Compare | sim | | Compara todo o ramo com o da outra janela, por caminho relativo, e abre um Branch com os arquivos marcados. [Comparar](compare.md) |
@@ -28,7 +28,7 @@ Na ordem do menu. "Árvore" e "Arquivos" indicam onde a tecla funciona.
 | Alt+R | Release | sim | | Libera o ramo da memória, como faz `-`. Suas marcas são perdidas. |
 | Alt+S | Sort | sim | sim | Ordena a janela de arquivos por nome, extensão, data ou tamanho. [Ordenar](sort.md) |
 | Alt+U | Usage | sim | sim | Lista as pastas e arquivos do ramo pelo espaço que ocupam, do maior para o menor. [Uso do disco](usage.md) |
-| Alt+N | iNdex | sim | sim | Indexa as palavras dos arquivos lidos do ramo, para que `words()` em uma condição SQL responda na hora. [O índice](filespec.md#palavras-inteiras-prefixos-e-indice-words) |
+| Alt+N | iNdex | sim | sim | Indexa as palavras dos arquivos lidos do ramo, para que `words()` em uma condição SQL responda na hora. [O índice](sql.md#palavras-inteiras-prefixos-e-índice-words) |
 
 ## Outras teclas
 
@@ -51,7 +51,7 @@ Na ordem do menu. "Árvore" e "Arquivos" indicam onde a tecla funciona.
 ## Mudou na versão 0.8
 
 Até a 0.7, Alt+A, Alt+D, Alt+R, Alt+T e Alt+U faziam o mesmo que Ctrl com
-aquela letra, Alt+W era Uso e Alt+Y era Duplicados.
+aquela letra, Alt+W era Usage e Alt+Y era Duplicates.
 [Notas de versão](releases.md) traz a tabela e as linhas para o `config.toml`
 que restauram as teclas antigas.
 

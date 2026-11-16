@@ -78,8 +78,8 @@ panel indica simplemente rclone.
 **Es más lento que un disco local.** Toda lectura pasa por rclone y por la red
 del servicio. Ver un archivo, abrir un archivo comprimido o leer una carpeta
 grande puede tardar segundos o minutos, y la pantalla puede no responder hasta
-que el servicio conteste. En Google Drive, tener su propio `client_id` le
-proporciona una cuota de peticiones propia: vea la sección sobre el error 403
+que el servicio conteste. En Google Drive, tener tu propio `client_id` te da
+una cuota de peticiones propia: consulta la sección sobre el error 403
 más abajo.
 
 - **Todo va por la red.** Cada lectura de directorio es una petición, y un
@@ -125,12 +125,12 @@ sudo mount -t drvfs '\\servidor\recurso$' /mnt/recurso
 
 Allí, como en un montaje de rclone, la lista de archivos no muestra las letras de Git
 (Ctrl+G sigue funcionando), lo que cambia en otro lugar aparece después de F3, y el
-Treespec no espera una carpeta que se está leyendo: el cursor sigue lo que usted
-escribe a medida que llegan las carpetas. `/`, Tab y Enter siguen esperando su
+Treespec no espera una carpeta que se está leyendo: el cursor sigue lo que
+escribes a medida que llegan las carpetas. `/`, Tab y Enter siguen esperando su
 lectura. `*`, Branch y Usage leen carpeta por carpeta, con progreso y Esc.
 
 No reconocido: un recurso compartido asignado a una letra de unidad en Windows
-(`mount -t drvfs Z: /mnt/z`) parece un disco local visto desde Linux; móntelo por
+(`mount -t drvfs Z: /mnt/z`) parece un disco local visto desde Linux; móntalo por
 su ruta UNC. NFS se lee como un disco local.
 
 ## Cuando el servicio rechaza: error 403

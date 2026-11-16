@@ -21,14 +21,14 @@ Ctrl 配合字母会在已标记的文件上执行命令。在文件窗口中，
 | Ctrl+M | Move | 是 | 是 | 将已标记的文件移动到同一目标目录中。在不支持 kitty 键盘协议的终端中，请按 `F9` `M`。[复制与移动](copy-move.md) |
 | Ctrl+N | New date | | 是 | 修改已标记文件的修改日期。[权限与日期](attributes.md) |
 | Ctrl+O | Open | | 是 | 用系统默认程序逐个打开已标记的文件。[文件窗口](files.md) |
-| Ctrl+P | Phrase | 是 | 是 | 在已标记的文件上打开搜索框：列出包含所输入词语的文件。[搜索框](filespec.md#搜索框-p) |
+| Ctrl+P | Phrase | 是 | 是 | 在已标记的文件上打开搜索框：列出包含所输入词语的文件。[搜索框](sql.md#搜索框-p) |
 | Ctrl+R | Rename | 是 | 是 | 用掩码批量重命名已标记的文件。[重命名](rename.md) |
 | Ctrl+S | Showall | 是 | | 列出所有已载入的已标记文件。[目录树窗口](tree.md) |
 | Ctrl+S | Search | | 是 | 在已标记文件中搜索文本，并取消不包含该文本文件的标记。[搜索已标记的文件](search.md) |
 | Ctrl+T | Tag | 是 | 是 | 文件窗口：标记整个列表。目录树：标记所有符合 Filespec 的已载入文件。[标记](tagging.md) |
 | Ctrl+U | Untag | 是 | 是 | 文件窗口：取消标记整个列表。目录树：取消标记所有符合 Filespec 的已载入文件。 |
 | Ctrl+V | View | | 是 | 在查看器中依次打开已标记的文件；按 `N` 和 `P` 切换文件。[搜索已标记的文件](search.md) |
-| Ctrl+W | Where | 是 | 是 | 在列表中仅保留符合 SQL 条件的已标记文件。[SQL 条件](filespec.md#sql-条件-w) |
+| Ctrl+W | Where | 是 | 是 | 在列表中仅保留符合 SQL 条件的已标记文件。[SQL 条件](sql.md#sql-条件-w) |
 | Ctrl+Y | Yank | 是 | 是 | 将已标记文件的路径复制到剪贴板。 |
 
 ## 功能键
@@ -43,11 +43,11 @@ Ctrl 配合字母会在已标记的文件上执行命令。在文件窗口中，
 | Ctrl+Shift+Del | 两者 | 永久删除已标记的文件，不放入回收站。 |
 | Ctrl+Z | 两者 | Oops：从回收站恢复最近删除的内容。 |
 
-## 在压缩包内或远程机器上
+## 在归档文件内或远程主机上
 
 菜单会省略在对应环境中无法运行的命令。
 
 | 环境 | 未列出的命令 |
 |---|---|
-| 压缩包 | Attributes、Delete、Git、Move、New date、Rename、Ctrl+F5。Copy 执行解压操作。 |
-| 远程机器 | Batch、Git、Ctrl+F5。 |
+| 归档文件 | Attributes、Delete、Git、Move、New date、Rename、Ctrl+F5。Copy 执行解压操作。 |
+| 远程主机 | Batch、Git、Ctrl+F5。 |

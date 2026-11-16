@@ -5,7 +5,7 @@ feindlich: heruntergeladene Dateien, geöffnete Archive, von entfernten Servern
 gesendete Namen, geklonte Repositorien. Weder Inhalt noch Name einer Datei
 dürfen dazu führen, dass Xylem abstürzt, einfriert, Code ausführt, außerhalb des
 Zielorts schreibt oder den Arbeitsspeicher erschöpft. Geschieht dies dennoch,
-handelt es sich um einen meldepflichtigen Fehler.
+handelt es sich um einen Fehler, der gemeldet werden sollte.
 
 ## Was Xylem unternimmt
 
@@ -13,7 +13,7 @@ handelt es sich um einen meldepflichtigen Fehler.
 |---|---|
 | Manipulierte Datei greift den Parser an | Text, Hexadezimal, Zeichensätze, komprimierte Dateien, Archive, Markdown, Tabellenkalkulationen, CSV, JSON Lines und DBF werden von in Rust geschriebenen Parsern gelesen. SQLite und Parquet werden über C-Bibliotheken ausschließlich beim Öffnen mit `V` eingelesen, niemals in Autoview. |
 | Datei führt ein Programm aus | Kein externes Programm wird auf einer Datei ausgeführt, es sei denn, Sie fordern dies explizit mit `E`, `O` oder `X` an. |
-| Kleine Datei dekomprimiert sich ins Unendliche | Jeder Leser unterliegt Limits für Lesemenge, Dekomprimierung, Laufzeit und Speicherverbrauch des Dekomprimierers. Nur eine Kompressionsstufe wird aufgelöst. Das Anzeigen einer Datei schreibt nichts auf die Festplatte. |
+| Kleine Datei bläht sich auf und füllt Speicher oder Festplatte | Jeder Leser unterliegt Limits für Lesemenge, Dekomprimierung, Laufzeit und Speicherverbrauch des Dekomprimierers. Nur eine Kompressionsstufe wird aufgelöst. Das Anzeigen einer Datei schreibt nichts auf die Festplatte. |
 | Dateiname verschleiert seinen tatsächlichen Typ | Steuerzeichen und bidirektionale Steuerzeichen (Trojan Source) werden nicht an das Terminal übertragen. Namen mit verborgenen Richtungszeichen werden rot markiert und `O` verlangt vor dem Öffnen eine Bestätigung. |
 | Archiv schreibt außerhalb des Zielorts | Pfade mit `..` und absolute Pfade werden abgewiesen, symbolische Links in Archiven werden nicht extrahiert und Setuid-Bits werden verworfen. Dieselben Prüfungen gelten für Namen, die ein SFTP-Server meldet. |
 | Git-Repository führt eigene Skripte aus | Das Betrachten eines Repositories führt keine Hooks, kein `core.fsmonitor`, kein externes Diff und keine Textkonvertierung aus, es sei denn, sein Ordner ist in `git_trusted` eingetragen. |

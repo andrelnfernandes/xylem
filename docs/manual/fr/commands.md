@@ -13,7 +13,7 @@ dossier dans l'arborescence et déplace un fichier dans la fenêtre de fichiers.
 Dans l'ordre des menus. « Arborescence » et « Fichiers » indiquent où la touche
 fonctionne.
 
-| Touche | Command | Arborescence | Fichiers | Action |
+| Touche | Commande | Arborescence | Fichiers | Action |
 |---|---|---|---|---|
 | `A` | Available | oui | | Liste les systèmes de fichiers montés avec espace total, utilisé et libre. [Informations](info.md) |
 | `A` | Attributes | | oui | Modifie les permissions du fichier, en octal. [Permissions et dates](attributes.md) |
@@ -30,13 +30,13 @@ fonctionne.
 | `N` | New date | oui | oui | Modifie la date de modification du fichier ou répertoire. [Permissions et dates](attributes.md) |
 | `O` | Oops | oui | | Restaure le dernier élément envoyé à la corbeille. Dans la fenêtre de fichiers, Ctrl+Z. [Supprimer](delete.md) |
 | `O` | Open | | oui | Ouvre le fichier dans l'application par défaut du système. [La fenêtre de fichiers](files.md) |
-| `P` | Phrase | oui | oui | Ouvre la boîte de recherche : liste les fichiers lus contenant les mots saisis. [La boîte de recherche](filespec.md#la-boite-de-recherche-p) |
+| `P` | Phrase | oui | oui | Ouvre la boîte de recherche : liste les fichiers lus contenant les mots saisis. [La boîte de recherche](sql.md#la-boîte-de-recherche-p) |
 | `R` | Rename | oui | oui | Renomme le fichier ou le répertoire. [Renommer](rename.md) |
 | `S` | Showall | oui | oui | Liste tous les fichiers lus de la fenêtre. |
 | `T` | Tag | oui | oui | Fichiers : marque le fichier et descend. Arborescence : marque les fichiers du répertoire. [Marquage et opérations groupées](tagging.md) |
 | `U` | Untag | oui | oui | Fichiers : démarque le fichier et descend. Arborescence : démarque les fichiers du répertoire. |
 | `V` | View | | oui | Ouvre le fichier dans la visionneuse : texte, hexadécimal ou tableau. [La visionneuse](viewer.md) |
-| `W` | Where | oui | oui | Conserve dans la liste les fichiers répondant à une condition SQL. [Une condition SQL](filespec.md#une-condition-sql-w) |
+| `W` | Where | oui | oui | Conserve dans la liste les fichiers répondant à une condition SQL. [Une condition SQL](sql.md#une-condition-sql-w) |
 | `X` | eXecute | oui | oui | Lance une commande shell. `%f` représente le fichier et `%t` les fichiers marqués. [eXecute](execute.md) |
 | `Y` | Yank | oui | oui | Copie le chemin du fichier ou répertoire dans le presse-papiers. |
 | `Q` | Quit | oui | oui | Quitte l'application après confirmation. [Quitter et changer le répertoire du shell](quit.md) |

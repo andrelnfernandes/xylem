@@ -51,9 +51,9 @@ quart de la hauteur de l'écran.
 - `W` conserve dans la liste les fichiers répondant à une condition SQL ; Ctrl+W
   filtre parmi les fichiers marqués. `contains('texte')` lit le contenu des
   fichiers et `words('texte')` consulte l'index construit avec Alt+N.
-  [Une condition SQL](filespec.md#une-condition-sql-w)
+  [Une condition SQL](sql.md#une-condition-sql-w)
 - `P` ouvre une boîte de recherche listant les fichiers selon les mots saisis.
-  [La boîte de recherche](filespec.md#la-boite-de-recherche-p)
+  [La boîte de recherche](sql.md#la-boîte-de-recherche-p)
 - Les tableaux CSV, TSV, JSON Lines, DBF et SQLite n'ont plus de limite de
   lignes dans la visionneuse. Les feuilles de calcul conservent la limite de
   50 000 lignes. [La visionneuse](viewer.md)

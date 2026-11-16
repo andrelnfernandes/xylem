@@ -13,7 +13,7 @@ funktionieren mit Verschieben (Alt+M).
 3. Drücken Sie `F`, geben Sie `*.jpg` ein und drücken Sie Enter. Die Liste
    enthält nur noch die JPGs.
 4. Drücken Sie Ctrl+T. Jede Datei in der Liste wird markiert (`■`).
-5. Drücken Sie Alt+C. Die Eingabeaufforderung fragt nach dem Ziel.
+5. Drücken Sie Alt+C. Die Eingabezeile fragt nach dem Ziel.
 6. Geben Sie `/mnt/backup` ein. Beachten Sie vor dem Drücken von Enter den
    angezeigten Pfadmodus und drücken Sie **F7**, bis dort `Relative` steht.
 7. Drücken Sie Enter. Falls `/mnt/backup` nicht existiert, fragt Xylem vor dem

@@ -8,7 +8,7 @@ existe quatre menus. Le titre à gauche indique lequel est affiché.
 | DIR | l'arborescence a le focus | le répertoire sous le curseur |
 | FILE | la fenêtre de fichiers a le focus | le fichier sous le curseur |
 | CTRL | Ctrl est maintenu enfoncé, ou après F9 | les fichiers marqués |
-| ALT | Alt est maintenu enfoncé, ou après F9 deux fois | voir [le menu Alt](#alt-lautre-version-dune-commande) |
+| ALT | Alt est maintenu enfoncé, ou après F9 deux fois | voir [le menu Alt](#alt--lautre-version-dune-commande) |
 
 Dans une archive, le titre devient ARCHIVE, et sur une machine distante REMOTE.
 Tous deux masquent les commandes qui n'y fonctionnent pas.

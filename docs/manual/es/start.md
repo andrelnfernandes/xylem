@@ -3,7 +3,7 @@
 ## Instalación
 
 Xylem se ejecuta en Linux (x86_64 y ARM64). La compilación para Windows pasa
-las pruebas pero no ha sido utilizada en el día a día; vea [Windows](windows.md).
+las pruebas pero no ha sido utilizada en el día a día; consulta [Windows](windows.md).
 
 **Binario.** Descarga el archivo comprimido para tu sistema desde
 `https://github.com/andrelnfernandes/xylem/releases`, extráelo y coloca `xy`
@@ -62,7 +62,7 @@ directorio no leído aún, muestra `Not logged`.
 
 ## Ir a los archivos
 
-**Enter** pasa a la ventana de archivos, que ocupa entonces la mayor parte de la
+**Enter** pasa a la ventana de archivos, que ocupa entonces toda la altura de la
 pantalla. Enter o Esc regresa al árbol.
 
 | Tecla | Qué hace |
@@ -84,7 +84,7 @@ desmarca todos.
 ## Salir
 
 `Q` sale del programa, tras pedir confirmación. Alt+Q sale y deja la shell en
-el directorio donde estabas, siempre que la función del shell descrita en
+el directorio donde estabas, siempre que la función de la shell descrita en
 [Salir y cambiar el directorio de la shell](quit.md) esté configurada.
 
 ## Siguientes pasos

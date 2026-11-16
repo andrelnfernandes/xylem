@@ -5,13 +5,13 @@
 ## 操作步骤
 
 1. 在目录树中，将光标置于 `projects` 上并按 `B`。文件窗口列出该分支的全部文件。
-2. 按 `W`。提示框询问 SQL 条件。
+2. 按 `W`。提示行询问 SQL 条件。
 3. 输入 `ext = 'jpg' AND size > 1000000` 并按 Enter。列表中仅保留符合条件的文件，底部状态栏显示匹配的文件数量。
 4. 按 Ctrl+T。列表中的匹配文件全部被标记。
 
 ![四个步骤：在 projects 上执行 Branch、按 W、输入条件以及用 Ctrl+T 标记筛选出的 12 个文件](../../screenshots/howto-sql-filter.gif)
 
-文件窗口的标题栏显示当前条件：`Branch: * where ext = 'jpg' AND size > 1000000 (12)`。再次按 `W` 并在提示框中直接回车可恢复完整列表；已有标记将继续保留。
+文件窗口的标题栏显示当前条件：`Branch: * where ext = 'jpg' AND size > 1000000 (12)`。再次按 `W` 并在提示行中直接回车可恢复完整列表；已有标记将继续保留。
 
 ## 编写条件
 
@@ -25,7 +25,7 @@
 | 尚未标记的文件 | `NOT tagged` |
 | 包含指定文本的文件 | `contains('invoice')` |
 
-[SQL 条件](filespec.md#sql-条件-w)列出了所有可用的数据列。
+[SQL 条件](sql.md#sql-条件-w)列出了所有可用的数据列。
 
 ## 异常排查
 

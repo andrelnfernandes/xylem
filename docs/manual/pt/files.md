@@ -71,6 +71,9 @@ X11 e no Wayland.
 | `C` / `M` | [copia / move](copy-move.md) o arquivo |
 | `D` ou Del | [exclui](delete.md) o arquivo (Shift+Del: permanentemente) |
 | `R` | [renomeia](rename.md) o arquivo; Ctrl+R renomeia os marcados com máscara |
+| `W` / `Ctrl+W` | filtra por [condição SQL](sql.md#uma-condição-sql-w) (lista / marcados) |
+| `P` / `Ctrl+P` | [caixa de busca](sql.md#a-caixa-de-busca-p): localiza arquivos por palavras enquanto você digita |
+| `Alt+N` | [indexa](sql.md#palavras-inteiras-prefixos-e-índice-words) este ramo, para o words() no W e na caixa de busca |
 | `A` | [permissões](attributes.md) |
 | `N` | [altera a data](attributes.md) |
 | Alt+S | [ordena](sort.md) |

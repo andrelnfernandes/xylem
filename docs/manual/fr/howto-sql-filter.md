@@ -25,13 +25,13 @@ place entre guillemets simples et les nombres s'écrivent entiers.
 
 | Pour conserver | Condition |
 |---|---|
-| fichiers modifiés la semaine dernière | `age_days < 7` |
+| fichiers modifiés au cours des 7 derniers jours | `age_days < 7` |
 | fichiers Markdown et texte | `ext IN ('md', 'txt')` |
 | noms commençant par `report` | `name LIKE 'report%'` |
 | fichiers pas encore marqués | `NOT tagged` |
 | fichiers contenant un texte | `contains('invoice')` |
 
-[Une condition SQL](filespec.md#une-condition-sql-w) liste toutes les colonnes.
+[Une condition SQL](sql.md#une-condition-sql-w) liste toutes les colonnes.
 
 ## Quand le résultat diffère de vos attentes
 

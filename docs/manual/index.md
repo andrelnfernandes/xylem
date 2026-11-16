@@ -75,6 +75,8 @@ native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`
 - [The built-in terminal](terminal.md)
 - [Remote machines (SSH)](remote.md): another machine or a container as a tree
 - [Cloud storage (rclone)](cloud.md): Google Drive, S3 and others
+- [Finding files with SQL](sql.md): a condition on the files and their contents (W), and the words in them (P)
+- [Tables](tables.md): spreadsheets, CSV, dBase, SQLite and Parquet as a grid, with a SQL filter and each record as a form
 - [Bookmarks](bookmarks.md)
 
 ## How to

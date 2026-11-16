@@ -42,7 +42,7 @@ dentro de arquivos compactados abrem em formato de texto comum.
 | uma coluna não possua nome utilizável | use sua letra correspondente: `C = 'pro'` |
 
 Uma célula com formato numérico é tratada como número: digite `code = 7`, nunca
-`code = '7'`. [O filtro SQL](viewer.md#o-filtro-sql) lista todos os operadores.
+`code = '7'`. [O filtro SQL](tables.md#o-filtro-sql) lista todos os operadores.
 
 ## Em planilhas ou bancos de dados
 
@@ -56,7 +56,7 @@ SELECT plan, count(*), sum(balance) FROM customers GROUP BY plan
 ```
 
 O Xylem opera somente em leitura no banco de dados. Comandos como `UPDATE` e
-`DELETE` são sumariamente recusados.
+`DELETE` são recusados.
 
 ## Gravar o resultado
 
@@ -71,7 +71,7 @@ ou tabela SQLite. [Batch](execute.md) descreve os formatos disponíveis.
   inexistente é considerado nulo (*NULL*) sem gerar erro. Confira a grafia ou
   utilize a letra da coluna.
 - **O arquivo abre em modo texto.** A extensão não consta na tabela acima, ou o
-  arquivo está compactado, remoto ou em arquivo de arquivo compactado. A tecla
+  arquivo está comprimido, remoto ou dentro de um arquivo compactado. A tecla
   `T` alterna entre o modo tabela e o modo texto quando ambos estão disponíveis.
 
 Veja também: [o visualizador](viewer.md), [escolher arquivos com SQL](howto-sql-filter.md).

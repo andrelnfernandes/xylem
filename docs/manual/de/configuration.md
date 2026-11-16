@@ -10,7 +10,7 @@ Fenster und erreicht Xylem nicht) öffnet vier Seiten:
 | 1. Programme und Formate | Editor, Editor im Xylem-Rahmen öffnen, Xylem-Thema im Editor, Binärdateien mit E bearbeiten, Binäreditor, Hilfesprache, Programm zum Öffnen (Opener), Datumsformat, Zahlenformat, Git-Befehle, vertrauenswürdige Git-Ordner |
 | 2. Anzeige und Sortierung | versteckte Dateien, anfängliches Sortierkriterium und Richtung, Verhalten von Enter im Dateifenster, anfänglicher Anzeigemodus, Syntaxfarben, Zeilenumbruch, Zeilennummern, komprimierte Dateien, die Kodierung alter Texte, das Größenlimit dessen, was der Betrachter liest, Icons und Symbole (Nerd Fonts), Dateinamen nach Typ gefärbt, Fensterrahmen, Farben des integrierten Terminals, Sekunden in der Uhr |
 | 3. Bestätigungen und Verlauf | beim Beenden nachfragen, in den Papierkorb löschen, Prune-Bestätigung, Einträge mit `@` nicht speichern, eigener Verlauf des integrierten Terminals |
-| 4. Kopieren, Vergleichen und Aktualisieren | 2 s ignorieren, 1 Std. ignorieren, automatische Aktualisierung, Startpunkt der Pfade bei Alt+C/Alt+M |
+| 4. Kopieren, Vergleichen und Aktualisieren | 2 s ignorieren, 1 Std. ignorieren, automatische Aktualisierung, Startpunkt der Pfade bei Alt+C/Alt+M, vom Index ausgenommene Dateien und Ordner |
 
 Das Größenlimit des Betrachters (**L** auf Seite 2) kostet Speicher und Zeit: Mit `1024` MiB belegt das Öffnen einer gewöhnlichen Textdatei dieser Größe etwa 2,5 GiB RAM und dauert rund 5 s, und Dateien mit sehr kurzen Zeilen kosten mehr pro Byte (siehe [den Betrachter](viewer.md)).
 

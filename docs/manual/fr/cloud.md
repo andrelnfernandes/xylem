@@ -87,7 +87,7 @@ l'erreur 403 ci-dessous.
   un service comme Google Drive les refuse quand elles sont trop nombreuses.
   Aussi, sur un dossier monté, `*`, Branch (`B`), la vue Usage et Compare sur une branche demandent à rclone
   toute la branche en une seule liste, bien plus rapide, sauf si elle est déjà
-  entièrement lue ; Échap laisse l'arbre tel quel. Si rclone échoue ou montre
+  entièrement lue ; Esc laisse l'arbre tel quel. Si rclone échoue ou montre
   d'autres dossiers que le montage, ils lisent dossier par dossier. Seul `*`
   déplie l'arbre.
 - **L'écran n'attend pas.** L'arbre s'affiche aussitôt et se remplit à mesure que

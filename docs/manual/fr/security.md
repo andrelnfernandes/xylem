@@ -14,7 +14,7 @@ mémoire. Si cela se produit, il s'agit d'une anomalie à signaler.
 | Fichier exécutant un programme | Aucun programme externe n'est lancé sur un fichier sans action explicite avec `E`, `O` ou `X`. |
 | Petit fichier s'étendant pour saturer mémoire ou disque | Chaque lecteur applique des limites de volume lu, de décompression, de temps d'exécution et de mémoire du décompresseur. Un seul niveau de compression est défait. Afficher un fichier n'écrit rien sur le disque. |
 | Nom masquant sa nature réelle | Les caractères de contrôle et les contrôles bidirectionnels (Trojan Source) ne sont pas envoyés au terminal. Un nom contenant des caractères de direction masqués est affiché en rouge et `O` demande confirmation avant ouverture. |
-| Archive écrivant en dehors de la destination | Les chemins contenant `..` et les chemins absolus sont rejetés, les liens symboliques dans les archives ne sont pas extraits et les bits setuid sont ignorés. Les mêmes contrôles s'appliquent aux noms renvoyés par un serveur SFTP. |
+| Archive écrivant en dehors de la destination | Les chemins contenant `..` et les chemins absolus sont rejetés, les liens symboliques dans les archives ne sont pas extraits et les bits setuid sont retirés. Les mêmes contrôles s'appliquent aux noms renvoyés par un serveur SFTP. |
 | Dépôt Git exécutant ses propres commandes | L'exploration d'un dépôt n'exécute aucun hook, aucun `core.fsmonitor`, aucun diff externe ni conversion de texte, sauf si son dossier figure dans `git_trusted`. |
 | Dépendance comportant une faille connue | Les dépendances sont vérifiées contre la base de données RustSec lors de l'intégration continue (CI). |
 

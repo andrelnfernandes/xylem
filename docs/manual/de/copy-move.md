@@ -10,11 +10,11 @@ Ein Verzeichnis (relativ zum Verzeichnis unter dem Baum-Cursor, absolut oder
 mit `~`) oder, bei einer einzelnen Datei, ein neuer Name. Bei
 [geteiltem Bildschirm](split.md) wird das Verzeichnis des anderen Fensters
 vorgeschlagen. **F2** öffnet einen Baum zur [Ordnerauswahl](picker.md); **↑**
-ruft frühere Ziele auf.
+öffnet die früheren Ziele als [Liste](execute.md#verlauf).
 
 Ohne geteilten Bildschirm öffnet sich die Eingabe leer, wie bei [Log](treespec.md),
-und **↑** geht durch dieselben Orte: die Ordner, in die kopiert oder verschoben
-wurde, und die mit Log geöffneten, der letzte zuerst. Enter bei leerer Eingabe tut
+und die Liste von **↑** enthält dieselben Orte: die Ordner, in die kopiert oder
+verschoben wurde, und die mit Log geöffneten, der letzte ganz unten. Enter bei leerer Eingabe tut
 nichts.
 
 **F11** holt ein [Lesezeichen](bookmarks.md) in die Eingabe.

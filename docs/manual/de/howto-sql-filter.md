@@ -26,13 +26,13 @@ steht in einfachen Anführungszeichen, Zahlen werden als Ganzes geschrieben.
 
 | Zum Behalten von | Bedingung |
 |---|---|
-| Dateien der letzten Woche | `age_days < 7` |
+| in der letzten Woche geänderten Dateien | `age_days < 7` |
 | Markdown- und Textdateien | `ext IN ('md', 'txt')` |
 | Namen, die mit `report` beginnen | `name LIKE 'report%'` |
 | noch nicht markierten Dateien | `NOT tagged` |
 | Dateien, die einen Text enthalten | `contains('invoice')` |
 
-[Eine SQL-Bedingung](filespec.md#eine-sql-bedingung-w) listet alle Spalten auf.
+[Eine SQL-Bedingung](sql.md#eine-sql-bedingung-w) listet alle Spalten auf.
 
 ## Wenn das Ergebnis unerwartet ist
 

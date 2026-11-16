@@ -1,7 +1,6 @@
 # Git
 
-Git viene desactivado por defecto. Actívalo con F12 (página 1, "Comandos de
-Git") o con `git = true` bajo `[options]` en la
+Git viene desactivado por defecto. Actívalo con F12 (página 1, "Git commands") o con `git = true` bajo `[options]` en la
 [configuración](configuration.md). Necesita el programa `git`. XTree y ZTreeWin
 no tienen comandos de Git.
 

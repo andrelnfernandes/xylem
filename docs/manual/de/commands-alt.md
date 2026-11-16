@@ -13,7 +13,7 @@ Siehe [die Menüs](menus.md).
 In der Reihenfolge des Menüs. „Baum" und „Dateien" geben an, wo die Taste
 funktioniert.
 
-| Taste | Command | Baum | Dateien | Funktion |
+| Taste | Befehl | Baum | Dateien | Funktion |
 |---|---|---|---|---|
 | Alt+B | Bookmarks | ja | ja | Öffnet die Lesezeichenverwaltung: gespeichertes Verzeichnis anspringen, benennen, löschen. [Lesezeichen](bookmarks.md) |
 | Alt+C | Compare | ja | | Vergleicht den gesamten Zweig anhand relativer Pfade mit dem des anderen Fensters und öffnet einen Branch mit markierten Dateien. [Vergleichen](compare.md) |
@@ -30,7 +30,7 @@ funktioniert.
 | Alt+R | Release | ja | | Gibt den Zweig aus dem Speicher frei, wie `-`. Markierungen gehen verloren. |
 | Alt+S | Sort | ja | ja | Sortiert das Dateifenster nach Name, Erweiterung, Datum oder Größe. [Sortieren](sort.md) |
 | Alt+U | Usage | ja | ja | Listet Ordner und Dateien des Zweigs nach belegtem Speicherplatz auf, größte zuerst. [Speicherplatzbelegung](usage.md) |
-| Alt+N | iNdex | ja | ja | Indiziert die Wörter der eingelesenen Dateien des Zweigs, damit `words()` in einer SQL-Bedingung sofort antwortet. [Der Index](filespec.md#ganze-worter-und-ein-index-words) |
+| Alt+N | iNdex | ja | ja | Indiziert die Wörter der eingelesenen Dateien des Zweigs, damit `words()` in einer SQL-Bedingung sofort antwortet. [Der Index](sql.md#ganze-wörter-und-ein-index-words) |
 
 ## Weitere Tasten
 
@@ -58,4 +58,4 @@ diesem Buchstaben, Alt+W war Usage und Alt+Y war Duplicates.
 `config.toml`, die die alten Tasten wiederherstellen.
 
 Siehe auch: [die Menüs DIR und FILE](commands.md),
-[das Strg-Menü](commands-ctrl.md).
+[das Ctrl-Menü](commands-ctrl.md).

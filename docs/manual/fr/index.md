@@ -77,6 +77,8 @@ Les versions de ce manuel en espagnol, français, allemand et chinois n'ont pas
 - [Le terminal intégré](terminal.md)
 - [Machines distantes (SSH)](remote.md) : une autre machine ou un conteneur comme arborescence
 - [Stockage cloud (rclone)](cloud.md) : Google Drive, S3 et autres
+- [Trouver des fichiers avec SQL](sql.md) : une condition sur les fichiers et leur contenu (W), et les mots qu'ils contiennent (P)
+- [Tableaux](tables.md) : feuilles de calcul, CSV, dBase, SQLite et Parquet en grille, avec un filtre SQL et chaque enregistrement en fiche
 - [Signets](bookmarks.md)
 
 ## Comment faire

@@ -41,13 +41,13 @@ estado:
 | `├─?` | no registrado: sus archivos y subdirectorios no han sido leídos |
 
 Alt+K añade una columna con el tamaño, número de archivos o porcentaje de cada
-directorio. Vea [información](info.md).
+directorio. Consulta [información](info.md).
 
 ## La ventana de archivos: reducida y ampliada
 
 Con el foco en el árbol, la ventana de archivos permanece en formato reducido
 debajo de él y sigue al cursor del árbol. **Enter** le transfiere el foco y la
-amplía a casi toda la altura de la pantalla; el árbol permanece oculto hasta
+amplía a toda la altura de la pantalla; el árbol permanece oculto hasta
 pulsar Enter o Esc.
 
 `B` (Branch) y `S` (Showall) también abren la ventana de archivos ampliada,
@@ -56,7 +56,7 @@ mostrando archivos de más de un directorio. En ese caso, el título comienza po
 
 Alt+F modifica la información mostrada en cada línea: nombres en columnas,
 nombres y tamaños, detalles (tamaño, fecha y permisos), propietario, tipo o
-nombres largos. Vea [la ventana de archivos](files.md).
+nombres largos. Consulta [la ventana de archivos](files.md).
 
 ## Las estadísticas
 
@@ -70,7 +70,7 @@ nombres largos. Vea [la ventana de archivos](files.md).
 | Current Directory | cantidad de archivos y bytes del directorio bajo el cursor, y sus permisos |
 
 `?` sustituye la pantalla por las estadísticas completas: la máquina, la red y
-el propio Xylem. Vea [información](info.md).
+el propio Xylem. Consulta [información](info.md).
 
 ## Qué altera la disposición de la pantalla
 

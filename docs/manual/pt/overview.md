@@ -41,12 +41,12 @@ são afetados por nenhum comando.
   e Alt+O digita os arquivos marcados na linha de comando.
   Veja [o terminal integrado](terminal.md).
 - Outras máquinas via SSH, e containers via `docker exec`, exibidos como uma
-  árvore. Copiar, Mover, Renomear, Excluir, Permissões e Data funcionam lá.
+  árvore. Copy, Move, Rename, Delete, Attributes e New date funcionam lá.
   Edit e Batch não. Veja [máquinas remotas](remote.md).
 - Google Drive, S3 e outros armazenamentos suportados pelo rclone.
   Veja [armazenamento na nuvem](cloud.md).
 - Uma condição SQL na lista de arquivos (`W`): `ext = 'jpg' AND size > 10000000`
-  mantém os arquivos que a satisfazem. Veja [Filespec](filespec.md#uma-condicao-sql-w).
+  mantém os arquivos que a satisfazem. Veja [Filespec](sql.md#uma-condição-sql-w).
 - SQL no conteúdo de um arquivo: o visualizador exibe planilhas, CSV, JSON
   Lines, DBF, SQLite e Parquet como tabelas e os filtra com uma condição
   `WHERE`. Veja [o visualizador](viewer.md).

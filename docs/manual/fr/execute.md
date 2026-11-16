@@ -42,7 +42,7 @@ tourner dans sa propre fenêtre, ajoutez `&` à la fin de la commande (par
 exemple `imhex %f &` ou `ghex %f &`) : Xylem le lance directement sans ouvrir
 le cadre de terminal.
 
-Le cadre indique qu'il s'agit d'un programme externe et comment quitter les plus courants. Il reçoit toutes les touches, et **Échap** peut ne pas le fermer : dans `hexedit`, **Ctrl+X** enregistre et quitte, et **Ctrl+C** quitte sans enregistrer. Après **Échap**, `hexedit` attend une autre touche et peut afficher `Unknown command` : appuyez sur **Espace** et recommencez.
+Le cadre indique qu'il s'agit d'un programme externe et comment quitter les plus courants. Il reçoit toutes les touches, et **Esc** peut ne pas le fermer : dans `hexedit`, **Ctrl+X** enregistre et quitte, et **Ctrl+C** quitte sans enregistrer. Après **Esc**, `hexedit` attend une autre touche et peut afficher `Unknown command` : appuyez sur **Espace** et recommencez.
 
 Si vous préférez que `E` n'ouvre pas du tout les fichiers binaires (et se
 contente de suggérer `O` dans le pied de page pour les ouvrir avec le programme
@@ -112,9 +112,9 @@ En minuscules, ils sont protégés par des guillemets, prêts pour le shell
 
 ## Batch dans la visionneuse
 
-Avec un tableau ou un texte ouvert dans la [visionneuse](viewer.md), **Ctrl+B** écrit une ligne par enregistrement, à partir du fichier entier : au-delà des 50 000 lignes de l'écran, avec les valeurs entières et telles qu'elles sont dans le fichier. Il respecte le filtre en cours (le filtre SQL sur un tableau, le [filtre de lignes](filter.md) sur le texte). Un tableau est relu à ce moment-là ; le texte sort tel que la visionneuse l'a lu, jusqu'à la limite de taille, et l'aperçu avertit quand ce n'est pas tout le fichier. Il demande le fichier, puis le masque, et affiche les premières lignes avant d'écrire : **Entrée** écrit, **Échap** renonce. Pendant l'écriture, Échap annule et supprime le fichier incomplet. Un fichier existant n'est pas écrasé.
+Avec un tableau ou un texte ouvert dans la [visionneuse](viewer.md), **Ctrl+B** écrit une ligne par enregistrement, à partir du fichier entier : au-delà des 50 000 lignes de l'écran, avec les valeurs entières et telles qu'elles sont dans le fichier. Il respecte le filtre en cours (le filtre SQL sur un tableau, le [filtre de lignes](filter.md) sur le texte). Un tableau est relu à ce moment-là ; le texte sort tel que la visionneuse l'a lu, jusqu'à la limite de taille, et l'aperçu avertit quand ce n'est pas tout le fichier. Il demande le fichier, puis le masque, et affiche les premières lignes avant d'écrire : **Enter** écrit, **Esc** renonce. Pendant l'écriture, Esc annule et supprime le fichier incomplet. Un fichier existant n'est pas écrasé.
 
-Pendant la saisie du masque, un cadre au-dessus montre un masque qui fonctionne sur ce fichier, ses champs et les modèles dont vous disposez, chacun avec la première phrase de son commentaire initial (`%%#`). **↑↓** choisissent un modèle, **F3** l'affiche en entier avant de l'utiliser et **PgUp**/**PgDn** parcourent l'historique. La description vient de l'auteur du modèle : lisez avec F3 un modèle d'une autre personne avant de l'utiliser. Une erreur dans le masque laisse l'invite ouverte avec ce que vous avez tapé et indique ce qui ne va pas.
+Pendant la saisie du masque, un cadre au-dessus montre un masque qui fonctionne sur ce fichier, ses champs et les modèles dont vous disposez, chacun avec la première phrase de son commentaire initial (`%%#`). **↑↓** choisissent un modèle, **F3** l'affiche en entier avant de l'utiliser et **PgUp** ouvre l'[historique](#historique). La description vient de l'auteur du modèle : lisez avec F3 un modèle d'une autre personne avant de l'utiliser. Une erreur dans le masque laisse l'invite ouverte avec ce que vous avez tapé et indique ce qui ne va pas.
 
 | Champ | Valeur |
 |---|---|
@@ -202,7 +202,22 @@ Dans un `.sh`, `%{$HOME}` écrit la valeur actuelle, tandis que `$HOME` est lu �
 
 ## Historique
 
-Dans chaque invite, ↑ et ↓ rappellent les saisies précédentes. Chaque type
-d'invite (Filespec, destination, Log, eXecute...) possède son propre historique,
-enregistré dans `~/.local/state/xylem/history.toml`, lisible uniquement par
-vous, puisqu'il peut contenir des commandes tapées.
+Dans chaque invite, **↑** ouvre les saisies précédentes dans une liste, juste
+au-dessus de la ligne, la dernière en bas et le curseur sur elle :
+
+| Touche dans la liste | Action |
+|---|---|
+| ↑ ↓ PgUp PgDn Home End | choisir |
+| Enter | mettre la saisie dans la ligne, pour la modifier ou la confirmer avec un autre Enter |
+| taper | n'afficher que les saisies qui contiennent ce qui est tapé, sans tenir compte de la casse |
+| Del | retirer la saisie de l'historique, définitivement |
+| Esc | fermer la liste, la ligne restant telle qu'elle était |
+
+Ce qui a été tapé avant ↑ filtre aussi la liste ; un texte que l'invite apporte
+déjà (le répertoire de l'autre fenêtre dans Copy, par exemple) ne la filtre pas,
+tant que vous ne le modifiez pas. Tant que la liste est ouverte, les touches
+propres à l'invite (F2, F11...) attendent sa fermeture.
+
+Chaque type d'invite (Filespec, Log et destinations, eXecute...) possède son
+propre historique, enregistré dans `~/.local/state/xylem/history.toml`, lisible
+uniquement par vous, puisqu'il peut contenir des commandes tapées.

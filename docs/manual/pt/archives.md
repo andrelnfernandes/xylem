@@ -20,7 +20,7 @@ simbólicos dentro de arquivos compactados nunca são extraídos.
 
 Um TAR comprimido não tem índice, então abri-lo descomprime tudo. Isso acontece
 em segundo plano: o rodapé mostra até onde chegou, `Esc` cancela e o resto do
-Xylem continua respondendo; a janela muda quando termina. Um archive com mais de
+Xylem continua respondendo; a janela muda quando termina. Um arquivo compactado com mais de
 1.000.000 de entradas é recusado.
 
 ## Criar um arquivo compactado (F5 / Ctrl+F5)

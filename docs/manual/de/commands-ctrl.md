@@ -1,4 +1,4 @@
-# Das Strg-Menü
+# Das Ctrl-Menü
 
 Ctrl mit einem Buchstaben führt den Befehl auf den markierten Dateien aus. Im
 Dateifenster sind dies die markierten Dateien der Liste (des Verzeichnisses oder
@@ -17,7 +17,7 @@ Um dieses Menü anzuzeigen, halten Sie Ctrl gedrückt oder drücken Sie F9. Sieh
 In der Reihenfolge des Menüs. „Baum" und „Dateien" geben an, wo die Taste
 funktioniert.
 
-| Taste | Command | Baum | Dateien | Funktion |
+| Taste | Befehl | Baum | Dateien | Funktion |
 |---|---|---|---|---|
 | Ctrl+A | Attributes | ja | ja | Ändert die Berechtigungen der markierten Dateien. [Berechtigungen und Datum](attributes.md) |
 | Ctrl+B | Bookmark | ja | | Speichert das Verzeichnis unter dem Cursor als Lesezeichen. Nutzt keine Markierungen. [Lesezeichen](bookmarks.md) |
@@ -28,14 +28,14 @@ funktioniert.
 | Ctrl+M | Move | ja | ja | Verschiebt die markierten Dateien in ein Zielverzeichnis. Drücken Sie in Terminals ohne Kitty-Tastaturprotokoll `F9` `M`. [Kopieren und Verschieben](copy-move.md) |
 | Ctrl+N | New date | | ja | Ändert das Änderungsdatum der markierten Dateien. [Berechtigungen und Datum](attributes.md) |
 | Ctrl+O | Open | | ja | Öffnet jede markierte Datei im Standardprogramm des Systems. [Das Dateifenster](files.md) |
-| Ctrl+P | Phrase | ja | ja | Öffnet das Suchfeld für markierte Dateien: listet diejenigen auf, die die eingegebenen Wörter enthalten. [Das Suchfeld](filespec.md#das-suchfeld-p) |
+| Ctrl+P | Phrase | ja | ja | Öffnet das Suchfeld für markierte Dateien: listet diejenigen auf, die die eingegebenen Wörter enthalten. [Das Suchfeld](sql.md#das-suchfeld-p) |
 | Ctrl+R | Rename | ja | ja | Benennt die markierten Dateien mit einer Maske um. [Umbenennen](rename.md) |
 | Ctrl+S | Showall | ja | | Listet die markierten Dateien von allem Eingelesenen auf. [Das Baumfenster](tree.md) |
 | Ctrl+S | Search | | ja | Durchsucht die markierten Dateien nach einem Text und hebt die Markierung bei fehlender Übereinstimmung auf. [Markierte Dateien durchsuchen](search.md) |
 | Ctrl+T | Tag | ja | ja | Dateien: markiert die gesamte Liste. Baum: markiert alles Eingelesene, was zum Filespec passt. [Markierungen und Gruppenoperationen](tagging.md) |
 | Ctrl+U | Untag | ja | ja | Dateien: hebt die Markierung der gesamten Liste auf. Baum: hebt die Markierung von allem Eingelesenen auf, was zum Filespec passt. |
 | Ctrl+V | View | | ja | Öffnet die markierten Dateien nacheinander im Betrachter; `N` und `P` wechseln zwischen den Dateien. [Markierte Dateien durchsuchen](search.md) |
-| Ctrl+W | Where | ja | ja | Behält die markierten Dateien in der Liste, die einer SQL-Bedingung entsprechen. [Eine SQL-Bedingung](filespec.md#eine-sql-bedingung-w) |
+| Ctrl+W | Where | ja | ja | Behält die markierten Dateien in der Liste, die einer SQL-Bedingung entsprechen. [Eine SQL-Bedingung](sql.md#eine-sql-bedingung-w) |
 | Ctrl+Y | Yank | ja | ja | Kopiert die Pfade der markierten Dateien in die Zwischenablage. |
 
 ## Funktionstasten

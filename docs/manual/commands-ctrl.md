@@ -24,14 +24,14 @@ In the order of the menu. "Tree" and "Files" say where the key works.
 | Ctrl+M | Move | yes | yes | Moves the tagged files into one destination directory. In terminals without the kitty keyboard protocol, press `F9` `M`. [Copy and Move](copy-move.md) |
 | Ctrl+N | New date | | yes | Sets the modification date of the tagged files. [Permissions and dates](attributes.md) |
 | Ctrl+O | Open | | yes | Opens each tagged file in the system's default program. [The file window](files.md) |
-| Ctrl+P | Phrase | yes | yes | Opens the search box on the tagged files: it lists the ones that contain the words typed. [The search box](filespec.md#the-search-box-p) |
+| Ctrl+P | Phrase | yes | yes | Opens the search box on the tagged files: it lists the ones that contain the words typed. [The search box](sql.md#the-search-box-p) |
 | Ctrl+R | Rename | yes | yes | Renames the tagged files with a mask. [Rename](rename.md) |
 | Ctrl+S | Showall | yes | | Lists the tagged files of everything logged. [The tree window](tree.md) |
 | Ctrl+S | Search | | yes | Searches the tagged files for a text and untags the ones that do not contain it. [Searching tagged files](search.md) |
 | Ctrl+T | Tag | yes | yes | Files: tags the whole list. Tree: tags everything logged that matches the Filespec. [Tags](tagging.md) |
 | Ctrl+U | Untag | yes | yes | Files: untags the whole list. Tree: untags everything logged that matches the Filespec. |
 | Ctrl+V | View | | yes | Opens the tagged files in the viewer, one after another; `N` and `P` switch files. [Searching tagged files](search.md) |
-| Ctrl+W | Where | yes | yes | Keeps in the list the tagged files that meet a SQL condition. [A SQL condition](filespec.md#a-sql-condition-w) |
+| Ctrl+W | Where | yes | yes | Keeps in the list the tagged files that meet a SQL condition. [A SQL condition](sql.md#a-sql-condition-w) |
 | Ctrl+Y | Yank | yes | yes | Copies the paths of the tagged files to the clipboard. |
 
 ## Function keys

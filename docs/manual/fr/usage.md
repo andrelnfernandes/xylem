@@ -50,7 +50,7 @@ ligne du bas affiche toujours les deux.
   la branche (un autre disque, `/boot`, une clé USB, un dossier monté par
   rclone, `/proc`) n'est ni lu ni compté : il apparaît avec `>` et l'espace que
   ce système de fichiers utilise, et Enter lance son analyse.
-- **Les liens matériels ne comptent qu'une fois.** Deux noms désignant le même
+- **Les liens physiques ne comptent qu'une fois.** Deux noms désignant le même
   fichier n'occupent son espace qu'une seule fois : le premier rencontré est
   compté, les autres s'affichent avec `H` et sans taille.
 - **Les fichiers cachés sont comptés**, même lorsque l'arborescence ne les
@@ -65,7 +65,7 @@ ligne du bas affiche toujours les deux.
 | `>` | un autre disque, non compté |
 | `!` | le dossier n'a pas pu être lu (généralement faute de permissions) |
 | `.` | un élément à l'intérieur n'a pas pu être lu : le dossier peut occuper davantage |
-| `H` | un autre lien matériel d'un fichier déjà compté |
+| `H` | un autre lien physique d'un fichier déjà compté |
 | `@` | un lien symbolique ou un fichier spécial |
 | `e` | un dossier vide |
 
@@ -74,7 +74,7 @@ ligne du bas affiche toujours les deux.
 Les questions sont les mêmes que dans la fenêtre de fichiers, et les totaux se
 recalculent aussitôt, la vue restant ouverte.
 
-- **Suppr sur un dossier** le supprime avec tout son contenu, vers la corbeille si
+- **Del sur un dossier** le supprime avec tout son contenu, vers la corbeille si
   c'est votre réglage ; Alt+P le supprime définitivement, avec la confirmation
   saisie de Prune.
 - **Marquer un dossier** marque tous ses fichiers, cachés compris. `■` indique un
@@ -84,7 +84,7 @@ recalculent aussitôt, la vue restant ouverte.
   ou Move.
 - **Un autre disque n'est jamais touché.** Une ligne `>` ne peut être ni marquée ni
   supprimée, et marquer ou supprimer une branche s'arrête là où un autre disque est
-  monté. Suppr refuse un dossier contenant un disque monté ; Alt+P supprime tout
+  monté. Del refuse un dossier contenant un disque monté ; Alt+P supprime tout
   sauf ce disque.
 - Dans une archive ou sur une machine distante, seuls le marquage et l'affichage
   fonctionnent.
@@ -102,8 +102,8 @@ recalculent aussitôt, la vue restant ouverte.
 | `S` | trier par taille, nom, nombre de fichiers ou date |
 | `T` / `U` | marquer ou démarquer le fichier, ou tous les fichiers du dossier |
 | Ctrl+T / Ctrl+U | marquer ou démarquer tout le dossier affiché |
-| Suppr, Maj+Suppr | supprimer le fichier ou le dossier (Maj : définitivement) |
-| Ctrl+D, Ctrl+Maj+Suppr | supprimer les fichiers marqués du dossier affiché (Maj : définitivement) |
+| Del, Shift+Del | supprimer le fichier ou le dossier (Shift : définitivement) |
+| Ctrl+D, Ctrl+Shift+Del | supprimer les fichiers marqués du dossier affiché (Shift : définitivement) |
 | Alt+P | [Prune](delete.md) du dossier |
 | `V` | afficher le fichier |
 | `D` | chercher les [doublons](duplicates.md) dans le dossier affiché |

@@ -5,8 +5,7 @@
 Sucht nach Text in allen markierten Dateien der Liste und **hebt die Markierung
 bei jenen auf, die ihn nicht enthalten**, mit Fortschrittsanzeige und `Esc` zum
 Abbrechen. In der Eingabezeile schaltet **F2** die Beachtung der
-Groß-/Kleinschreibung um (wird sie ignoriert, werden auch Akzente
-berücksichtigt: `AÇÃO` findet `ação`) und **F4** wechselt zwischen Text und Hex
+Groß-/Kleinschreibung um (wird sie ignoriert, gilt das auch für Buchstaben mit Akzent: `AÇÃO` findet `ação`) und **F4** wechselt zwischen Text und Hex
 (Byte-Paare wie `4d 5a`). Ein `*` in der Mitte des Suchbegriffs passt auf
 beliebigen Text in derselben Zeile (`error*disk`); ein Suchbegriff erstreckt
 sich niemals über einen Zeilenumbruch hinweg. Dies funktioniert auch innerhalb

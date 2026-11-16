@@ -48,9 +48,9 @@ height.
 
 - `W` keeps in the list the files that meet a SQL condition, Ctrl+W among
   the tagged files. `contains('text')` reads the files, and `words('text')`
-  uses an index built with Alt+N. [A SQL condition](filespec.md#a-sql-condition-w)
+  uses an index built with Alt+N. [A SQL condition](sql.md#a-sql-condition-w)
 - `P` opens a search box that lists files by the words typed.
-  [The search box](filespec.md#the-search-box-p)
+  [The search box](sql.md#the-search-box-p)
 - CSV, TSV, JSON Lines, DBF and SQLite tables have no limit of rows in the
   viewer. Spreadsheets keep the limit of 50,000 rows. [The viewer](viewer.md)
 - Alt+L makes the directory under the cursor the root of the tree.
