@@ -1,14 +1,13 @@
 # Speicherplatzbelegung (Alt+U)
 
-Wohin der Speicherplatz geht. **Alt+U** liest den gesamten Zweig des aktuellen
-Verzeichnisses ein und listet dessen Ordner und Dateien nach dem belegten Platz
-auf, die größten zuerst, mit einem Balken und ihrem Anteil am Verzeichnis.
-Enter wechselt in einen Ordner; Ordner für Ordner gelangen Sie so zu dem, was
-die Festplatte füllt.
+**Alt+U** liest den gesamten Zweig des aktuellen Verzeichnisses ein und listet
+dessen Ordner und Dateien nach dem belegten Platz auf, die größten zuerst, mit
+einem Balken und ihrem Anteil am Verzeichnis. Enter wechselt in einen Ordner.
+[Finden, was die Platte füllt](howto-disk-space.md) beschreibt die Schritte.
 
-
-> Bis Version 0.7 war die Speicherplatzbelegung Alt+W, und Alt+U hob alle
-> Markierungen auf (jetzt nur Ctrl+U). Siehe [Ctrl und Alt](tagging.md#was-ctrl-und-alt-bedeuten).
+**Geändert in Version 0.8.** Die Speicherplatzbelegung lag auf Alt+W, und Alt+U
+hob alle Markierungen auf, was nun ausschließlich über Ctrl+U geschieht. Siehe
+die [Versionshinweise](releases.md).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar

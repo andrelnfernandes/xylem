@@ -37,7 +37,7 @@ O prompt abre vazio. ↑ percorre os lugares usados antes, do último para o mai
 antigo: os que foram logados e as pastas para onde arquivos foram copiados ou
 movidos.
 
-**F11** traz um [favorito](bookmarks.md) para o prompt, pelo nome: útil para
-endereços longos de máquinas remotas e containers.
+**F11** traz um [favorito](bookmarks.md) para o prompt, pelo nome, em vez de
+digitar o endereço de uma máquina remota ou container.
 
 Veja também: [a janela da árvore](tree.md), [favoritos](bookmarks.md).

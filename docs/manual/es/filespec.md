@@ -100,7 +100,7 @@ El índice es una copia de las palabras de los archivos guardada en la caché de
 
 ## La caja de búsqueda (P)
 
-La experiencia de Google Desktop sin SQL: pulsa **P** (o **Ctrl+P** en archivos marcados) para abrir una caja de búsqueda flotante.
+**P** abre una caja de búsqueda sobre la pantalla, y **Ctrl+P** la abre sobre los archivos marcados. Busca archivos por las palabras que contienen, sin necesidad de una condición SQL.
 
 A medida que escribes palabras, los archivos que coinciden aparecen mientras escribes:
 - Las palabras coinciden enteras, y la última palabra busca por prefijo mientras se escribe (`factura mar` busca `factura mar*`).
@@ -114,8 +114,6 @@ A medida que escribes palabras, los archivos que coinciden aparecen mientras esc
   - **Ctrl+T**: conmuta la marca del archivo seleccionado directamente en la caja de búsqueda.
   - **Alt+R**: solicita confirmación e inicia la lectura de archivos no indexados.
   - **Esc**: cancela la lectura de archivos no indexados o cierra la caja de búsqueda.
-
-W es el primer paso de consulta al disco: los resultados en forma de tabla vendrán más adelante.
 
 Véase también: [la ventana de archivos](files.md), [marcas](tagging.md) (Ctrl+T
 en el árbol marca lo que coincide con el filtro).

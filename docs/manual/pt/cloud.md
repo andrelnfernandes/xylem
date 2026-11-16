@@ -9,15 +9,14 @@ direções, Renomear, Criar diretório e Excluir.
 
 ## Por que rclone
 
-Optamos por trabalhar com o rclone em vez de conversar diretamente com o Google
-Drive e o Amazon S3. Código próprio para cada serviço seria mais um lugar para
-erros, e o Google Drive também traria junto as políticas do Google: um
-aplicativo que lê todos os arquivos de alguém precisa de verificação do Google
-e de uma avaliação de segurança anual, ou então exibe um aviso de "aplicativo
-não verificado" e fica limitado a poucos usuários. Para o S3, a biblioteca
-oficial é muito grande e traria muita complexidade, o que o Xylem, por projeto,
-evita sempre que pode. O rclone já faz tudo isso muito bem, para vários
-serviços de uma só vez.
+O Xylem acessa o Google Drive e o Amazon S3 por meio do rclone e não tem código
+próprio para nenhum dos dois serviços, por duas razões:
+
+- Um aplicativo que lê todos os arquivos do Google Drive de alguém precisa de
+  verificação do Google e de uma avaliação de segurança anual. Sem isso, exibe
+  um aviso de "aplicativo não verificado" e fica limitado a poucos usuários.
+- A biblioteca oficial do S3 seria uma dependência grande para um único serviço.
+  O rclone já suporta o S3 e cerca de 70 outros serviços.
 
 ## Configuração inicial (uma única vez)
 
@@ -76,11 +75,11 @@ criptografado, o painel diz apenas rclone.
 
 ## O que muda lá
 
-**Espere lentidão em alguns momentos.** Tudo passa pelo rclone e pela rede do serviço, então
-pode ser bem mais lento que um disco local, pela própria natureza desta integração. Ver um
-arquivo, abrir um archive ou logar uma pasta grande pode demorar, e a tela pode não responder
-até o serviço responder: em geral é espera, não travamento. No Google Drive, vale criar o seu próprio `client_id`: veja a seção sobre o
-erro 403, mais abaixo.
+**É mais lento que um disco local.** Toda leitura passa pelo rclone e pela rede
+do serviço. Ver um arquivo, abrir um arquivo compactado ou ler uma pasta grande
+pode levar segundos ou minutos, e a tela pode não responder até o serviço
+responder. No Google Drive, ter seu próprio `client_id` dá uma cota de requisições só sua: veja
+a seção sobre o erro 403 abaixo.
 
 - **Tudo passa pela rede.** Cada leitura de diretório é uma requisição, e um
   serviço como o Google Drive as recusa quando são muitas. Por isso, numa pasta

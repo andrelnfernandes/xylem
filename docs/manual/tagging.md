@@ -35,71 +35,17 @@ In eXecute, `%t` stands for the tagged files ([eXecute](execute.md)).
 
 ## What Ctrl and Alt mean
 
-As in ZTreeWin:
+- A letter alone acts on the item under the cursor.
+- Ctrl+letter acts on the tagged files: Ctrl+C copies them, Ctrl+D deletes
+  them.
+- Alt+letter is the other version of a command: the whole branch in the
+  tree, the tagged files with their paths in the file window.
 
-- **A letter alone** acts on the item under the cursor.
-- **Ctrl+letter** acts on the tagged files: Ctrl+C copies them, Ctrl+D
-  deletes them, Ctrl+T tags everything.
-- **Alt+letter** is the other version of a command: in the tree, the whole
-  branch (Alt+P Prune, Alt+R Release, Alt+U Usage, Alt+D Duplicates, Alt+C
-  Compare); in the file window, the tagged files with their paths (Alt+C,
-  Alt+M); and the tools (Alt+S Sort, Alt+F File display, Alt+B Bookmarks,
-  Alt+H Help, Alt+I Info, Alt+X the terminal).
+[The menus](menus.md) explains the rule and how to show the Ctrl and Alt
+menus with F9. [The Ctrl menu](commands-ctrl.md) and
+[the Alt menu](commands-alt.md) list every command.
 
-**Changed in version 0.8.** Alt no longer repeats Ctrl, and some keys moved:
-
-| Key | Up to 0.7 | From 0.8 |
-|---|---|---|
-| Alt+A | Attributes of the tagged files | nothing (Ctrl+A) |
-| Alt+D | delete the tagged files | Duplicates (deleting them: Ctrl+D) |
-| Alt+R | rename the tagged files | Release the branch, as `-` (renaming them: Ctrl+R) |
-| Alt+T | tag everything | nothing (Ctrl+T) |
-| Alt+U | untag everything | Usage (untagging: Ctrl+U) |
-| Alt+W | Usage | nothing (Alt+U) |
-| Alt+Y | Duplicates | nothing (Alt+D) |
-
-The old keys can be brought back in `[keys.any]` of the
-[configuration](configuration.md), one or all of them. All of them, as up to 0.7:
-
-```toml
-[keys.any]
-"alt+a" = "attributes_tagged"
-"alt+d" = "delete_tagged"
-"alt+r" = "rename_tagged"
-"alt+t" = "tag_all"
-"alt+u" = "untag_all"
-"alt+w" = "usage"
-"alt+y" = "duplicates"
-```
-
-They apply in both windows, also Alt+R in the tree; Release stays on `-`.
-**K** in the help (F1) shows the keys in effect.
-
-## Ctrl and Alt menus (F9)
-
-The footer has three lines on an ordinary screen: the letter commands in
-alphabetical order on the first two, the function keys and symbols on the
-third. On a screen wide enough for every menu to fit, it has two: the letters
-on one, the keys on the other. Every command is in one
-of the menus (DIR or FILE, CTRL, ALT); inside an archive or on a remote
-machine, they leave out what does not work there.
-
-**F9** switches to the
-Ctrl menu, then the Alt menu, and back. With one of these menus open, the next
-letter counts as Ctrl+letter or Alt+letter (`F9` `M` = Ctrl+M); `Esc` cancels.
-In terminals with the kitty keyboard protocol, just **holding Ctrl or Alt**
-shows the corresponding menu, and letting go brings the usual one back, as
-in ZTree.
-
-The terminal has to report Ctrl and Alt pressed and released on their own,
-which only the kitty keyboard protocol does: kitty, Ghostty, WezTerm, foot
-(Wayland) and recent Alacritty support it, and on Ubuntu or Debian most of
-them are a package away (`sudo apt install kitty`, or `ghostty`,
-`alacritty`, `foot`). Terminals built on VTE (GNOME Terminal, Ptyxis,
-Terminator, Tilix) do not support it yet, so there the menus stay on F9.
-
-**Ctrl+M:** in most terminals, Ctrl+M arrives the same as Enter. Xylem enables
-the kitty keyboard protocol when the terminal supports it (kitty, WezTerm,
-foot, Ghostty, recent Alacritty, iTerm2), and then Ctrl+M moves the tagged
-files as in ZTree. In VTE-based terminals (GNOME Terminal, Ptyxis, Terminator,
-Tilix) use **F9 M** (or Alt+M and F6 at the prompt).
+**Changed in version 0.8.** Alt no longer repeats Ctrl: Alt+A, Alt+D, Alt+R,
+Alt+T, Alt+U, Alt+W and Alt+Y changed. [Release notes](releases.md) has the
+old and the new meaning of each key, and the lines for `config.toml` that
+restore the old ones.

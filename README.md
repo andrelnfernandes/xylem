@@ -132,8 +132,8 @@ with Alt+Q, add the small shell function from
 [Quitting and changing the shell's directory](docs/manual/quit.md).
 
 **Coming from 0.7?** Some Alt keys changed in 0.8 (Alt+U is now Usage, Alt+D
-Duplicates); [What Ctrl and Alt mean](docs/manual/tagging.md#what-ctrl-and-alt-mean)
-has the table and the lines for `config.toml` that bring the old ones back.
+Duplicates); the [release notes](docs/manual/releases.md) have the table and
+the lines for `config.toml` that bring the old ones back.
 
 ## Installation
 
@@ -212,15 +212,19 @@ Terminal) opens help about what you are doing: inside a prompt, the help for
 that prompt; in a window, the help for that window, with links to the rest.
 
 The same help is [the manual](docs/manual/index.md), readable here on GitHub,
-and the man page (`xy --man`). Some topics:
-[the tree window](docs/manual/tree.md), [the file window](docs/manual/files.md),
-[tags and group operations](docs/manual/tagging.md),
-[Copy and Move](docs/manual/copy-move.md), [Filespec](docs/manual/filespec.md),
-[the built-in terminal](docs/manual/terminal.md),
-[cloud storage (rclone)](docs/manual/cloud.md), [Git](docs/manual/git.md),
-[configuration](docs/manual/configuration.md),
-[Windows](docs/manual/windows.md) (experimental) and the
-[comparison with ZTreeWin](docs/manual/ztreewin.md).
+and the man page (`xy --man`). Where to start:
+
+- [What Xylem is](docs/manual/overview.md) and
+  [the first five minutes](docs/manual/start.md);
+- [the screen](docs/manual/screen.md), [the menus](docs/manual/menus.md) and
+  the [vocabulary](docs/manual/glossary.md);
+- the commands of each menu: [DIR and FILE](docs/manual/commands.md),
+  [Ctrl](docs/manual/commands-ctrl.md) and [Alt](docs/manual/commands-alt.md);
+- how-to pages with an animation of each step, such as
+  [copying files with their paths](docs/manual/howto-copy-with-paths.md) and
+  [finding what fills the disk](docs/manual/howto-disk-space.md);
+- [release notes](docs/manual/releases.md) and the
+  [comparison with ZTreeWin](docs/manual/ztreewin.md).
 
 The help also comes in Portuguese, Spanish, French, German and Chinese. The
 Spanish, French, German and Chinese translations have not been reviewed by

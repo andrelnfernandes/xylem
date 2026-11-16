@@ -90,8 +90,13 @@ impl App {
                 "viewer"
             };
         }
-        if self.sticky == MenuMode::Git {
-            return "git";
+        // A menu chosen with F9: its own page. Not while Ctrl or Alt is held,
+        // since Alt+H is itself the help key.
+        match self.sticky {
+            MenuMode::Git => return "git",
+            MenuMode::Ctrl => return "commands-ctrl",
+            MenuMode::Alt => return "commands-alt",
+            MenuMode::Normal => {}
         }
         if self.usage.is_some() {
             return "usage";

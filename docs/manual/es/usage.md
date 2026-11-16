@@ -1,13 +1,12 @@
 # Uso de disco (Alt+U)
 
-Adónde va el espacio. **Alt+U** registra toda la rama del directorio actual y
-lista sus carpetas y archivos según el espacio que ocupan, de mayor a menor, con
-una barra y su proporción dentro del directorio. Enter entra en una carpeta;
-carpeta a carpeta, llegas hasta lo que llena el disco.
+**Alt+U** registra toda la rama del directorio actual y lista sus carpetas y
+archivos según el espacio que ocupan, de mayor a menor, con una barra y su
+proporción dentro del directorio. Enter entra en una carpeta.
+[Encontrar lo que llena el disco](howto-disk-space.md) detalla el paso a paso.
 
-
-> Hasta la versión 0.7, el uso de disco era Alt+W, y Alt+U desmarcaba todo
-> (ahora solo Ctrl+U). Vea [Ctrl y Alt](tagging.md#qué-significan-ctrl-y-alt).
+**Cambió en la versión 0.8.** Uso de disco era Alt+W, y Alt+U desmarcaba todo,
+acción que ahora solo realiza Ctrl+U. Vea las [notas de versión](releases.md).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar

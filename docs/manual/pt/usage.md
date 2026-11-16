@@ -1,13 +1,12 @@
 # Uso do disco (Alt+U)
 
-Para onde vai o espaço. **Alt+U** lê todo o ramo do diretório atual e lista
-suas pastas e arquivos pelo espaço que ocupam, do maior para o menor, com uma
-barra e sua fração do diretório. Enter entra em uma pasta; de pasta em pasta,
-você chega ao que está enchendo o disco.
+**Alt+U** lê todo o ramo do diretório atual e lista suas pastas e arquivos pelo
+espaço que ocupam, do maior para o menor, com uma barra e sua fração do
+diretório. Enter entra em uma pasta.
+[Achar o que enche o disco](howto-disk-space.md) traz o passo a passo.
 
-
-> Até a versão 0.7, o Uso era Alt+W, e Alt+U desmarcava tudo (agora só
-> Ctrl+U). Veja [Ctrl e Alt](tagging.md#o-que-ctrl-e-alt-querem-dizer).
+**Mudou na versão 0.8.** O Uso era Alt+W, e Alt+U desmarcava tudo, o que agora
+é feito apenas por Ctrl+U. Veja as [notas de versão](releases.md).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar

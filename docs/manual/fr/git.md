@@ -1,9 +1,9 @@
 # Git
 
-Git n'existe ni dans XTree ni dans ZTreeWin ; il est donc désactivé par défaut :
-activez-le avec F12 (page 1, « Git commands ») ou avec `git = true` sous
-`[options]` dans la [configuration](configuration.md). Le programme `git` doit
-être installé.
+Git est désactivé par défaut. Activez-le avec F12 (page 1, « Git commands ») ou
+avec `git = true` sous `[options]` dans la [configuration](configuration.md). Le
+programme `git` doit être installé. XTree et ZTreeWin ne possèdent aucune
+commande Git.
 
 ## Le menu Git (Ctrl+G)
 

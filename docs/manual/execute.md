@@ -59,12 +59,9 @@ file goes at the end). The first key that matches wins, in the file's order.
 `binary` is for the binary files that no pattern took when `binary_editor` is
 empty; the other files open in the usual text editor.
 
-Xylem has no built-in hex editor of its own, and that is a deliberate design
-choice: writing and maintaining one would be a lot of work for little use, and
-editing raw bytes by hand is an easy way to corrupt a file. Instead, Xylem
-integrates dedicated hex editors right inside its frame and color theme — and
-lets you turn binary editing off with a single option in **F12** if you do not
-want it.
+Xylem has no hex editor of its own. It runs the one you have installed inside
+its frame, with its color theme, and `edit_binary` on page 1 of **F12** turns
+the editing of binary files off.
 
 ## eXecute (X)
 

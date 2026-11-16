@@ -97,7 +97,7 @@ The index is a copy of the words of the files, kept in Xylem's cache (`~/.cache/
 
 ## The search box (P)
 
-A Google Desktop experience without SQL: press **P** (or **Ctrl+P** on tagged files) to open a floating search box.
+**P** opens a search box over the screen, and **Ctrl+P** opens it on the tagged files. It finds files by the words in them, without a SQL condition.
 
 As you type words, files matching them appear as you type:
 - Words match whole words, and the last word uses prefix search while typing (`fatura mar` looks for `fatura mar*`).
@@ -111,8 +111,6 @@ As you type words, files matching them appear as you type:
   - **Ctrl+T**: toggles the tag on the selected file directly in the search box.
   - **Alt+R**: asks and starts reading unindexed files.
   - **Esc**: cancels reading unindexed files, or closes the search box.
-
-W is a first step of querying the disk: results as a table come later.
 
 See also: [the file window](files.md), [tags](tagging.md) (Ctrl+T in the tree
 tags what matches the filespec).

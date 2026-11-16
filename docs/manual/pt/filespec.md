@@ -100,7 +100,7 @@ O índice é uma cópia das palavras dos arquivos, mantida no cache do Xylem (`~
 
 ## A caixa de busca (P)
 
-A experiência do Google Desktop sem SQL: pressione **P** (ou **Ctrl+P** nos arquivos marcados) para abrir uma caixa de busca flutuante.
+**P** abre uma caixa de busca sobre a tela, e **Ctrl+P** abre sobre os arquivos marcados. Ela localiza arquivos pelas palavras neles contidas, sem uma condição SQL.
 
 À medida que você digita palavras, os arquivos correspondentes aparecem na hora:
 - A correspondência é por palavras inteiras, e a última palavra usa busca por prefixo enquanto se digita (`fatura mar` procura `fatura mar*`).
@@ -115,7 +115,6 @@ A experiência do Google Desktop sem SQL: pressione **P** (ou **Ctrl+P** nos arq
   - **Alt+R**: solicita e inicia a leitura dos arquivos não indexados.
   - **Esc**: cancela a leitura dos arquivos não indexados, ou fecha a caixa de busca.
 
-W é o primeiro passo de consulta ao disco: resultados em formato de tabela virão depois.
 
 Veja também: [a janela de arquivos](files.md), [marcações](tagging.md) (Ctrl+T
 na árvore marca o que corresponde ao filespec).

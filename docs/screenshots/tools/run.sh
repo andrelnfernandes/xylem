@@ -45,10 +45,10 @@ up() { n=$1; s=""; while [ $n -gt 0 ]; do s="$s$U"; n=$((n-1)); done; printf %s 
 WANT="$*"
 run() { name=$1; cfg=$2; shift 2
   [ -z "$WANT" ] || case " $WANT " in *" $name "*) ;; *) return 0;; esac
-  case $name in demo) file=docs/demo.gif;; demo-*) file=docs/screenshots/$name.gif;; *) file=docs/screenshots/$name.png;; esac
+  case $name in demo) file=docs/demo.gif;; demo-*|howto-*) file=docs/screenshots/$name.gif;; *) file=docs/screenshots/$name.png;; esac
   HOME=/home/user SHELL=/bin/bash XDG_CONFIG_HOME=$W/root/config/$cfg \
   XDG_STATE_HOME=/mnt/tmp/state XDG_CACHE_HOME=/mnt/tmp/cache \
-  XY_SSH=/mnt/tmp/ssh FAKE_SSH_HOME=/home/deploy FAKE_SSH_ASK=$ask SHOT_CWD=/home/user/projects SHOT_KITTY=$kitty \
+  SHOT_DUMP=$SHOT_DUMP XY_SSH=/mnt/tmp/ssh FAKE_SSH_HOME=/home/deploy FAKE_SSH_ASK=$ask SHOT_CWD=/home/user/projects SHOT_KITTY=$kitty \
   "$PY" -I "$T/shot.py" "$X/$file" "$X/target/release/xy" "${root:-/home/user/projects}" "$@"
   echo "$file"; }
 run tree classic "*" sleep:1 "$(down 12)"
@@ -114,6 +114,56 @@ run demo-batch-nord nord hold:1 "\r" hold:.6 "$D" hold:.8 v hold:2.5 \
   "\002" hold:.6 "send:\025" "type:update.sql" hold:.4 "\r" hold:1 "type::update" hold:.8 "\r" hold:5 "\r" hold:2 \
   "\002" hold:.6 "send:\025" "type:out.db" hold:.4 "\r" hold:1 "\r" hold:3 "\r" hold:2 \
   "\033" hold:1 "$(down 9)" hold:1 v hold:4
+root=
+# How-to: copy the photos of a whole branch, keeping their folders.
+run howto-copy-paths nord hold:1.2 "step:cursor on projects" hold:1.5 \
+  "step:B" b hold:2 \
+  "step:F  *.jpg  Enter" f hold:.6 "type:*.jpg" hold:.5 "\r" hold:2 \
+  "step:Ctrl+T" "\024" hold:2 \
+  "step:Alt+C" "\033c" hold:1.5 \
+  "step:/mnt/backup  F7" "type:/mnt/backup" hold:.6 "\033[18~" hold:1.2 "\033[18~" hold:1.2 "\033[18~" hold:2 \
+  "step:Enter" "\r" hold:2.5 y "expect:Copied 21 of 21 files" hold:4
+# How-to: rename the photos of a folder with a counter.
+run howto-rename-mask nord hold:1 "*" hold:.8 "step:cursor on trip  Enter" "$(down 6)" hold:.8 "\r" hold:1.5 \
+  "step:Ctrl+T" "\024" hold:1.5 \
+  "step:Ctrl+R" "\022" hold:1.2 \
+  "step:Ctrl+U  trip_<001>.*  Enter" "\025" hold:.8 "type:trip_<001>.*" hold:.8 "\r" hold:1 \
+  "expect: trip_001.jpg" "expect:Renamed 9 of 9 files" hold:4
+# How-to: keep the files that meet a SQL condition, and tag them.
+run howto-sql-filter nord hold:1 "step:B" b hold:1.5 \
+  "step:W" w hold:1 \
+  "step:ext = 'jpg' AND size > 1000000  Enter" "type:ext = '\''jpg'\'' AND size > 1000000" hold:.8 "\r" hold:2 "expect:12 files meet the condition" \
+  "step:Ctrl+T" "\024" hold:1 "expect:DSC_01.jpg" hold:4
+# How-to: use the tagged files in a command of the built-in terminal.
+run howto-terminal-tagged nord hold:1 "step:cursor on notes  →  Enter" "$D$D" hold:.6 "\033[C" hold:.6 "\r" hold:1.2 \
+  "step:Ctrl+T" "\024" hold:1.5 \
+  "step:Alt+X" "\033x" sleep:1.5 hold:1.5 \
+  "step:wc -c  Alt+O" "type:wc -c " hold:.6 "\033o" hold:2 \
+  "step:Enter" "\r" sleep:1 "expect:total" hold:4
+# How-to: copy files from a machine over SSH (fake_ssh.py stands in for ssh).
+run howto-ssh-copy nord hold:1 "step:F8" "\033[19~" hold:1.2 \
+  "step:L  deploy@webserver:  Enter" l hold:.6 "type:deploy@webserver:" hold:.6 "\r" sleep:3 "expect:Connected to deploy@webserver" hold:2 \
+  "step:cursor on backups  →  Enter" "$D" hold:.6 "\033[C" sleep:1 hold:.8 "\r" hold:1.5 \
+  "step:T  T  T" t hold:.4 t hold:.4 t hold:1.2 \
+  "step:Ctrl+C" "\003" hold:2.5 \
+  "step:Enter" "\r" sleep:2 "expect:Copied 3 of 3 files" hold:4
+# How-to: find duplicates and keep one copy of each.
+root=/home/user/showcase
+# How-to: filter a CSV file with a SQL condition in the viewer.
+run howto-table-sql nord hold:1 "step:Enter  cursor on customers.csv  V" "\r" hold:.6 "$D" hold:.6 v sleep:1 hold:2.5 \
+  "step:&" "&" hold:1.2 \
+  "step:plan = '\''team'\'' OR balance > 1000  Enter" "type:plan = '\''team'\'' OR balance > 1000" hold:.8 "\r" sleep:1 "expect:Zoë Müller" hold:4
+run howto-duplicates nord hold:1 "step:*" "*" hold:1 \
+  "step:Alt+D" "\033d" sleep:1 hold:2.5 \
+  "step:A" a hold:2.5 \
+  "step:D  T  Y" d hold:2 t hold:2 y hold:1 "expect:Trashed 4 of 4 files" hold:3
+# How-to: find what fills the disk.
+root=/home/user
+run howto-disk-space nord hold:1 "step:Alt+U" "\033u" sleep:2 hold:2.5 \
+  "step:↓  Enter" "$D" hold:.8 "\r" hold:2 \
+  "step:Enter" "\r" hold:2.5 \
+  "step:↓  Del" "$D" hold:.8 "\033[3~" "expect:DELETE projects-2026-09.tar.gz?" hold:2.5 \
+  "step:T  Y" t "expect:to trash?" hold:2 y hold:1 "expect:Trashed 1 of 1 files" hold:4
 root=
 # A remote machine: xy deploy@webserver:
 root=deploy@webserver:

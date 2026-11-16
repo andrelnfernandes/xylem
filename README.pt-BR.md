@@ -132,7 +132,7 @@ xy [diretório]
 Sem argumento, abre o diretório atual. `xy --help` mostra as opções. Para o
 shell ficar no diretório em que você estava ao sair com Alt+Q, acrescente a
 pequena função de shell de
-[Quitting and changing the shell's directory](docs/manual/quit.md).
+[Sair e mudar o diretório da shell](docs/manual/pt/quit.md).
 
 **Vindo da 0.7?** Algumas teclas Alt mudaram na 0.8 (Alt+U agora é o Uso, Alt+D os
 Duplicados); [O que Ctrl e Alt querem dizer](docs/manual/pt/tagging.md#o-que-ctrl-e-alt-querem-dizer)
@@ -215,17 +215,20 @@ Terminal) abre a ajuda sobre o que você está fazendo: dentro de um prompt, a
 ajuda daquele prompt; numa janela, a ajuda daquela janela, com links para o
 resto.
 
-A mesma ajuda é [o manual](docs/manual/index.md), que dá para ler aqui no
-GitHub, e a página de manual (`xy --man`). Alguns
-tópicos: [a janela da árvore](docs/manual/tree.md),
-[a janela de arquivos](docs/manual/files.md),
-[tags e operações em grupo](docs/manual/tagging.md),
-[Copy e Move](docs/manual/copy-move.md), [Filespec](docs/manual/filespec.md),
-[o terminal embutido](docs/manual/terminal.md),
-[armazenamento na nuvem (rclone)](docs/manual/cloud.md), [Git](docs/manual/git.md),
-[configuração](docs/manual/configuration.md),
-[Windows](docs/manual/windows.md) (experimental) e a
-[comparação com o ZTreeWin](docs/manual/ztreewin.md).
+A mesma ajuda é [o manual](docs/manual/pt/index.md), que dá para ler aqui no
+GitHub, e a página de manual (`xy --man`). Por onde começar:
+
+- [o que é o Xylem](docs/manual/pt/overview.md) e
+  [os primeiros cinco minutos](docs/manual/pt/start.md);
+- [a tela](docs/manual/pt/screen.md), [os menus](docs/manual/pt/menus.md) e o
+  [vocabulário](docs/manual/pt/glossary.md);
+- os comandos de cada menu: [DIR e FILE](docs/manual/pt/commands.md),
+  [Ctrl](docs/manual/pt/commands-ctrl.md) e [Alt](docs/manual/pt/commands-alt.md);
+- receitas com uma animação de cada passo, como
+  [copiar arquivos com os caminhos](docs/manual/pt/howto-copy-with-paths.md) e
+  [achar o que enche o disco](docs/manual/pt/howto-disk-space.md);
+- [notas de versão](docs/manual/pt/releases.md) e a
+  [comparação com o ZTreeWin](docs/manual/pt/ztreewin.md).
 
 A ajuda também existe em português, espanhol, francês, alemão e chinês. As
 traduções em espanhol, francês, alemão e chinês não foram revisadas por falantes
@@ -318,7 +321,7 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
 ### Para depois
 
 - Windows: compila e passa nos testes (veja
-  [Windows](docs/manual/windows.md)), mas não é prioridade enquanto existir o
+  [Windows](docs/manual/pt/windows.md)), mas não é prioridade enquanto existir o
   ZTreeWin. Talvez macOS.
 - Adiados por opção: macros, chown e Graft.
 

@@ -1847,7 +1847,8 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                 ),
             },
         ]
-    } else if app.usage.is_some() && app.job.is_none() {
+    } else if app.usage.is_some() && app.job.is_none() && app.confirm.is_none() && app.op.is_none()
+    {
         let about = "> other disk  ! unreadable  . incomplete  H hard link  @ link  e empty";
         vec![
             menu_line(
@@ -6016,5 +6017,50 @@ mod tests {
         );
         assert_eq!(border_type(&with("gruvbox", "theme")), BorderType::Rounded);
         assert!(!with("classic", "theme").type_colors);
+    }
+
+    /// The manual's command pages list the words of each menu, in the
+    /// menu's order and with its key: a word added to a menu needs its row.
+    #[test]
+    fn the_manual_lists_every_menu_word_in_order() {
+        // The 5-column rows of a page: key, command, tree, files, text.
+        fn rows(topic: &str) -> Vec<Vec<String>> {
+            let md = crate::help::topic(topic).unwrap_or_else(|| panic!("no topic {topic}"));
+            md.lines()
+                .filter(|l| l.starts_with("| "))
+                .map(|l| {
+                    l.trim_matches('|')
+                        .split('|')
+                        .map(|c| c.trim().to_string())
+                        .collect::<Vec<_>>()
+                })
+                .filter(|cells| cells.len() == 5 && cells[0] != "Key" && !cells[0].starts_with('-'))
+                .collect()
+        }
+        let pages: [(&str, &str, &[&str], &[&str]); 3] = [
+            ("commands", "", DIR_WORDS, FILE_WORDS),
+            ("commands-ctrl", "Ctrl+", CTRL_TREE_WORDS, CTRL_FILE_WORDS),
+            ("commands-alt", "Alt+", ALT_TREE_WORDS, ALT_FILE_WORDS),
+        ];
+        for (topic, mods, tree, files) in pages {
+            let rows = rows(topic);
+            for (column, words) in [(2, tree), (3, files)] {
+                let listed: Vec<&str> = rows
+                    .iter()
+                    .filter(|r| r[column] == "yes")
+                    .map(|r| r[1].as_str())
+                    .collect();
+                assert_eq!(listed, words, "{topic}.md, column {column}");
+            }
+            for row in &rows {
+                let key = word_key(&row[1]).to_ascii_uppercase();
+                let want = if mods.is_empty() {
+                    format!("`{key}`")
+                } else {
+                    format!("{mods}{key}")
+                };
+                assert_eq!(row[0], want, "{topic}.md: the key of {}", row[1]);
+            }
+        }
     }
 }

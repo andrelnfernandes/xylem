@@ -10,16 +10,15 @@ Löschen.
 
 ## Warum rclone
 
-Wir haben uns entschieden, mit rclone zusammenzuarbeiten, statt direkt mit
-Google Drive und Amazon S3 zu kommunizieren. Eigener Code für jeden Dienst wäre
-eine weitere Fehlerquelle, und Google Drive bräuchte zudem die Einhaltung der
-Google-Richtlinien: Eine Anwendung, die alle Dateien eines Nutzers lesen kann,
-erfordert eine Verifizierung durch Google sowie eine jährliche
-Sicherheitsprüfung – andernfalls zeigt sie eine Warnung vor einer „nicht
-überprüften App" und ist auf wenige Testnutzer beschränkt. Für S3 ist die
-offizielle Bibliothek sehr umfangreich und würde erhebliche Komplexität
-mitbringen, die Xylem konzeptionell nach Möglichkeit vermeidet. rclone erledigt
-all das bereits zuverlässig für viele Dienste gleichzeitig.
+Xylem greift über rclone auf Google Drive und Amazon S3 zu und enthält keinen
+eigenen Code für diese Dienste, aus zwei Gründen:
+
+- Eine Anwendung, die alle Google-Drive-Dateien eines Nutzers liest, benötigt
+  eine Verifizierung durch Google und eine jährliche Sicherheitsprüfung. Ohne
+  diese zeigt sie eine Warnung vor einer „nicht überprüften App" und bleibt auf
+  wenige Nutzer beschränkt.
+- Die offizielle S3-Bibliothek wäre eine umfangreiche Abhängigkeit für einen
+  einzelnen Dienst. rclone unterstützt S3 und rund 70 weitere Dienste bereits.
 
 ## Einrichtung (einmalig)
 
@@ -80,12 +79,12 @@ verschlüsselt, steht im Feld lediglich rclone.
 
 ## Was dort anders ist
 
-**Rechnen Sie zeitweise mit Langsamkeit.** Alles läuft über rclone und das Netzwerk des
-Dienstes und kann daher, bedingt durch die Art dieser Integration, deutlich langsamer sein als
-eine lokale Platte. Eine Datei anzeigen, ein Archiv öffnen oder einen großen Ordner einlesen
-kann dauern, und der Bildschirm reagiert womöglich erst, wenn der Dienst antwortet: Meist ist
-das Warten, kein Absturz. Bei Google Drive lohnt sich eine eigene `client_id`: siehe den Abschnitt zu
-Fehler 403 weiter unten.
+**Es ist langsamer als eine lokale Festplatte.** Jeder Lesevorgang läuft über
+rclone und das Netzwerk des Dienstes. Eine Datei anzuzeigen, ein Archiv zu öffnen
+oder einen großen Ordner einzulesen kann Sekunden oder Minuten dauern, und der
+Bildschirm reagiert möglicherweise erst nach Antwort des Dienstes. Bei Google
+Drive verschafft eine eigene `client_id` ein eigenes Kontingent an Anfragen:
+siehe den Abschnitt zu Fehler 403 unten.
 
 - **Alles läuft über das Netzwerk.** Jedes gelesene Verzeichnis ist eine
   Netzwerkanfrage, und ein Dienst wie Google Drive lehnt sie ab, wenn es zu viele

@@ -63,12 +63,9 @@ que corresponder vence, na ordem do arquivo. `binary` serve para os arquivos
 binários que nenhum padrão capturou quando `binary_editor` está vazio; os demais
 arquivos abrem no editor de texto habitual.
 
-O Xylem não tem um editor hexadecimal próprio, e isso é uma decisão deliberada:
-desenvolver e manter um daria muito trabalho para pouco uso, e editar bytes à
-mão é um jeito fácil de corromper um arquivo. Em vez disso, o Xylem integra
-editores hexadecimais dedicados direto dentro da sua moldura e com o seu tema de
-cores — e permite desativar a edição de binários com uma única opção no **F12**
-se você não quiser essa integração.
+O Xylem não tem um editor hexadecimal próprio. Ele executa o que você tiver
+instalado dentro da sua moldura, com o seu tema de cores, e `edit_binary` na
+página 1 do **F12** desativa a edição de arquivos binários.
 
 ## eXecute (X)
 
