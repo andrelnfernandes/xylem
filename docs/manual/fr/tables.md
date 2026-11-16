@@ -27,7 +27,7 @@ Le séparateur du CSV (virgule, point-virgule, tabulation ou barre verticale) es
 | `m` ou Insert | marque ou démarque l'enregistrement sous le curseur et passe au suivant ; **Ctrl+B** n'écrit alors que les marqués |
 | `M` | efface les marques |
 | `i` | la structure du tableau : ce que le fichier dit de chaque colonne (voir plus bas) |
-| Entrée | l'enregistrement sous le curseur sous forme de fiche, un champ par ligne : ↑ ↓ choisissent le champ, ← → vont à l'enregistrement précédent ou suivant, `c` copie l'enregistrement entier (`NOM : valeur`, une ligne par champ) et `y` la valeur du champ, pour la coller dans un éditeur ou un terminal ; Échap revient. Ce qui est copié est ce que montre l'écran : les caractères de contrôle et de direction du texte, sauts de ligne compris, deviennent `·`, et coller dans un terminal n'exécute rien. Hors du tableau, Entrée ferme la visionneuse |
+| Entrée | l'enregistrement sous le curseur sous forme de fiche, un champ par ligne : ↑ ↓ choisissent le champ, ← → vont à l'enregistrement précédent ou suivant, `c` copie l'enregistrement entier (`NOM : valeur`, une ligne par champ), `C` la même chose avec le numéro de chaque champ devant, celui que montre la structure (`i`), et `y` la valeur du champ, pour la coller dans un éditeur ou un terminal ; Échap revient. Ce qui est copié est ce que montre l'écran : les caractères de contrôle et de direction du texte, sauts de ligne compris, deviennent `·`, et coller dans un terminal n'exécute rien. Hors du tableau, Entrée ferme la visionneuse |
 | `T` | aller au texte du fichier et revenir |
 | `H` | du tableau au texte, puis à l'hexadécimal, puis retour au tableau |
 
@@ -37,7 +37,7 @@ Les marques restent sous un filtre, et Batch écrit ce qui est marqué et conser
 
 ## La structure
 
-`i` affiche, par-dessus la grille, les colonnes dans l'ordre avec ce que le fichier dit de chacune, comme `DISPLAY STRUCTURE` dans dBase et Clipper. Les flèches, PgUp, PgDn, Home et End la font défiler ; Esc, Enter ou `i` la ferment.
+`i` affiche, par-dessus la grille, les colonnes dans l'ordre avec ce que le fichier dit de chacune, comme `DISPLAY STRUCTURE` dans dBase et Clipper. Les flèches, PgUp, PgDn, Home et End la font défiler ; Esc, Enter ou `i` la ferment. `c` copie la structure entière, comme l'écran la montre mais sans couper les noms longs, pour la coller dans un éditeur ou un terminal ; les caractères de contrôle et de direction du texte deviennent `·`, comme dans la fiche de l'enregistrement.
 
 | Format | Ce qui est affiché |
 |---|---|

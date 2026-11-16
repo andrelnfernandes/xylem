@@ -27,7 +27,7 @@ The CSV separator (comma, semicolon, tab or vertical bar) is detected from the s
 | `m` or Insert | mark or unmark the record under the cursor, and go to the next; **Ctrl+B** then writes only the marked ones |
 | `M` | clear the marks |
 | `i` | the structure of the table: what the file says of each column (see below) |
-| Enter | the record under the cursor as a form, a field per line: ↑ ↓ choose the field, ← → go to the previous or next record, `c` copies the whole record (`NAME : value`, a line per field) and `y` the value of the field, to paste in an editor or a terminal; Esc goes back. What is copied is what the screen shows: control and text direction characters, line breaks included, are `·`, so pasting in a terminal runs nothing. Elsewhere, Enter closes the viewer |
+| Enter | the record under the cursor as a form, a field per line: ↑ ↓ choose the field, ← → go to the previous or next record, `c` copies the whole record (`NAME : value`, a line per field), `C` the same with the number of each field in front, the one the structure (`i`) shows, and `y` the value of the field, to paste in an editor or a terminal; Esc goes back. What is copied is what the screen shows: control and text direction characters, line breaks included, are `·`, so pasting in a terminal runs nothing. Elsewhere, Enter closes the viewer |
 | `T` | to the file's text and back |
 | `H` | from the table to text, then hex, then back to the table |
 
@@ -37,7 +37,7 @@ Marks stay under a filter, and a Batch writes what is marked and kept by the fil
 
 ## The structure
 
-`i` shows, over the grid, the columns in order with what the file says of each one, like `DISPLAY STRUCTURE` in dBase and Clipper. The arrows, PgUp, PgDn, Home and End scroll it; Esc, Enter or `i` close it.
+`i` shows, over the grid, the columns in order with what the file says of each one, like `DISPLAY STRUCTURE` in dBase and Clipper. The arrows, PgUp, PgDn, Home and End scroll it; Esc, Enter or `i` close it. `c` copies it whole, as the screen shows it but without cutting the long names, to paste in an editor or a terminal; control and text direction characters are `·`, as in the record's form.
 
 | Format | What it shows |
 |---|---|

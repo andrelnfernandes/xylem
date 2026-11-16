@@ -27,7 +27,7 @@ El separador del CSV (coma, punto y coma, tabulación o barra vertical) se detec
 | `m` o Insert | marca o desmarca el registro bajo el cursor y pasa al siguiente; **Ctrl+B** escribe entonces solo los marcados |
 | `M` | borra las marcas |
 | `i` | la estructura de la tabla: lo que el archivo dice de cada columna (ver abajo) |
-| Enter | el registro bajo el cursor como una ficha, un campo por línea: ↑ ↓ eligen el campo, ← → van al registro anterior o siguiente, `c` copia el registro entero (`NOMBRE : valor`, una línea por campo) e `y` el valor del campo, para pegarlo en un editor o un terminal; Esc vuelve. Lo copiado es lo que muestra la pantalla: los caracteres de control y de dirección del texto, saltos de línea incluidos, son `·`, así que pegarlo en un terminal no ejecuta nada. Fuera de la tabla, Enter cierra el visor |
+| Enter | el registro bajo el cursor como una ficha, un campo por línea: ↑ ↓ eligen el campo, ← → van al registro anterior o siguiente, `c` copia el registro entero (`NOMBRE : valor`, una línea por campo), `C` lo mismo con el número de cada campo delante, el que muestra la estructura (`i`), e `y` el valor del campo, para pegarlo en un editor o un terminal; Esc vuelve. Lo copiado es lo que muestra la pantalla: los caracteres de control y de dirección del texto, saltos de línea incluidos, son `·`, así que pegarlo en un terminal no ejecuta nada. Fuera de la tabla, Enter cierra el visor |
 | `T` | ir al texto del archivo y volver |
 | `H` | de la tabla al texto, luego hexadecimal, luego de vuelta a la tabla |
 
@@ -37,7 +37,7 @@ Las marcas se mantienen bajo un filtro, y Batch escribe lo marcado que el filtro
 
 ## La estructura
 
-`i` muestra, sobre la cuadrícula, las columnas en orden con lo que el archivo dice de cada una, como `DISPLAY STRUCTURE` en dBase y Clipper. Las flechas, PgUp, PgDn, Home y End la desplazan; Esc, Enter o `i` la cierran.
+`i` muestra, sobre la cuadrícula, las columnas en orden con lo que el archivo dice de cada una, como `DISPLAY STRUCTURE` en dBase y Clipper. Las flechas, PgUp, PgDn, Home y End la desplazan; Esc, Enter o `i` la cierran. `c` copia la estructura entera, como la muestra la pantalla pero sin cortar los nombres largos, para pegarla en un editor o una terminal; los caracteres de control y de dirección del texto se vuelven `·`, como en la ficha del registro.
 
 | Formato | Qué muestra |
 |---|---|

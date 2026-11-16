@@ -5,6 +5,8 @@ ficam escondidas, não são alteradas: com os números de linha ligados (`#`), c
 linha mantém o seu número no arquivo, e as lacunas mostram o filtro agindo. O
 cabeçalho diz o resultado: `[filter error: 24 of 850 lines]`.
 
+Funciona como o `grep`, e o **F3** inverte o filtro como o `grep -v`; a tecla é a que o `less` usa para a mesma coisa.
+
 | Tecla no prompt | O que faz |
 |---|---|
 | **F1** | esta ajuda |

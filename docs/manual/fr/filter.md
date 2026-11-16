@@ -6,6 +6,8 @@ ligne activés (`#`), chaque ligne garde son numéro dans le fichier, et les
 sauts montrent le filtre à l'œuvre. L'en-tête donne le résultat :
 `[filter error: 24 of 850 lines]`.
 
+Il fonctionne comme `grep`, et **F3** l'inverse comme `grep -v` ; la touche est celle que `less` utilise pour la même chose.
+
 | Touche dans l'invite | Ce qu'elle fait |
 |---|---|
 | **F1** | cette aide |

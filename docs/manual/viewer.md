@@ -33,6 +33,8 @@ match is highlighted. At the search prompt, **F2** toggles case sensitivity
 between text and hex (byte pairs such as `4d 5a`). A `*` in the middle of the
 term matches anything on the same line (`error*disk`).
 
+**F3** turns the direction of the search, so F alone does what B does: forward from the start or backward from the end.
+
 ## Syntax colors
 
 Source code and scripts are colored in about 150 languages (Rust, Python,

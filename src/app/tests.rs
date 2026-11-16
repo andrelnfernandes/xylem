@@ -2416,6 +2416,17 @@ fn viewer_find_prompt_and_options() {
             .label
             .starts_with("FIND (text, ignore case)")
     );
+    // F3 turns the direction, and back.
+    press(&mut app, KeyCode::F(3));
+    assert!(
+        app.prompt
+            .as_ref()
+            .unwrap()
+            .label
+            .starts_with("FIND backward")
+    );
+    press(&mut app, KeyCode::F(3));
+    assert!(app.prompt.as_ref().unwrap().label.starts_with("FIND ("));
     press(&mut app, KeyCode::F(2));
     assert!(app.prompt.as_ref().unwrap().label.contains("match case"));
     type_text(&mut app, "SENHA");

@@ -2096,6 +2096,10 @@ impl Viewer {
             KeyCode::PageDown => view.scroll = (view.scroll + page).min(last),
             KeyCode::Home => view.scroll = 0,
             KeyCode::End => view.scroll = last,
+            KeyCode::Char('c' | 'C') => {
+                let text = table::TableGrid::structure_text(&view.structure);
+                self.note = Some(copied(&text, "the structure"));
+            }
             KeyCode::Esc | KeyCode::Enter | KeyCode::Char('i' | 'I' | 'q' | 'Q') => {
                 self.structure_view = None;
             }
@@ -2133,10 +2137,12 @@ impl Viewer {
             KeyCode::End => view.field = last,
             KeyCode::Left => t.handle_key(KeyCode::Up, rows),
             KeyCode::Right => t.handle_key(KeyCode::Down, rows),
-            KeyCode::Char('c' | 'C') => {
+            KeyCode::Char(c @ ('c' | 'C')) => {
                 let row = t.cursor_file_row();
-                self.note = Some(match t.record_text() {
+                let numbered = c == 'C';
+                self.note = Some(match t.record_text(numbered) {
                     None => "The record is still being read".into(),
+                    Some(text) if numbered => copied(&text, &format!("record {row}, numbered")),
                     Some(text) => copied(&text, &format!("record {row}")),
                 });
             }
@@ -3581,6 +3587,13 @@ mod tests {
         press(&mut v, KeyCode::Char('y'));
         assert_eq!(v.note.as_deref(), Some("Copied name of record 2"));
         assert_eq!(crate::clipboard::copied().as_deref(), Some("Rui"));
+        press(&mut v, KeyCode::Char('C'));
+        assert_eq!(v.note.as_deref(), Some("Copied record 2, numbered"));
+        assert_eq!(
+            crate::clipboard::copied().as_deref(),
+            Some("1  code : 8\n2  name : Rui\n3  note : ok\n"),
+            "the numbers of the structure (i)"
+        );
         press(&mut v, KeyCode::End);
         press(&mut v, KeyCode::Right);
         press(&mut v, KeyCode::Char('c'));
@@ -3649,10 +3662,47 @@ mod tests {
         press(&mut v, KeyCode::Char('I'));
         press(&mut v, KeyCode::Char('i'));
         assert!(v.structure_view.is_none(), "i closes it too");
+        // c copies it as the screen shows it.
+        press(&mut v, KeyCode::Char('i'));
+        press(&mut v, KeyCode::Char('c'));
+        assert_eq!(v.note.as_deref(), Some("Copied the structure"));
+        assert_eq!(
+            crate::clipboard::copied().as_deref(),
+            Some(
+                "No types declared here: what the 30 rows read have\n\n\
+                 #  Column  Values seen  Widest\n\
+                 1  n       integer           2\n\
+                 2  odd     integer           1\n"
+            )
+        );
+        assert!(v.structure_view.is_some(), "c leaves it open");
+        press(&mut v, KeyCode::Esc);
         // Only in the table.
         press(&mut v, KeyCode::Char('t'));
         press(&mut v, KeyCode::Char('i'));
         assert!(v.structure_view.is_none());
+    }
+
+    #[test]
+    fn the_structure_is_copied_clean_and_whole() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("hostile.csv");
+        let long = "x".repeat(60);
+        std::fs::write(&path, format!("a\x1b[2J{}b,{long}\n1,2\n", "\u{202E}")).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 10;
+        press(&mut v, KeyCode::Char('i'));
+        press(&mut v, KeyCode::Char('c'));
+        let copied = crate::clipboard::copied().expect("copied");
+        assert!(
+            !copied.chars().any(|c| c == '\x1b' || c == '\u{202E}'),
+            "nothing runs when pasted in a terminal: {copied:?}"
+        );
+        assert!(copied.contains("a·[2J·b"), "{copied:?}");
+        assert!(
+            copied.contains(&long),
+            "not cut as on the screen: {copied:?}"
+        );
     }
 
     #[test]

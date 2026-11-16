@@ -34,6 +34,8 @@ letras con acento: `AÇÃO` encuentra `ação`) y **F4** alterna entre texto y h
 (pares de bytes como `4d 5a`). Un `*` en mitad del término coincide con
 cualquier cosa en la misma línea (`error*disk`).
 
+**F3** cambia la dirección de la búsqueda, así que F solo hace lo que hace B: hacia delante desde el principio o hacia atrás desde el final.
+
 ## Colores de sintaxis
 
 El código fuente y los scripts se colorean en unos 150 lenguajes (Rust, Python,

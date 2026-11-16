@@ -34,6 +34,8 @@ Groß-/Kleinschreibung um (wird sie ignoriert, gilt das auch für Buchstaben mit
 (Byte-Paare wie `4d 5a`). Ein `*` in der Mitte des Suchbegriffs steht für
 beliebige Zeichen in derselben Zeile (`error*disk`).
 
+**F3** kehrt die Richtung der Suche um, sodass F allein auch tut, was B tut: vorwärts vom Anfang oder rückwärts vom Ende.
+
 ## Syntaxfarben
 
 Quellcode und Skripte werden in rund 150 Sprachen farbig hervorgehoben (Rust,

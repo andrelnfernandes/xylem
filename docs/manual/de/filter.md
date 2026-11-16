@@ -5,6 +5,8 @@ ausgeblendet, nicht verändert: Mit eingeschalteten Zeilennummern (`#`) behält 
 Zeile ihre Nummer in der Datei, und die Lücken zeigen den Filter bei der Arbeit.
 Die Kopfzeile nennt das Ergebnis: `[filter error: 24 of 850 lines]`.
 
+Er funktioniert wie `grep`, und **F3** kehrt ihn um wie `grep -v`; die Taste ist die, die `less` dafür verwendet.
+
 | Taste in der Eingabe | Was sie tut |
 |---|---|
 | **F1** | diese Hilfe |

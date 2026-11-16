@@ -293,6 +293,13 @@ impl App {
                 prompt.label = format!("RENAME {count} tagged files (mask{case_suffix}): ");
                 return;
             }
+            if key.code == KeyCode::F(3)
+                && let PromptKind::ViewerSearch { forward, .. } = &mut prompt.kind
+            {
+                *forward = !*forward;
+                prompt.label = prompt.kind.search_label().unwrap_or_default();
+                return;
+            }
             if matches!(key.code, KeyCode::F(2) | KeyCode::F(4))
                 && let Some(spec) = prompt.kind.search_spec_mut()
             {
