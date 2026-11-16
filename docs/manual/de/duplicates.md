@@ -1,12 +1,14 @@
 # Duplikate (Alt+D)
 
-Dateien mit gleichem Inhalt, egal mit welchen Namen und in welchen Ordnern, und
-der Platz, den die Kopien verschwenden. **Alt+D** sucht im Zweig des aktuellen
-Verzeichnisses; **D** in der Belegungsansicht sucht im dort gezeigten Ordner.
+**Alt+D** listet die Dateien mit gleichem Inhalt im Zweig des aktuellen
+Verzeichnisses auf, unabhängig von Namen und Ordnern, sowie den von den Kopien
+belegten Platz. **D** in der Belegungsansicht sucht im dort gezeigten Ordner.
+[Duplikate finden und eine Kopie behalten](howto-duplicates.md) beschreibt die
+Schritte.
 
-
-> Bis Version 0.7 waren die Duplikate Alt+Y, und Alt+D löschte die markierten
-> Dateien (jetzt nur Ctrl+D). Siehe [Ctrl und Alt](tagging.md#was-ctrl-und-alt-bedeuten).
+**Geändert in Version 0.8.** Duplikate lagen auf Alt+Y, und Alt+D löschte die
+markierten Dateien, was nun ausschließlich über Ctrl+D geschieht. Siehe die
+[Versionshinweise](releases.md).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────

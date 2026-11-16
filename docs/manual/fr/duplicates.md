@@ -1,12 +1,14 @@
 # Doublons (Alt+D)
 
-Les fichiers au même contenu, quels que soient leurs noms et leurs dossiers, et
-l'espace gaspillé par les copies. **Alt+D** cherche dans la branche du répertoire
-courant ; **D** dans la vue Utilisation cherche dans le dossier affiché.
+**Alt+D** liste les fichiers ayant le même contenu dans la branche du répertoire
+courant, quels que soient leurs noms et leurs dossiers, ainsi que l'espace occupé
+par les copies. **D** dans la vue Utilisation cherche dans le dossier affiché.
+[Trouver les doublons et garder une copie](howto-duplicates.md) détaille les
+étapes.
 
-
-> Jusqu'à la version 0.7, les doublons étaient Alt+Y, et Alt+D supprimait les
-> fichiers marqués (désormais seulement Ctrl+D). Voir [Ctrl et Alt](tagging.md#ce-que-veulent-dire-ctrl-et-alt).
+**Modifié dans la version 0.8.** Les doublons étaient sur Alt+Y, et Alt+D
+supprimait les fichiers marqués, ce qui se fait désormais uniquement par Ctrl+D.
+Consultez les [notes de version](releases.md).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────

@@ -1,6 +1,6 @@
 # 内置终端 (Alt+X)
 
-这是 XTree 与 ZTreeWin 中没有的功能：您的 shell（`$SHELL`）直接运行在 Xylem 屏幕的下半部分，上方依然可以看到目录树和文件列表。
+Alt+X 在 Xylem 屏幕下半部分运行您的 shell（`$SHELL`），上方仍可见目录树和文件。XTree 和 ZTreeWin 没有这样的内置终端。[在 shell 命令中使用已标记的文件](howto-terminal-tagged.md) 给出了示例。
 
 - **Alt+X** 打开终端，再次按下返回 Xylem。当终端隐藏时，shell 仍在后台继续运行，保留其命令历史和屏幕内容；输入 `exit` 可关闭该 shell。
 - **Alt+Z** 以全屏模式打开终端；在终端内部按 Alt+Z 可在全屏与半屏面板之间切换。之后按 Alt+X 会按上次的模式重新打开它。

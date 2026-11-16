@@ -101,7 +101,9 @@ Der Index ist eine Kopie der Wörter im Xylem-Cache (`~/.cache/xylem/index`, in 
 
 ## Das Suchfeld (P)
 
-Das Google-Desktop-Erlebnis ohne SQL: Drücken Sie **P** (oder **Ctrl+P** für markierte Dateien), um ein schwebendes Suchfeld zu öffnen.
+**P** öffnet ein Suchfeld über dem Bildschirm, und **Ctrl+P** öffnet es für die
+markierten Dateien. Es findet Dateien anhand der enthaltenen Wörter, ohne
+SQL-Bedingung.
 
 Während Sie Wörter eingeben, erscheinen passende Dateien sofort beim Tippen:
 - Wörter stimmen als ganze Wörter überein, und das letzte Wort sucht während des Tippens nach Präfixen (`rechnung mar` sucht nach `rechnung mar*`).
@@ -115,8 +117,6 @@ Während Sie Wörter eingeben, erscheinen passende Dateien sofort beim Tippen:
   - **Ctrl+T**: schaltet die Markierung (Tag) der Datei direkt im Suchfeld um.
   - **Alt+R**: bestätigt und startet das Einlesen nicht indizierter Dateien.
   - **Esc**: bricht das Einlesen ab oder schließt das Suchfeld.
-
-W ist ein erster Schritt zur Abfrage des Dateisystems: Tabellarische Ergebnisse folgen später.
 
 Siehe auch: [das Dateifenster](files.md), [Markierungen](tagging.md) (Ctrl+T im
 Baum markiert alles, was zum Filespec passt).

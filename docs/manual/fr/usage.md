@@ -1,14 +1,13 @@
 # Utilisation du disque (Alt+U)
 
-Où va l'espace. **Alt+U** lit toute la branche du répertoire courant et liste
-ses dossiers et fichiers selon l'espace qu'ils occupent, les plus grands en
-premier, avec une barre et leur part du répertoire. Enter entre dans un
-dossier ; de dossier en dossier, vous descendez jusqu'à ce qui remplit le
-disque.
+**Alt+U** lit toute la branche du répertoire courant et liste ses dossiers et
+fichiers selon l'espace qu'ils occupent, les plus volumineux en premier, avec
+une barre et leur proportion dans le répertoire. Enter entre dans un dossier.
+[Trouver ce qui remplit le disque](howto-disk-space.md) détaille les étapes.
 
-
-> Jusqu'à la version 0.7, l'utilisation du disque était Alt+W, et Alt+U
-> démarquait tout (désormais seulement Ctrl+U). Voir [Ctrl et Alt](tagging.md#ce-que-veulent-dire-ctrl-et-alt).
+**Modifié dans la version 0.8.** L'utilisation du disque était sur Alt+W, et
+Alt+U démarquait tout, ce qui se fait désormais uniquement par Ctrl+U. Consultez
+les [notes de version](releases.md).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar

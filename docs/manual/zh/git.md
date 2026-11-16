@@ -1,6 +1,6 @@
 # Git
 
-XTree 和 ZTreeWin 中都没有 Git 功能，因此它默认处于关闭状态：可通过 F12（第 1 页，“Git commands”）或在 [配置](configuration.md) 的 `[options]` 下设置 `git = true` 来开启。此功能需要系统已安装 `git` 程序。
+Git 默认处于关闭状态。可在 F12（第 1 页，“Git commands”）或 [配置](configuration.md) 的 `[options]` 下通过 `git = true` 开启。需要安装 `git` 程序。XTree 和 ZTreeWin 没有 Git 命令。
 
 ## Git 菜单 (Ctrl+G)
 

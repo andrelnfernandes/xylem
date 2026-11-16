@@ -1761,6 +1761,18 @@ fn help_topic_after(app: &mut App, key: KeyEvent) -> String {
 }
 
 #[test]
+fn f1_in_the_ctrl_or_alt_menu_opens_the_page_of_that_menu() {
+    let (_tmp, mut app) = sample();
+    let f1 = KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE);
+    press(&mut app, KeyCode::F(9));
+    assert_eq!(help_topic_after(&mut app, f1), "commands-ctrl");
+    app.sticky = MenuMode::Normal;
+    press(&mut app, KeyCode::F(9));
+    press(&mut app, KeyCode::F(9));
+    assert_eq!(help_topic_after(&mut app, f1), "commands-alt");
+}
+
+#[test]
 fn f1_opens_the_help_of_the_window() {
     let (_tmp, mut app) = sample();
     let f1 = KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE);
@@ -4648,6 +4660,20 @@ fn usage_del_deletes_a_file_and_the_sums_follow() {
     press(&mut app, KeyCode::Delete);
     let question = &app.confirm.as_ref().expect("asked").question;
     assert!(question.starts_with("DELETE old.bin?"), "{question}");
+    // The question is on the screen, in place of the view's menu.
+    {
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut term = Terminal::new(TestBackend::new(120, 24)).unwrap();
+        term.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+        let text: String = term
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect();
+        assert!(text.contains("DELETE old.bin?"), "{text}");
+    }
     press(&mut app, KeyCode::Char('y'));
     finish(&mut app);
     assert!(!tmp.path().join("old.bin").exists());

@@ -1,8 +1,10 @@
 # Le terminal intégré (Alt+X)
 
-Absent de XTree et de ZTreeWin : votre shell (`$SHELL`) tourne à l'intérieur de
-l'écran de Xylem, dans la partie inférieure, tandis que l'arborescence et les
-fichiers restent visibles au-dessus.
+Alt+X exécute votre shell (`$SHELL`) dans la partie inférieure de l'écran de
+Xylem, l'arborescence et les fichiers restant visibles au-dessus. XTree et
+ZTreeWin ne disposent pas d'un tel terminal.
+[Utiliser les fichiers marqués dans une commande du shell](howto-terminal-tagged.md)
+en donne un exemple.
 
 - **Alt+X** ouvre le terminal et revient à Xylem. Le shell continue de tourner
   lorsqu'il est masqué, avec son historique et ce qu'il affichait à l'écran ;

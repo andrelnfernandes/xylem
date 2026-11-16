@@ -9,14 +9,14 @@ Makedir, Delete.
 
 ## Why rclone
 
-We chose to work with rclone rather than talk to Google Drive and Amazon S3
-directly. Code of our own for each service would be one more place for
-mistakes, and Google Drive would also bring Google's policies along: an app
-that reads all of someone's files needs Google's verification and a yearly
-security assessment, or else shows an "unverified app" warning and is limited
-to a few users. For S3, the official library is very large and would add a
-lot of complexity, which Xylem, by design, avoids whenever it can. rclone
-already does all this well, for many services at once.
+Xylem reaches Google Drive and Amazon S3 through rclone and has no code of
+its own for either service, for two reasons:
+
+- An app that reads all of someone's Google Drive files needs Google's
+  verification and a yearly security assessment. Without them it shows an
+  "unverified app" warning and is limited to a few users.
+- The official S3 library would be a large dependency for one service.
+  rclone already supports S3 and some 70 other services.
 
 ## Setting up (once)
 
@@ -71,12 +71,11 @@ comes from rclone's configuration file (`~/.config/rclone/rclone.conf`, or
 
 ## What is different there
 
-**Expect it to be slow at times.** Everything goes through rclone and the service's
-network, so it can be much slower than a local disk, by the very nature of this
-integration. Viewing a file, opening an archive or logging a large folder may take a
-while, and the screen may not respond until the service answers: that is usually waiting,
-not a crash. On Google Drive, it is worth making your own `client_id`: see the section on
-error 403 below.
+**It is slower than a local disk.** Every read goes through rclone and the
+service's network. Viewing a file, opening an archive or logging a large folder
+can take seconds or minutes, and the screen may not respond until the service
+answers. On Google Drive, your own `client_id` gives you a request quota of your own: see
+the section on error 403 below.
 
 - **Everything goes over the network.** Each directory read is a request, and
   a service like Google Drive refuses them when they are too many. So, on a

@@ -99,7 +99,7 @@ L'index est une copie des mots des fichiers conservée dans le cache de Xylem (`
 
 ## La boîte de recherche (P)
 
-L'expérience Google Desktop sans SQL : appuyez sur **P** (ou **Ctrl+P** sur les fichiers marqués) pour ouvrir une boîte de recherche flottante.
+**P** ouvre une boîte de recherche au-dessus de l'écran, et **Ctrl+P** l'ouvre sur les fichiers marqués. Elle trouve les fichiers selon les mots qu'ils contiennent, sans condition SQL.
 
 Au fil de la frappe, les fichiers correspondants s'affichent immédiatement :
 - Les mots correspondent à des mots entiers, et le dernier mot utilise la recherche par préfixe lors de la saisie (`facture mar` cherche `facture mar*`).
@@ -113,8 +113,6 @@ Au fil de la frappe, les fichiers correspondants s'affichent immédiatement :
   - **Ctrl+T** : bascule la marque (tag) du fichier sélectionné directement dans la boîte.
   - **Alt+R** : demande confirmation et lance la lecture des fichiers non indexés.
   - **Esc** : annule la lecture des fichiers non indexés ou ferme la boîte de recherche.
-
-W est une première étape d'interrogation du disque : les résultats sous forme de tableau viendront ensuite.
 
 Voir aussi : [la fenêtre de fichiers](files.md), [marquage](tagging.md) (Ctrl+T
 dans l'arborescence marque ce qui correspond au filespec).

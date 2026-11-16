@@ -67,12 +67,9 @@ correspond l'emporte, dans l'ordre du fichier. `binary` s'applique aux fichiers
 binaires qu'aucun motif n'a retenus lorsque `binary_editor` est vide ; les
 autres fichiers s'ouvrent dans l'éditeur de texte habituel.
 
-Xylem n'a pas d'éditeur hexadécimal intégré, et c'est un choix délibéré : en
-développer et en maintenir un représenterait beaucoup de travail pour peu
-d'usage, et modifier des octets à la main est un moyen facile de corrompre un
-fichier. À la place, Xylem intègre des éditeurs hexadécimaux dédiés directement
-dans son cadre et avec son thème de couleurs — et permet de désactiver l'édition
-binaire d'une seule option dans **F12** si vous n'en voulez pas.
+Xylem n'a pas d'éditeur hexadécimal propre. Il exécute celui que vous avez
+installé à l'intérieur de son cadre, avec son thème de couleurs, et
+`edit_binary` en page 1 de **F12** désactive l'édition des fichiers binaires.
 
 ## eXécuter (X)
 

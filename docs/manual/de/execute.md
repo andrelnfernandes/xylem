@@ -64,13 +64,10 @@ passende Schlüssel in der Reihenfolge der Datei gewinnt. `binary` gilt für
 Binärdateien, auf die kein Muster zutraf, wenn `binary_editor` leer ist; alle
 übrigen Dateien werden im gewohnten Texteditor geöffnet.
 
-Xylem bringt keinen eigenen Hex-Editor mit, und das ist eine bewusste
-Entscheidung: Einen eigenen zu entwickeln und zu pflegen wäre viel Aufwand für
-geringen Nutzen, und das manuelle Bearbeiten von Bytes führt leicht zu
-beschädigten Dateien. Stattdessen integriert Xylem spezialisierte Hex-Editoren
-direkt in seinen Rahmen und sein Farbthema — und lässt Sie das Bearbeiten von
-Binärdateien mit einer einzigen Option unter **F12** abschalten, wenn Sie es
-nicht wünschen.
+Xylem hat keinen eigenen Hex-Editor. Es führt das bei Ihnen installierte
+Programm innerhalb seines Rahmens und mit seinem Farbthema aus, und
+`edit_binary` auf Seite 1 von **F12** schaltet die Bearbeitung von Binärdateien
+aus.
 
 ## Ausführen – eXecute (X)
 

@@ -10,6 +10,15 @@ a remote address (user@host:, then Xylem starts in $SHOT_CWD) and a step is:
   hold:SECONDS    how long the last frame stays on screen (GIF)
   press:ctrl, press:alt, release:ctrl, release:alt
                   Ctrl or Alt alone, held down and let go, as kitty reports them
+  step:KEYS       the next step of a how-to: a band under the screen shows its
+                  number, how many there are and KEYS (the keys it presses),
+                  from this frame on; the band has no words, so one animation
+                  serves the manual in every language
+  expect:TEXT     stop with an error, printing the screen, unless TEXT is on
+                  it now: a how-to whose keys no longer do what its page says
+                  fails here
+
+SHOT_DUMP=1 prints the last screen as text, to write a how-to.
 
 SHOT_COLS sets the width (120 by default). With SHOT_KITTY=1 the terminal
 answers like kitty that it has the keyboard protocol, so Xylem shows the
@@ -43,6 +52,11 @@ BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
 
 out, xy, root, steps = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
 KITTY = os.environ.get("SHOT_KITTY") == "1"
+# The how-to band: only in an animation that has steps, so the other images
+# keep their size.
+STEPS = sum(s.startswith("step:") for s in steps)
+BAND = 44 if STEPS else 0
+step_number, step_keys = 0, ""
 KEYBOARD_PROTOCOL = re.compile(rb"\x1b\[[<>=?][0-9;]*u")
 # Ctrl and Alt alone as kitty sends them: the left key's code, its modifier
 # bit while pressed, and event type 3 on release.
@@ -86,6 +100,7 @@ def color(name, default):
 
 
 FONT_REGULAR, FONT_BOLD = ImageFont.truetype(FONT, 15), ImageFont.truetype(BOLD, 15)
+FONT_STEP = ImageFont.truetype(BOLD, 18)
 # Box-drawing characters as lines, so that they join across cells:
 # (up, down, left, right).
 BOX = {
@@ -100,7 +115,7 @@ ROUND = {"╭": (1, 1, 180, 270), "╮": (-1, 1, 270, 360), "╰": (1, -1, 90, 1
 
 def render():
     """The screen as it is now."""
-    img = Image.new("RGB", (COLS * CW + 2 * PAD, ROWS * CH + 2 * PAD))
+    img = Image.new("RGB", (COLS * CW + 2 * PAD, ROWS * CH + 2 * PAD + BAND))
     draw = ImageDraw.Draw(img)
     # The margin takes the color of the screen's corner.
     corner = screen.buffer[0][0]
@@ -143,7 +158,22 @@ def render():
                 draw.line([cx, ay, cx, edge_y], fill=fg)
                 continue
             draw.text((px, py + 3), text, font=FONT_BOLD if ch.bold else FONT_REGULAR, fill=fg)
+    if BAND:
+        band(draw, img.width, img.height - BAND)
     return img
+
+
+def band(draw, width, top):
+    """The how-to band: the step's number in a badge, then its keys."""
+    draw.rectangle([0, top, width, top + BAND], fill="#1b1b1b")
+    if not step_number:
+        return
+    label = f"{step_number}/{STEPS}"
+    w = int(draw.textlength(label, font=FONT_STEP))
+    y = top + (BAND - 30) // 2
+    draw.rounded_rectangle([PAD, y, PAD + w + 20, y + 30], radius=6, fill="#f9f1a5")
+    draw.text((PAD + 10, y + 4), label, font=FONT_STEP, fill="#0c0c0c")
+    draw.text((PAD + w + 36, y + 4), step_keys, font=FONT_STEP, fill="#f2f2f2")
 
 
 def send(keys):
@@ -173,6 +203,14 @@ for step in steps:
     elif step.startswith("hold:"):
         if frames:
             frames[-1][1] = int(float(step[5:]) * 1000)
+    elif step.startswith("step:"):
+        # The band changes first, on the screen as it was: time to read it.
+        step_number, step_keys = step_number + 1, step[5:]
+        frame(1300)
+    elif step.startswith("expect:"):
+        if step[7:] not in "\n".join(screen.display):
+            os.kill(pid, 9)
+            sys.exit(f"{out}: expected {step[7:]!r} on the screen:\n" + "\n".join(screen.display))
     elif step.startswith("send:"):
         send(step[5:])
         pump(0.8)
@@ -187,6 +225,8 @@ for step in steps:
         pump(0.8)
         frame(700)
 pump(0.5)
+if os.environ.get("SHOT_DUMP") == "1":
+    print("\n".join(l.rstrip() for l in screen.display), file=sys.stderr)
 
 if animate:
     # Equal frames in a row become one, shown for their total time.

@@ -1,8 +1,8 @@
 # Git
 
-Git is not in XTree or ZTreeWin, so it starts off: turn it on with F12 (page 1,
-"Git commands") or `git = true` under `[options]` in the
-[configuration](configuration.md). It needs the `git` program.
+Git is off by default. Turn it on with F12 (page 1, "Git commands") or
+`git = true` under `[options]` in the [configuration](configuration.md). It
+needs the `git` program. XTree and ZTreeWin have no Git commands.
 
 ## The Git menu (Ctrl+G)
 
