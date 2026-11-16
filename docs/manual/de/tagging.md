@@ -42,7 +42,7 @@ Bei eXecute steht `%t` für die markierten Dateien ([Ausführen](execute.md)).
   die markierten Dateien mit ihren Pfaden im Dateifenster.
 
 [Die Menüs](menus.md) erklärt die Regel und wie die Menüs Ctrl und Alt mit F9
-angezeigt werden. [Das Strg-Menü](commands-ctrl.md) und
+angezeigt werden. [Das Ctrl-Menü](commands-ctrl.md) und
 [das Alt-Menü](commands-alt.md) listen jeden Befehl auf.
 
 **Geändert in Version 0.8.** Alt wiederholt Ctrl nicht mehr: Alt+A, Alt+D,

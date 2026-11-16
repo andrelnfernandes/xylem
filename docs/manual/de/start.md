@@ -63,8 +63,8 @@ Bei einem noch nicht eingelesenen Verzeichnis steht dort `Not logged`.
 
 ## Zu den Dateien wechseln
 
-**Enter** wechselt in das Dateifenster, das daraufhin fast den gesamten
-Bildschirm einnimmt. Enter oder Esc kehrt zum Baum zurück.
+**Enter** wechselt in das Dateifenster, das daraufhin die gesamte
+Bildschirmhöhe einnimmt. Enter oder Esc kehrt zum Baum zurück.
 
 | Taste | Funktion |
 |---|---|
@@ -76,7 +76,7 @@ Bildschirm einnimmt. Enter oder Esc kehrt zum Baum zurück.
 
 1. Drücken Sie im Dateifenster `T` auf jeder gewünschten Datei. Ein `■`
    erscheint vor dem Namen und der Cursor rückt nach unten.
-2. Drücken Sie Ctrl+C. Die Eingabeaufforderung fragt nach dem Zielverzeichnis.
+2. Drücken Sie Ctrl+C. Die Eingabezeile fragt nach dem Zielverzeichnis.
 3. Geben Sie ein Verzeichnis ein und drücken Sie Enter.
 
 Die markierten Dateien werden kopiert. `U` hebt die Markierung einer einzelnen
@@ -91,7 +91,7 @@ Verzeichnis, in dem Sie sich befanden, sofern die Shell-Funktion aus
 ## Weiterführendes
 
 - [Der Bildschirm](screen.md) benennt jeden sichtbaren Bereich.
-- [Die Menüs](menus.md) erläutert die Wirkung einzelner Buchstaben, mit Strg und
+- [Die Menüs](menus.md) erläutert die Wirkung einzelner Buchstaben, mit Ctrl und
   mit Alt.
 - [Vokabular](glossary.md) definiert Log, Branch, Tag und die übrigen Begriffe.
 - **F1** öffnet die kontextbezogene Hilfe zum Bildschirminhalt.

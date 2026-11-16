@@ -7,7 +7,7 @@
 1. 在目录树中，将光标置于目标目录上，按 → 读取它，按 Enter 进入其文件列表。
 2. 标记所需文件：按 `T` 逐个标记，或按 Ctrl+T 标记整个列表。
 3. 按 Alt+X。屏幕下半部分打开终端，shell 自动定位在上方所显示的目录中。
-4. 输入命令加一个空格，如 `wc -c `，然后按 Alt+O。Xylem 会在光标处自动输入已标记文件的名称，每个名称均加上安全引号。
+4. 输入命令加一个空格，如 `wc -c `，然后按 Alt+O。Xylem 会在光标处自动输入已标记文件的名称，每个名称均加上引号。
 5. 按 Enter。
 
 ![五个步骤：notes 的文件列表、Ctrl+T、Alt+X 打开终端、wc -c 配合 Alt+O 自动输入两个文件名，以及命令输出结果](../../screenshots/howto-terminal-tagged.gif)
@@ -32,7 +32,7 @@ wc -c 'ideas.md' 'todo.md'
 |---|---|
 | bash | `cp "${XY_TAGGED[@]}" ~/backup` |
 | zsh, fish | `cp $XY_TAGGED ~/backup` |
-| sh, dash | 未设置数组变量 |
+| sh, dash | 未设置 |
 
 该变量包含进入终端那一刻已标记的文件。若后续标记了更多文件，下次进入终端时变量值会自动更新。
 

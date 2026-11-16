@@ -46,7 +46,7 @@ not affected by any command.
 - Google Drive, S3 and the other storage that rclone supports.
   See [cloud storage](cloud.md).
 - A SQL condition on the file list (`W`): `ext = 'jpg' AND size > 10000000`
-  keeps the files that meet it. See [Filespec](filespec.md#a-sql-condition-w).
+  keeps the files that meet it. See [Filespec](sql.md#a-sql-condition-w).
 - SQL on the contents of a file: the viewer shows spreadsheets, CSV, JSON
   Lines, DBF, SQLite and Parquet as tables and filters them with a `WHERE`
   condition. See [the viewer](viewer.md).

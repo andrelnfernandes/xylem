@@ -9,12 +9,12 @@ chemins. L'invite demande la destination.
 Un répertoire (relatif au répertoire sous le curseur de l'arborescence, absolu,
 ou avec `~`) ou, pour un seul fichier, un nouveau nom. Avec l'écran
 [partagé](split.md), le répertoire de l'autre fenêtre est proposé. **F2** ouvre
-une arborescence pour [choisir le dossier](picker.md) ; **↑** rappelle les
-destinations précédentes.
+une arborescence pour [choisir le dossier](picker.md) ; **↑** ouvre les
+destinations précédentes dans une [liste](execute.md#historique).
 
-Sans écran partagé, l'invite s'ouvre vide, comme pour [Log](treespec.md), et **↑**
-parcourt les mêmes lieux : les dossiers où l'on a copié ou déplacé et ceux ouverts
-avec Log, du dernier au plus ancien. Entrée sur une invite vide ne fait rien.
+Sans écran partagé, l'invite s'ouvre vide, comme pour [Log](treespec.md), et la
+liste de **↑** contient les mêmes lieux : les dossiers où l'on a copié ou déplacé
+et ceux ouverts avec Log, le dernier en bas. Enter sur une invite vide ne fait rien.
 
 **F11** amène un [signet](bookmarks.md) dans l'invite.
 

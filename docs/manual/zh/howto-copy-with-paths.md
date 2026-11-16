@@ -8,8 +8,8 @@
 2. 按 `B`。Xylem 载入该分支，文件窗口列出 `projects` 及其下方所有文件夹中的文件。在庞大的分支上，底部状态栏会显示载入进度，按 Esc 可随时取消。
 3. 按 `F`，输入 `*.jpg` 并按 Enter。此时列表中仅保留 JPG 文件。
 4. 按 Ctrl+T。列表中的每个文件都被标记（`■`）。
-5. 按 Alt+C。提示框询问目标路径。
-6. 输入 `/mnt/backup`。在按 Enter 之前，查看提示框中显示的路径模式，按 **F7** 直至其显示为 `Relative`。
+5. 按 Alt+C。提示行询问目标路径。
+6. 输入 `/mnt/backup`。在按 Enter 之前，查看提示行中显示的路径模式，按 **F7** 直至其显示为 `Relative`。
 7. 按 Enter。若 `/mnt/backup` 尚不存在，Xylem 会在创建前询问确认。
 
 ![七个步骤：在 projects 上执行 Branch、设置 filespec *.jpg、Ctrl+T、Alt+C、设置为 Relative 模式的目标路径，以及完成复制的 21 个文件](../../screenshots/howto-copy-paths.gif)
@@ -27,7 +27,7 @@
 | Current | `/mnt/backup/projects/photos/2025/trip/DSC_01.jpg` |
 | Relative | `/mnt/backup/photos/2025/trip/DSC_01.jpg` |
 
-除非配置中的 `copy_paths` 另有指定，否则提示框默认采用 `Full` 模式。
+除非配置中的 `copy_paths` 另有指定，否则提示行默认采用 `Full` 模式。
 
 ## 变体用法
 

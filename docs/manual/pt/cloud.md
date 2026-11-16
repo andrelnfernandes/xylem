@@ -147,7 +147,7 @@ sozinho, porque isso só seria mais recusado.
 
 O que ajuda, começando pelo primeiro:
 
-- **Logar por pastas.** Em vez de `*` na raiz, use `*` em pastas menores, ou abra-as
+- **Ler por pastas.** Em vez de `*` na raiz, use `*` em pastas menores, ou abra-as
   com → ou `+`. Em um Drive congestionado, costuma ser o melhor caminho.
 - **Seu próprio `client_id`.** Se você não criou um, o rclone usa um cliente
   dividido com os outros usuários dele, e a cota também. Criar o seu é grátis: o

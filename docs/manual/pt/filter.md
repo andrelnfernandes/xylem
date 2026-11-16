@@ -11,7 +11,7 @@ cabeçalho diz o resultado: `[filter error: 24 of 850 lines]`.
 | **F2** | diferenciar maiúsculas ou ignorar |
 | **F3** | inverter: manter as linhas que não combinam |
 | **F4** | texto simples ou expressão regular |
-| ↑ ↓ | filtros anteriores |
+| ↑ | filtros anteriores, em uma [lista](execute.md#histórico) |
 | Enter | aplicar |
 | Esc | cancelar |
 
@@ -60,8 +60,8 @@ ou expressão trava o visualizador com um padrão como `(a+)+$`.
 
 ## Texto simples
 
-As mesmas regras da busca: ignorando maiúsculas, os acentos também não contam
-(`AÇÃO` encontra `ação`), e um `*` no meio combina com qualquer coisa na mesma
+As mesmas regras da busca: ignorando maiúsculas, as letras acentuadas também
+valem (`AÇÃO` encontra `ação`), e um `*` no meio combina com qualquer coisa na mesma
 linha (`erro*disco`).
 
 ## Com um filtro ligado

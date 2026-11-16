@@ -1,4 +1,4 @@
-# Die Menüs, Strg und Alt
+# Die Menüs, Ctrl und Alt
 
 Die Fußzeile listet die Befehle auf, die im aktiven Fenster zur Verfügung stehen.
 Es gibt vier Menüs. Der Titel auf der linken Seite gibt an, welches angezeigt
@@ -46,7 +46,7 @@ Befehle haben dort eine größere Reichweite: Ctrl+T und Ctrl+U markieren und
 heben die Markierung aller eingelesenen Dateien auf, die dem Filespec
 entsprechen, und Ctrl+S listet die markierten Dateien von allem Eingelesenen auf.
 
-[Das Strg-Menü](commands-ctrl.md) beschreibt jeden Befehl.
+[Das Ctrl-Menü](commands-ctrl.md) beschreibt jeden Befehl.
 
 ## Alt: die andere Fassung eines Befehls
 

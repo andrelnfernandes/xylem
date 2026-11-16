@@ -50,9 +50,9 @@ belegt ein Viertel der Bildschirmhöhe.
 - `W` behält die Dateien in der Liste, die einer SQL-Bedingung entsprechen;
   Ctrl+W filtert unter den markierten Dateien. `contains('text')` liest die
   Dateiinhalte, und `words('text')` nutzt den mit Alt+N erstellten Index.
-  [Eine SQL-Bedingung](filespec.md#eine-sql-bedingung-w)
+  [Eine SQL-Bedingung](sql.md#eine-sql-bedingung-w)
 - `P` öffnet ein Suchfeld, das Dateien nach den eingetippten Wörtern auflistet.
-  [Das Suchfeld](filespec.md#das-suchfeld-p)
+  [Das Suchfeld](sql.md#das-suchfeld-p)
 - CSV-, TSV-, JSON-Lines-, DBF- und SQLite-Tabellen haben im Betrachter kein
   Zeilenlimit mehr. Tabellenkalkulationen behalten das Limit von 50.000 Zeilen.
   [Der Betrachter](viewer.md)
@@ -151,7 +151,7 @@ weiterhin nur zu. `E` öffnet den Editor im Rahmen von Xylem.
 - Google Drive, S3 und weitere Speicher über rclone.
   [Cloud-Speicher (rclone)](cloud.md)
 - Themen slate, graphite, daylight und vivid.
-- `[editors]` in `config.toml` wählt den Editor nach Dateiendung und `E` weist
+- `[editors]` in `config.toml` wählt den Editor nach Dateiname und `E` weist
   Binärdateien ohne konfigurierten Editor ab.
 - `xy --man` zeigt die Handbuchseite an.
 

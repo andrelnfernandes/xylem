@@ -46,7 +46,7 @@ arquivos marcados.
 
 A variável contém os arquivos marcados no instante em que o terminal foi aberto.
 Se outros arquivos forem marcados no Xylem, a variável é atualizada na próxima
-vez em que o terminal receber o foco.
+vez em que você entrar no terminal.
 
 ## Um único comando com eXecute
 

@@ -75,6 +75,9 @@ après la fermeture de Xylem, sous X11 et Wayland.
 | `C` / `M` | [copier / déplacer](copy-move.md) le fichier |
 | `D` ou Del | le [supprimer](delete.md) (Shift+Del : définitivement) |
 | `R` | le [renommer](rename.md) ; Ctrl+R renomme les fichiers marqués avec un masque |
+| `W` / `Ctrl+W` | filtrer par [condition SQL](sql.md#une-condition-sql-w) (liste / marqués) |
+| `P` / `Ctrl+P` | [boîte de recherche](sql.md#la-boîte-de-recherche-p) : trouver des fichiers par mots au fil de la frappe |
+| `Alt+N` | [indexer](sql.md#mots-entiers-et-un-index--words) cette branche, pour words() dans W et dans la boîte de recherche |
 | `A` | [permissions](attributes.md) |
 | `N` | [modifier la date](attributes.md) |
 | Alt+S | [trier](sort.md) |

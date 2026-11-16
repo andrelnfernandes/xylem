@@ -34,8 +34,8 @@ markieren.
 | `A` | in jeder Gruppe alle bis auf eine markieren; erneut `A` ändert, welche bleibt: die älteste, die neueste, der kürzeste Pfad |
 | `F` | in jeder Gruppe mit einer Kopie im Ordner dieser Kopie jene behalten |
 | `U` | alle Markierungen aufheben |
-| `D`, Entf oder Strg+D | löscht die markierten, wie der Befehl Delete (in den Papierkorb, wenn `delete_to_trash` an ist) |
-| `M` oder Strg+M | verschiebt die markierten Dateien |
+| `D`, Del oder Ctrl+D | löscht die markierten, wie der Befehl Delete (in den Papierkorb, wenn `delete_to_trash` an ist) |
+| `M` oder Ctrl+M | verschiebt die markierten Dateien |
 | `G` | Dateien oder ganze Ordner |
 | `V` oder Enter | zeigt die Datei |
 | `E` | schreibt die Liste in eine Datei (nie über eine vorhandene): Größe, Datum, Markierung und Pfad, eine Leerzeile zwischen den Gruppen |

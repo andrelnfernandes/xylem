@@ -50,9 +50,9 @@ parte de la altura de la pantalla.
 - `W` conserva en la lista los archivos que cumplen una condición SQL; Ctrl+W lo
   hace entre los archivos marcados. `contains('texto')` lee el contenido de los
   archivos y `words('texto')` consulta el índice generado con Alt+N.
-  [Una condición SQL](filespec.md#una-condicion-sql-w)
+  [Una condición SQL](sql.md#una-condición-sql-w)
 - `P` abre una caja de búsqueda que lista los archivos por las palabras escritas.
-  [La caja de búsqueda](filespec.md#la-caja-de-busqueda-p)
+  [La caja de búsqueda](sql.md#la-caja-de-búsqueda-p)
 - Las tablas CSV, TSV, JSON Lines, DBF y SQLite no tienen límite de filas en el
   visor. Las hojas de cálculo mantienen el límite de 50.000 filas.
   [El visor](viewer.md)
@@ -80,7 +80,7 @@ directorio lo leía automáticamente. [La ventana del árbol](tree.md)
 - `docker://container/path` abre un contenedor mediante `docker exec`.
 - Los marcadores pueden tener nombres y un marcador en máquina remota conserva
   la dirección que lo abre. F11 en los prompts de Log, Copy y Move inserta un
-  marcador en la entrada. [Marcadores](bookmarks.md)
+  marcador en el prompt. [Marcadores](bookmarks.md)
 - Las carpetas montadas por rclone y los recursos compartidos de red se leen en
   segundo plano; el árbol se muestra al instante.
   [Almacenamiento en la nube (rclone)](cloud.md)
@@ -124,8 +124,8 @@ abre el editor dentro del marco de Xylem.
 **Novedades.**
 
 - Medidas de seguridad ante archivos hostiles: límites de descompresión,
-  comprobaciones en rutas extraídas, retención de caracteres de control antes de
-  la terminal. [Seguridad](security.md)
+  comprobaciones en rutas extraídas, caracteres de control retenidos antes de
+  llegar a la terminal. [Seguridad](security.md)
 - El visor ajusta líneas (`W`), las numera (`#`), salta a una línea (`g`),
   muestra archivos `.gz`, `.xz`, `.zst` y `.bz2` descomprimidos y reconoce
   CP437, CP850, Windows-1252 y UTF-16.
@@ -149,8 +149,7 @@ abre el editor dentro del marco de Xylem.
 - Google Drive, S3 y otros almacenamientos mediante rclone.
   [Almacenamiento en la nube (rclone)](cloud.md)
 - Temas slate, graphite, daylight y vivid.
-- `[editors]` en `config.toml` selecciona el editor por la extensión del
-  archivo y `E` rechaza archivos binarios que carecen de editor configurado.
+- `[editors]` en `config.toml` selecciona el editor por el nombre del archivo y `E` rechaza archivos binarios que carecen de editor configurado.
 - `xy --man` muestra la página de manual.
 
 ## 0.3.0 y anteriores

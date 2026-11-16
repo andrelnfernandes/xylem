@@ -13,7 +13,7 @@ Pour afficher ce menu, maintenez Alt enfoncé ou appuyez sur F9 deux fois. Voir
 Dans l'ordre du menu. « Arborescence » et « Fichiers » indiquent où la touche
 fonctionne.
 
-| Touche | Command | Arborescence | Fichiers | Action |
+| Touche | Commande | Arborescence | Fichiers | Action |
 |---|---|---|---|---|
 | Alt+B | Bookmarks | oui | oui | Ouvre le gestionnaire de signets : aller à un répertoire enregistré, le nommer, le supprimer. [Signets](bookmarks.md) |
 | Alt+C | Compare | oui | | Compare toute la branche avec celle de l'autre fenêtre, par chemin relatif, et ouvre un Branch avec les fichiers marqués. [Comparer](compare.md) |
@@ -30,7 +30,7 @@ fonctionne.
 | Alt+R | Release | oui | | Libère la branche de la mémoire, comme `-`. Les marques sont perdues. |
 | Alt+S | Sort | oui | oui | Trie la fenêtre de fichiers par nom, extension, date ou taille. [Trier](sort.md) |
 | Alt+U | Usage | oui | oui | Liste les dossiers et fichiers de la branche selon l'espace occupé, les plus volumineux en premier. [Utilisation du disque](usage.md) |
-| Alt+N | iNdex | oui | oui | Indexe les mots des fichiers lus de la branche, pour que `words()` dans une condition SQL réponde instantanément. [L'index](filespec.md#mots-entiers-et-un-index-words) |
+| Alt+N | iNdex | oui | oui | Indexe les mots des fichiers lus de la branche, pour que `words()` dans une condition SQL réponde instantanément. [L'index](sql.md#mots-entiers-et-un-index--words) |
 
 ## Autres touches
 

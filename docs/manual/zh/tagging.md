@@ -33,8 +33,10 @@
 
 ## Ctrl 与 Alt 的含义
 
-- **单独的字母**作用于光标下的项目。
-- **Ctrl+字母**作用于已标记的文件：`Ctrl+C` 复制它们，`Ctrl+D` 删除它们，`Ctrl+T` 全部标记。
-- **Alt+字母**执行其他操作：命令的另一种变体、目录树中的分支命令，或实用工具，如排序、文件显示、书签、帮助、系统信息或终端。
+- 单独的字母作用于光标下的项目。
+- Ctrl+字母作用于已标记的文件：Ctrl+C 复制它们，Ctrl+D 删除它们。
+- Alt+字母是命令的另一种变体：在目录树中作用于整个分支，在文件窗口中作用于已标记的文件并保留其路径。
 
-Ctrl 和 Alt 上的命令列于[菜单、Ctrl 与 Alt](menus.md)以及 [Ctrl 菜单](commands-ctrl.md)和 [Alt 菜单](commands-alt.md)页面中。关于 0.8 版本中的变动，请参阅[版本说明](releases.md)。
+[菜单](menus.md)说明了这条规则，以及如何用 F9 显示 Ctrl 和 Alt 菜单。[Ctrl 菜单](commands-ctrl.md)和 [Alt 菜单](commands-alt.md)列出了全部命令。
+
+**0.8 版本变更。** Alt 不再重复 Ctrl 的功能：Alt+A、Alt+D、Alt+R、Alt+T、Alt+U、Alt+W 和 Alt+Y 有所变动。[版本说明](releases.md)中记录了每个按键的原有含义与新含义，以及用于恢复旧按键的 `config.toml` 配置行。

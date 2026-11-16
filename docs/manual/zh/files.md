@@ -50,6 +50,9 @@ Alt+F 按 ZTreeWin 的顺序循环切换：**多列名称**、**多列名称与�
 | `C` / `M` | [复制 / 移动](copy-move.md) 文件 |
 | `D` 或 Del | [删除](delete.md) 文件（Shift+Del：永久删除） |
 | `R` | [重命名](rename.md) 文件；Ctrl+R 使用掩码批量重命名已标记文件 |
+| `W` / `Ctrl+W` | 按 [SQL 条件](sql.md#sql-条件-w)过滤（列表 / 已标记文件） |
+| `P` / `Ctrl+P` | [搜索框](sql.md#搜索框-p)：键入单词实时查找文件 |
+| `Alt+N` | 为此分支建立[索引](sql.md#完整单词与索引words)，供 W 和搜索框中的 words() 使用 |
 | `A` | [权限](attributes.md) |
 | `N` | [修改日期](attributes.md) |
 | Alt+S | [排序](sort.md) |

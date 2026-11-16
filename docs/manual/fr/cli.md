@@ -4,7 +4,7 @@
 xy [--cwd-file FICHIER] [LIEU]
 ```
 
-## Que charger
+## Quoi ouvrir
 
 | `LIEU` | Ouvre |
 |---|---|

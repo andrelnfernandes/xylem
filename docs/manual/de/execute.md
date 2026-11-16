@@ -114,7 +114,7 @@ Sie sie mit `X`). Eine bereits vorhandene Datei wird nicht überschrieben.
 
 Bei einer im [Betrachter](viewer.md) geöffneten Tabelle oder einem Text schreibt **Ctrl+B** eine Zeile pro Datensatz aus der ganzen Datei: über die 50.000 Zeilen des Bildschirms hinaus, mit vollständigen Werten, genau wie in der Datei. Der aktive Filter gilt (der SQL-Filter bei Tabellen, der [Zeilenfilter](filter.md) bei Text). Eine Tabelle wird dafür neu gelesen; Text kommt so, wie der Betrachter ihn gelesen hat, bis zum Größenlimit, und die Vorschau warnt, wenn das nicht die ganze Datei ist. Es fragt nach der Datei, dann nach der Maske, und zeigt vor dem Schreiben die ersten Zeilen: **Enter** schreibt, **Esc** gibt auf. Während des Schreibens bricht Esc ab und entfernt die unvollständige Datei. Eine vorhandene Datei wird nicht überschrieben.
 
-Während Sie die Maske eingeben, zeigt ein Kasten darüber eine Maske, die mit dieser Datei funktioniert, ihre Felder und Ihre Vorlagen, jede mit dem ersten Satz ihres einleitenden Kommentars (`%%#`). **↑↓** wählen eine Vorlage, **F3** zeigt sie vor der Verwendung vollständig an und **PgUp**/**PgDn** blättern durch den Verlauf. Die Beschreibung stammt vom Autor der Vorlage: Lesen Sie eine fremde Vorlage mit F3, bevor Sie sie verwenden. Bei einem Fehler in der Maske bleibt die Eingabe mit dem Getippten offen und nennt das Problem.
+Während Sie die Maske eingeben, zeigt ein Kasten darüber eine Maske, die mit dieser Datei funktioniert, ihre Felder und Ihre Vorlagen, jede mit dem ersten Satz ihres einleitenden Kommentars (`%%#`). **↑↓** wählen eine Vorlage, **F3** zeigt sie vor der Verwendung vollständig an und **PgUp** öffnet den [Verlauf](#verlauf). Die Beschreibung stammt vom Autor der Vorlage: Lesen Sie eine fremde Vorlage mit F3, bevor Sie sie verwenden. Bei einem Fehler in der Maske bleibt die Eingabe mit dem Getippten offen und nennt das Problem.
 
 | Feld | Wert |
 |---|---|
@@ -202,7 +202,23 @@ In einer `.sh` schreibt `%{$HOME}` den aktuellen Wert, während `$HOME` beim Aus
 
 ## Verlauf
 
-In jeder Eingabezeile rufen ↑ und ↓ frühere Eingaben auf. Jede Art von
-Eingabezeile (Filespec, Ziel, Log, eXecute...) hat ihren eigenen Verlauf,
-gespeichert in `~/.local/state/xylem/history.toml`, nur für Sie lesbar, da er
-eingegebene Befehle enthalten kann.
+In jeder Eingabezeile öffnet **↑** die früheren Eingaben als Liste, direkt über
+der Zeile, mit der letzten ganz unten und dem Cursor darauf:
+
+| Taste in der Liste | Wirkung |
+|---|---|
+| ↑ ↓ PgUp PgDn Home End | auswählen |
+| Enter | setzt die Eingabe in die Zeile, zum Bearbeiten oder Bestätigen mit einem weiteren Enter |
+| Tippen | zeigt nur die Eingaben, die das Getippte enthalten, ohne Rücksicht auf Groß- und Kleinschreibung |
+| Del | entfernt die Eingabe endgültig aus dem Verlauf |
+| Esc | schließt die Liste, die Zeile bleibt, wie sie war |
+
+Was vor ↑ getippt wurde, filtert die Liste ebenfalls; ein Text, den die
+Eingabezeile schon mitbringt (etwa das Verzeichnis des anderen Fensters bei
+Copy), filtert nicht, bis Sie ihn bearbeiten. Solange die Liste offen ist,
+warten die eigenen Tasten der Eingabezeile (F2, F11...), bis sie geschlossen
+wird.
+
+Jede Art von Eingabezeile (Filespec, Log und Ziele, eXecute...) hat ihren
+eigenen Verlauf, gespeichert in `~/.local/state/xylem/history.toml`, nur für Sie
+lesbar, da er eingegebene Befehle enthalten kann.

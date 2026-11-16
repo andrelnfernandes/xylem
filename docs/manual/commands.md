@@ -28,13 +28,13 @@ In the order of the menus. "Tree" and "Files" say where the key works.
 | `N` | New date | yes | yes | Sets the modification date of the file or directory. [Permissions and dates](attributes.md) |
 | `O` | Oops | yes | | Restores what was last sent to the trash. In the file window, Ctrl+Z. [Delete](delete.md) |
 | `O` | Open | | yes | Opens the file in the system's default program. [The file window](files.md) |
-| `P` | Phrase | yes | yes | Opens the search box: lists the logged files that contain the words typed. [The search box](filespec.md#the-search-box-p) |
+| `P` | Phrase | yes | yes | Opens the search box: lists the logged files that contain the words typed. [The search box](sql.md#the-search-box-p) |
 | `R` | Rename | yes | yes | Renames the file or the directory. [Rename](rename.md) |
 | `S` | Showall | yes | yes | Lists every logged file of the window. |
 | `T` | Tag | yes | yes | Files: tags the file and moves down. Tree: tags the files of the directory. [Tags](tagging.md) |
 | `U` | Untag | yes | yes | Files: untags the file and moves down. Tree: untags the files of the directory. |
 | `V` | View | | yes | Opens the file in the viewer: text, hex, or a table. [The viewer](viewer.md) |
-| `W` | Where | yes | yes | Keeps in the list the files that meet a SQL condition. [A SQL condition](filespec.md#a-sql-condition-w) |
+| `W` | Where | yes | yes | Keeps in the list the files that meet a SQL condition. [A SQL condition](sql.md#a-sql-condition-w) |
 | `X` | eXecute | yes | yes | Runs a shell command. `%f` stands for the file and `%t` for the tagged files. [eXecute](execute.md) |
 | `Y` | Yank | yes | yes | Copies the path of the file or directory to the clipboard. |
 | `Q` | Quit | yes | yes | Quits, after asking. [Quitting](quit.md) |

@@ -54,4 +54,4 @@ nennen.
   was die Datei unter dem Cursor umbenennt.
 
 Siehe auch: [Markierungen und Gruppenoperationen](tagging.md),
-[das Strg-Menü](commands-ctrl.md).
+[das Ctrl-Menü](commands-ctrl.md).

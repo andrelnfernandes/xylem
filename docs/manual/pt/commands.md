@@ -11,7 +11,7 @@ arquivo na janela de arquivos.
 
 Na ordem dos menus. "Árvore" e "Arquivos" indicam onde a tecla funciona.
 
-| Tecla | Command | Árvore | Arquivos | O que faz |
+| Tecla | Comando | Árvore | Arquivos | O que faz |
 |---|---|---|---|---|
 | `A` | Available | sim | | Lista os sistemas de arquivos montados com espaço total, usado e livre. [Informações](info.md) |
 | `A` | Attributes | | sim | Altera as permissões do arquivo, em octal. [Permissões e datas](attributes.md) |
@@ -28,13 +28,13 @@ Na ordem dos menus. "Árvore" e "Arquivos" indicam onde a tecla funciona.
 | `N` | New date | sim | sim | Define a data de modificação do arquivo ou diretório. [Permissões e datas](attributes.md) |
 | `O` | Oops | sim | | Restaura o último item enviado para a lixeira. Na janela de arquivos, use Ctrl+Z. [Excluir](delete.md) |
 | `O` | Open | | sim | Abre o arquivo no aplicativo padrão do sistema. [A janela de arquivos](files.md) |
-| `P` | Phrase | sim | sim | Abre a caixa de busca: lista os arquivos lidos que contêm as palavras digitadas. [A caixa de busca](filespec.md#a-caixa-de-busca-p) |
+| `P` | Phrase | sim | sim | Abre a caixa de busca: lista os arquivos lidos que contêm as palavras digitadas. [A caixa de busca](sql.md#a-caixa-de-busca-p) |
 | `R` | Rename | sim | sim | Renomeia o arquivo ou o diretório. [Renomear](rename.md) |
 | `S` | Showall | sim | sim | Lista todos os arquivos lidos da janela. |
 | `T` | Tag | sim | sim | Arquivos: marca o arquivo e desce uma linha. Árvore: marca os arquivos do diretório. [Marcações](tagging.md) |
 | `U` | Untag | sim | sim | Arquivos: desmarca o arquivo e desce uma linha. Árvore: desmarca os arquivos do diretório. |
 | `V` | View | | sim | Abre o arquivo no visualizador: texto, hexadecimal ou tabela. [O visualizador](viewer.md) |
-| `W` | Where | sim | sim | Mantém na lista os arquivos que atendem a uma condição SQL. [Uma condição SQL](filespec.md#uma-condicao-sql-w) |
+| `W` | Where | sim | sim | Mantém na lista os arquivos que atendem a uma condição SQL. [Uma condição SQL](sql.md#uma-condição-sql-w) |
 | `X` | eXecute | sim | sim | Executa um comando do shell. `%f` representa o arquivo e `%t` os arquivos marcados. [eXecute](execute.md) |
 | `Y` | Yank | sim | sim | Copia o caminho do arquivo ou diretório para a área de transferência. |
 | `Q` | Quit | sim | sim | Sai do programa, após confirmação. [Sair](quit.md) |

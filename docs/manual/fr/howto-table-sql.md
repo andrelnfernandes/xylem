@@ -43,7 +43,7 @@ dans une archive s'ouvre en mode texte brut.
 | une colonne n'a pas de nom exploitable | utiliser sa lettre : `C = 'pro'` |
 
 Une cellule ressemblant à un nombre est traitée comme un nombre : écrivez
-`code = 7`, pas `code = '7'`. [Le filtre SQL](viewer.md#le-filtre-sql) détaille
+`code = 7`, pas `code = '7'`. [Le filtre SQL](tables.md#le-filtre-sql) détaille
 les opérateurs.
 
 ## Dans un tableur ou une base de données

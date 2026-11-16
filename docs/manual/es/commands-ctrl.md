@@ -9,14 +9,14 @@ como "todo lo registrado" son las excepciones.
 Si no hay ningún archivo marcado, estos comandos muestran `No tagged files` y
 no realizan ninguna acción.
 
-Para mostrar este menú, mantén pulsado Ctrl o presiona F9. Vea
+Para mostrar este menú, mantén pulsado Ctrl o pulsa F9. Consulta
 [los menús](menus.md).
 
 ## Comandos
 
 En el orden del menú. "Árbol" y "Archivos" indican dónde funciona la tecla.
 
-| Tecla | Command | Árbol | Archivos | Qué hace |
+| Tecla | Comando | Árbol | Archivos | Qué hace |
 |---|---|---|---|---|
 | Ctrl+A | Attributes | sí | sí | Modifica los permisos de los archivos marcados. [Permisos y fechas](attributes.md) |
 | Ctrl+B | Bookmark | sí | | Guarda el directorio bajo el cursor como marcador. No utiliza las marcas. [Marcadores](bookmarks.md) |
@@ -27,14 +27,14 @@ En el orden del menú. "Árbol" y "Archivos" indican dónde funciona la tecla.
 | Ctrl+M | Move | sí | sí | Mueve los archivos marcados a un directorio de destino. En terminales sin el protocolo de teclado de kitty, pulsa `F9` `M`. [Copiar y mover](copy-move.md) |
 | Ctrl+N | New date | | sí | Modifica la fecha de modificación de los archivos marcados. [Permisos y fechas](attributes.md) |
 | Ctrl+O | Open | | sí | Abre cada archivo marcado en la aplicación predeterminada del sistema. [La ventana de archivos](files.md) |
-| Ctrl+P | Phrase | sí | sí | Abre la caja de búsqueda sobre los archivos marcados: lista aquellos que contienen las palabras escritas. [La caja de búsqueda](filespec.md#la-caja-de-busqueda-p) |
+| Ctrl+P | Phrase | sí | sí | Abre la caja de búsqueda sobre los archivos marcados: lista aquellos que contienen las palabras escritas. [La caja de búsqueda](sql.md#la-caja-de-búsqueda-p) |
 | Ctrl+R | Rename | sí | sí | Renombra los archivos marcados con una máscara. [Renombrar](rename.md) |
 | Ctrl+S | Showall | sí | | Lista los archivos marcados de todo lo registrado. [La ventana del árbol](tree.md) |
 | Ctrl+S | Search | | sí | Busca un texto en los archivos marcados y desmarca los que no lo contienen. [Buscar en archivos marcados](search.md) |
 | Ctrl+T | Tag | sí | sí | Archivos: marca toda la lista. Árbol: marca todo lo registrado que coincide con el Filespec. [Marcas y operaciones en grupo](tagging.md) |
 | Ctrl+U | Untag | sí | sí | Archivos: desmarca toda la lista. Árbol: desmarca todo lo registrado que coincide con el Filespec. |
 | Ctrl+V | View | | sí | Abre los archivos marcados en el visor, uno tras otro; `N` y `P` cambian de archivo. [Buscar en archivos marcados](search.md) |
-| Ctrl+W | Where | sí | sí | Mantiene en la lista los archivos marcados que cumplen una condición SQL. [Una condición SQL](filespec.md#una-condicion-sql-w) |
+| Ctrl+W | Where | sí | sí | Mantiene en la lista los archivos marcados que cumplen una condición SQL. [Una condición SQL](sql.md#una-condición-sql-w) |
 | Ctrl+Y | Yank | sí | sí | Copia las rutas de los archivos marcados al portapapeles. |
 
 ## Teclas de función

@@ -12,7 +12,7 @@ y mueve un archivo en la ventana de archivos.
 
 En el orden de los menús. "Árbol" y "Archivos" indican dónde funciona la tecla.
 
-| Tecla | Command | Árbol | Archivos | Qué hace |
+| Tecla | Comando | Árbol | Archivos | Qué hace |
 |---|---|---|---|---|
 | `A` | Available | sí | | Lista los sistemas de archivos montados con espacio total, usado y libre. [Información](info.md) |
 | `A` | Attributes | | sí | Modifica los permisos del archivo, en octal. [Permisos y fechas](attributes.md) |
@@ -29,13 +29,13 @@ En el orden de los menús. "Árbol" y "Archivos" indican dónde funciona la tecl
 | `N` | New date | sí | sí | Modifica la fecha de modificación del archivo o directorio. [Permisos y fechas](attributes.md) |
 | `O` | Oops | sí | | Restaura el último elemento enviado a la papelera. En la ventana de archivos, Ctrl+Z. [Eliminar](delete.md) |
 | `O` | Open | | sí | Abre el archivo en la aplicación predeterminada del sistema. [La ventana de archivos](files.md) |
-| `P` | Phrase | sí | sí | Abre la caja de búsqueda: lista los archivos registrados que contienen las palabras escritas. [La caja de búsqueda](filespec.md#la-caja-de-busqueda-p) |
+| `P` | Phrase | sí | sí | Abre la caja de búsqueda: lista los archivos registrados que contienen las palabras escritas. [La caja de búsqueda](sql.md#la-caja-de-búsqueda-p) |
 | `R` | Rename | sí | sí | Renombra el archivo o directorio. [Renombrar](rename.md) |
 | `S` | Showall | sí | sí | Lista todos los archivos registrados de la ventana. |
 | `T` | Tag | sí | sí | Archivos: marca el archivo y baja una línea. Árbol: marca los archivos del directorio. [Marcas y operaciones en grupo](tagging.md) |
 | `U` | Untag | sí | sí | Archivos: desmarca el archivo y baja una línea. Árbol: desmarca los archivos del directorio. |
 | `V` | View | | sí | Abre el archivo en el visor: texto, hexadecimal o tabla. [El visor](viewer.md) |
-| `W` | Where | sí | sí | Mantiene en la lista los archivos que cumplen una condición SQL. [Una condición SQL](filespec.md#una-condicion-sql-w) |
+| `W` | Where | sí | sí | Mantiene en la lista los archivos que cumplen una condición SQL. [Una condición SQL](sql.md#una-condición-sql-w) |
 | `X` | eXecute | sí | sí | Ejecuta un comando del shell. `%f` representa el archivo y `%t` los archivos marcados. [eJecutar](execute.md) |
 | `Y` | Yank | sí | sí | Copia la ruta del archivo o directorio al portapapeles. |
 | `Q` | Quit | sí | sí | Sale del programa, tras pedir confirmación. [Salir y cambiar el directorio de la shell](quit.md) |
@@ -65,7 +65,7 @@ allí no aparecen listados.
 | Archivo comprimido | Delete, Edit, Log, Makedir, Move, New date, Oops, Rename, Attributes, eXecute. Copy extrae archivos. |
 | Máquina remota | Edit, Oops, eXecute. No hay papelera en máquinas remotas. |
 
-Vea [archivos comprimidos](archives.md) y [máquinas remotas](remote.md).
+Consulta [archivos comprimidos](archives.md) y [máquinas remotas](remote.md).
 
 Véase también: [el menú Ctrl](commands-ctrl.md), [el menú Alt](commands-alt.md),
 [los menús](menus.md).

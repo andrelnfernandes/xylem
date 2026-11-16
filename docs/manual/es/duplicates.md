@@ -7,7 +7,7 @@ las copias. **D** en la vista de Uso busca en la carpeta listada allí.
 paso a paso.
 
 **Cambió en la versión 0.8.** Duplicados era Alt+Y, y Alt+D eliminaba los
-archivos marcados, acción que ahora solo realiza Ctrl+D. Vea las
+archivos marcados, acción que ahora solo realiza Ctrl+D. Consulta las
 [notas de versión](releases.md).
 
 ```
@@ -33,7 +33,7 @@ copia de cada grupo siempre queda: Xylem no deja marcar la última.
 | `A` | en cada grupo, marca todas menos una; `A` otra vez cambia cuál queda: la más antigua, la más nueva, la ruta más corta |
 | `F` | en cada grupo con una copia en la carpeta de esta copia, conserva esa |
 | `U` | desmarca todo |
-| `D`, Supr o Ctrl+D | borra las marcadas, como el comando Delete (a la papelera si `delete_to_trash` está activo) |
+| `D`, Del o Ctrl+D | borra las marcadas, como el comando Delete (a la papelera si `delete_to_trash` está activo) |
 | `M` o Ctrl+M | mueve los archivos marcados |
 | `G` | archivos o carpetas enteras |
 | `V` o Enter | muestra el archivo |

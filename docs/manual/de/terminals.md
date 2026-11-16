@@ -26,7 +26,7 @@ unterschiedlich und Ctrl+M verschiebt die markierten Dateien direkt.
 ## Das Kitty-Tastaturprotokoll
 
 Mit diesem Protokoll meldet das Terminal das Drücken und Loslassen von Ctrl und
-Alt separat. Xylem aktiviert es automatisch, wenn das Terminal Unterstützung
+Alt für sich allein. Xylem aktiviert es automatisch, wenn das Terminal Unterstützung
 signalisiert.
 
 | Mit dem Protokoll | Ohne das Protokoll |

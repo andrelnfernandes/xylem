@@ -29,14 +29,14 @@ Xylem 仅在您明确要求时才将目录读取到内存中，并将其保存�
 - 屏幕内置终端 (Alt+X)。目录树自动跟随 shell 的 `cd`，按 Alt+O 可将已标记的文件路径直接输入到命令行中。参见[内置终端](terminal.md)。
 - 通过 SSH 访问其他机器，以及通过 `docker exec` 访问容器，并将其作为目录树浏览。支持复制、移动、重命名、删除、修改属性和新日期。不支持编辑和批处理。参见[远程主机](remote.md)。
 - Google Drive、S3 以及 rclone 支持的其他存储。参见[云存储](cloud.md)。
-- 在文件列表上执行 SQL 过滤条件 (`W`)：`ext = 'jpg' AND size > 10000000` 仅保留满足条件的文件。参见 [Filespec](filespec.md#sql-条件-w)。
+- 在文件列表上执行 SQL 过滤条件 (`W`)：`ext = 'jpg' AND size > 10000000` 仅保留满足条件的文件。参见 [Filespec](sql.md#sql-条件-w)。
 - 针对文件内容运行 SQL：查看器将电子表格、CSV、JSON Lines、DBF、SQLite 和 Parquet 作为表格展示，并支持用 `WHERE` 条件筛选。参见[查看器](viewer.md)。
 - 重复文件查找 (Alt+D)：在分支中查找内容完全相同的文件和文件夹。在 rclone 挂载的文件夹上，它会比对服务已有的哈希值，无需下载文件。参见[重复文件](duplicates.md)。
 - 磁盘用量 (Alt+U)：分支中的文件夹和文件按占用空间从大到小排序。参见[磁盘用量](usage.md)。
 - Git 菜单 (Ctrl+G)，默认关闭。参见 [Git](git.md)。
 
-[与 ZTreeWin 的比较](ztreewin.md)列出了 Xylem 尚未实现的 ZTreeWin 命令，以及有所不同的按键。
+[与 ZTreeWin 的比较](ztreewin.md)列出了 Xylem 没有的 ZTreeWin 命令，以及有所不同的按键。
 
 ## 不可信的文件
 
-Xylem 在读取任何外部文件时都假定其可能带有攻击性。查看文件绝不会执行其中的代码，解压归档文件绝不会写入目标目录之外，每个读取器都有严格的大小上限。[安全](security.md)列出了各项限制以及未涵盖的范围。
+Xylem 在读取任何外部文件时都假定其可能带有攻击性。查看文件绝不会执行其中的代码，解压归档文件绝不会写入目标目录之外，每个读取器读到大小上限即停止。[安全](security.md)列出了各项限制以及未涵盖的范围。

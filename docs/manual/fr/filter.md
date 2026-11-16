@@ -12,9 +12,9 @@ sauts montrent le filtre à l'œuvre. L'en-tête donne le résultat :
 | **F2** | respecter la casse ou l'ignorer |
 | **F3** | inverser : garder les lignes qui ne correspondent pas |
 | **F4** | texte simple ou expression régulière |
-| ↑ ↓ | filtres précédents |
-| Entrée | appliquer |
-| Échap | annuler |
+| ↑ | filtres précédents, dans une [liste](execute.md#historique) |
+| Enter | appliquer |
+| Esc | annuler |
 
 ## Expressions régulières
 
@@ -61,13 +61,13 @@ fichier ni expression ne peut bloquer la visionneuse avec un motif comme
 
 ## Texte simple
 
-Les mêmes règles que la recherche : en ignorant la casse, les accents ne comptent
-pas non plus (`AÇÃO` trouve `ação`), et un `*` au milieu correspond à n'importe
+Les mêmes règles que la recherche : en ignorant la casse, cela vaut aussi pour
+les lettres accentuées (`AÇÃO` trouve `ação`), et un `*` au milieu correspond à n'importe
 quoi sur la même ligne (`erreur*disque`).
 
 ## Avec un filtre actif
 
-Appuyez de nouveau sur `&` pour changer le filtre. **Entrée avec une invite vide
+Appuyez de nouveau sur `&` pour changer le filtre. **Enter avec une invite vide
 le désactive**, et la ligne en haut de l'écran y reste. Un filtre qui ne trouve
 rien ou qui n'est pas valide ne change rien, et le pied de page dit pourquoi.
 

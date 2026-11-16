@@ -1,7 +1,7 @@
 # Copiar y mover
 
 `C` copia y `M` mueve el archivo bajo el cursor; Ctrl+C y Ctrl+M los archivos
-marcados; Alt+C y Alt+M los archivos marcados recreando sus rutas. La entrada
+marcados; Alt+C y Alt+M los archivos marcados recreando sus rutas. El prompt
 pide el destino.
 
 ## El destino
@@ -9,15 +9,15 @@ pide el destino.
 Un directorio (relativo al directorio bajo el cursor del árbol, absoluto o con
 `~`) o, para un solo archivo, un nombre nuevo. Con la pantalla
 [dividida](split.md), se sugiere el directorio de la otra ventana. **F2** abre
-un árbol para [elegir la carpeta](picker.md); **↑** recupera destinos
-anteriores.
+un árbol para [elegir la carpeta](picker.md); **↑** abre los destinos
+anteriores como una [lista](execute.md#historial).
 
 Sin la pantalla dividida, el prompt se abre vacío, como en [Log](treespec.md), y
-**↑** recorre los mismos lugares: las carpetas a las que se copió o movió y las
-registradas con Log, del último al más antiguo. Enter con el prompt vacío no hace
+la lista de **↑** tiene los mismos lugares: las carpetas a las que se copió o
+movió y las registradas con Log, con el último abajo. Enter con el prompt vacío no hace
 nada.
 
-**F11** trae un [marcador](bookmarks.md) a la entrada.
+**F11** trae un [marcador](bookmarks.md) al prompt.
 
 Una carpeta de destino que aún no exista se crea después de confirmar.
 
@@ -36,14 +36,14 @@ depende del modo. Para `/home/me/proj/src/ops/mod.rs`, listado desde `src/ops`
 | Current | `dest/ops/mod.rs` | desde la raíz de la lista, incluido su nombre |
 | Relative | `dest/mod.rs` | solo lo que está por debajo de la raíz de la lista |
 
-En la entrada, **F6** alterna entre con y sin rutas y **F7** recorre los modos;
-ambos se muestran en la propia entrada. El modo inicial es `copy_paths` (página
+En el prompt, **F6** alterna entre con y sin rutas y **F7** recorre los modos;
+ambos se muestran en el propio prompt. El modo inicial es `copy_paths` (página
 4 de la [configuración](configuration.md)). Dentro de un archivo comprimido, las
 rutas empiezan como máximo en la raíz del archivo comprimido.
 
 ## Cuando el archivo ya existe
 
-Xylem pregunta **Sí** / **No** / **Todos** / **Omitir todos**, mostrando el
+Xylem pregunta **Yes** / **No** / **All** / **Skip all**, mostrando el
 tamaño y la fecha del archivo nuevo y del existente, y si el existente es más
 reciente o más antiguo, más grande o más pequeño. `Esc` cancela toda la
 operación.

@@ -71,6 +71,9 @@ tmux (OSC 52) y conserva el portapapeles tras salir de Xylem, en X11 y Wayland.
 | `C` / `M` | [copiar / mover](copy-move.md) el archivo |
 | `D` o Del | [eliminarlo](delete.md) (Shift+Del: permanentemente) |
 | `R` | [renombrarlo](rename.md); Ctrl+R renombra los archivos marcados con una máscara |
+| `W` / `Ctrl+W` | filtrar por [condición SQL](sql.md#una-condición-sql-w) (lista / marcados) |
+| `P` / `Ctrl+P` | [caja de búsqueda](sql.md#la-caja-de-búsqueda-p): buscar archivos por palabras mientras escribes |
+| `Alt+N` | [indexar](sql.md#palabras-enteras-y-un-índice-words) esta rama, para words() en W y en la caja de búsqueda |
 | `A` | [permisos](attributes.md) |
 | `N` | [cambiar la fecha](attributes.md) |
 | Alt+S | [ordenar](sort.md) |

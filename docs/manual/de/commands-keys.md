@@ -54,4 +54,4 @@ gültigen Tasten samt dieser Änderungen auf. Siehe
 [Konfiguration](configuration.md).
 
 Siehe auch: [die Menüs DIR und FILE](commands.md),
-[das Strg-Menü](commands-ctrl.md), [das Alt-Menü](commands-alt.md).
+[das Ctrl-Menü](commands-ctrl.md), [das Alt-Menü](commands-alt.md).

@@ -1,8 +1,7 @@
 # Windows
 
 Xylem lässt sich auch für Windows kompilieren (Windows Terminal oder klassische
-Konsole). Es besteht dort die automatisierten Tests, wird aber im Alltag noch
-wenig genutzt – rechnen Sie also noch mit kleineren Ecken und Kanten. Was sich
+Konsole). Es besteht dort die automatisierten Tests, wurde aber im Alltag noch nicht genutzt – rechnen Sie also noch mit kleineren Ecken und Kanten. Was sich
 gegenüber Linux ändert:
 
 - **Berechtigungen / Attribute** (`A`) bearbeitet R, H, S und A wie in

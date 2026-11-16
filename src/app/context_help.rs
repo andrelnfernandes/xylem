@@ -24,7 +24,7 @@ impl App {
                 ConfirmKind::Kbyte(_) => "info",
                 ConfirmKind::OpenHidden { .. } => "files",
                 ConfirmKind::KeepListing => "cloud",
-                ConfirmKind::ReadContents | ConfirmKind::IndexBranch { .. } => "filespec",
+                ConfirmKind::ReadContents | ConfirmKind::IndexBranch { .. } => "sql",
                 ConfirmKind::DeleteFolders { .. } | ConfirmKind::ReadThroughNetwork(_) => {
                     "duplicates"
                 }
@@ -58,7 +58,8 @@ impl App {
         if let Some(prompt) = &self.prompt {
             return match prompt.kind {
                 PromptKind::Transfer { .. } => "copy-move",
-                PromptKind::Filespec | PromptKind::Where { .. } => "filespec",
+                PromptKind::Filespec => "filespec",
+                PromptKind::Where { .. } => "sql",
                 PromptKind::ExportDuplicates => "duplicates",
                 PromptKind::Log | PromptKind::Treespec { .. } => "treespec",
                 PromptKind::Execute | PromptKind::BatchFile | PromptKind::BatchMask { .. } => {
@@ -70,9 +71,8 @@ impl App {
                 PromptKind::Chmod(_) | PromptKind::NewDate(_) => "attributes",
                 PromptKind::Prune { .. } => "delete",
                 PromptKind::SearchTagged { .. } => "search",
-                PromptKind::ViewerSearch { .. }
-                | PromptKind::ViewerGoto
-                | PromptKind::ViewerSqlFilter => "viewer",
+                PromptKind::ViewerSearch { .. } | PromptKind::ViewerGoto => "viewer",
+                PromptKind::ViewerSqlFilter => "tables",
                 PromptKind::ViewerLineFilter { .. } => "filter",
                 PromptKind::ViewerBatchFile | PromptKind::ViewerBatchMask { .. } => "execute",
                 PromptKind::CreateArchive(_) => "archives",
@@ -83,12 +83,17 @@ impl App {
                 PromptKind::Askpass { .. } => "remote",
             };
         }
-        if self.viewer.is_some() {
+        if let Some(viewer) = &self.viewer {
             return if self.tagged_view.is_some() {
                 "search"
+            } else if viewer.mode == crate::viewer::ViewMode::Table {
+                "tables"
             } else {
                 "viewer"
             };
+        }
+        if self.search_box.is_some() {
+            return "sql";
         }
         // A menu chosen with F9: its own page. Not while Ctrl or Alt is held,
         // since Alt+H is itself the help key.

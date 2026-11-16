@@ -50,7 +50,7 @@ tras F9, únicamente la siguiente letra admite Ctrl o Alt.
 
 `[keys.any]`, `[keys.tree]` y `[keys.files]` en `config.toml` asignan una tecla
 a otro comando, o a `none`. **K** en la ayuda lista las teclas vigentes con
-dichos cambios. Vea [configuración](configuration.md).
+dichos cambios. Consulta [configuración](configuration.md).
 
 Véase también: [los menús DIR y FILE](commands.md),
 [el menú Ctrl](commands-ctrl.md), [el menú Alt](commands-alt.md).

@@ -12,7 +12,7 @@ muestra como `r-sa`. Véase [Windows](windows.md).
 ## Nueva fecha (N)
 
 `N` cambia la fecha de modificación del archivo o directorio (Ctrl+N: de los
-archivos marcados). La entrada aparece rellena con la fecha actual en tu
+archivos marcados). El prompt aparece relleno con la fecha actual en tu
 formato; también acepta `now` y `today`. Si solo se indica la fecha (sin
 `HH:MM`), cada archivo conserva su propia hora del día. Los enlaces simbólicos
 se omiten (cambiar la fecha cambiaría la del archivo al que apuntan).

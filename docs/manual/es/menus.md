@@ -8,7 +8,7 @@ Existen cuatro menús. El título a la izquierda indica cuál de ellos se muestr
 | DIR | el árbol tiene el foco | el directorio bajo el cursor |
 | FILE | la ventana de archivos tiene el foco | el archivo bajo el cursor |
 | CTRL | se mantiene pulsado Ctrl, o tras pulsar F9 | los archivos marcados |
-| ALT | se mantiene pulsado Alt, o tras pulsar F9 dos veces | consulte [el menú Alt](#alt-la-otra-version-de-un-comando) |
+| ALT | se mantiene pulsado Alt, o tras pulsar F9 dos veces | consulta [el menú Alt](#alt-la-otra-versión-de-un-comando) |
 
 Dentro de un archivo comprimido el título es ARCHIVE, y en una máquina remota
 es REMOTE. Ambos omiten los comandos que no funcionan en ese contexto.
@@ -80,7 +80,7 @@ soportan, de modo que en ellas los menús solo se alternan mediante F9.
 La mayoría de las terminales envían el mismo byte para Ctrl+M y Enter, por lo
 que Xylem no puede distinguirlos. En terminales compatibles con el protocolo de
 teclado de kitty, las dos teclas son distintas y Ctrl+M mueve los archivos
-marcados. En las demás, pulse `F9` `M`.
+marcados. En las demás, pulsa `F9` `M`.
 
 ## Cambios en la versión 0.8
 

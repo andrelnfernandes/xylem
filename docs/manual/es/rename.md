@@ -17,7 +17,7 @@ la lista:
   numeran los archivos (1, 01, 001...): `photo_<001>.*` produce
   `photo_001.jpg`, `photo_002.jpg`...
 - **Mayúsculas y minúsculas:** `<lower>`, `<upper>`, `<title>` (también en la
-  parte del nombre o de la extensión: `*.<lower>`), o **F2** en la entrada para
+  parte del nombre o de la extensión: `*.<lower>`), o **F2** en el prompt para
   alternar minúsculas, MAYÚSCULAS y Tipo Título sobre el resultado.
 
 Si la máscara diera el mismo nombre a dos archivos, no se renombra nada. Cuando

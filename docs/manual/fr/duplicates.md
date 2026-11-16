@@ -34,14 +34,14 @@ marquer la dernière.
 | `A` | dans chaque groupe, marque toutes sauf une ; `A` à nouveau change celle qui reste : la plus ancienne, la plus récente, le chemin le plus court |
 | `F` | dans chaque groupe ayant une copie dans le dossier de celle-ci, garde celle-là |
 | `U` | démarque tout |
-| `D`, Suppr ou Ctrl+D | supprime les copies marquées, comme la commande Delete (vers la corbeille si `delete_to_trash` est activé) |
+| `D`, Del ou Ctrl+D | supprime les copies marquées, comme la commande Delete (vers la corbeille si `delete_to_trash` est activé) |
 | `M` ou Ctrl+M | déplace les fichiers marqués |
 | `G` | fichiers ou dossiers entiers |
-| `V` ou Entrée | affiche le fichier |
+| `V` ou Enter | affiche le fichier |
 | `E` | écrit la liste dans un fichier (jamais par-dessus un fichier existant) : taille, date, marque et chemin, une ligne vide entre les groupes |
 | `\` | ferme la vue, avec l'arbre sur ce dossier |
 | F3 | relit les dossiers et compare à nouveau |
-| Échap ou Alt+D | ferme |
+| Esc ou Alt+D | ferme |
 
 Avant de supprimer ou de déplacer, chaque groupe est revérifié : si une copie a
 changé depuis l'analyse, ou si celle qui devait rester a disparu, rien de ce
@@ -65,7 +65,7 @@ Les tailles viennent de la mémoire. Seuls les fichiers dont la taille est parta
 sont lus : d'abord les deux bouts, puis le milieu, par parties, et un groupe est
 scindé dès que ses fichiers diffèrent, si bien que des fichiers différents ne sont
 pas lus jusqu'au bout. La comparaison se fait par SHA-256. Cela se passe en
-arrière-plan : le pied de page montre la progression et Échap annule.
+arrière-plan : le pied de page montre la progression et Esc annule.
 
 Restent hors de la liste :
 

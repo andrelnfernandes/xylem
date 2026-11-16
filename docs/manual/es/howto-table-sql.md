@@ -43,7 +43,7 @@ dentro de un archivo comprimido se abre como texto.
 | una columna no tenga nombre utilizable | usa su letra: `C = 'pro'` |
 
 Una celda con apariencia numérica se trata como número: escribe `code = 7`, no
-`code = '7'`. [El filtro SQL](viewer.md#el-filtro-sql) describe los operadores.
+`code = '7'`. [El filtro SQL](tables.md#el-filtro-sql) describe los operadores.
 
 ## En una hoja de cálculo o una base de datos
 

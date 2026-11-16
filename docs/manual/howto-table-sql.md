@@ -41,7 +41,7 @@ archive opens as text.
 | a column has no usable name | use its letter: `C = 'pro'` |
 
 A cell that looks like a number is a number: write `code = 7`, not
-`code = '7'`. [The SQL filter](viewer.md#the-sql-filter) has the operators.
+`code = '7'`. [The SQL filter](tables.md#the-sql-filter) has the operators.
 
 ## In a spreadsheet or a database
 

@@ -77,6 +77,8 @@ revisadas por hablantes nativos. Correcciones:
 - [La terminal integrada](terminal.md)
 - [Máquinas remotas (SSH)](remote.md): otra máquina o un contenedor como árbol
 - [Almacenamiento en la nube (rclone)](cloud.md): Google Drive, S3 y otros
+- [Encontrar archivos con SQL](sql.md): una condición sobre los archivos y su contenido (W), y las palabras que contienen (P)
+- [Tablas](tables.md): hojas de cálculo, CSV, dBase, SQLite y Parquet como cuadrícula, con filtro SQL y cada registro como ficha
 - [Marcadores](bookmarks.md)
 
 ## Cómo hacer

@@ -55,7 +55,7 @@ configuración indique otro.
 - **Faltan archivos en la lista.** Un Filespec definido antes sigue activo. Se
   indica en el título de la ventana de archivos; pulsa `F`, `*`, Enter para
   limpiarlo.
-- **Las carpetas en el destino empiezan en `/home`.** El modo era `Full`. Vea
+- **Las carpetas en el destino empiezan en `/home`.** El modo era `Full`. Consulta
   el paso 6.
 
 Ctrl+U desmarca la lista y `B` regresa a los archivos exclusivos del directorio.

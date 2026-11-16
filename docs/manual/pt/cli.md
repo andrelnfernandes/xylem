@@ -1,7 +1,7 @@
 # A linha de comando
 
 ```
-xy [--cwd-file FILE] [ONDE]
+xy [--cwd-file ARQUIVO] [ONDE]
 ```
 
 ## O que abrir
@@ -21,7 +21,7 @@ Os mesmos endereços funcionam no comando `L` (Log) dentro do Xylem. Veja
 
 | Opção | O que faz |
 |---|---|
-| `--cwd-file FILE` | Ao pressionar Alt+Q, grava o diretório atual em `FILE`. Uma função do shell o lê e muda de diretório. [Sair e mudar o diretório do shell](quit.md) traz a função. |
+| `--cwd-file ARQUIVO` | Ao pressionar Alt+Q, grava o diretório atual em `ARQUIVO`. Uma função do shell o lê e muda de diretório. [Sair e mudar o diretório do shell](quit.md) traz a função. |
 | `--default-config` | Exibe um arquivo de configuração com todas as opções, seus valores padrão e comentários. |
 | `--man` | Exibe a página de manual. Se a saída for redirecionada, grava seu código-fonte troff. |
 | `-h`, `--help` | Exibe as opções da linha de comando e o caminho do arquivo de configuração. |

@@ -43,7 +43,7 @@ entfernten Rechner oder in einem Archiv öffnet sich als normaler Text.
 | eine Spalte keinen nutzbaren Namen hat | Spaltenbuchstaben nutzen: `C = 'pro'` |
 
 Eine Zelle, die wie eine Zahl aussieht, wird als Zahl behandelt: schreiben Sie
-`code = 7`, nicht `code = '7'`. [Der SQL-Filter](viewer.md#der-sql-filter)
+`code = 7`, nicht `code = '7'`. [Der SQL-Filter](tables.md#der-sql-filter)
 beschreibt alle Operatoren.
 
 ## In einer Tabellenkalkulation oder Datenbank

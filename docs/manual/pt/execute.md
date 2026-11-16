@@ -109,7 +109,7 @@ não é sobrescrito.
 
 Com uma tabela ou um texto aberto no [visualizador](viewer.md), **Ctrl+B** escreve uma linha por registro, a partir do arquivo inteiro: além das 50.000 linhas da tela, com os valores inteiros e exatamente como estão no arquivo. Ele respeita o filtro em uso (o filtro SQL na tabela, o [filtro de linhas](filter.md) no texto). A tabela é relida na hora; o texto sai como o visualizador leu, até o limite de tamanho, e a prévia avisa quando isso não é o arquivo inteiro. Ele pede o arquivo, depois a máscara, e mostra as primeiras linhas antes de gravar: **Enter** grava, **Esc** desiste. Durante a gravação, Esc cancela e remove o arquivo incompleto. Um arquivo existente não é sobrescrito.
 
-Enquanto você digita a máscara, um quadro acima dela mostra uma máscara que funciona neste arquivo, os campos dele e os templates que você tem, cada um com a primeira frase do comentário inicial (`%%#`). **↑↓** escolhem um template, **F3** o mostra inteiro antes de usar e **PgUp**/**PgDn** percorrem o histórico. A descrição foi escrita por quem fez o template: leia com F3 um template de outra pessoa antes de usá-lo. Um erro na máscara mantém o prompt aberto com o que você digitou e diz o que está errado.
+Enquanto você digita a máscara, um quadro acima dela mostra uma máscara que funciona neste arquivo, os campos dele e os templates que você tem, cada um com a primeira frase do comentário inicial (`%%#`). **↑↓** escolhem um template, **F3** o mostra inteiro antes de usar e **PgUp** abre o [histórico](#histórico). A descrição foi escrita por quem fez o template: leia com F3 um template de outra pessoa antes de usá-lo. Um erro na máscara mantém o prompt aberto com o que você digitou e diz o que está errado.
 
 | Campo | Valor |
 |---|---|
@@ -197,7 +197,22 @@ Em um `.sh`, `%{$HOME}` grava o valor de agora, enquanto `$HOME` é lido quando 
 
 ## Histórico
 
-Em todos os prompts, ↑ e ↓ trazem entradas anteriores. Cada tipo de prompt
-(Filespec, destino, Log, eXecute...) tem seu próprio histórico, salvo em
-`~/.local/state/xylem/history.toml`, legível apenas por você, já que pode
-conter comandos digitados.
+Em todos os prompts, **↑** abre as entradas anteriores em uma lista, logo acima
+da linha, com a última embaixo e o cursor nela:
+
+| Tecla na lista | O que faz |
+|---|---|
+| ↑ ↓ PgUp PgDn Home End | escolhem |
+| Enter | põe a entrada na linha, para editar ou confirmar com outro Enter |
+| digitar | mostra só as entradas que têm o que foi digitado, sem diferenciar maiúsculas de minúsculas |
+| Del | tira a entrada do histórico, de vez |
+| Esc | fecha a lista, com a linha como estava |
+
+O que foi digitado antes do ↑ também filtra a lista; um texto que o prompt já
+traz pronto (o diretório da outra janela no Copy, por exemplo) não filtra, até
+você editá-lo. Enquanto a lista está aberta, as teclas do próprio prompt (F2,
+F11...) esperam ela fechar.
+
+Cada tipo de prompt (Filespec, Log e destinos, eXecute...) tem seu próprio
+histórico, salvo em `~/.local/state/xylem/history.toml`, legível apenas por
+você, já que pode conter comandos digitados.

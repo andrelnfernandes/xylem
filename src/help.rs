@@ -182,12 +182,14 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("rename", include_str!("../docs/manual/rename.md")),
     ("attributes", include_str!("../docs/manual/attributes.md")),
     ("filespec", include_str!("../docs/manual/filespec.md")),
+    ("sql", include_str!("../docs/manual/sql.md")),
     ("treespec", include_str!("../docs/manual/treespec.md")),
     ("compare", include_str!("../docs/manual/compare.md")),
     ("sort", include_str!("../docs/manual/sort.md")),
     ("execute", include_str!("../docs/manual/execute.md")),
     ("archives", include_str!("../docs/manual/archives.md")),
     ("viewer", include_str!("../docs/manual/viewer.md")),
+    ("tables", include_str!("../docs/manual/tables.md")),
     ("filter", include_str!("../docs/manual/filter.md")),
     ("search", include_str!("../docs/manual/search.md")),
     ("info", include_str!("../docs/manual/info.md")),
@@ -483,7 +485,8 @@ fn inline(text: &str, base: Kind, links: &mut Vec<String>) -> Vec<Span> {
             let label = &rest[1..close];
             let target = &rest[close + 2..close + end];
             i += rest[..close + end + 1].chars().count();
-            let kind = match target.strip_suffix(".md") {
+            let file_target = target.split('#').next().unwrap_or(target);
+            let kind = match file_target.strip_suffix(".md") {
                 Some(name) if !target.contains("://") => {
                     links.push(name.to_string());
                     Kind::Link(links.len() - 1)

@@ -10,8 +10,11 @@ ce que vous avez saisi (insensible à la casse) :
 - Tab et Shift+Tab complètent et passent au répertoire suivant ou précédent au
   même niveau ;
 - Backspace remonte d'un niveau ;
+- Ctrl+← retire le dernier dossier du chemin (`~/projects/xylem/docs/` devient
+  `~/projects/xylem/`, avec le curseur sur `xylem`), et Ctrl+→ rend, un à un,
+  les dossiers retirés ; taper autre chose commence un nouveau chemin ;
 - Enter valide et Esc revient là où vous étiez ;
-- ↑ rappelle les chemins précédents (conservés entre les sessions).
+- ↑ ouvre les chemins précédents dans une [liste](execute.md#historique) (conservés entre les sessions).
 
 Un chemin extérieur à l'arborescence devient un Log une fois validé. Dans Branch
 et Showall, `\` va directement au répertoire du fichier sélectionné, en le
@@ -24,7 +27,7 @@ répertoire déjà présent dans l'arborescence courante y déplace simplement l
 curseur). Une adresse de la forme `user@host:` ouvre une [machine
 distante](remote.md). Le chemin peut être absolu, relatif au répertoire courant
 ou commencer par `~` ; **F2** [le choisit dans une arborescence](picker.md) et ↑
-rappelle les précédents. Les nouvelles fenêtres conservent l'[ordre de
+liste les précédents. Les nouvelles fenêtres conservent l'[ordre de
 tri](sort.md) et le mode d'affichage courants.
 
 **Alt+L** fait du répertoire sous le curseur la racine de l'arborescence,
@@ -35,9 +38,10 @@ Showall, celui du fichier sélectionné). La fenêtre est rouverte à cet endroi
 ce qui avait été lu et les marques sont perdus ; `L ..` rouvre le répertoire du
 dessus. Indisponible dans les archives et sur les machines distantes.
 
-L'invite s'ouvre vide. ↑ parcourt les lieux utilisés auparavant, du dernier au
-plus ancien : ceux ouverts avec Log et les dossiers où des fichiers ont été
-copiés ou déplacés.
+L'invite s'ouvre vide. ↑ ouvre une [liste](execute.md#historique) des lieux
+utilisés auparavant, le dernier en bas : ceux ouverts avec Log et les dossiers
+où des fichiers ont été copiés ou déplacés. Taper la filtre, Enter met un lieu
+dans la ligne et Del le retire de la liste.
 
 **F11** insère un [signet](bookmarks.md) dans l'invite, par son nom, plutôt que
 de saisir l'adresse d'une machine distante ou d'un conteneur.

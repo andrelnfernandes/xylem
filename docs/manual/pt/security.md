@@ -3,7 +3,7 @@
 O Xylem trata como hostil todo arquivo que não criou: arquivos baixados,
 arquivos compactados abertos, nomes enviados por um servidor remoto,
 repositórios clonados. O conteúdo ou o nome de um arquivo nunca deve fazer o
-Xylem travar, congelar, executar código, gravar fora do destino ou esgotar a
+Xylem quebrar, travar, executar código, gravar fora do destino ou esgotar a
 memória. Se isso ocorrer, trata-se de uma falha a ser relatada.
 
 ## O que o Xylem faz
