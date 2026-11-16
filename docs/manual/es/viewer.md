@@ -133,6 +133,7 @@ El separador del CSV (coma, punto y coma, tabulación o barra vertical) se detec
 | `m` o Insert | marca o desmarca el registro bajo el cursor y pasa al siguiente; **Ctrl+B** escribe entonces solo los marcados |
 | `M` | borra las marcas |
 | `i` | la estructura de la tabla: lo que el archivo dice de cada columna (ver abajo) |
+| Enter | el registro bajo el cursor como una ficha, un campo por línea: ↑ ↓ eligen el campo, ← → van al registro anterior o siguiente, `c` copia el registro entero (`NOMBRE : valor`, una línea por campo) e `y` el valor del campo, para pegarlo en un editor o un terminal; Esc vuelve. Lo copiado es lo que muestra la pantalla: los caracteres de control y de dirección del texto, saltos de línea incluidos, son `·`, así que pegarlo en un terminal no ejecuta nada. Fuera de la tabla, Enter cierra el visor |
 | `T` | ir al texto del archivo y volver |
 | `H` | de la tabla al texto, luego hexadecimal, luego de vuelta a la tabla |
 

@@ -146,6 +146,7 @@ The CSV separator (comma, semicolon, tab or vertical bar) is detected from the s
 | `m` or Insert | mark or unmark the record under the cursor, and go to the next; **Ctrl+B** then writes only the marked ones |
 | `M` | clear the marks |
 | `i` | the structure of the table: what the file says of each column (see below) |
+| Enter | the record under the cursor as a form, a field per line: ↑ ↓ choose the field, ← → go to the previous or next record, `c` copies the whole record (`NAME : value`, a line per field) and `y` the value of the field, to paste in an editor or a terminal; Esc goes back. What is copied is what the screen shows: control and text direction characters, line breaks included, are `·`, so pasting in a terminal runs nothing. Elsewhere, Enter closes the viewer |
 | `T` | to the file's text and back |
 | `H` | from the table to text, then hex, then back to the table |
 

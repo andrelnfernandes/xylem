@@ -243,6 +243,14 @@ const FILTERING_TEXT: &str = "Filtering...";
 /// How much of a file that opens as a table is read for its text at first.
 const TABLE_PEEK: u64 = 64 << 10;
 
+/// Copies text that is already safe for a terminal, and says how it went.
+fn copied(text: &str, what: &str) -> String {
+    match crate::clipboard::set_clipboard(text) {
+        Ok(()) => format!("Copied {what}"),
+        Err(e) => format!("Could not copy {what}: {e}"),
+    }
+}
+
 /// The lines of the table's frame that are not rows: the column names on top,
 /// the cell's contents at the bottom.
 pub const TABLE_CHROME: usize = 2;
@@ -309,6 +317,8 @@ pub struct Viewer {
     pub sheet_list: Option<table::SheetList>,
     /// The structure of the table, while it is open (`i`).
     pub structure_view: Option<table::StructureView>,
+    /// The record under the cursor as a form, while it is open (Enter).
+    pub record_view: Option<table::RecordView>,
     /// Text mode shows only the lines this filter kept. `lines` stays whole:
     /// the margin keeps each line's number, and the colors their context.
     filter: Option<LineFilter>,
@@ -897,6 +907,7 @@ impl Viewer {
         }
         // It was of the table being replaced.
         self.structure_view = None;
+        self.record_view = None;
         if self.note.as_deref() == Some(READING_TABLE) {
             self.note = None;
         }
@@ -1439,6 +1450,7 @@ impl Viewer {
             table: None,
             sheet_list: None,
             structure_view: None,
+            record_view: None,
             filter: None,
             md: None,
             md_file: false,
@@ -2091,6 +2103,60 @@ impl Viewer {
         }
     }
 
+    /// Enter in a table: the record under the cursor, a field per line.
+    fn open_record(&mut self) {
+        let Some(t) = &self.table else { return };
+        if t.visible_row_count() == 0 || t.headers.is_empty() {
+            self.note = Some("No record here".into());
+            return;
+        }
+        self.record_view = Some(table::RecordView::default());
+    }
+
+    /// A key in the record: it moves among the fields and the records, copies,
+    /// and closes it.
+    fn record_key(&mut self, key: KeyEvent) {
+        let rows = self.grid_rows();
+        let page = self.page.saturating_sub(2).max(1);
+        let (Some(view), Some(t)) = (&mut self.record_view, &mut self.table) else {
+            self.record_view = None;
+            return;
+        };
+        let last = t.headers.len().saturating_sub(1);
+        self.note = None;
+        match key.code {
+            KeyCode::Up => view.field = view.field.saturating_sub(1),
+            KeyCode::Down => view.field = (view.field + 1).min(last),
+            KeyCode::PageUp => view.field = view.field.saturating_sub(page),
+            KeyCode::PageDown => view.field = (view.field + page).min(last),
+            KeyCode::Home => view.field = 0,
+            KeyCode::End => view.field = last,
+            KeyCode::Left => t.handle_key(KeyCode::Up, rows),
+            KeyCode::Right => t.handle_key(KeyCode::Down, rows),
+            KeyCode::Char('c' | 'C') => {
+                let row = t.cursor_file_row();
+                self.note = Some(match t.record_text() {
+                    None => "The record is still being read".into(),
+                    Some(text) => copied(&text, &format!("record {row}")),
+                });
+            }
+            KeyCode::Char('y' | 'Y') => {
+                let row = t.cursor_file_row();
+                self.note = Some(match t.cursor_record() {
+                    None => "The record is still being read".into(),
+                    Some(record) => {
+                        let (name, value) = record.get(view.field).copied().unwrap_or_default();
+                        copied(value, &format!("{name} of record {row}"))
+                    }
+                });
+            }
+            KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'Q') => {
+                self.record_view = None;
+            }
+            _ => {}
+        }
+    }
+
     /// Handles a key; what does not belong to the viewer itself (close, switch
     /// file, search) comes back as an `Action`.
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
@@ -2101,6 +2167,7 @@ impl Viewer {
         // Esc stops a count or a filter going over a whole table first.
         if key.code == KeyCode::Esc
             && self.structure_view.is_none()
+            && self.record_view.is_none()
             && self.sheet_list.is_none()
             && self.table.as_mut().is_some_and(TableGrid::stop_window_work)
         {
@@ -2121,6 +2188,10 @@ impl Viewer {
         }
         if self.structure_view.is_some() {
             self.structure_key(key);
+            return Action::None;
+        }
+        if self.record_view.is_some() {
+            self.record_key(key);
             return Action::None;
         }
         if self.sheet_list.is_some() {
@@ -2191,6 +2262,10 @@ impl Viewer {
                 if let Err(e) = self.reload() {
                     self.note = Some(format!("Cannot read the file again: {e}"));
                 }
+                Action::None
+            }
+            KeyCode::Enter if self.mode == ViewMode::Table && self.table.is_some() => {
+                self.open_record();
                 Action::None
             }
             KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'Q' | 'v' | 'V') => Action::Close,
@@ -3471,6 +3546,79 @@ mod tests {
         press(&mut v, KeyCode::Char('i'));
         let view = v.structure_view.as_ref().unwrap();
         assert_eq!(view.structure.columns, [["name", "TEXT"]]);
+    }
+
+    #[test]
+    fn enter_shows_the_record_and_c_and_y_copy_it_clean() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("people.csv");
+        std::fs::write(
+            &path,
+            "code,name,note\n7,Ana,\"two\nlines\x1b[2J\u{202E}\"\n8,Rui,ok\n9,Eva,\n",
+        )
+        .unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 10;
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::None, "not closed");
+        assert!(v.record_view.is_some());
+
+        press(&mut v, KeyCode::Char('c'));
+        assert_eq!(v.note.as_deref(), Some("Copied record 1"));
+        assert_eq!(
+            crate::clipboard::copied().as_deref(),
+            Some("code : 7\nname : Ana\nnote : two·lines·[2J·\n"),
+            "no escape, no line break: nothing runs when pasted in a terminal"
+        );
+
+        // The arrows go through the fields, ← → through the records.
+        press(&mut v, KeyCode::Down);
+        press(&mut v, KeyCode::Right);
+        assert_eq!(
+            v.table.as_ref().unwrap().cursor_file_row(),
+            2,
+            "the grid follows"
+        );
+        press(&mut v, KeyCode::Char('y'));
+        assert_eq!(v.note.as_deref(), Some("Copied name of record 2"));
+        assert_eq!(crate::clipboard::copied().as_deref(), Some("Rui"));
+        press(&mut v, KeyCode::End);
+        press(&mut v, KeyCode::Right);
+        press(&mut v, KeyCode::Char('c'));
+        assert_eq!(
+            crate::clipboard::copied().as_deref(),
+            Some("code : 9\nname : Eva\nnote :\n"),
+            "an empty value leaves no space at the end"
+        );
+        press(&mut v, KeyCode::Right);
+        assert_eq!(
+            v.table.as_ref().unwrap().cursor_file_row(),
+            3,
+            "the last one"
+        );
+
+        assert_eq!(
+            press(&mut v, KeyCode::Esc),
+            Action::None,
+            "Esc closes it only"
+        );
+        assert!(v.record_view.is_none());
+        assert_eq!(v.table.as_ref().unwrap().cursor_file_row(), 3);
+        // Outside the table, Enter still closes the viewer.
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::Close);
+    }
+
+    #[test]
+    fn a_table_filtered_to_nothing_has_no_record_to_show() {
+        let mut v = numbers_table(5);
+        v.table
+            .as_mut()
+            .unwrap()
+            .apply_filter(Some("n > 99"))
+            .unwrap();
+        press(&mut v, KeyCode::Enter);
+        assert!(v.record_view.is_none());
+        assert_eq!(v.note.as_deref(), Some("No record here"));
     }
 
     #[test]
