@@ -194,6 +194,11 @@ impl Prompt {
         )
     }
 
+    /// Find in the viewer also accepts F3 (forward or backward).
+    pub fn is_viewer_search(&self) -> bool {
+        matches!(self.kind, PromptKind::ViewerSearch { .. })
+    }
+
     /// The line filter's prompt accepts F2 (case), F3 (invert) and F4
     /// (text/regex).
     pub fn is_line_filter(&self) -> bool {

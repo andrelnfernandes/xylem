@@ -5,6 +5,8 @@ hidden, not changed: with line numbers on (`#`), each line keeps its number in
 the file, so the gaps show the filter at work. The header tells the result:
 `[filter error: 24 of 850 lines]`.
 
+It works like `grep`, and **F3** inverts it as `grep -v` does; the key is the one `less` uses for the same thing.
+
 | Key at the prompt | What it does |
 |---|---|
 | **F1** | this help |

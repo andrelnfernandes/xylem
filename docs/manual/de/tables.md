@@ -27,7 +27,7 @@ Das CSV-Trennzeichen (Komma, Semikolon, Tabulator oder senkrechter Strich) wird 
 | `m` oder Insert | markiert den Datensatz unter dem Cursor oder hebt die Markierung auf und geht zum nächsten; **Ctrl+B** schreibt dann nur die markierten |
 | `M` | löscht die Markierungen |
 | `i` | die Struktur der Tabelle: was die Datei über jede Spalte sagt (siehe unten) |
-| Enter | der Datensatz unter dem Cursor als Formular, ein Feld pro Zeile: ↑ ↓ wählen das Feld, ← → gehen zum vorigen oder nächsten Datensatz, `c` kopiert den ganzen Datensatz (`NAME : Wert`, eine Zeile pro Feld) und `y` den Wert des Feldes, zum Einfügen in einen Editor oder ein Terminal; Esc geht zurück. Kopiert wird, was der Bildschirm zeigt: Steuer- und Textrichtungszeichen, auch Zeilenumbrüche, werden zu `·`, sodass das Einfügen in ein Terminal nichts ausführt. Außerhalb der Tabelle schließt Enter den Viewer |
+| Enter | der Datensatz unter dem Cursor als Formular, ein Feld pro Zeile: ↑ ↓ wählen das Feld, ← → gehen zum vorigen oder nächsten Datensatz, `c` kopiert den ganzen Datensatz (`NAME : Wert`, eine Zeile pro Feld), `C` dasselbe mit der Nummer jedes Felds davor, die die Struktur (`i`) zeigt, und `y` den Wert des Feldes, zum Einfügen in einen Editor oder ein Terminal; Esc geht zurück. Kopiert wird, was der Bildschirm zeigt: Steuer- und Textrichtungszeichen, auch Zeilenumbrüche, werden zu `·`, sodass das Einfügen in ein Terminal nichts ausführt. Außerhalb der Tabelle schließt Enter den Viewer |
 | `T` | zum Text der Datei und zurück |
 | `H` | von der Tabelle zum Text, dann Hex, dann zurück zur Tabelle |
 
@@ -37,7 +37,7 @@ Markierungen bleiben unter einem Filter erhalten, und Batch schreibt, was markie
 
 ## Die Struktur
 
-`i` zeigt über dem Raster die Spalten der Reihe nach mit dem, was die Datei über jede sagt, wie `DISPLAY STRUCTURE` in dBase und Clipper. Pfeile, PgUp, PgDn, Home und End scrollen; Esc, Enter oder `i` schließen sie.
+`i` zeigt über dem Raster die Spalten der Reihe nach mit dem, was die Datei über jede sagt, wie `DISPLAY STRUCTURE` in dBase und Clipper. Pfeile, PgUp, PgDn, Home und End scrollen; Esc, Enter oder `i` schließen sie. `c` kopiert die ganze Struktur, wie der Bildschirm sie zeigt, aber ohne lange Namen zu kürzen, zum Einfügen in einen Editor oder ein Terminal; Steuer- und Textrichtungszeichen werden zu `·`, wie im Formular des Datensatzes.
 
 | Format | Was sie zeigt |
 |---|---|

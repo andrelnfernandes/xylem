@@ -35,6 +35,8 @@ bascule entre texte et hexadécimal (paires d'octets telles que `4d 5a`). Un `*`
 au milieu du terme correspond à n'importe quelle suite de caractères sur la même
 ligne (`error*disk`).
 
+**F3** inverse le sens de la recherche, si bien que F seul fait ce que fait B : vers l'avant depuis le début ou vers l'arrière depuis la fin.
+
 ## Coloration syntaxique
 
 Le code source et les scripts sont colorés dans environ 150 langages (Rust,

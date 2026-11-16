@@ -34,6 +34,8 @@ isso vale também para letras acentuadas: `AÇÃO` encontra `ação`) e **F4** a
 texto e hexadecimal (pares de bytes como `4d 5a`). Um `*` no meio do termo
 corresponde a qualquer trecho na mesma linha (`error*disk`).
 
+**F3** inverte a direção da busca, e assim o F sozinho faz o que o B faz: para a frente desde o início ou para trás desde o fim.
+
 ## Cores de sintaxe
 
 Código-fonte e scripts são coloridos em cerca de 150 linguagens (Rust, Python,

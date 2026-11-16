@@ -5,6 +5,8 @@ líneas quedan ocultas, no se modifican: con los números de línea activados (`
 cada línea conserva su número en el archivo, y los saltos muestran el filtro en
 acción. La cabecera indica el resultado: `[filter error: 24 of 850 lines]`.
 
+Funciona como `grep`, y **F3** lo invierte como `grep -v`; la tecla es la que usa `less` para lo mismo.
+
 | Tecla en el prompt | Qué hace |
 |---|---|
 | **F1** | esta ayuda |

@@ -583,18 +583,106 @@ impl TableGrid {
         )
     }
 
+    /// The structure as text to paste elsewhere: what the file says of the
+    /// table, an empty line, then the lines of `structure_lines` whole. Safe for
+    /// a terminal, as the record.
+    pub fn structure_text(structure: &Structure) -> String {
+        let mut text = String::new();
+        for about in &structure.about {
+            text.push_str(Self::sanitize_cell(about).trim_end());
+            text.push('\n');
+        }
+        if !structure.about.is_empty() {
+            text.push('\n');
+        }
+        for line in Self::structure_lines(structure, usize::MAX) {
+            text.push_str(&line);
+            text.push('\n');
+        }
+        text
+    }
+
+    /// The structure's titles, then a line per column with its number first:
+    /// each cell at most `cap` characters (cut with `…`), the columns that hold
+    /// only numbers lined up on the right. Made safe for a terminal.
+    pub fn structure_lines(structure: &Structure, cap: usize) -> Vec<String> {
+        let cut = |s: &str| {
+            let s = Self::sanitize_cell(s);
+            if s.chars().count() <= cap {
+                s
+            } else {
+                let mut out: String = s.chars().take(cap.saturating_sub(1)).collect();
+                out.push('…');
+                out
+            }
+        };
+        let titles: Vec<String> = structure.titles.iter().map(|s| cut(s)).collect();
+        let columns: Vec<Vec<String>> = structure
+            .columns
+            .iter()
+            .map(|row| row.iter().map(|s| cut(s)).collect())
+            .collect();
+        let number = columns.len().max(1).to_string().len();
+        let numeric: Vec<bool> = (0..titles.len())
+            .map(|c| {
+                columns.iter().all(|row| {
+                    row.get(c)
+                        .is_none_or(|v| v.is_empty() || v == "?" || v.parse::<u64>().is_ok())
+                })
+            })
+            .collect();
+        let widths: Vec<usize> = titles
+            .iter()
+            .enumerate()
+            .map(|(c, title)| {
+                columns
+                    .iter()
+                    .filter_map(|row| row.get(c))
+                    .map(|v| v.chars().count())
+                    .chain([title.chars().count()])
+                    .max()
+                    .unwrap_or(0)
+            })
+            .collect();
+        let line = |first: &str, cells: &[String]| {
+            let mut text = format!("{first:>number$}");
+            for (c, width) in widths.iter().enumerate() {
+                let cell = cells.get(c).map_or("", String::as_str);
+                text.push_str("  ");
+                if numeric[c] {
+                    text.push_str(&format!("{cell:>width$}"));
+                } else {
+                    text.push_str(&format!("{cell:<width$}"));
+                }
+            }
+            text.trim_end().to_string()
+        };
+        let mut lines = vec![line("#", &titles)];
+        for (i, row) in columns.iter().enumerate() {
+            lines.push(line(&(i + 1).to_string(), row));
+        }
+        lines
+    }
+
     /// The record under the cursor as text to paste elsewhere: a line per field,
     /// `NAME : value`, with the names lined up. Safe for a terminal, as the grid.
-    pub fn record_text(&self) -> Option<String> {
+    /// With `numbered`, each line starts with the field's number, the one the
+    /// structure (`i`) gives the column.
+    pub fn record_text(&self, numbered: bool) -> Option<String> {
         let record = self.cursor_record()?;
         let width = record
             .iter()
             .map(|(name, _)| name.chars().count())
             .max()
             .unwrap_or(0);
+        let number = record.len().max(1).to_string().len();
         let mut text = String::new();
-        for (name, value) in record {
-            let line = format!("{name:<width$} : {value}");
+        for (i, (name, value)) in record.into_iter().enumerate() {
+            let line = if numbered {
+                format!("{:>number$}  {name:<width$} : {value}", i + 1)
+            } else {
+                format!("{name:<width$} : {value}")
+            };
             text.push_str(line.trim_end());
             text.push('\n');
         }
