@@ -1,7 +1,7 @@
 # The built-in terminal (Alt+X)
 
 Alt+X runs your shell (`$SHELL`) in the bottom part of Xylem's screen, with the
-tree and the files above it. XTree and ZTreeWin have no such terminal.
+tree and the files above it.
 [Using the tagged files in a shell command](howto-terminal-tagged.md) has an
 example.
 

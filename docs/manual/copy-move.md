@@ -30,7 +30,7 @@ Showall), copied to `dest`:
 
 | Mode | Result | |
 |---|---|---|
-| Full | `dest/home/me/proj/src/ops/mod.rs` | from the root of the disk, as in ZTreeWin (default) |
+| Full | `dest/home/me/proj/src/ops/mod.rs` | from the root of the disk (default) |
 | Tree | `dest/src/ops/mod.rs` | from the root of Xylem's tree (here `proj`) |
 | Current | `dest/ops/mod.rs` | from the list's root, its name included |
 | Relative | `dest/mod.rs` | only what is below the list's root |

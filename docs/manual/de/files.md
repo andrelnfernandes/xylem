@@ -17,12 +17,12 @@ Verzeichnis der ausgewählten Datei).
 
 ## Anzeigemodi (Alt+F)
 
-Alt+F wechselt in der Reihenfolge von ZTreeWin zwischen **Namen in mehreren
+Alt+F wechselt zwischen **Namen in mehreren
 Spalten**, **Namen und Größen in Spalten**, **Details** (eine Spalte mit Größe,
 Datum und Berechtigungen, Standard) und **langen Namen** (eine Spalte, nur
 vollständige Namen).
 
-Vor den langen Namen gibt es zwei Modi, die ZTreeWin nicht hat:
+Vor den langen Namen gibt es zwei weitere Modi:
 
 - **owner**: Größe, `Benutzer:Gruppe` und Berechtigungen (wird unter Windows
   oder in Archiven nicht angezeigt);

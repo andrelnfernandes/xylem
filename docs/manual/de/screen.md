@@ -1,6 +1,6 @@
 # Der Bildschirm
 
-![Der Bildschirm mit dem Baum oben, den Dateien des Verzeichnisses darunter, den Statistiken rechts und der Menüleiste unten](../../screenshots/tree-nord.png)
+![Der Bildschirm mit dem Baum oben, den Dateien des Verzeichnisses darunter, den Statistiken rechts und der Menüleiste unten](../../screenshots/tree.png)
 
 ```
  Path: ~/projects/xylem/src            Xylem v0.7.0  2026-11-13 00:49   1

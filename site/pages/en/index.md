@@ -14,7 +14,7 @@ Source on GitHub</a>
 <p class="note">Free and open source (MIT) · Linux x86_64 and ARM64 · Windows (experimental)</p>
 <div class="window demo">
 <div class="bar"><i></i><i></i><i></i><span>xy ~/projects</span></div>
-<img src="ASSETS/screenshots/demo-nord.gif" width="1104" height="772"
+<img src="ASSETS/screenshots/demo-intro.gif" width="1104" height="772"
 alt="Xylem in use: the built-in terminal with the tree following a cd, tagging files in a Branch and typing them into a command with Alt+O">
 </div>
 </div>

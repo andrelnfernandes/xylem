@@ -33,7 +33,7 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 
 ## Hier starten
 
-- [Was Xylem ist](overview.md): Einlesen, Markierungen und was XTree nicht hat
+- [Was Xylem ist](overview.md): Einlesen, Markierungen und was die Befehle abdecken
 - [Installieren und die ersten fünf Minuten](start.md)
 - [Der Bildschirm](screen.md): Baum, Dateifenster, Statistiken, Menüleiste
 - [Die Menüs, Ctrl und Alt](menus.md): Buchstabe allein, mit Ctrl, mit Alt, und F9

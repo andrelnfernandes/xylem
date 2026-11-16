@@ -91,6 +91,8 @@ Ce qui n'a pas d'équivalent dans le manuel de ZTreeWin v2.2 :
 - **Machines distantes via SSH** (`xy utilisateur@hote:`) : l'arborescence,
   Branch, la visionneuse et Copier fonctionnent sur une autre machine, qui a
   aussi son propre terminal. Voir [machines distantes](remote.md).
+- **Stockage cloud :** Google Drive, S3 et les autres services pris en charge par rclone, montés et affichés comme une arborescence. Voir [stockage cloud](cloud.md).
+- **SQL sur la liste de fichiers** (`W`) : `ext = 'jpg' AND size > 10000000` garde les fichiers qui remplissent la condition, et `contains()` et `words()` regardent à l'intérieur ; la boîte de recherche (`P`) trouve les fichiers par les mots qu'ils contiennent. Voir [trouver des fichiers](sql.md).
 - **Git** (optionnel) : lettres d'état dans la liste des fichiers, un menu Git
   (Ctrl+G) et des diffs dans la visionneuse. Voir [Git](git.md).
 - **Utilisation du disque** (Alt+U) : les dossiers et fichiers d'une branche
@@ -108,7 +110,7 @@ Ce qui n'a pas d'équivalent dans le manuel de ZTreeWin v2.2 :
   [la visionneuse](viewer.md).
 - **Tableaux et Markdown :** tableurs, CSV, JSON Lines, DBF, SQLite et Parquet
   s'ouvrent dans une grille avec filtre SQL, et les fichiers Markdown s'ouvrent
-  rendus. Voir [la visionneuse](viewer.md).
+  rendus. Voir [tableaux](tables.md).
 - **Des archives sans archiveur externe :** ZIP, 7z et TAR (brut, gzip, xz,
   bzip2, zstd) s'ouvrent comme des dossiers, et ZIP et TAR se créent, le tout
   par Xylem lui-même. Voir [archives](archives.md).

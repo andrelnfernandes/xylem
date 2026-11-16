@@ -35,29 +35,6 @@ affectés par aucune commande.
 [Les menus](menus.md) explique l'organisation des touches et
 [les commandes](commands.md) les liste toutes.
 
-## Ce que XTreeGold et ZTreeWin n'ont pas
-
-- Un terminal intégré dans l'écran (Alt+X). L'arborescence suit le `cd` du shell,
-  et Alt+O insère les fichiers marqués sur la ligne de commande.
-  Voir [le terminal intégré](terminal.md).
-- Des machines distantes via SSH et des conteneurs via `docker exec`, affichés
-  comme une arborescence. Copy, Move, Rename, Delete, Attributes et New date y
-  fonctionnent ; Edit et Batch non. Voir [machines distantes](remote.md).
-- Google Drive, S3 et les autres stockages pris en charge par rclone.
-  Voir [stockage cloud](cloud.md).
-- Une condition SQL sur la liste de fichiers (`W`) :
-  `ext = 'jpg' AND size > 10000000` retient les fichiers correspondants.
-  Voir [Filespec](sql.md#une-condition-sql-w).
-- SQL sur le contenu d'un fichier : la visionneuse affiche feuilles de calcul,
-  CSV, JSON Lines, DBF, SQLite et Parquet comme tableaux et les filtre avec une
-  condition `WHERE`. Voir [la visionneuse](viewer.md).
-- Doublons (Alt+D) : fichiers et dossiers au contenu identique dans une branche.
-  Sur un dossier rclone, compare les empreintes déjà disponibles sans rien
-  télécharger. Voir [doublons](duplicates.md).
-- Utilisation du disque (Alt+U) : dossiers et fichiers d'une branche triés selon
-  l'espace occupé. Voir [utilisation du disque](usage.md).
-- Un menu Git (Ctrl+G), désactivé par défaut. Voir [Git](git.md).
-
 [Comparaison avec ZTreeWin](ztreewin.md) recense les commandes de ZTreeWin que
 Xylem ne possède pas et les touches qui diffèrent.
 

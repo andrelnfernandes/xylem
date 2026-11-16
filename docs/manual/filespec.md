@@ -2,7 +2,7 @@
 
 `F` sets which files show in the file window (each window has its own). The
 current filespec appears in the window's title. Specifications are separated
-by spaces, `;` or `,`, of three kinds, as in ZTreeWin:
+by spaces, `;` or `,`, of three kinds:
 
 - **name:** a glob (`*.rs`, `a?c*`, `[abc]*`), case-insensitive; in quotes, a
   name can contain spaces (`"my file*"`);

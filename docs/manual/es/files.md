@@ -16,12 +16,12 @@ al árbol, y **Esc** también (en el directorio del archivo seleccionado).
 
 ## Modos de visualización (Alt+F)
 
-Alt+F alterna, en el orden de ZTreeWin, entre **nombres en varias columnas**,
+Alt+F alterna entre **nombres en varias columnas**,
 **nombres y tamaños en columnas**, **detalles** (una columna con tamaño, fecha
 y permisos, el modo predeterminado) y **nombres largos** (una columna, solo
 nombres completos).
 
-Antes de nombres largos vienen dos modos que ZTreeWin no tiene:
+Antes de nombres largos vienen dos modos más:
 
 - **propietario**: tamaño, `usuario:grupo` y permisos (no se muestra en Windows
   ni dentro de archivos comprimidos);

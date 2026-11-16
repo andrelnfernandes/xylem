@@ -17,12 +17,12 @@ sélectionné).
 
 ## Modes d'affichage (Alt+F)
 
-Alt+F fait défiler, dans l'ordre de ZTreeWin, **noms sur plusieurs colonnes**,
+Alt+F fait défiler **noms sur plusieurs colonnes**,
 **noms et tailles en colonnes**, **détails** (une colonne avec taille, date et
 permissions, le mode par défaut) et **noms longs** (une colonne, noms complets
 uniquement).
 
-Avant les noms longs viennent deux modes que ZTreeWin n'a pas :
+Avant les noms longs viennent deux autres modes :
 
 - **propriétaire** : taille, `utilisateur:groupe` et permissions (non affiché
   sous Windows ou dans les archives) ;

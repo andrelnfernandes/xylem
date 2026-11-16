@@ -2,7 +2,7 @@
 
 ## Der Konfigurationsbildschirm (F12)
 
-**F12** (oder Alt+F10 wie in ZTreeWin; unter GNOME maximiert Alt+F10 meist das
+**F12** (oder Alt+F10; unter GNOME maximiert Alt+F10 meist das
 Fenster und erreicht Xylem nicht) öffnet vier Seiten:
 
 | Seite | Optionen |

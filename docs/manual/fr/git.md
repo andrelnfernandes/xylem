@@ -2,8 +2,7 @@
 
 Git est désactivé par défaut. Activez-le avec F12 (page 1, « Git commands ») ou
 avec `git = true` sous `[options]` dans la [configuration](configuration.md). Le
-programme `git` doit être installé. XTree et ZTreeWin ne possèdent aucune
-commande Git.
+programme `git` doit être installé.
 
 ## Le menu Git (Ctrl+G)
 

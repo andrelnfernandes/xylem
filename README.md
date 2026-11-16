@@ -7,7 +7,7 @@
 See your whole disk as one tree, gather files from any folder, and act on all of
 them at once, from any terminal, right from the keyboard.
 
-![Xylem in use: the built-in terminal with the tree following a cd, tagging files in a Branch and typing them into a command with Alt+O](docs/screenshots/demo-nord.gif)
+![Xylem in use: the built-in terminal with the tree following a cd, tagging files in a Branch and typing them into a command with Alt+O](docs/screenshots/demo-intro.gif)
 
 - **Open almost anything right there:** SQLite with full `JOIN` queries,
   spreadsheets, CSV, Parquet, JSON, Markdown, logs and archives.
@@ -38,50 +38,50 @@ experimental Windows build. [Installation](#installation) has the details.
 
 The directory tree, the file window and the statistics:
 
-![Xylem: directory tree, file window and statistics](docs/screenshots/tree-nord.png)
+![Xylem: directory tree, file window and statistics](docs/screenshots/tree.png)
 
 **Branch** (`B`) lists the files of a whole branch; tagged files (`T`) are
 highlighted and counted on the right:
 
-![Branch view with three tagged files](docs/screenshots/branch-tagged-dark.png)
+![Branch view with three tagged files](docs/screenshots/branch-tagged.png)
 
 **Split window** (F8), each side with its own directory:
 
-![Split window: photos on the left, source code on the right](docs/screenshots/split-gruvbox.png)
+![Split window: photos on the left, source code on the right](docs/screenshots/split.png)
 
 **Menus on Ctrl and Alt**: holding Ctrl or Alt shows what each letter does
 with it, as in XTree (in terminals with the kitty keyboard protocol; elsewhere F9
 switches the menus):
 
-![Holding Ctrl and then Alt changes the menu at the bottom; then Ctrl+G shows the Git menu](docs/screenshots/demo-menus-nord.gif)
+![Holding Ctrl and then Alt changes the menu at the bottom; then Ctrl+G shows the Git menu](docs/screenshots/demo-menus.gif)
 
 **A SQLite database** in the viewer: the list of tables, a filter, a query with a
 `JOIN`, and a `DELETE` refused, since Xylem only reads:
 
-![A SQLite database: the list of tables, a filter on orders, a query joining two tables, and a DELETE refused](docs/screenshots/demo-sqlite-nord.gif)
+![A SQLite database: the list of tables, a filter on orders, a query joining two tables, and a DELETE refused](docs/screenshots/demo-sqlite.gif)
 
 **Batch** (Ctrl+B): a table becomes a page, a SQL script and a database, each with a
 preview, and each value escaped for that kind of file:
 
-![A table of customers written by Batch as an HTML page, as a SQL script and as a SQLite database](docs/screenshots/demo-batch-nord.gif)
+![A table of customers written by Batch as an HTML page, as a SQL script and as a SQLite database](docs/screenshots/demo-batch.gif)
 
 **Viewer** (`V`), with syntax colors:
 
-![Viewer showing Rust code with syntax colors](docs/screenshots/viewer-nord.png)
+![Viewer showing Rust code with syntax colors](docs/screenshots/viewer.png)
 
 **Built-in terminal** (Alt+X): a `cd` in the shell takes the tree along, and
 Alt+O types the tagged files at the prompt:
 
-![Three tagged photos typed into wc -c with Alt+O](docs/screenshots/terminal-tagged-nord.png)
+![Three tagged photos typed into wc -c with Alt+O](docs/screenshots/terminal-tagged.png)
 
 **Git** (optional): status letters in the file list and the Git menu (Ctrl+G):
 
-![File list with Git status letters and the GIT menu in the footer](docs/screenshots/git-menu-dark.png)
+![File list with Git status letters and the GIT menu in the footer](docs/screenshots/git-menu.png)
 
 **Usage** (Alt+U): where the space goes, folders and files together by the
 space they take:
 
-![The Usage view of a home folder: an old backup file at the top, then the projects, videos and downloads folders](docs/screenshots/usage-nord.png)
+![The Usage view of a home folder: an old backup file at the top, then the projects, videos and downloads folders](docs/screenshots/usage.png)
 
 **Themes**: besides the classic blue, `dark`, `light`, `mono`, `norton`,
 `solarized`, `gruvbox` (below), `nord`, and three that look at home on today's

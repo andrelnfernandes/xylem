@@ -30,7 +30,7 @@ Branch ou la racine de l'arborescence dans Showall), copié vers `dest` :
 
 | Mode | Résultat | |
 |---|---|---|
-| Full | `dest/home/me/proj/src/ops/mod.rs` | depuis la racine du disque, comme dans ZTreeWin (par défaut) |
+| Full | `dest/home/me/proj/src/ops/mod.rs` | depuis la racine du disque (par défaut) |
 | Tree | `dest/src/ops/mod.rs` | depuis la racine de l'arborescence de Xylem (ici `proj`) |
 | Current | `dest/ops/mod.rs` | depuis la racine de la liste, son nom inclus |
 | Relative | `dest/mod.rs` | uniquement ce qui se trouve sous la racine de la liste |

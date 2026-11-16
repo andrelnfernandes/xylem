@@ -2,7 +2,7 @@
 
 ## A tela de configuração (F12)
 
-**F12** (ou Alt+F10, como no ZTreeWin; no GNOME, Alt+F10 geralmente maximiza a
+**F12** (ou Alt+F10; no GNOME, Alt+F10 geralmente maximiza a
 janela e nunca chega ao Xylem) abre quatro páginas:
 
 | Página | Opções |

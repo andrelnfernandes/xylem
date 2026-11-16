@@ -1,6 +1,6 @@
 # A tela
 
-![A tela com a árvore no topo, os arquivos do diretório abaixo dela, as estatísticas à direita e o menu no rodapé](../../screenshots/tree-nord.png)
+![A tela com a árvore no topo, os arquivos do diretório abaixo dela, as estatísticas à direita e o menu no rodapé](../../screenshots/tree.png)
 
 ```
  Path: ~/projetos/xylem/src            Xylem v0.7.0  2026-11-13 00:49   1

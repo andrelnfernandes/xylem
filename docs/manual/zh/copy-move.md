@@ -18,7 +18,7 @@ Ctrl+C / Ctrl+M 会将所有已标记的文件直接放入目标目录。Alt+C /
 
 | 模式 | 结果 | 说明 |
 |---|---|---|
-| Full | `dest/home/me/proj/src/ops/mod.rs` | 从磁盘根目录算起，与 ZTreeWin 一致（默认） |
+| Full | `dest/home/me/proj/src/ops/mod.rs` | 从磁盘根目录算起（默认） |
 | Tree | `dest/src/ops/mod.rs` | 从 Xylem 目录树的根算起（此处为 `proj`） |
 | Current | `dest/ops/mod.rs` | 从列表的根目录算起，包含该目录本身的名称 |
 | Relative | `dest/mod.rs` | 仅保留列表根目录之下的相对路径 |

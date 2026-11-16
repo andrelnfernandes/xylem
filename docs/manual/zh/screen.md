@@ -1,6 +1,6 @@
 # 屏幕
 
-![屏幕上方为目录树，下方为当前目录中的文件，右侧为统计信息，底部状态栏为菜单](../../screenshots/tree-nord.png)
+![屏幕上方为目录树，下方为当前目录中的文件，右侧为统计信息，底部状态栏为菜单](../../screenshots/tree.png)
 
 ```
  Path: ~/projects/xylem/src            Xylem v0.7.0  2026-11-13 00:49   1

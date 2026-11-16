@@ -16,11 +16,11 @@ um ramo inteiro (`B`) ou de tudo o que foi lido (`S`). **Enter** volta para a
 
 ## Modos de exibição (Alt+F)
 
-Alt+F alterna, na ordem do ZTreeWin, entre **nomes em várias colunas**, **nomes
+Alt+F alterna entre **nomes em várias colunas**, **nomes
 e tamanhos em colunas**, **detalhes** (uma coluna com tamanho, data e
 permissões, o padrão) e **nomes longos** (uma coluna, apenas nomes completos).
 
-Antes dos nomes longos vêm dois modos que o ZTreeWin não tem:
+Antes dos nomes longos vêm mais dois modos:
 
 - **owner** (dono): tamanho, `usuário:grupo` e permissões (não exibido no
   Windows nem dentro de arquivos compactados);

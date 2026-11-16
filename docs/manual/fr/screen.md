@@ -1,6 +1,6 @@
 # L'écran
 
-![L'écran avec l'arborescence en haut, les fichiers du répertoire en bas, les statistiques à droite et le menu en bas](../../screenshots/tree-nord.png)
+![L'écran avec l'arborescence en haut, les fichiers du répertoire en bas, les statistiques à droite et le menu en bas](../../screenshots/tree.png)
 
 ```
  Path: ~/projects/xylem/src            Xylem v0.7.0  2026-11-13 00:49   1

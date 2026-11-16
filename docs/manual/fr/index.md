@@ -32,7 +32,7 @@ Les versions de ce manuel en espagnol, français, allemand et chinois n'ont pas
 
 ## Pour commencer
 
-- [Ce qu'est Xylem](overview.md) : lecture, marques et ce que XTree n'a pas
+- [Ce qu'est Xylem](overview.md) : lecture, marques et ce que couvrent les commandes
 - [Installer et les cinq premières minutes](start.md)
 - [L'écran](screen.md) : l'arborescence, la fenêtre de fichiers, les statistiques, le menu
 - [Les menus, Ctrl et Alt](menus.md) : une lettre seule, avec Ctrl, avec Alt, et F9
