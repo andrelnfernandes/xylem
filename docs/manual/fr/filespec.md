@@ -3,7 +3,7 @@
 `F` définit quels fichiers s'affichent dans la fenêtre de fichiers (chaque
 fenêtre a son propre filtre). Le filespec actif apparaît dans le titre de la
 fenêtre. Les spécifications sont séparées par des espaces, `;` ou `,`, et sont
-de trois types, comme dans ZTreeWin :
+de trois types :
 
 - **nom :** un motif glob (`*.rs`, `a?c*`, `[abc]*`), insensible à la casse ;
   entre guillemets, un nom peut contenir des espaces (`"mon fichier*"`) ;

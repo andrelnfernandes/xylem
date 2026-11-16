@@ -4,7 +4,7 @@ O Xylem também compila para Windows (Windows Terminal ou o console clássico).
 Ele passa nos testes automatizados lá, mas ainda não foi usado no dia a dia,
 então espere algumas arestas. O que muda:
 
-- **Atributos** (`A`) edita R, H, S e A, como no ZTreeWin: `RA` define
+- **Atributos** (`A`) edita R, H, S e A: `RA` define
   exatamente esses, `+H -A` ativa ou desativa alguns. A lista de arquivos os
   exibe como `r-sa`.
 - Arquivos e diretórios **ocultos** são aqueles com o atributo H (um nome

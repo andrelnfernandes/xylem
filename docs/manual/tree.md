@@ -40,7 +40,7 @@ half second, after any operation in progress); other directories still need F3.
 
 - `B` (Branch): the files of the whole branch, logging it first.
 - `S` (Showall): the files of everything that has been logged.
-- Ctrl+S: Showall of the tagged files only (ZTreeWin's Tags-Only mode). Files
+- Ctrl+S: Showall of the tagged files only. Files
   untagged in it stay listed until the list is reread (F3); with no tags left,
   all the files show again.
 - `F` ([Filespec](filespec.md)): which files show, by name, date and size.

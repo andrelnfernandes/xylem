@@ -41,8 +41,7 @@ demás directorios siguen necesitando F3.
 
 - `B` (Branch): los archivos de toda la rama, registrándola primero.
 - `S` (Showall): los archivos de todo lo que se ha registrado.
-- Ctrl+S: Showall solo de los archivos marcados (el modo Tags-Only de
-  ZTreeWin). Los archivos que se desmarcan en él siguen en la lista hasta que
+- Ctrl+S: Showall solo de los archivos marcados. Los archivos que se desmarcan en él siguen en la lista hasta que
   se vuelve a leer (F3); sin ninguna marca, vuelven todos los archivos.
 - `F` ([Filespec](filespec.md)): qué archivos se muestran, por nombre, fecha y tamaño.
 - `W` ([una condición SQL](sql.md#una-condición-sql-w)): qué archivos se muestran, por una condición sobre su nombre, tamaño, fecha y lugar; `Ctrl+W` sobre los marcados.

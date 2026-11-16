@@ -40,7 +40,7 @@ qualquer operação em andamento); outros diretórios ainda precisam de F3.
 
 - `B` (Branch): os arquivos de todo o ramo, lendo-o primeiro.
 - `S` (Showall): os arquivos de tudo o que já foi lido.
-- Ctrl+S: Showall só dos arquivos marcados (o modo Tags-Only do ZTreeWin). Os
+- Ctrl+S: Showall só dos arquivos marcados. Os
   arquivos desmarcados nele continuam na lista até ela ser relida (F3); sem
   nenhuma marca, voltam todos os arquivos.
 - `F` ([Filespec](filespec.md)): quais arquivos são exibidos, por nome, data e tamanho.

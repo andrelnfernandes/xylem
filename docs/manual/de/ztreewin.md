@@ -92,6 +92,8 @@ Dinge, für die das ZTreeWin-v2.2-Handbuch keine Entsprechung hat:
 - **Entfernte Rechner über SSH** (`xy benutzer@host:`): Baum, Branch,
   Betrachter und Kopieren funktionieren auf einem anderen Rechner, der auch
   sein eigenes Terminal hat. Siehe [entfernte Rechner](remote.md).
+- **Cloud-Speicher:** Google Drive, S3 und die anderen von rclone unterstützten Dienste, eingehängt und als Baum gezeigt. Siehe [Cloud-Speicher](cloud.md).
+- **SQL auf der Dateiliste** (`W`): `ext = 'jpg' AND size > 10000000` behält die Dateien, die die Bedingung erfüllen, und `contains()` und `words()` schauen hinein; das Suchfeld (`P`) findet Dateien über die Wörter darin. Siehe [Dateien finden](sql.md).
 - **Git** (optional): Statusbuchstaben in der Dateiliste, ein Git-Menü
   (Ctrl+G) und Diffs im Betrachter. Siehe [Git](git.md).
 - **Speicherbelegung** (Alt+U): die Ordner und Dateien eines Zweigs zusammen,
@@ -108,7 +110,7 @@ Dinge, für die das ZTreeWin-v2.2-Handbuch keine Entsprechung hat:
   [den Betrachter](viewer.md).
 - **Tabellen und Markdown:** Tabellenkalkulationen, CSV, JSON Lines, DBF, SQLite
   und Parquet öffnen sich in einem Raster mit SQL-Filter, Markdown-Dateien
-  gerendert. Siehe [den Betrachter](viewer.md).
+  gerendert. Siehe [Tabellen](tables.md).
 - **Archive ohne externes Packprogramm:** ZIP, 7z und TAR (unkomprimiert, gzip,
   xz, bzip2, zstd) öffnen sich als Ordner, und ZIP und TAR werden erstellt,
   alles von Xylem selbst. Siehe [Archive](archives.md).

@@ -11,7 +11,7 @@ elijas:
 - **A**ll new (todos los nuevos): únicos + más recientes, lo que falta para
   poner al día el otro lado.
 
-**B** (o Alt+C en el árbol, como en ZTreeWin) cambia el alcance a toda la rama:
+**B** (o Alt+C en el árbol) cambia el alcance a toda la rama:
 Xylem registra la rama, compara siguiendo las rutas relativas (`src/a.rs` ↔
 `<otro>/src/a.rs`) y abre Branch con los archivos marcados.
 

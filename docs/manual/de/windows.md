@@ -4,8 +4,7 @@ Xylem lässt sich auch für Windows kompilieren (Windows Terminal oder klassisch
 Konsole). Es besteht dort die automatisierten Tests, wurde aber im Alltag noch nicht genutzt – rechnen Sie also noch mit kleineren Ecken und Kanten. Was sich
 gegenüber Linux ändert:
 
-- **Berechtigungen / Attribute** (`A`) bearbeitet R, H, S und A wie in
-  ZTreeWin: `RA` setzt genau diese Attribute, `+H -A` schaltet einzelne ein
+- **Berechtigungen / Attribute** (`A`) bearbeitet R, H, S und A: `RA` setzt genau diese Attribute, `+H -A` schaltet einzelne ein
   oder aus. In der Dateiliste erscheinen sie als `r-sa`.
 - **Versteckte** Dateien und Verzeichnisse sind solche mit dem Attribut H (ein
   mit einem Punkt beginnender Name ist unter Windows ein gewöhnlicher Name).

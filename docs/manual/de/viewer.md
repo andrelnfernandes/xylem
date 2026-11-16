@@ -25,7 +25,7 @@ Tabellenkalkulationen, CSV, DBF, SQLite und Parquet öffnen sich als Tabelle (si
 
 ## Suchen
 
-Wie in ZTreeWin: **F** sucht vom Anfang an, **B** rückwärts vom Ende aus, **/**
+**F** sucht vom Anfang an, **B** rückwärts vom Ende aus, **/**
 (oder `S`) ab der aktuellen Seite und **\\** von dort rückwärts; **Space**
 sucht in derselben Richtung weiter, **+** und **-** wählen die Richtung. Der
 Treffer wird hervorgehoben. In der Sucheingabezeile schaltet **F2** die

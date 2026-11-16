@@ -25,7 +25,7 @@ Planilhas, CSV, DBF, SQLite e Parquet abrem como tabela (veja [Tabelas](tables.m
 
 ## Busca
 
-Como no ZTreeWin: **F** busca desde o início, **B** de trás para frente a
+**F** busca desde o início, **B** de trás para frente a
 partir do fim, **/** (ou `S`) a partir da página atual e **\\** para trás a
 partir dela; **Space** continua na mesma direção, **+** e **-** escolhem a
 direção. A ocorrência é destacada. No prompt de busca, **F2** alterna a

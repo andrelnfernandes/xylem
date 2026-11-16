@@ -12,7 +12,7 @@ Código no GitHub</a>
 <p class="note">Livre e de código aberto (MIT) · Linux x86_64 e ARM64 · Windows (experimental)</p>
 <div class="window demo">
 <div class="bar"><i></i><i></i><i></i><span>xy ~/projetos</span></div>
-<img src="ASSETS/screenshots/demo-nord.gif" width="1104" height="772"
+<img src="ASSETS/screenshots/demo-intro.gif" width="1104" height="772"
 alt="O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arquivos marcados num Branch e digitados num comando com Alt+O">
 </div>
 </div>

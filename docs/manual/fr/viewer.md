@@ -25,7 +25,7 @@ Les feuilles de calcul, CSV, DBF, SQLite et Parquet s'ouvrent en tableau (voir [
 
 ## Rechercher
 
-Comme dans ZTreeWin : **F** cherche depuis le début, **B** à rebours depuis la
+**F** cherche depuis le début, **B** à rebours depuis la
 fin, **/** (ou `S`) depuis la page courante et **\\** à rebours depuis celle-ci ;
 **Space** poursuit dans la même direction, **+** et **-** choisissent la
 direction. L'occurrence trouvée est mise en surbrillance. À l'invite de

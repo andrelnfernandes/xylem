@@ -25,7 +25,7 @@ Las hojas de cálculo, CSV, DBF, SQLite y Parquet se abren como tabla (consulta 
 
 ## Búsqueda
 
-Como en ZTreeWin: **F** busca desde el principio, **B** hacia atrás desde el
+**F** busca desde el principio, **B** hacia atrás desde el
 final, **/** (o `S`) desde la página actual y **\\** hacia atrás desde ella;
 **Space** continúa en la misma dirección, **+** y **-** eligen la dirección. La
 coincidencia aparece resaltada. En el prompt de búsqueda, **F2** alterna la

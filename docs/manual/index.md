@@ -30,7 +30,7 @@ native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`
 
 ## Start here
 
-- [What Xylem is](overview.md): logging, tags, and what XTree does not have
+- [What Xylem is](overview.md): logging, tags, and what the commands cover
 - [Install and first five minutes](start.md)
 - [The screen](screen.md): the tree, the file window, the statistics, the footer
 - [The menus, Ctrl and Alt](menus.md): a letter alone, with Ctrl, with Alt, and F9

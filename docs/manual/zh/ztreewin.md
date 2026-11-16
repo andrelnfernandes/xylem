@@ -46,11 +46,13 @@ Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linu
 
 - **内置终端**（Alt+X）：在使用目录树时 shell 一直保持运行；在 shell 中 `cd`，目录树随之跳转，回到 shell 时它也会跟随目录树。Alt+O 将已标记的文件输入到命令行。参见[内置终端](terminal.md)。
 - **通过 SSH 访问远程主机**（`xy 用户@主机:`）：目录树、Branch、查看器和复制都可以在另一台机器上使用，那台机器也有自己的终端。参见[远程主机](remote.md)。
+- **云存储：** Google Drive、S3 以及 rclone 支持的其他服务，挂载后以目录树显示。参见[云存储](cloud.md)。
+- **文件列表上的 SQL**（`W`）：`ext = 'jpg' AND size > 10000000` 只保留满足条件的文件，`contains()` 和 `words()` 可查看文件内容；搜索框（`P`）按文件中的单词查找文件。参见[查找文件](sql.md)。
 - **Git**（可选）：文件列表中的状态字母、Git 菜单（Ctrl+G）以及查看器中的 diff。参见 [Git](git.md)。
 - **磁盘用量**（Alt+U）：将一个分支中的文件夹和文件放在一起，从大到小排列，一直找到占满磁盘的内容；Alt+K 在目录树中显示每个文件夹所占的比例。参见[磁盘用量](usage.md)。
 - **重复文件**（Alt+D）：查找内容相同的文件和整个文件夹，通过 SHA-256 比较；在 rclone 挂载的文件夹中使用服务自身的哈希值，不下载任何内容。每组始终保留一个副本。参见[重复文件](duplicates.md)。
 - **读得更多的查看器：** 语法高亮、自动识别文本编码（UTF-8、UTF-16、CP850、Windows-1252、CP437）、直接显示 `.gz`、`.xz`、`.zst` 和 `.bz2` 文件解压后的内容，并将隐藏的文本方向控制字符（Trojan Source）显示出来而不是执行它们。参见[查看器](viewer.md)。
-- **表格和 Markdown：** 电子表格、CSV、JSON Lines、DBF、SQLite 和 Parquet 以带 SQL 筛选的表格打开，Markdown 文件以渲染后的形式打开。参见[查看器](viewer.md)。
+- **表格和 Markdown：** 电子表格、CSV、JSON Lines、DBF、SQLite 和 Parquet 以带 SQL 筛选的表格打开，Markdown 文件以渲染后的形式打开。参见[表格](tables.md)。
 - **无需外部归档工具的归档文件：** ZIP、7z 和 TAR（未压缩及 gzip、xz、bzip2、zstd）可以像文件夹一样打开，并能创建 ZIP 和 TAR，全部由 Xylem 自身完成。参见[归档文件](archives.md)。
 - **批量重命名**，支持查找替换（`s/foo/bar/`）、计数器和大小写转换。参见[重命名](rename.md)。
 - **对记录的批处理：** 在查看器中按 Ctrl+B，可将表格的记录或文本的行转换为脚本、JSON、CSV、XML、HTML、SQL 或 SQLite 数据库，也可使用模板文件。参见 [Batch](execute.md)。

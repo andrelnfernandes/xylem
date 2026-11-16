@@ -7,7 +7,7 @@
 Veja o disco inteiro como uma só árvore, reúna arquivos de qualquer pasta e aja sobre
 todos de uma vez, em qualquer terminal, direto do teclado.
 
-![O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arquivos marcados num Branch e digitados num comando com Alt+O](docs/screenshots/demo-nord.gif)
+![O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arquivos marcados num Branch e digitados num comando com Alt+O](docs/screenshots/demo-intro.gif)
 
 - **Abra quase tudo ali mesmo:** SQLite com queries completas com `JOIN`, planilhas,
   CSV, Parquet, JSON, Markdown, logs e arquivos compactados.
@@ -38,51 +38,51 @@ experimental para Windows. Os detalhes estão em [Instalação](#instalação).
 
 A árvore de diretórios, a janela de arquivos e as estatísticas:
 
-![Xylem: árvore de diretórios, janela de arquivos e estatísticas](docs/screenshots/tree-nord.png)
+![Xylem: árvore de diretórios, janela de arquivos e estatísticas](docs/screenshots/tree.png)
 
 **Branch** (`B`) lista os arquivos de um ramo inteiro; os arquivos marcados
 (`T`) ficam destacados e são contados à direita:
 
-![Branch com três arquivos marcados](docs/screenshots/branch-tagged-dark.png)
+![Branch com três arquivos marcados](docs/screenshots/branch-tagged.png)
 
 **Janela dividida** (F8), cada lado com seu próprio diretório:
 
-![Janela dividida: fotos à esquerda, código-fonte à direita](docs/screenshots/split-gruvbox.png)
+![Janela dividida: fotos à esquerda, código-fonte à direita](docs/screenshots/split.png)
 
 **Menus no Ctrl e no Alt**: segurar Ctrl ou Alt mostra o que cada letra faz
 com ela, como no XTree (em terminais com o protocolo de teclado do kitty; nos
 outros, F9 troca os menus):
 
-![Segurando Ctrl e depois Alt, o menu de baixo muda; depois Ctrl+G mostra o menu do Git](docs/screenshots/demo-menus-nord.gif)
+![Segurando Ctrl e depois Alt, o menu de baixo muda; depois Ctrl+G mostra o menu do Git](docs/screenshots/demo-menus.gif)
 
 **Um banco SQLite** no visualizador: a lista de tabelas, um filtro, uma query com
 `JOIN` e um `DELETE` recusado, porque o Xylem só lê:
 
-![Um banco SQLite: a lista de tabelas, um filtro em pedidos, uma query juntando duas tabelas e um DELETE recusado](docs/screenshots/demo-sqlite-nord.gif)
+![Um banco SQLite: a lista de tabelas, um filtro em pedidos, uma query juntando duas tabelas e um DELETE recusado](docs/screenshots/demo-sqlite.gif)
 
 **Batch** (Ctrl+B): uma tabela vira página, script SQL e banco de dados, cada um com
 prévia, e cada valor escapado para aquele tipo de arquivo:
 
-![Uma tabela de clientes gravada pelo Batch como página HTML, script SQL e banco SQLite](docs/screenshots/demo-batch-nord.gif)
+![Uma tabela de clientes gravada pelo Batch como página HTML, script SQL e banco SQLite](docs/screenshots/demo-batch.gif)
 
 **Visualizador** (`V`), com cores de sintaxe:
 
-![Visualizador mostrando código Rust com cores de sintaxe](docs/screenshots/viewer-nord.png)
+![Visualizador mostrando código Rust com cores de sintaxe](docs/screenshots/viewer.png)
 
 **Terminal embutido** (Alt+X): um `cd` no shell leva a árvore junto, e o
 Alt+O digita os arquivos marcados no prompt:
 
-![Três fotos marcadas digitadas num wc -c com Alt+O](docs/screenshots/terminal-tagged-nord.png)
+![Três fotos marcadas digitadas num wc -c com Alt+O](docs/screenshots/terminal-tagged.png)
 
 **Git** (opcional): as letras de status na lista de arquivos e o menu Git
 (Ctrl+G):
 
-![Lista de arquivos com as letras de status do Git e o menu GIT no rodapé](docs/screenshots/git-menu-dark.png)
+![Lista de arquivos com as letras de status do Git e o menu GIT no rodapé](docs/screenshots/git-menu.png)
 
 **Usage** (Alt+U): para onde vai o espaço, pastas e arquivos juntos pelo
 espaço que ocupam:
 
-![A visão Usage de uma pasta pessoal: um arquivo de backup antigo no topo, depois as pastas de projetos, vídeos e downloads](docs/screenshots/usage-nord.png)
+![A visão Usage de uma pasta pessoal: um arquivo de backup antigo no topo, depois as pastas de projetos, vídeos e downloads](docs/screenshots/usage.png)
 
 **Temas**: além do azul clássico, `dark`, `light`, `mono`, `norton`,
 `solarized`, `gruvbox` (abaixo), `nord` e três que combinam com os desktops de

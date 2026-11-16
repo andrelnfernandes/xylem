@@ -87,6 +87,8 @@ Coisas para as quais o manual do ZTreeWin v2.2 não tem equivalente:
 - **Máquinas remotas via SSH** (`xy usuario@host:`): a árvore, o Branch, o
   visualizador e o Copiar funcionam em outra máquina, que também tem seu
   próprio terminal. Veja [máquinas remotas](remote.md).
+- **Armazenamento na nuvem:** Google Drive, S3 e os outros serviços que o rclone suporta, montados e mostrados como uma árvore. Veja [armazenamento na nuvem](cloud.md).
+- **SQL na lista de arquivos** (`W`): `ext = 'jpg' AND size > 10000000` mantém os arquivos que atendem à condição, e `contains()` e `words()` olham dentro deles; a caixa de busca (`P`) encontra arquivos pelas palavras que contêm. Veja [encontrar arquivos](sql.md).
 - **Git** (opcional): letras de status na lista de arquivos, um menu Git
   (Ctrl+G) e diffs no visualizador. Veja [Git](git.md).
 - **Uso do disco** (Alt+U): pastas e arquivos de um ramo juntos, os maiores
@@ -103,7 +105,7 @@ Coisas para as quais o manual do ZTreeWin v2.2 não tem equivalente:
   [o visualizador](viewer.md).
 - **Tabelas e Markdown:** planilhas, CSV, JSON Lines, DBF, SQLite e Parquet
   abrem numa grade com filtro SQL, e arquivos Markdown abrem renderizados. Veja
-  [o visualizador](viewer.md).
+  [tabelas](tables.md).
 - **Arquivos compactados sem compactador externo:** ZIP, 7z e TAR (puro, gzip,
   xz, bzip2, zstd) abrem como pastas, e ZIP e TAR são criados, tudo pelo
   próprio Xylem. Veja [arquivos compactados](archives.md).

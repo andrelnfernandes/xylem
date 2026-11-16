@@ -35,28 +35,6 @@ not affected by any command.
 [The menus](menus.md) explains how the keys are organized, and
 [the commands](commands.md) lists all of them.
 
-## What XTreeGold and ZTreeWin do not have
-
-- A terminal inside the screen (Alt+X). The tree follows the shell's `cd`,
-  and Alt+O types the tagged files into the command line.
-  See [the built-in terminal](terminal.md).
-- Other machines over SSH, and containers through `docker exec`, shown as a
-  tree. Copy, Move, Rename, Delete, Attributes and New date work there.
-  Edit and Batch do not. See [remote machines](remote.md).
-- Google Drive, S3 and the other storage that rclone supports.
-  See [cloud storage](cloud.md).
-- A SQL condition on the file list (`W`): `ext = 'jpg' AND size > 10000000`
-  keeps the files that meet it. See [Filespec](sql.md#a-sql-condition-w).
-- SQL on the contents of a file: the viewer shows spreadsheets, CSV, JSON
-  Lines, DBF, SQLite and Parquet as tables and filters them with a `WHERE`
-  condition. See [the viewer](viewer.md).
-- Duplicates (Alt+D): files and folders with the same contents in a branch.
-  On a folder mounted by rclone it compares the hashes the service already
-  keeps and downloads nothing. See [duplicates](duplicates.md).
-- Usage (Alt+U): the folders and files of a branch sorted by the space they
-  take. See [disk usage](usage.md).
-- A Git menu (Ctrl+G), off by default. See [Git](git.md).
-
 [Comparison with ZTreeWin](ztreewin.md) lists the ZTreeWin commands Xylem
 does not have, and the keys that differ.
 

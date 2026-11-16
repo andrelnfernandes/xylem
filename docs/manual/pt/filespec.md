@@ -2,8 +2,7 @@
 
 `F` define quais arquivos aparecem na janela de arquivos (cada janela tem o seu
 próprio filtro). O filespec atual aparece no título da janela. As
-especificações são separadas por espaços, `;` ou `,`, de três tipos, como no
-ZTreeWin:
+especificações são separadas por espaços, `;` ou `,`, de três tipos:
 
 - **nome:** um padrão glob (`*.rs`, `a?c*`, `[abc]*`), sem diferenciar
   maiúsculas e minúsculas; entre aspas, um nome pode conter espaços

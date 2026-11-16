@@ -16,11 +16,11 @@ tree, **Esc** too (at the directory of the selected file).
 
 ## Display modes (Alt+F)
 
-Alt+F cycles, in ZTreeWin's order, between **names in several columns**,
+Alt+F cycles between **names in several columns**,
 **names and sizes in columns**, **details** (one column with size, date and
 permissions, the default) and **long names** (one column, full names only).
 
-Before long names come two modes ZTreeWin does not have:
+Before long names come two more modes:
 
 - **owner**: size, `user:group` and permissions (not shown on Windows or
   inside archives);

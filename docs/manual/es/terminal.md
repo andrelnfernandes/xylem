@@ -1,8 +1,7 @@
 # La terminal integrada (Alt+X)
 
 Alt+X ejecuta tu shell (`$SHELL`) en la parte inferior de la pantalla de Xylem,
-con el árbol y los archivos visibles arriba. XTree y ZTreeWin no tienen esta
-terminal.
+con el árbol y los archivos visibles arriba.
 [Usar los archivos marcados en un comando del shell](howto-terminal-tagged.md)
 muestra un ejemplo.
 

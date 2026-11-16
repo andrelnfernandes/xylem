@@ -25,7 +25,7 @@ Spreadsheets, CSV, DBF, SQLite and Parquet open as a table (see [Tables](tables.
 
 ## Searching
 
-As in ZTreeWin: **F** searches from the start, **B** backwards from the end,
+**F** searches from the start, **B** backwards from the end,
 **/** (or `S`) from the current page and **\\** backwards from it; **Space**
 continues in the same direction, **+** and **-** choose the direction. The
 match is highlighted. At the search prompt, **F2** toggles case sensitivity

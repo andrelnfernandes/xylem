@@ -31,7 +31,7 @@ depende del modo. Para `/home/me/proj/src/ops/mod.rs`, listado desde `src/ops`
 
 | Modo | Resultado | |
 |---|---|---|
-| Full | `dest/home/me/proj/src/ops/mod.rs` | desde la raíz del disco, como en ZTreeWin (predeterminado) |
+| Full | `dest/home/me/proj/src/ops/mod.rs` | desde la raíz del disco (predeterminado) |
 | Tree | `dest/src/ops/mod.rs` | desde la raíz del árbol de Xylem (aquí `proj`) |
 | Current | `dest/ops/mod.rs` | desde la raíz de la lista, incluido su nombre |
 | Relative | `dest/mod.rs` | solo lo que está por debajo de la raíz de la lista |

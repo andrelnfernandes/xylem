@@ -2,8 +2,7 @@
 
 `F` define qué archivos se muestran en la ventana de archivos (cada ventana
 tiene el suyo). El filtro actual aparece en el título de la ventana. Las
-especificaciones se separan por espacios, `;` o `,`, y son de tres tipos, como
-en ZTreeWin:
+especificaciones se separan por espacios, `;` o `,`, y son de tres tipos:
 
 - **nombre:** un patrón glob (`*.rs`, `a?c*`, `[abc]*`), sin distinguir
   mayúsculas de minúsculas; entre comillas, un nombre puede contener espacios

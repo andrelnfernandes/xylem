@@ -2,8 +2,7 @@
 
 `F` legt fest, welche Dateien im Dateifenster angezeigt werden (jedes Fenster
 hat seinen eigenen Filter). Der aktuelle Filespec erscheint im Fenstertitel.
-Angaben werden durch Leerzeichen, `;` oder `,` getrennt und gehören wie in
-ZTreeWin zu einer von drei Arten:
+Angaben werden durch Leerzeichen, `;` oder `,` getrennt und gehören zu einer von drei Arten:
 
 - **Name:** ein Glob-Muster (`*.rs`, `a?c*`, `[abc]*`), ohne Beachtung der
   Groß-/Kleinschreibung; in Anführungszeichen darf ein Name Leerzeichen

@@ -32,7 +32,7 @@ revisadas por hablantes nativos. Correcciones:
 
 ## Empieza por aquí
 
-- [Qué es Xylem](overview.md): lectura, marcas y lo que XTree no tiene
+- [Qué es Xylem](overview.md): lectura, marcas y lo que cubren los comandos
 - [Instalar y los primeros cinco minutos](start.md)
 - [La pantalla](screen.md): el árbol, la ventana de archivos, las estadísticas, el pie
 - [Los menús, Ctrl y Alt](menus.md): una letra sola, con Ctrl, con Alt, y F9

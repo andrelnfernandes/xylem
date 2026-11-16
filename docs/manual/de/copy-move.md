@@ -31,7 +31,7 @@ Branch-Wurzel oder der Baumwurzel in Showall), kopiert nach `dest`:
 
 | Modus | Ergebnis | |
 |---|---|---|
-| Full | `dest/home/me/proj/src/ops/mod.rs` | ab der Wurzel des Laufwerks, wie in ZTreeWin (Standard) |
+| Full | `dest/home/me/proj/src/ops/mod.rs` | ab der Wurzel des Laufwerks (Standard) |
 | Tree | `dest/src/ops/mod.rs` | ab der Wurzel des Xylem-Baums (hier `proj`) |
 | Current | `dest/ops/mod.rs` | ab der Wurzel der Liste, einschließlich ihres Namens |
 | Relative | `dest/mod.rs` | nur das, was unterhalb der Wurzel der Liste liegt |
