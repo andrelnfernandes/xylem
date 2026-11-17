@@ -61,6 +61,29 @@ A file over 8 MiB opens as its source, with a note. Rendering also stops at the 
 
 Markdown itself hides a few things: link definitions that nothing uses, and table cells beyond the columns of the header. To see everything, `T` shows the source. Italic and strikethrough depend on the terminal and its font, so they also have a color of their own.
 
+## Patches
+
+A `.patch` or `.diff`, or any text that starts like one (`diff --git`, or `---`, `+++` and `@@`), opens as text with the colors of a patch. The Git diff (`D`) is shown the same way. The header sums it up, as in `[12 files, +340 −98]`, and the footer says where the top of the screen is: `3/12 src/viewer.rs @@ 2/5`.
+
+| Key | Action |
+|---|---|
+| `]` `[` | next or previous file |
+| `}` `{` | next or previous hunk |
+| `Tab` | the list of the files, with `+` and `−` for each; letters narrow it, `Enter` goes to one |
+
+Some changes do more than change lines, and are easy to miss in a quick read. They are shown in red, and the header counts them as `to check`:
+
+- a file that becomes executable (`100755`), a symbolic link (`120000`) or a submodule (`160000`);
+- a path that is absolute, climbs out with `..`, goes into `.git` (a hook is code that Git runs), or has control characters.
+
+The header also counts:
+
+- `look unchanged`: a removed line and an added one that differ only in what cannot be seen, such as spaces, `\r`, invisible characters, or letters that look alike (a Cyrillic `а` for a Latin `a`). The pair is shown in yellow;
+- `hunks with wrong counts`: a hunk whose `@@` line does not match its lines. The index follows the lines that are there, never the counts;
+- `whitespace`: added lines with a space at the end, or a space before a tab in the indentation, as `git diff --check` reports.
+
+A `git format-patch` series shows each message in the list, by its subject. Nothing is ever applied. In a file over 16 MiB, read through a window, the colors stay, but there is no index: `]`, `}` and Tab say so.
+
 ## Text direction controls
 
 Some invisible characters change the direction of the text and can make code look different from what it really says (Trojan Source, CVE-2021-42574). The viewer never hides them: each one appears as a red `·`, and the header says how many there are.
