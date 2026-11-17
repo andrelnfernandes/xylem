@@ -16,11 +16,11 @@ tree, **Esc** too (at the directory of the selected file).
 
 ## Display modes (Alt+F)
 
-Alt+F cycles, in ZTreeWin's order, between **names in several columns**,
+Alt+F cycles between **names in several columns**,
 **names and sizes in columns**, **details** (one column with size, date and
 permissions, the default) and **long names** (one column, full names only).
 
-Before long names come two modes ZTreeWin does not have:
+Before long names come two more modes:
 
 - **owner**: size, `user:group` and permissions (not shown on Windows or
   inside archives);
@@ -69,9 +69,9 @@ and tmux (OSC 52) and keeps the clipboard after Xylem exits, on X11 and Wayland.
 | `C` / `M` | [copy / move](copy-move.md) the file |
 | `D` or Del | [delete](delete.md) it (Shift+Del: permanently) |
 | `R` | [rename](rename.md) it; Ctrl+R renames the tagged files with a mask |
-| `W` / `Ctrl+W` | filter by [SQL condition](filespec.md#a-sql-condition-w) (list / tagged) |
-| `P` / `Ctrl+P` | [search box](filespec.md#the-search-box-p): find files by words as you type |
-| `Alt+N` | [index](filespec.md#whole-words-and-an-index-words) this branch, for words() in W and the search box |
+| `W` / `Ctrl+W` | filter by [SQL condition](sql.md#a-sql-condition-w) (list / tagged) |
+| `P` / `Ctrl+P` | [search box](sql.md#the-search-box-p): find files by words as you type |
+| `Alt+N` | [index](sql.md#whole-words-and-an-index-words) this branch, for words() in W and the search box |
 | `A` | [permissions](attributes.md) |
 | `N` | [change the date](attributes.md) |
 | Alt+S | [sort](sort.md) |

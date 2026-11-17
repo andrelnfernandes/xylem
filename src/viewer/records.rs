@@ -1942,6 +1942,16 @@ impl DbfRows {
     }
 }
 
+/// Where record `record` starts, or `None` when a mark from the index points
+/// past the records the header has (a hostile or changed file) or the sum
+/// does not fit in a `u64`.
+fn dbf_offset(first: u64, size: u64, records: u64, record: u64) -> Option<u64> {
+    if record > records {
+        return None;
+    }
+    record.checked_mul(size)?.checked_add(first)
+}
+
 /// Passes over the first `left` records it gets, then hands them on.
 struct Skip<'a> {
     left: usize,
@@ -1972,7 +1982,18 @@ impl RowSource for DbfRows {
         still(&self.path, self.stamp)?;
         let (row, record) = self.index.before(from);
         let (mut reader, edge) = open_dbf(&self.path, &budget)?;
-        let record = usize::try_from(record).map_err(|_| FILE_CHANGED.to_string())?;
+        // `dbase` seeks to `first + record * size` unchecked: the mark must
+        // fit the header, and the sum the platform's `usize`, before it goes.
+        let header = reader.header();
+        let record = dbf_offset(
+            u64::from(header.offset_to_first_record),
+            u64::from(header.size_of_record),
+            u64::from(header.num_records),
+            record,
+        )
+        .and_then(|at| usize::try_from(at).ok())
+        .and_then(|_| usize::try_from(record).ok())
+        .ok_or_else(|| FILE_CHANGED.to_string())?;
         reader
             .seek(record)
             .map_err(|e| format!("Error reading DBF record: {e}"))?;
@@ -2007,7 +2028,9 @@ impl RowSource for DbfRows {
         };
         // Only the flag of each record is looked at, in one pass over them.
         let mut file = File::open(&self.path).map_err(|_| FILE_CHANGED.to_string())?;
-        file.seek(std::io::SeekFrom::Start(first + record * size))
+        let at =
+            dbf_offset(first, size, records, record).ok_or_else(|| FILE_CHANGED.to_string())?;
+        file.seek(std::io::SeekFrom::Start(at))
             .map_err(|e| format!("Error reading DBF record: {e}"))?;
         let mut reader = BufReader::with_capacity(1 << 16, Stoppable::new(file, budget.clone()));
         let mut buf = vec![0; usize::try_from(size).unwrap_or(1)];
@@ -3384,6 +3407,30 @@ mod tests {
         let index = RowIndex::new(Vec::new());
         let mut rows = DbfRows::open(&path, file_stamp(&path), index).unwrap();
         esc_stops_and_the_count_goes_on(&mut rows, 99_999);
+    }
+
+    /// A mark far past the records once overflowed `dbase`'s seek
+    /// (`index * size_of_record`) and our own count's offset: now it is
+    /// refused as a changed file.
+    #[test]
+    fn a_dbf_mark_past_the_records_is_refused_not_an_overflow() {
+        let tmp = crate::testing::tempdir();
+        let path = memo_dbf(tmp.path(), &["a", "b"], &[]);
+        for mark in [3, 1 << 60, u64::MAX] {
+            let index = RowIndex::new(Vec::new());
+            index.lock().bytes = vec![mark];
+            let mut rows = DbfRows {
+                path: path.clone(),
+                stamp: file_stamp(&path),
+                index,
+            };
+            let read = rows.read_from(0, Budget::unlimited(), &mut Collect::default());
+            assert_eq!(read.unwrap_err(), FILE_CHANGED);
+            let count = rows.count(Budget::unlimited(), &mut |_, _| {});
+            assert_eq!(count.unwrap_err(), FILE_CHANGED);
+        }
+        assert_eq!(dbf_offset(10, 5, 4, 4), Some(30));
+        assert_eq!(dbf_offset(u64::MAX, 1, 4, 1), None);
     }
 
     proptest::proptest! {

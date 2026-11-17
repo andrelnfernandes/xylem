@@ -7,7 +7,7 @@
 Veja o disco inteiro como uma só árvore, reúna arquivos de qualquer pasta e aja sobre
 todos de uma vez, em qualquer terminal, direto do teclado.
 
-![O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arquivos marcados num Branch e digitados num comando com Alt+O](docs/screenshots/demo-nord.gif)
+![O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arquivos marcados num Branch e digitados num comando com Alt+O](docs/screenshots/demo-intro.gif)
 
 - **Abra quase tudo ali mesmo:** SQLite com queries completas com `JOIN`, planilhas,
   CSV, Parquet, JSON, Markdown, logs e arquivos compactados.
@@ -38,51 +38,51 @@ experimental para Windows. Os detalhes estão em [Instalação](#instalação).
 
 A árvore de diretórios, a janela de arquivos e as estatísticas:
 
-![Xylem: árvore de diretórios, janela de arquivos e estatísticas](docs/screenshots/tree-nord.png)
+![Xylem: árvore de diretórios, janela de arquivos e estatísticas](docs/screenshots/tree.png)
 
 **Branch** (`B`) lista os arquivos de um ramo inteiro; os arquivos marcados
 (`T`) ficam destacados e são contados à direita:
 
-![Branch com três arquivos marcados](docs/screenshots/branch-tagged-dark.png)
+![Branch com três arquivos marcados](docs/screenshots/branch-tagged.png)
 
 **Janela dividida** (F8), cada lado com seu próprio diretório:
 
-![Janela dividida: fotos à esquerda, código-fonte à direita](docs/screenshots/split-gruvbox.png)
+![Janela dividida: fotos à esquerda, código-fonte à direita](docs/screenshots/split.png)
 
 **Menus no Ctrl e no Alt**: segurar Ctrl ou Alt mostra o que cada letra faz
 com ela, como no XTree (em terminais com o protocolo de teclado do kitty; nos
 outros, F9 troca os menus):
 
-![Segurando Ctrl e depois Alt, o menu de baixo muda; depois Ctrl+G mostra o menu do Git](docs/screenshots/demo-menus-nord.gif)
+![Segurando Ctrl e depois Alt, o menu de baixo muda; depois Ctrl+G mostra o menu do Git](docs/screenshots/demo-menus.gif)
 
 **Um banco SQLite** no visualizador: a lista de tabelas, um filtro, uma query com
 `JOIN` e um `DELETE` recusado, porque o Xylem só lê:
 
-![Um banco SQLite: a lista de tabelas, um filtro em pedidos, uma query juntando duas tabelas e um DELETE recusado](docs/screenshots/demo-sqlite-nord.gif)
+![Um banco SQLite: a lista de tabelas, um filtro em pedidos, uma query juntando duas tabelas e um DELETE recusado](docs/screenshots/demo-sqlite.gif)
 
 **Batch** (Ctrl+B): uma tabela vira página, script SQL e banco de dados, cada um com
 prévia, e cada valor escapado para aquele tipo de arquivo:
 
-![Uma tabela de clientes gravada pelo Batch como página HTML, script SQL e banco SQLite](docs/screenshots/demo-batch-nord.gif)
+![Uma tabela de clientes gravada pelo Batch como página HTML, script SQL e banco SQLite](docs/screenshots/demo-batch.gif)
 
 **Visualizador** (`V`), com cores de sintaxe:
 
-![Visualizador mostrando código Rust com cores de sintaxe](docs/screenshots/viewer-nord.png)
+![Visualizador mostrando código Rust com cores de sintaxe](docs/screenshots/viewer.png)
 
 **Terminal embutido** (Alt+X): um `cd` no shell leva a árvore junto, e o
 Alt+O digita os arquivos marcados no prompt:
 
-![Três fotos marcadas digitadas num wc -c com Alt+O](docs/screenshots/terminal-tagged-nord.png)
+![Três fotos marcadas digitadas num wc -c com Alt+O](docs/screenshots/terminal-tagged.png)
 
 **Git** (opcional): as letras de status na lista de arquivos e o menu Git
 (Ctrl+G):
 
-![Lista de arquivos com as letras de status do Git e o menu GIT no rodapé](docs/screenshots/git-menu-dark.png)
+![Lista de arquivos com as letras de status do Git e o menu GIT no rodapé](docs/screenshots/git-menu.png)
 
 **Usage** (Alt+U): para onde vai o espaço, pastas e arquivos juntos pelo
 espaço que ocupam:
 
-![A visão Usage de uma pasta pessoal: um arquivo de backup antigo no topo, depois as pastas de projetos, vídeos e downloads](docs/screenshots/usage-nord.png)
+![A visão Usage de uma pasta pessoal: um arquivo de backup antigo no topo, depois as pastas de projetos, vídeos e downloads](docs/screenshots/usage.png)
 
 **Temas**: além do azul clássico, `dark`, `light`, `mono`, `norton`,
 `solarized`, `gruvbox` (abaixo), `nord` e três que combinam com os desktops de
@@ -132,7 +132,7 @@ xy [diretório]
 Sem argumento, abre o diretório atual. `xy --help` mostra as opções. Para o
 shell ficar no diretório em que você estava ao sair com Alt+Q, acrescente a
 pequena função de shell de
-[Quitting and changing the shell's directory](docs/manual/quit.md).
+[Sair e mudar o diretório da shell](docs/manual/pt/quit.md).
 
 **Vindo da 0.7?** Algumas teclas Alt mudaram na 0.8 (Alt+U agora é o Uso, Alt+D os
 Duplicados); [O que Ctrl e Alt querem dizer](docs/manual/pt/tagging.md#o-que-ctrl-e-alt-querem-dizer)
@@ -215,17 +215,20 @@ Terminal) abre a ajuda sobre o que você está fazendo: dentro de um prompt, a
 ajuda daquele prompt; numa janela, a ajuda daquela janela, com links para o
 resto.
 
-A mesma ajuda é [o manual](docs/manual/index.md), que dá para ler aqui no
-GitHub, e a página de manual (`xy --man`). Alguns
-tópicos: [a janela da árvore](docs/manual/tree.md),
-[a janela de arquivos](docs/manual/files.md),
-[tags e operações em grupo](docs/manual/tagging.md),
-[Copy e Move](docs/manual/copy-move.md), [Filespec](docs/manual/filespec.md),
-[o terminal embutido](docs/manual/terminal.md),
-[armazenamento na nuvem (rclone)](docs/manual/cloud.md), [Git](docs/manual/git.md),
-[configuração](docs/manual/configuration.md),
-[Windows](docs/manual/windows.md) (experimental) e a
-[comparação com o ZTreeWin](docs/manual/ztreewin.md).
+A mesma ajuda é [o manual](docs/manual/pt/index.md), que dá para ler aqui no
+GitHub, e a página de manual (`xy --man`). Por onde começar:
+
+- [o que é o Xylem](docs/manual/pt/overview.md) e
+  [os primeiros cinco minutos](docs/manual/pt/start.md);
+- [a tela](docs/manual/pt/screen.md), [os menus](docs/manual/pt/menus.md) e o
+  [vocabulário](docs/manual/pt/glossary.md);
+- os comandos de cada menu: [DIR e FILE](docs/manual/pt/commands.md),
+  [Ctrl](docs/manual/pt/commands-ctrl.md) e [Alt](docs/manual/pt/commands-alt.md);
+- receitas com uma animação de cada passo, como
+  [copiar arquivos com os caminhos](docs/manual/pt/howto-copy-with-paths.md) e
+  [achar o que enche o disco](docs/manual/pt/howto-disk-space.md);
+- [notas de versão](docs/manual/pt/releases.md) e a
+  [comparação com o ZTreeWin](docs/manual/pt/ztreewin.md).
 
 A ajuda também existe em português, espanhol, francês, alemão e chinês. As
 traduções em espanhol, francês, alemão e chinês não foram revisadas por falantes
@@ -318,7 +321,7 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
 ### Para depois
 
 - Windows: compila e passa nos testes (veja
-  [Windows](docs/manual/windows.md)), mas não é prioridade enquanto existir o
+  [Windows](docs/manual/pt/windows.md)), mas não é prioridade enquanto existir o
   ZTreeWin. Talvez macOS.
 - Adiados por opção: macros, chown e Graft.
 

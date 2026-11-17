@@ -5,7 +5,7 @@
 `A` ändert die Berechtigungen der Datei unter dem Cursor (Ctrl+A: der
 markierten Dateien) in oktaler Schreibweise: `644`, `755`.
 
-Unter Windows bearbeitet `A` die Attribute R, H, S und A wie in ZTreeWin: `RA`
+Unter Windows bearbeitet `A` die Attribute R, H, S und A: `RA`
 setzt genau diese, `+H -A` schaltet einzelne ein oder aus. In der Dateiliste
 werden sie als `r-sa` angezeigt. Siehe [Windows](windows.md).
 

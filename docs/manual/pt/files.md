@@ -16,11 +16,11 @@ um ramo inteiro (`B`) ou de tudo o que foi lido (`S`). **Enter** volta para a
 
 ## Modos de exibição (Alt+F)
 
-Alt+F alterna, na ordem do ZTreeWin, entre **nomes em várias colunas**, **nomes
+Alt+F alterna entre **nomes em várias colunas**, **nomes
 e tamanhos em colunas**, **detalhes** (uma coluna com tamanho, data e
 permissões, o padrão) e **nomes longos** (uma coluna, apenas nomes completos).
 
-Antes dos nomes longos vêm dois modos que o ZTreeWin não tem:
+Antes dos nomes longos vêm mais dois modos:
 
 - **owner** (dono): tamanho, `usuário:grupo` e permissões (não exibido no
   Windows nem dentro de arquivos compactados);
@@ -71,6 +71,9 @@ X11 e no Wayland.
 | `C` / `M` | [copia / move](copy-move.md) o arquivo |
 | `D` ou Del | [exclui](delete.md) o arquivo (Shift+Del: permanentemente) |
 | `R` | [renomeia](rename.md) o arquivo; Ctrl+R renomeia os marcados com máscara |
+| `W` / `Ctrl+W` | filtra por [condição SQL](sql.md#uma-condição-sql-w) (lista / marcados) |
+| `P` / `Ctrl+P` | [caixa de busca](sql.md#a-caixa-de-busca-p): localiza arquivos por palavras enquanto você digita |
+| `Alt+N` | [indexa](sql.md#palavras-inteiras-prefixos-e-índice-words) este ramo, para o words() no W e na caixa de busca |
 | `A` | [permissões](attributes.md) |
 | `N` | [altera a data](attributes.md) |
 | Alt+S | [ordena](sort.md) |

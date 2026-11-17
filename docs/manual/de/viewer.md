@@ -1,11 +1,8 @@
 # Der Betrachter
 
-> **Noch nicht auf dem Stand von 0.8.0.** Tabellen ohne die Grenze von 50.000 Zeilen stehen vorerst nur in der englischen Fassung. Das gilt auch für große Texte, die mit dem Bildschirm gelesen werden („Big files“).
-
 `V` öffnet die Datei im Betrachter (Autoview, F7, zeigt sie neben der Liste
-an). Binärdateien werden im Hex-Modus geöffnet. Bei Dateien über dem Größenlimit wird
-nur der Anfang angezeigt.
-Tabellenkalkulationen, CSV, DBF, SQLite und Parquet öffnen sich als Tabelle (siehe Tabellenmodus).
+an). Binärdateien werden im Hex-Modus geöffnet. Eine große Datei auf der Festplatte wird nicht ganz gelesen: Der Betrachter liest, was der Bildschirm zeigt, während er weiterläuft (siehe [Große Dateien](#große-dateien)). Was sich so nicht lesen lässt, zeigt nur seinen Anfang, bis zum Größenlimit.
+Tabellenkalkulationen, CSV, DBF, SQLite und Parquet öffnen sich als Tabelle (siehe [Tabellen](tables.md)).
 
 | Taste | Funktion |
 |---|---|
@@ -28,14 +25,16 @@ Tabellenkalkulationen, CSV, DBF, SQLite und Parquet öffnen sich als Tabelle (si
 
 ## Suchen
 
-Wie in ZTreeWin: **F** sucht vom Anfang an, **B** rückwärts vom Ende aus, **/**
+**F** sucht vom Anfang an, **B** rückwärts vom Ende aus, **/**
 (oder `S`) ab der aktuellen Seite und **\\** von dort rückwärts; **Space**
 sucht in derselben Richtung weiter, **+** und **-** wählen die Richtung. Der
 Treffer wird hervorgehoben. In der Sucheingabezeile schaltet **F2** die
-Groß-/Kleinschreibung um (wird sie ignoriert, zählen auch Akzente und Umlaute
-mit: `AÇÃO` findet `ação`) und **F4** wechselt zwischen Text und Hex
+Groß-/Kleinschreibung um (wird sie ignoriert, gilt das auch für Buchstaben mit Akzent: `AÇÃO` findet
+`ação`) und **F4** wechselt zwischen Text und Hex
 (Byte-Paare wie `4d 5a`). Ein `*` in der Mitte des Suchbegriffs steht für
 beliebige Zeichen in derselben Zeile (`error*disk`).
+
+**F3** kehrt die Richtung der Suche um, sodass F allein auch tut, was B tut: vorwärts vom Anfang oder rückwärts vom Ende.
 
 ## Syntaxfarben
 
@@ -68,7 +67,7 @@ Markdown selbst verbirgt einiges: Linkdefinitionen, die nichts verwendet, und Ta
 
 ## Steuerzeichen für die Schreibrichtung
 
-Manche unsichtbaren Zeichen ändern die Schreibrichtung des Textes und können Code anders aussehen lassen, als er wirklich lautet (Trojan Source, CVE-2021-42574). Der Viewer versteckt sie nie: Jedes erscheint als rotes `·`, und die Kopfzeile nennt ihre Anzahl.
+Manche unsichtbaren Zeichen ändern die Schreibrichtung des Textes und können Code anders aussehen lassen, als er wirklich lautet (Trojan Source, CVE-2021-42574). Der Betrachter versteckt sie nie: Jedes erscheint als rotes `·`, und die Kopfzeile nennt ihre Anzahl.
 
 ## Textkodierung
 
@@ -78,13 +77,31 @@ Xylem erkennt die Kodierung selbst, in dieser Reihenfolge: zuerst wird die Datei
 
 Um für alte Textdateien immer eine feste Kodierung statt der Vermutung zu nutzen, setzen Sie `legacy_charset` auf `cp850`, `cp1252` oder `cp437` (**K** auf Seite 2 der [Konfiguration](configuration.md)). Standard ist `auto`.
 
+## Große Dateien
+
+Mit **V** wird eine Datei auf der Festplatte, die größer als 16 MiB ist, nicht geladen: Der Betrachter behält die Zeilen in der Nähe des Bildschirms, etwa 2.000, und liest die übrigen aus der Datei, während er weiterläuft, ohne den Bildschirm aufzuhalten. Eine noch nicht gelesene Zeile erscheint kurz als `…`. So hat die Datei keine Größengrenze, und der belegte Speicher wächst nicht mit ihr.
+
+- **Die Zeilen werden im Hintergrund gezählt.** Die Fußzeile zeigt `Line 1 of 1,234,567+ (counting…)` und dann die Gesamtzahl. **End** und **g** gehen zu jeder schon gezählten Zeile. Esc hält die Zählung an, und das Gezählte bleibt.
+- **Die Suche** (`F`, `B`, `/`, `\`, Space) läuft im Hintergrund durch die Datei: Die Fußzeile zeigt `Searching... line 1,200,000 (Esc stops)`, und der Bildschirm springt zum Treffer, sobald er gefunden ist.
+- **Der Zeilenfilter** (`&`) läuft im Hintergrund durch die ganze Datei, und die Zeilen erscheinen, sobald sie gefunden werden, bis zu 1.000.000. Esc hält ihn an und behält das Gefundene.
+- **Hex** (`H`) liest die Bytes dort, wo der Bildschirm steht, und auch seine Suche läuft durch die Datei.
+- **Eine andere Kodierung** (`O`) liest die Zeilen neu; bei UTF-16 werden sie neu gezählt, weil eine Zeile an anderer Stelle endet.
+- **Keine Syntaxfarben und kein gerendertes Markdown**: Beide lesen einen Text von Anfang an.
+- **Eine Zeile über 1 MiB** wird auf dem Bildschirm gekürzt und endet mit `…`; Hex zeigt sie ganz.
+- **Ändert sich die Datei**, während sie offen ist, zeigt die Kopfzeile `(the file changed: R reloads)`, und **R** liest sie neu und kehrt zur vorherigen Zeile zurück.
+- **Ein Batch** (`Ctrl+B`) über den Text liest die Datei weiterhin in den Speicher, bis zum Größenlimit unten, und sagt es, wenn das nicht die ganze Datei ist.
+
+Um eine Zeile zu erreichen, merkt sich der Betrachter, wo jede 256. Zeile beginnt, etwa 8 Bytes je 256 Zeilen, nur im Speicher. Die Textrichtungszeichen werden zusammen mit den Zeilen über die ganze Datei gezählt (in UTF-8), und die Kopfzeile zeigt, wie viele bisher gefunden wurden.
+
+Eine komprimierte Datei, ein Eintrag eines Archivs, eine Datei auf einem entfernten Rechner und Autoview werden nicht so gelesen: Darin lässt sich nicht springen, daher gilt für sie das Größenlimit unten.
+
 ## Größenlimit
 
-Der Betrachter liest von einer großen Datei nur den Anfang, und die Kopfzeile zeigt `(showing first N MiB)`. Wie viel er liest, bestimmt die Option `viewer_max_size` (**L** auf Seite 2 der [Konfiguration](configuration.md)): `auto`, `16`, `64`, `256` oder `1024` (MiB). Bei `auto`, dem Standard, beträgt das Limit 1/32 des Arbeitsspeichers des Rechners, nie weniger als 16 MiB und nie mehr als 256 MiB (16 MiB, wenn sich der Arbeitsspeicher nicht auslesen lässt). Die Konfigurationsseite zeigt den verwendeten Wert, zum Beispiel `auto (256 MiB)`.
+In diesen Fällen und bei Dateien bis 16 MiB liest der Betrachter von einer zu großen Datei nur den Anfang, und die Kopfzeile zeigt `(showing first N MiB)`. Wie viel er liest, bestimmt die Option `viewer_max_size` (**L** auf Seite 2 der [Konfiguration](configuration.md)): `auto`, `16`, `64`, `256` oder `1024` (MiB). Bei `auto`, dem Standard, beträgt das Limit 1/32 des Arbeitsspeichers des Rechners, nie weniger als 16 MiB und nie mehr als 256 MiB (16 MiB, wenn sich der Arbeitsspeicher nicht auslesen lässt). Die Konfigurationsseite zeigt den verwendeten Wert, zum Beispiel `auto (256 MiB)`.
 
 Zwei Fälle folgen dieser Regel nicht. Autoview liest immer 1 MiB. Eine Datei auf einem entfernten Rechner (SFTP) wird höchstens bis 16 MiB gelesen, weil Esc dieses Lesen nicht abbrechen kann.
 
-Ein größeres Limit kostet Speicher und Zeit: Mit `1024` belegt eine gewöhnliche Textdatei dieser Größe etwa 2,5 GiB RAM und braucht rund 5 s zum Öffnen. Sehr kurze Zeilen kosten mehr als ihre Bytes, weil jede Zeile eigene Verwaltungsdaten hat, und dasselbe gilt für Tabulatoren und versteckte Steuerzeichen für die Schreibrichtung: Der Betrachter hält Zeilen bis etwa zum Doppelten des Größenlimits im Speicher, danach steht in der Kopfzeile `(showing first N lines)`. Ein Log mit gewöhnlichen Zeilen (etwa 100 Bytes) wird dadurch nie abgeschnitten.
+Ein größeres Limit kostet Speicher und Zeit: Mit `1024` belegt ein komprimierter Text, der sich auf diese Größe entpackt, etwa 2 GiB RAM. Sehr kurze Zeilen kosten mehr als ihre Bytes, weil jede Zeile eigene Verwaltungsdaten hat, und dasselbe gilt für Tabulatoren und versteckte Steuerzeichen für die Schreibrichtung: Der Betrachter hält Zeilen bis etwa zum Doppelten des Größenlimits im Speicher, danach steht in der Kopfzeile `(showing first N lines)`. Ein Log mit gewöhnlichen Zeilen (etwa 100 Bytes) wird dadurch nie abgeschnitten.
 
 ## Komprimierte Dateien
 
@@ -106,98 +123,6 @@ Um die rohen komprimierten Bytes zu sehen, schalten Sie `viewer_decompress` aus 
 
 ## Tabellenmodus
 
-Manche Dateien öffnen sich als Raster statt als Text. Xylem richtet sich nach der Endung, und nur bei unkomprimierten Dateien auf dieser Festplatte: Eine Datei auf einem entfernten Rechner oder in einem Archiv erscheint als gewöhnlicher Inhalt, mit dem Hinweis `Tables are shown only for files on this disk`.
-
-| Format | Endungen | Spaltennamen |
-|---|---|---|
-| CSV, TSV | `.csv` `.tsv` `.tab` | die erste Zeile, wenn mindestens die Hälfte davon keine Zahlen sind; sonst A, B, C... |
-| JSON Lines | `.jsonl` `.ndjson` | die Schlüssel der Objekte |
-| Tabellenkalkulationen | `.xlsx` `.xls` `.xlsb` `.ods` | A, B, C... (die erste Zeile ist eine Zeile wie jede andere) |
-| dBase, Clipper, FoxPro | `.dbf`, mit der Memodatei `.dbt` | die Feldnamen |
-| SQLite | `.db` `.sqlite` `.sqlite3` | die Spalten der Tabelle |
-| Parquet | `.parquet` | die Spalten der Datei |
-
-Das CSV-Trennzeichen (Komma, Semikolon, Tabulator oder senkrechter Strich) wird am Anfang der Datei erkannt.
-
-| Taste | Funktion |
-|---|---|
-| ↑ ↓ | vorherige oder nächste Zeile |
-| ← → | vorherige oder nächste Spalte |
-| PgUp PgDn | eine Seite Zeilen nach oben oder unten |
-| Home End | erste oder letzte Spalte |
-| Ctrl+Home Ctrl+End | erste oder letzte Zeile; unter einem Filter von den Zeilen, die er behält |
-| `[` `]` | vorheriges oder nächstes Blatt einer Tabellenkalkulation oder vorherige oder nächste Tabelle einer SQLite-Datenbank, im Kreis; das löscht den Filter |
-| `Tab` | die Liste der Blätter oder Tabellen: Teil eines Namens tippen grenzt sie ein, Enter öffnet einen Eintrag und Esc geht zurück; ein anderes Blatt zu öffnen löscht den Filter. In einer Datenbank stehen Views nach den Tabellen, markiert mit `(view)` |
-| `g` oder `:` | zu einer Zeile über ihre Nummer in der Datei springen; hat der Filter sie ausgeblendet, zur nächsten behaltenen |
-| `\` oder `&` | der SQL-Filter |
-| `m` oder Insert | markiert den Datensatz unter dem Cursor oder hebt die Markierung auf und geht zum nächsten; **Ctrl+B** schreibt dann nur die markierten |
-| `M` | löscht die Markierungen |
-| `i` | die Struktur der Tabelle: was die Datei über jede Spalte sagt (siehe unten) |
-| Enter | der Datensatz unter dem Cursor als Formular, ein Feld pro Zeile: ↑ ↓ wählen das Feld, ← → gehen zum vorigen oder nächsten Datensatz, `c` kopiert den ganzen Datensatz (`NAME : Wert`, eine Zeile pro Feld) und `y` den Wert des Feldes, zum Einfügen in einen Editor oder ein Terminal; Esc geht zurück. Kopiert wird, was der Bildschirm zeigt: Steuer- und Textrichtungszeichen, auch Zeilenumbrüche, werden zu `·`, sodass das Einfügen in ein Terminal nichts ausführt. Außerhalb der Tabelle schließt Enter den Viewer |
-| `T` | zum Text der Datei und zurück |
-| `H` | von der Tabelle zum Text, dann Hex, dann zurück zur Tabelle |
-
-Der Rahmen zeigt `TABLE [2/5: Name]`, wenn es mehrere Blätter oder Tabellen gibt, und die untere Zeile die Position des Cursors: `Cell B7 (Row 7 of 120)`. Mit Filter behalten die Zeilen ihre Nummer aus der Datei, und diese Zeile nennt zusätzlich den Treffer: `Cell A13 (Row 13 of 31, match 2 of 8)`. Die letzte Zeile des Rasters enthält den ganzen Zellinhalt und den aktiven Filter. Die Suche (`F`, `B`, `/`) schaut nicht in das Raster und findet dort nichts; sie funktioniert im Textmodus.
-
-Markierungen bleiben unter einem Filter erhalten, und Batch schreibt, was markiert ist und vom Filter behalten wird. Sie gehören zum geöffneten Blatt oder zur Tabelle und gehen beim Wechsel verloren. Ändert sich die Datei nach dem Markieren, verweigert Batch, da an diesen Stellen andere Datensätze stehen können.
-
-### Die Struktur
-
-`i` zeigt über dem Raster die Spalten der Reihe nach mit dem, was die Datei über jede sagt, wie `DISPLAY STRUCTURE` in dBase und Clipper. Pfeile, PgUp, PgDn, Home und End scrollen; Esc, Enter oder `i` schließen sie.
-
-| Format | Was sie zeigt |
-|---|---|
-| dBase, Clipper, FoxPro | Name, Typ (`C` Zeichen, `N` numerisch, `D` Datum, `L` logisch, `M` Memo, `F` Gleitkomma, `I` Ganzzahl, `B` Double, `Y` Währung, `T` Datum und Uhrzeit), Breite und Dezimalstellen; darüber die Anzahl der Datensätze und das Datum der letzten Änderung aus dem Kopf sowie die Länge eines Datensatzes |
-| SQLite | den deklarierten Typ jeder Spalte, `Not null`, den Standardwert und die Stelle im Primärschlüssel; darüber, ob es eine Tabelle oder eine Sicht ist, und ihre Indizes mit ihren Spalten (höchstens 32). Eine Sicht zeigt die Spalten, die sie liefert; eine ganze Abfrage die ihres Ergebnisses, mit dem Typ jeder Spalte, die direkt aus einer Tabellenspalte kommt |
-| Parquet | den Arrow-Typ jeder Spalte und ob sie Nullwerte erlaubt; darüber die Zeilen und Zeilengruppen, die die Datei angibt, und das Programm, das sie geschrieben hat |
-| CSV, JSON Lines, Tabellenkalkulationen | sie deklarieren keine Typen: was die gelesenen Zeilen in jeder Spalte haben (Ganzzahl, Dezimalzahl, logisch, Text, leer) und den breitesten Wert |
-
-Namen, Typen und Standardwerte kommen aus der Datei und werden wie die Zellen bereinigt: Steuer- und Textrichtungszeichen erscheinen als `·`. Eine `.dbf`, deren Kopf sich widerspricht, zeigt `?` bei den Dezimalstellen.
-
-### Der SQL-Filter
-
-`\` oder `&` fragt nach einer Bedingung, wie beim `WHERE` von SQL (das Wort `WHERE` ist optional), und zeigt nur die Zeilen, die sie erfüllen. Die Eingabe beginnt mit dem aktuellen Filter; lassen Sie sie leer, um wieder alle Zeilen zu sehen. Ein Hinweis meldet `Filter matched N rows` oder `SQL error: ...`; nach einem Fehler bleibt der vorherige Filter aktiv.
-
-```
-age >= 30 AND name LIKE 'Ali%'
-WHERE status IN ('open', 'late') OR total > 1000.50
-NOT (city = 'Rio' OR city IS NULL)
-B ILIKE '%silva%'
-```
-
-| Operator | Funktion |
-|---|---|
-| `=` `!=` `<>` `<` `<=` `>` `>=` | vergleichen |
-| `AND` `OR` `NOT` und Klammern | verknüpfen Bedingungen (`AND` vor `OR`) |
-| `LIKE` `ILIKE` | passen auf ein Muster, `%` für beliebigen Text und `_` für ein Zeichen; `ILIKE` ignoriert die Groß- und Kleinschreibung |
-| `IN (...)` `NOT IN (...)` | steht, oder steht nicht, in der Liste |
-| `IS NULL` `IS NOT NULL` | die Zelle ist, oder ist nicht, leer |
-
-Schlüsselwörter können groß oder klein geschrieben werden.
-
-- **Spalten:** der Name der Spalte, ohne Anführungszeichen und in beliebiger Schreibung, oder ihr Buchstabe von `A` bis `Z`. Mit dem Buchstaben erreichen Sie einen Namen mit Leerzeichen oder Symbolen. Eine Spalte, die es nicht gibt, gilt ohne Fehler als leer.
-- **Werte:** Text in einfachen oder doppelten Anführungszeichen (`\'` für ein Anführungszeichen darin), Zahlen, `TRUE`, `FALSE` und `NULL`. Was in Anführungszeichen steht, ist immer Text, nie eine Spalte.
-- **Zellen:** Der Typ ergibt sich aus dem Aussehen der Zelle. Leer ist `NULL`, `true` und `false` sind Wahrheitswerte, Zahlen sind Zahlen und der Rest ist Text. Schreiben Sie also `code = 7`, nicht `code = '7'`: Text und Zahl sind nie gleich, und eine Zelle mit `007` ist die Zahl 7. Textvergleiche unterscheiden Groß- und Kleinschreibung.
-- **Größe:** Ein Filter hat höchstens 1.024 Byte und 128 Terme.
-
-### Eine ganze Abfrage in einer Datenbank
-
-In einer SQLite-Datenbank nimmt dieselbe Eingabe auch eine ganze Abfrage an, die mit `SELECT` oder `WITH` beginnt, mit allem, was SQLite kann: `JOIN`, `GROUP BY`, `ORDER BY`, Funktionen.
-
-```
-SELECT c.name, sum(o.price) FROM customers c JOIN orders o ON o.code = c.code GROUP BY c.name
-```
-
-Der Rahmen zeigt `QUERY:`, und das Raster das Ergebnis. Eine Bedingung filtert dann diese Zeilen, und **Ctrl+B** schreibt alles, was die Abfrage liefert. Eine leere Eingabe löscht den Filter und führt danach zurück zur Tabelle; auch `Tab`, `[` und `]` führen zu einer Tabelle. Eine Abfrage liest nur, und nur eine auf einmal: Alles andere wird abgelehnt, und ein Fehler lässt den Bildschirm unverändert. Die Grenzen unten gelten, also stoppt eine langsame Abfrage nach 3 s und zeigt die bisherigen Zeilen; ein Batch hat diese Grenze nicht. Xylem ändert keine Datenbanken: `UPDATE`, `DELETE` und Ähnliches erhalten eine Meldung, die das sagt. Zum Ändern nehmen Sie ein anderes Programm: `O` im Dateifenster öffnet sie in dem unter `opener` eingestellten, und `'*.db' = 'sqlite3 %f'` unter `[editors]` lässt `E` sie in `sqlite3` öffnen.
-
-### Grenzen
-
-Eine Tabelle fasst höchstens 50.000 Zeilen und 256 Spalten und braucht höchstens, was die übrigen Grenzen des Betrachters erlauben: 3 s (100 ms in Autoview), und eine Tabellenkalkulation, die entpackt größer als das Größenlimit ist (1 MiB in Autoview), öffnet sich nicht als Tabelle. Was darüber hinausgeht, erscheint nicht, und der Filter sieht es nicht; die Kopfzeile weist darauf hin: `(showing first 50,000 rows)` oder `(stopped by the time limit: showing N rows)`. Während die Tabelle gelesen wird, bleibt der Bildschirm frei und ein Hinweis sagt es; Esc stoppt das Lesen und zeigt, was schon da ist, `(stopped by Esc: showing N rows)`, und das nächste Esc schließt den Betrachter. Eine Zelle zeigt höchstens 2.048 Zeichen und dann `…`. Steuerzeichen und Zeichen für die Schreibrichtung erscheinen als `·`.
-
-Hat eine Tabellenkalkulation (XLSX, XLSB, XLS, ODS) mehr Zeilen, sagen es Kopfzeile und Hinweis: `(the sheet has more than 50,000 rows, the most Xylem shows: open it in Excel or another spreadsheet program to see them all (O))`, also: öffnen Sie es in Excel oder einem anderen Tabellenprogramm, um alle zu sehen. **O** öffnet es in dem Programm, das Ihr System dafür verwendet.
-
-## Tabellen in C-Bibliotheken
-
-SQLite-Datenbanken (`.db`, `.sqlite`, `.sqlite3`) und Parquet-Dateien werden von in C geschriebenen Bibliotheken gelesen, die nicht die Speichersicherheit von Rust bieten. Deshalb öffnen sie sich nur mit `V` als Tabelle. Autoview liest alles, worüber der Cursor läuft, und zeigt diese Dateien als gewöhnlichen Inhalt mit dem Hinweis `Parquet or SQLite: V opens the table`. Öffnen Sie eine Datenbank aus nicht vertrauenswürdiger Quelle nur, wenn Sie dieses Risiko akzeptieren. Auch `.ods`- und `.xls`-Dateien öffnen sich nur mit `V` als Tabelle: Ihr Leser baut zuerst das ganze Blatt auf, und dieser Teil lässt sich nicht anhalten.
+Tabellenkalkulationen, CSV, DBF, SQLite und Parquet öffnen sich als Raster, mit einem SQL-Filter: siehe [Tabellen](tables.md).
 
 Siehe auch: [markierte Dateien durchsuchen](search.md).

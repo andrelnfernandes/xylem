@@ -1,33 +1,56 @@
 # Xylem manual
 
-Xylem is a text-mode file manager inspired by XTree and ZTreeWin: a directory
-tree on top, the files of the current directory below, and statistics on the
-right. It logs (reads) directories into memory, so you can tag files across a
-whole branch and copy, move, delete, compare or rename them in one go.
+Xylem is a text-mode file manager with the screen and the keys of XTree and
+ZTreeWin: a directory tree on top, the files of the current directory below,
+and statistics on the right. It logs (reads) directories into memory, so one
+list can hold files from a whole branch, and one command copies, moves,
+deletes, compares or renames all the files tagged in it.
 
-Xylem treats untrusted files as hostile: it should never crash, hang, run
-code, write outside the destination or exhaust memory because of what a file
-contains or how it is named. Nevertheless, bugs happen. See the security
-statement in the README for the full list of safeguards and recommendations.
+Xylem treats files it did not create as hostile: a file's contents or name
+should never make it crash, hang, run code, write outside the destination or
+use up the memory. [Security](security.md) lists the measures and what is not
+covered.
 
-**F1** (or **Alt+H**, for terminals that keep F1 for themselves) opens help
-about what you are doing: inside a prompt, the help for that prompt; in the
-tree or the file window, the help for that window. In the help, **Tab** and
-**Shift+Tab** pick a link, **Enter** follows it, **Backspace** goes back,
-**I** shows this index, **K** the keys in effect, **L** switches the language
-and **Esc** closes.
+**F1** (or **Alt+H**, for terminals that keep F1 for themselves) opens the
+help for what is on the screen: inside a prompt, the topic of that prompt; in
+the tree or the file window, the topic of that window.
 
-**Help with the translations:** the versions of this manual in Spanish,
-French, German and Chinese have not been reviewed by native speakers.
-If you read one of these languages and find an error or something that sounds
-odd, please suggest an improvement: `https://github.com/andrelnfernandes/xylem/issues`.
+| Key in the help | What it does |
+|---|---|
+| Tab, Shift+Tab | select the next or the previous link |
+| Enter | follow the link |
+| Backspace | go back |
+| `I` | this index |
+| `K` | the keys in effect |
+| `L` | switch the language |
+| Esc | close |
+
+The Spanish, French, German and Chinese versions have not been reviewed by
+native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`.
+
+## Start here
+
+- [What Xylem is](overview.md): logging, tags, and what the commands cover
+- [Install and first five minutes](start.md)
+- [The screen](screen.md): the tree, the file window, the statistics, the footer
+- [The menus, Ctrl and Alt](menus.md): a letter alone, with Ctrl, with Alt, and F9
+- [Vocabulary](glossary.md): log, branch, tag, filespec
+
+## Commands
+
+- [The DIR and FILE menus](commands.md): the letters alone
+- [The Ctrl menu](commands-ctrl.md): the tagged files
+- [The Alt menu](commands-alt.md): the branch, the paths and the tools
+- [Git](git.md): the Git menu (Ctrl+G)
+- [Function keys and symbols](commands-keys.md)
+- [The keys in effect](keys.md): with the changes from the configuration
 
 ## Windows and views
 
 - [The tree window](tree.md): moving around, logging, Branch and Showall
 - [The file window](files.md): display modes, Autoview, opening files
 - [Split screen](split.md): two windows side by side
-- [The viewer](viewer.md): text and hex, search, syntax colors
+- [The viewer](viewer.md): text, hex and tables, search, syntax colors
 - [Filtering lines](filter.md): `&` in the viewer, with a regular expression guide
 - [Searching tagged files](search.md): Ctrl+S and Ctrl+V
 - [Information](info.md): Info, Avail, statistics and directory sizes
@@ -50,15 +73,30 @@ odd, please suggest an improvement: `https://github.com/andrelnfernandes/xylem/i
 ## Beyond XTree
 
 - [The built-in terminal](terminal.md)
-- [Remote machines (SSH)](remote.md): browse another machine, its terminal
+- [Remote machines (SSH)](remote.md): another machine or a container as a tree
 - [Cloud storage (rclone)](cloud.md): Google Drive, S3 and others
-- [Git](git.md)
+- [Finding files with SQL](sql.md): a condition on the files and their contents (W), and the words in them (P)
+- [Tables](tables.md): spreadsheets, CSV, dBase, SQLite and Parquet as a grid, with a SQL filter and each record as a form
 - [Bookmarks](bookmarks.md)
 
-## Setting up
+## How to
+
+- [Copy files from several folders, keeping their paths](howto-copy-with-paths.md)
+- [Rename many files with a counter](howto-rename-mask.md)
+- [Pick files with a SQL condition](howto-sql-filter.md)
+- [Find duplicates and keep one copy](howto-duplicates.md)
+- [Find what fills the disk](howto-disk-space.md)
+- [Filter a CSV file or a spreadsheet with SQL](howto-table-sql.md)
+- [Copy files from another machine over SSH](howto-ssh-copy.md)
+- [Use the tagged files in a shell command](howto-terminal-tagged.md)
+
+## Reference
 
 - [Configuration](configuration.md): the F12 screen, themes, keys
+- [The command line](cli.md)
+- [Terminals and keys](terminals.md): F1, Ctrl+M, the kitty keyboard protocol
+- [Security](security.md)
 - [Quitting and changing the shell's directory](quit.md)
 - [Windows](windows.md)
 - [Comparison with ZTreeWin](ztreewin.md)
-- The keys in effect: press **K** in the help.
+- [Release notes](releases.md)

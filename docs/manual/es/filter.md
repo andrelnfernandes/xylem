@@ -5,13 +5,15 @@ líneas quedan ocultas, no se modifican: con los números de línea activados (`
 cada línea conserva su número en el archivo, y los saltos muestran el filtro en
 acción. La cabecera indica el resultado: `[filter error: 24 of 850 lines]`.
 
+Funciona como `grep`, y **F3** lo invierte como `grep -v`; la tecla es la que usa `less` para lo mismo.
+
 | Tecla en el prompt | Qué hace |
 |---|---|
 | **F1** | esta ayuda |
 | **F2** | distinguir mayúsculas o ignorarlas |
 | **F3** | invertir: conservar las líneas que no coinciden |
 | **F4** | texto simple o expresión regular |
-| ↑ ↓ | filtros anteriores |
+| ↑ | filtros anteriores, como una [lista](execute.md#historial) |
 | Enter | aplicar |
 | Esc | cancelar |
 
@@ -59,8 +61,8 @@ archivo ni expresión puede colgar el visor con un patrón como `(a+)+$`.
 
 ## Texto simple
 
-Las mismas reglas que la búsqueda: al ignorar mayúsculas, los acentos tampoco
-cuentan (`AÇÃO` encuentra `ação`), y un `*` en medio coincide con cualquier cosa
+Las mismas reglas que la búsqueda: al ignorar mayúsculas, también vale para las
+letras con acento (`AÇÃO` encuentra `ação`), y un `*` en medio coincide con cualquier cosa
 en la misma línea (`error*disco`).
 
 ## Con un filtro activo

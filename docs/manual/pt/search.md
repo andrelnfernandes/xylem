@@ -5,7 +5,7 @@
 Busca um texto em todos os arquivos marcados da lista e **desmarca os que não o
 contêm**, com barra de progresso e `Esc` para interromper. No prompt, **F2**
 alterna a diferenciação de maiúsculas e minúsculas (ao ignorar
-maiúsculas/minúsculas, os acentos também são considerados: `AÇÃO` encontra
+maiúsculas/minúsculas, isso vale também para letras acentuadas: `AÇÃO` encontra
 `ação`) e **F4** alterna entre texto e hexadecimal (pares de bytes como
 `4d 5a`). Um `*` no meio do termo corresponde a qualquer trecho na mesma linha
 (`error*disk`); um termo nunca atravessa uma quebra de linha. Também funciona

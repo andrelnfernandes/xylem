@@ -5,7 +5,7 @@
 `A` modifie les permissions du fichier sous le curseur (Ctrl+A : des fichiers
 marqués), en octal : `644`, `755`.
 
-Sous Windows, `A` modifie les attributs R, H, S et A, comme dans ZTreeWin : `RA`
+Sous Windows, `A` modifie les attributs R, H, S et A : `RA`
 définit exactement ceux-ci, `+H -A` en active ou en désactive certains. La liste
 des fichiers les affiche sous la forme `r-sa`. Voir [Windows](windows.md).
 

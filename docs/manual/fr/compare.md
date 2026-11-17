@@ -11,7 +11,7 @@ choix :
 - **A**ll new : unique + plus récent, ce qui manque pour mettre l'autre côté à
   jour.
 
-**B** (ou Alt+C dans l'arborescence, comme dans ZTreeWin) étend la portée à
+**B** (ou Alt+C dans l'arborescence) étend la portée à
 toute la branche : Xylem lit la branche, compare en suivant les chemins relatifs
 (`src/a.rs` ↔ `<autre>/src/a.rs`) et ouvre la vue Branch avec les fichiers
 marqués.

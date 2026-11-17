@@ -44,13 +44,12 @@ benötigen weiterhin F3.
 
 - `B` (Branch): die Dateien des gesamten Zweigs, nachdem dieser eingelesen wurde.
 - `S` (Showall): die Dateien aller eingelesenen Verzeichnisse.
-- Ctrl+S: Showall nur der markierten Dateien (der Tags-Only-Modus von
-  ZTreeWin). Dort entmarkierte Dateien bleiben in der Liste, bis sie neu
+- Ctrl+S: Showall nur der markierten Dateien. Dort entmarkierte Dateien bleiben in der Liste, bis sie neu
   eingelesen wird (F3); ohne Markierungen erscheinen wieder alle Dateien.
 - `F` ([Filespec](filespec.md)): welche Dateien nach Name, Datum und Größe angezeigt werden.
-- `W` ([eine SQL-Bedingung](filespec.md#eine-sql-bedingung-w)): welche Dateien angezeigt werden, nach einer Bedingung auf Name, Größe, Datum und Ort; `Ctrl+W` für die markierten Dateien.
-- `P` ([Suchfeld](filespec.md#das-suchfeld-p)): findet eingelesene Dateien nach Wörtern während des Tippens, mit Textausschnitten; `Ctrl+P` für die markierten Dateien.
-- `Alt+N` ([Index](filespec.md#ganze-worter-und-ein-index-words)): indiziert die Wörter der eingelesenen Dateien des Zweigs, damit `words()` in W sofort antwortet.
+- `W` ([eine SQL-Bedingung](sql.md#eine-sql-bedingung-w)): welche Dateien angezeigt werden, nach einer Bedingung auf Name, Größe, Datum und Ort; `Ctrl+W` für die markierten Dateien.
+- `P` ([Suchfeld](sql.md#das-suchfeld-p)): findet eingelesene Dateien nach Wörtern während des Tippens, mit Textausschnitten; `Ctrl+P` für die markierten Dateien.
+- `Alt+N` ([Index](sql.md#ganze-wörter-und-ein-index-words)): indiziert die Wörter der eingelesenen Dateien des Zweigs, damit `words()` in W sofort antwortet.
 
 In Branch und Showall springt `\` zum Verzeichnis der ausgewählten Datei. Ein erneutes `B`
 führt zurück zur Liste des Verzeichnisses selbst.
