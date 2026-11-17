@@ -121,6 +121,38 @@ Opções descartadas:
   cobrem esse caso de forma explícita. Fica valendo como plano de reserva se
   o subprojeto 6 não convencer.
 
+## Viewers novos (conversa de 2026-11-16)
+
+Sete formatos comuns que podem ser lidos em Rust, dentro do Xylem, sem programa
+externo. Cada um tem seu spec. **Todos propostos, nenhum aprovado ainda.**
+
+| # | Formato | Spec | Dependência nova | Depende de |
+|---|---|---|---|---|
+| 1 | Logs: fim sem esperar a contagem, seguir o arquivo, cor por nível, ANSI só de cor (é o subprojeto 4) | [viewer-logs.md](viewer-logs.md) | nenhuma (`vte` já vem pelo `vt100`) | — |
+| 2 | JSON, YAML e TOML como árvore | [viewer-tree.md](viewer-tree.md) | `saphyr-parser` | — |
+| 3 | DOCX, ODT, PPTX e ODP como documento, com macros, revisões e links externos à vista | [viewer-office.md](viewer-office.md) | nenhuma (`zip` e `quick-xml` já estão) | — |
+| 4 | Executáveis ELF, PE e Mach-O: relatório e tabelas | [viewer-binaries.md](viewer-binaries.md) | `object` | etapa 1 do 3 |
+| 5 | Certificados e chaves (X.509, PKCS, OpenSSH) | [viewer-certs.md](viewer-certs.md) | `x509-parser` | etapa 1 do 3 |
+| 7 | Notebooks do Jupyter | [viewer-jupyter.md](viewer-jupyter.md) | nenhuma | etapa 1 do 3, etapa 3 do 1 |
+| 8 | Patch e diff: índice, resumo e destaques | [viewer-patch.md](viewer-patch.md) | nenhuma | — |
+
+A numeração é a da conversa (o 6, e-mail, e o 9 e 10, metadados de mídia e de
+PDF, ficaram de fora; os dois últimos se cruzam com o estudo de metadados do
+branch `words-prefix`).
+
+O que eles têm em comum:
+
+- **Entrada de eventos no `markdown::Builder`** (etapa 1 de
+  [viewer-office.md](viewer-office.md)): o documento do Office, o relatório do
+  executável e do certificado e o notebook são montados com os eventos do
+  `pulldown-cmark`, sem passar por texto Markdown. Assim, nada do arquivo é
+  interpretado como Markdown, e o layout, a busca e as cores vêm prontos.
+- **O filtro de ANSI** (etapa 3 de [viewer-logs.md](viewer-logs.md)) serve ao log
+  e aos tracebacks do notebook.
+- Os princípios de segurança acima valem para todos: tamanhos conferidos contra
+  o real, nenhuma recursão sem teto, proptest sem pânico, nada de controle ou
+  bidi na tela, e nada executado.
+
 ## Processo
 
 Cada subprojeto segue o mesmo caminho:
