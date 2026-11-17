@@ -61,6 +61,33 @@ A file over 8 MiB opens as its source, with a note. Rendering also stops at the 
 
 Markdown itself hides a few things: link definitions that nothing uses, and table cells beyond the columns of the header. To see everything, `T` shows the source. Italic and strikethrough depend on the terminal and its font, so they also have a color of their own.
 
+## Jupyter notebooks
+
+A `.ipynb` opens rendered, cell by cell, and the frame says `RENDERED`. At the top: the kernel, and how many cells of each kind there are.
+
+- A Markdown cell is rendered as a Markdown file is.
+- A code cell shows `In [n]:` and its code, in the colors of the notebook's language.
+- Its outputs follow, marked `Out [n]:`: the text of a stream (`stderr:` when it is the errors), the text of a result (or its Markdown, rendered), and an error with its traceback, without the traceback's ANSI codes.
+- An image, HTML, JavaScript, SVG or LaTeX output is one line that says what it is and how big, as `[image/png, 34 KiB: not shown]`. Nothing in a notebook is run: not its code, not the scripts of its outputs, not its widgets.
+- A raw cell is shown as it is.
+
+`T` shows the notebook's JSON, and `H` its bytes. A file that is not a notebook this viewer can read (broken JSON, an unknown format) opens as its source, with a note. Notebook format 3 (with worksheets) is read too.
+
+## Office documents
+
+Word (`.docx`, `.docm`, `.dotx`), OpenDocument text (`.odt`), PowerPoint (`.pptx`, `.pptm`) and Impress (`.odp`) files open as a document: headings, paragraphs, lists, tables, bold, italic and links, with each link's real address. A presentation shows each slide under `Slide n`, with its speaker notes after it. Footnotes and comments, with their authors, come at the end. An image is a line, as `[image: media/image1.png]`. The text of a document is never read as Markdown.
+
+Before the text, a block says what the document has besides it, since much of it does not show in the program that made it:
+
+- who wrote it, who saved it last, when, and with what;
+- `Contains macros`, when it has them. They are never read or run;
+- `Fetches from outside when it opens`: a remote template, an OLE object or a frame that point outside the file, with their addresses. A remote template is how attacks like Follina (CVE-2022-30190) came in. Nothing is ever fetched here;
+- the embedded objects, by name and size, and the count of other external links;
+- tracked changes: inserted text shows as `[inserted: ...]` and deleted text as `[deleted: ...]`, since what was deleted is often what matters;
+- hidden text (`[hidden: ...]`), white text and text of one point (`[invisible: ...]`), and hidden slides.
+
+`H` shows the bytes, and comes back; `T` says the document has no text of its own. Every part of the file is decompressed only up to a limit (64 MiB each, 256 MiB in all; 4 MiB in Autoview), and the header says when the document was cut. An XML part with a DTD, or nested deeper than 256 levels, is refused. The old `.doc` and `.ppt` open in hex, as before.
+
 ## Logs
 
 A log opens as text, with the colors of its levels, and the footer says `Log`. A file is a log by its name (`.log`, `.out`, `.err`, a rotated one like `app.log.1` or `app.log.2.gz`, `syslog`, `messages`, `kern.log`) or by its contents: most of its first lines start with a date and time (`2026-11-16 10:00`, `[2026-11-16 ...`, or syslog's `Nov 16 10:00:00`).

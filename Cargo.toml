@@ -65,6 +65,8 @@ tui-term = "0.3.4"
 vt100 = "0.16.2"
 # The ANSI sequences of a log (docs/plans/viewer-logs.md); already here through vt100.
 vte = "0.15"
+# Office documents in the viewer (docs/plans/viewer-office.md); already here through calamine.
+quick-xml = "0.42"
 zip = { version = "9.0.2", default-features = false, features = ["deflate"] }
 pulldown-cmark = { version = "0.13.6", default-features = false }
 

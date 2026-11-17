@@ -4265,6 +4265,7 @@ dependencies = [
  "portable-pty",
  "proptest",
  "pulldown-cmark",
+ "quick-xml 0.42.0",
  "ratatui",
  "regex",
  "rusqlite",
