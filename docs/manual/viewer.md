@@ -124,6 +124,17 @@ An executable, a library or an object file opens as a report, whatever its name:
 
 Nothing is run or loaded to make the report: not even `ldd`, which runs the program in some cases. `H` shows the bytes, and comes back. A file bigger than the read limit is read only where the report needs it, 256 MiB at most in all; Autoview reports on the start it read, and says it may miss things.
 
+## Certificates and keys
+
+A certificate, a chain or bundle of them, a certificate request (CSR), a revocation list (CRL), a private or public key, an OpenSSH key, `authorized_keys` and `known_hosts` open as a report. PEM is read in a file named for it (`.pem`, `.crt`, `.cer`, `.key`, `.csr`, `.crl`, `.pub`...) or with no extension (`id_ed25519`); DER in a `.der`, `.cer`, `.crt`, `.crl` or `.csr` that is one whole DER value. A PEM block inside source code or a document leaves that file as it is.
+
+- **A certificate:** its subject and issuer (and whether it is self-signed), serial, validity with the days left (expired, not valid yet, or expiring within 30 days are marked `⚠`), public key (RSA under 2048 bits and DSA are marked), signature (MD5 and SHA-1 are marked), names (a punycode name `xn--` is pointed out), key usage, extended key usage, whether it is a CA, the addresses of its CRL and authority information, an unknown critical extension (marked), and its SHA-256 fingerprint.
+- **Several certificates:** the report says whether they are in order, each one issued by the next, checked by their names and key identifiers only. **No signature is verified here**, and the report says so.
+- **A private key:** only its kind and size (RSA 2048 bits, EC P-256, PKCS#8 encrypted with PBES2...) and, for OpenSSH, whether it is encrypted and its fingerprint. Its numbers are never shown in the report. In Autoview, a private key shows this report, never its text, so it does not appear on the screen just by passing over it; `T` in the viewer shows the text.
+- **Public keys, `authorized_keys` and `known_hosts`:** one row per key, with its kind and size, its SHA-256 fingerprint as `ssh-keygen -l` writes it, and its comment. A `command=` option is marked, since it changes what the key allows; a hashed host shows as such.
+
+Nothing is fetched: the addresses of a CRL or OCSP are only shown. Before any parser sees a block, its nesting (at most 64 levels) and lengths are checked; a file has at most 1,000 blocks of 64 KiB each. PKCS#12 (`.p12`, `.pfx`) and PGP keys are not read.
+
 ## Logs
 
 A log opens as text, with the colors of its levels, and the footer says `Log`. A file is a log by its name (`.log`, `.out`, `.err`, a rotated one like `app.log.1` or `app.log.2.gz`, `syslog`, `messages`, `kern.log`) or by its contents: most of its first lines start with a date and time (`2026-11-16 10:00`, `[2026-11-16 ...`, or syslog's `Nov 16 10:00:00`).
