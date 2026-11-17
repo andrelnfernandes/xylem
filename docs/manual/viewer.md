@@ -61,6 +61,29 @@ A file over 8 MiB opens as its source, with a note. Rendering also stops at the 
 
 Markdown itself hides a few things: link definitions that nothing uses, and table cells beyond the columns of the header. To see everything, `T` shows the source. Italic and strikethrough depend on the terminal and its font, so they also have a color of their own.
 
+## JSON, YAML and TOML
+
+A `.json` (also `.geojson`, `.har`, `.webmanifest`, and `.jsonc` and `.json5` with comments and trailing commas), a `.yaml` or `.yml`, and a `.toml` (also `Cargo.lock`) open as a tree that folds, and the frame says `TREE: JSON`. A minified file of one line reads as easily as any other. A tree of up to 2,000 nodes opens all open; a bigger one shows its first level.
+
+| Key | Action |
+|---|---|
+| ↑ ↓ PgUp PgDn Home End | move the cursor |
+| → | open the node (again: go into it) |
+| ← | close the node, or go to the one above it |
+| `Enter` | open or close the node |
+| `*` | open everything under the node |
+| `k` | copy the path of the node: `.servers[2].name` in JSON, `servers.2.name` in YAML and TOML |
+
+The footer shows the path of the node under the cursor. A search (`F`, `B`, `/`) looks at keys and values, also inside closed nodes, and opens the way to what it finds. `T` shows the text at the node's line, and comes back; `H` goes through tree, text and hex. `&`, `g`, `#` and Ctrl+B work on the lines of the text.
+
+- A closed node shows what it holds: `{12 keys}`, `[340 items]`.
+- A number is shown as the file writes it: `12345678901234567890` stays so, and `1_000` in TOML too.
+- A string shows a line end as `↵`.
+- A key that appears twice in one object is shown twice, marked `dup key`, and the header counts them. Programs disagree on which of the two wins, which can hide a value from a review.
+- A YAML anchor shows as `&a1` and an alias as `*a1`: an alias is never expanded, so a file built to multiply itself (a "billion laughs") costs no more than its text. A tag (`!Ref`) shows before its value. Several documents are shown under one root, as `document 1`, `document 2`...
+
+A file that is not valid, or nested deeper than 512 levels, opens as text, and the note says why and on which line. The tree is built from the whole file: one over the read limit opens as text.
+
 ## Jupyter notebooks
 
 A `.ipynb` opens rendered, cell by cell, and the frame says `RENDERED`. At the top: the kernel, and how many cells of each kind there are.
