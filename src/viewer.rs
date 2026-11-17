@@ -17,6 +17,7 @@ pub mod table;
 pub mod table_window;
 pub mod tabular_loader;
 pub mod text_window;
+pub mod tree;
 
 use std::fs::File;
 use std::io::{self, Read};
@@ -56,6 +57,8 @@ pub enum ViewMode {
     Table,
     /// A Markdown file as a document (see `markdown`).
     Rendered,
+    /// JSON, YAML or TOML as a tree that folds (see `tree`).
+    Tree,
 }
 
 /// Where a new search starts.
@@ -347,6 +350,11 @@ pub struct Viewer {
     notebook: bool,
     /// The file is an Office document, shown as a document (see `office`).
     office: Option<office::Kind>,
+    /// JSON, YAML or TOML: its format, and its tree when it could be read.
+    tree_format: Option<tree::Format>,
+    pub tree: Option<tree::Tree>,
+    /// The row of the tree under the cursor.
+    pub tree_cursor: usize,
     /// Only the start of the file is in `data`, since it opens as a table:
     /// the rest is read when the text or the hex is wanted (see `settle_text`).
     partial: bool,
@@ -832,7 +840,7 @@ impl Viewer {
                     .window_mut()
                     .is_some_and(|w| w.want_hex(start..end))
             }
-            ViewMode::Table | ViewMode::Rendered => false,
+            ViewMode::Table | ViewMode::Rendered | ViewMode::Tree => false,
         };
         if changed {
             self.take_bidi();
@@ -1338,7 +1346,7 @@ impl Viewer {
                 })
             }
             // The source's lines; the line filter is for the text mode.
-            ViewMode::Rendered => Ok(batch::Source::Text {
+            ViewMode::Rendered | ViewMode::Tree => Ok(batch::Source::Text {
                 text: charset::decode(&self.data, self.charset).into_owned(),
                 total: self.lines.len(),
                 kept: None,
@@ -1483,7 +1491,269 @@ impl Viewer {
         if v.render_markdown() {
             v.mode = ViewMode::Rendered;
         }
+        v.tree_format = (!failed && !found.binary)
+            .then(|| tree::format_of(shown_name))
+            .flatten();
+        if v.build_tree() {
+            v.mode = ViewMode::Tree;
+        }
         v
+    }
+
+    /// Reads the text as a tree, if it is JSON, YAML or TOML and all of it is
+    /// here. Anything else leaves the text, and the note says why.
+    fn build_tree(&mut self) -> bool {
+        self.tree = None;
+        self.tree_cursor = 0;
+        let Some(format) = self.tree_format else {
+            return false;
+        };
+        if self.cut || self.windowed() {
+            self.note
+                .get_or_insert_with(|| "Too large for the tree: showing the text".to_string());
+            return false;
+        }
+        let text = charset::decode(&self.data, self.charset);
+        let time = self.load.limits.time;
+        match crate::panic_guard::catch(|| tree::parse(format, &text, time)) {
+            Some(Ok(t)) => self.tree = Some(t),
+            Some(Err(why)) => {
+                self.note
+                    .get_or_insert_with(|| format!("{why}: showing the text"));
+            }
+            None => {
+                self.note.get_or_insert_with(|| {
+                    "Could not read this as a tree: showing the text".into()
+                });
+            }
+        }
+        self.tree.is_some()
+    }
+
+    /// The path of the node under the cursor, for the footer.
+    pub fn tree_path(&self) -> Option<String> {
+        let t = self.tree.as_ref().filter(|_| self.mode == ViewMode::Tree)?;
+        let id = *t.rows().get(self.tree_cursor)?;
+        Some(tree::shown(&t.path(id)))
+    }
+
+    /// Keeps the cursor of the tree on a row, and that row on the screen.
+    fn tree_settle(&mut self) {
+        let Some(t) = &self.tree else { return };
+        let n = t.rows().len();
+        self.tree_cursor = self.tree_cursor.min(n.saturating_sub(1));
+        let page = self.page.max(1);
+        if self.tree_cursor < self.top {
+            self.top = self.tree_cursor;
+        } else if self.tree_cursor >= self.top + page {
+            self.top = self.tree_cursor + 1 - page;
+        }
+        self.top = self.top.min(n.saturating_sub(1));
+    }
+
+    /// Puts the cursor on node `id`, opening what is above it.
+    fn tree_show(&mut self, id: u32) {
+        let Some(t) = &mut self.tree else { return };
+        t.reveal(id);
+        if let Some(row) = t.row_of(id) {
+            self.tree_cursor = row;
+            // Centered, like a search match in the text.
+            let page = self.page.max(1);
+            if row < self.top || row >= self.top + page {
+                self.top = row.saturating_sub(page / 2);
+            }
+        }
+        self.tree_settle();
+    }
+
+    /// A key of the tree's own; `None` for the keys it leaves to the viewer.
+    fn tree_key(&mut self, key: KeyEvent) -> Option<Action> {
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let alt = key.modifiers.contains(KeyModifiers::ALT);
+        if ctrl || alt {
+            return None;
+        }
+        let page = self.page.max(1);
+        let t = self.tree.as_mut()?;
+        let n = t.rows().len();
+        let id = t.rows().get(self.tree_cursor).copied();
+        match key.code {
+            KeyCode::Up => self.tree_cursor = self.tree_cursor.saturating_sub(1),
+            KeyCode::Down => self.tree_cursor = (self.tree_cursor + 1).min(n.saturating_sub(1)),
+            KeyCode::PageUp => {
+                self.tree_cursor = self.tree_cursor.saturating_sub(page);
+                self.top = self.top.saturating_sub(page);
+            }
+            KeyCode::PageDown => {
+                self.tree_cursor = (self.tree_cursor + page).min(n.saturating_sub(1));
+                self.top = (self.top + page).min(n.saturating_sub(1));
+            }
+            KeyCode::Home => {
+                self.tree_cursor = 0;
+                self.top = 0;
+            }
+            KeyCode::End => {
+                self.tree_cursor = n.saturating_sub(1);
+                self.top = n.saturating_sub(page);
+            }
+            KeyCode::Right => {
+                let id = id?;
+                if !t.set_open(id, true) && t.has_children(id) {
+                    self.tree_cursor += 1;
+                }
+            }
+            KeyCode::Left => {
+                let id = id?;
+                if !t.set_open(id, false)
+                    && let Some(p) = t.parent(id)
+                    && let Some(row) = t.row_of(p)
+                {
+                    self.tree_cursor = row;
+                }
+            }
+            KeyCode::Enter => {
+                let id = id?;
+                let open = t.is_open(id);
+                t.set_open(id, !open);
+            }
+            KeyCode::Char('*') => t.open_all(id?),
+            KeyCode::Char('k' | 'K') => {
+                let path = t.path(id?);
+                self.note = Some(copied(&path, "the path of the node"));
+            }
+            _ => return None,
+        }
+        self.tree_settle();
+        Some(Action::None)
+    }
+
+    /// From the tree to the text, at the line of the node under the cursor.
+    fn tree_to_text(&mut self) {
+        let line = self
+            .tree
+            .as_ref()
+            .and_then(|t| {
+                t.rows()
+                    .get(self.tree_cursor)
+                    .map(|&id| t.node(id).line as usize)
+            })
+            .unwrap_or(0);
+        self.mode = ViewMode::Text;
+        self.top = self.row_of_line(line);
+        self.sub_top = 0;
+        self.left = 0;
+    }
+
+    /// From the text to the tree, at the node of the line on top.
+    fn text_to_tree(&mut self) {
+        let line = self.top_line();
+        self.mode = ViewMode::Tree;
+        self.left = 0;
+        let id = self.tree.as_ref().and_then(|t| t.node_at_line(line));
+        if let Some(id) = id {
+            self.tree_show(id);
+        }
+    }
+
+    /// The tree's rows on screen: indentation, fold mark, key and value, in
+    /// the colors of their kinds, with the cursor's row reversed.
+    fn tree_rows(&mut self, height: usize) -> Vec<StyledRow> {
+        self.tree_settle();
+        let Some(t) = &self.tree else {
+            return Vec::new();
+        };
+        let colors = self.colors_on || crate::highlight::enabled();
+        let tone = |rgb| colors.then(|| crate::highlight::tone(rgb));
+        let key_color = tone((114, 159, 207));
+        let string_color = tone((78, 154, 6));
+        let number_color = tone((6, 152, 154));
+        let word_color = tone((173, 127, 168));
+        let mark_color = tone((196, 160, 0));
+        let dup_color = Some(crate::config::theme().error);
+        let width = self.content_width();
+        let left = self.left;
+        let numbers = self.line_numbers;
+        t.rows()
+            .iter()
+            .enumerate()
+            .skip(self.top)
+            .take(height)
+            .map(|(row, &id)| {
+                let node = t.node(id);
+                let mut pieces: Vec<(String, Option<Color>)> = Vec::new();
+                pieces.push(("  ".repeat(t.depth(id)), None));
+                let fold = if !t.has_children(id) {
+                    "  "
+                } else if t.is_open(id) {
+                    "▾ "
+                } else {
+                    "▸ "
+                };
+                pieces.push((fold.to_string(), None));
+                if let Some(k) = &node.key {
+                    pieces.push((tree::shown(k), key_color));
+                    pieces.push((": ".to_string(), None));
+                }
+                if let Some(m) = &node.mark {
+                    pieces.push((format!("{} ", tree::shown(m)), mark_color));
+                }
+                let value_color = match node.value {
+                    tree::Value::Str(_) => string_color,
+                    tree::Value::Raw(_) => number_color,
+                    tree::Value::Bool(_) | tree::Value::Null | tree::Value::Alias(_) => word_color,
+                    _ => None,
+                };
+                pieces.push((t.value_text(id), value_color));
+                if node.dup {
+                    pieces.push(("  (dup key)".to_string(), dup_color));
+                }
+                // Only what fits, from the column panned to.
+                let mut segments: Vec<Segment> = Vec::new();
+                let mut skip = left;
+                let mut room = width;
+                let cursor = row == self.tree_cursor;
+                let look = if cursor {
+                    Modifier::REVERSED
+                } else {
+                    Modifier::empty()
+                };
+                for (text, color) in pieces {
+                    if room == 0 {
+                        break;
+                    }
+                    let chars: String = text.chars().skip(skip).take(room).collect();
+                    skip = skip.saturating_sub(text.chars().count());
+                    room -= chars.chars().count();
+                    if !chars.is_empty() {
+                        segments.push((chars, color, false, look));
+                    }
+                }
+                StyledRow {
+                    line_num: numbers.then_some(node.line as usize + 1),
+                    segments,
+                }
+            })
+            .collect()
+    }
+
+    /// Searches the tree's keys and values, open or not, from the cursor (or
+    /// from an edge), and opens the way to what it finds.
+    fn find_tree(&mut self, pattern: &Pattern, forward: bool, from: Option<u32>) -> bool {
+        let Some(t) = &self.tree else { return false };
+        let found = t.find(from, forward, |s| pattern.find_in_line(s, 0).is_some());
+        match found {
+            Some(id) => {
+                self.tree_show(id);
+                self.hit = Some(Hit {
+                    mode: ViewMode::Tree,
+                    line: id as usize,
+                    start: 0,
+                    end: 0,
+                });
+                true
+            }
+            None => false,
+        }
     }
 
     /// Reads the text as a document, if it is Markdown and within the limits.
@@ -1609,6 +1879,7 @@ impl Viewer {
         }
         self.mode = match old.mode {
             ViewMode::Rendered if self.md.is_none() => ViewMode::Text,
+            ViewMode::Tree if self.tree.is_none() => ViewMode::Text,
             // Not read yet, or not a table any more: the mode the file opened in.
             ViewMode::Table if self.table.is_none() => self.mode,
             mode => mode,
@@ -1635,6 +1906,7 @@ impl Viewer {
         });
         self.refilter();
         self.top = old.top.min(self.line_count().saturating_sub(1));
+        self.tree_cursor = old.tree_cursor;
         // A window knows only its first lines yet: there when it is counted.
         if self.windowed() && self.mode == ViewMode::Text && old.mode == ViewMode::Text {
             self.wish = Some(old_line);
@@ -1750,6 +2022,13 @@ impl Viewer {
             } else {
                 format!("Line {line} is filtered out: showing line {shown}")
             });
+        } else if self.mode == ViewMode::Tree {
+            let max_line = self.lines.len().max(1);
+            let line = target_1_indexed.clamp(1, max_line);
+            if let Some(id) = self.tree.as_ref().and_then(|t| t.node_at_line(line - 1)) {
+                self.tree_show(id);
+            }
+            self.note = Some(format!("Line {line} of {max_line}"));
         } else if self.mode == ViewMode::Rendered {
             let max_line = self.lines.len().max(1);
             let line = target_1_indexed.clamp(1, max_line);
@@ -1765,7 +2044,12 @@ impl Viewer {
     }
 
     pub fn gutter_width(&self) -> usize {
-        if self.line_numbers && matches!(self.mode, ViewMode::Text | ViewMode::Rendered) {
+        if self.line_numbers
+            && matches!(
+                self.mode,
+                ViewMode::Text | ViewMode::Rendered | ViewMode::Tree
+            )
+        {
             self.lines.len().to_string().len().max(1) + 3 // e.g. " 42 │ "
         } else {
             0
@@ -1857,6 +2141,9 @@ impl Viewer {
             md_file: false,
             notebook: false,
             office: None,
+            tree_format: None,
+            tree: None,
+            tree_cursor: 0,
             partial: false,
             seeking: None,
             awaited: None,
@@ -1977,7 +2264,7 @@ impl Viewer {
 
     /// The file has a rendered mode.
     pub fn can_render(&self) -> bool {
-        self.md.is_some()
+        self.md.is_some() || self.tree.is_some()
     }
 
     /// Not all of the document is rendered.
@@ -2040,6 +2327,7 @@ impl Viewer {
                 .map(|t| t.visible_row_count())
                 .unwrap_or(0),
             ViewMode::Rendered => self.md.as_ref().map_or(0, markdown::Doc::row_count),
+            ViewMode::Tree => self.tree.as_ref().map_or(0, |t| t.rows().len()),
         }
     }
 
@@ -2239,7 +2527,7 @@ impl Viewer {
                     })
                     .collect()
             }
-            ViewMode::Table | ViewMode::Rendered => Vec::new(),
+            ViewMode::Table | ViewMode::Rendered | ViewMode::Tree => Vec::new(),
         }
     }
 
@@ -2354,6 +2642,7 @@ impl Viewer {
             }
             ViewMode::Table => Vec::new(),
             ViewMode::Rendered => self.rendered_rows(height),
+            ViewMode::Tree => self.tree_rows(height),
         }
     }
 
@@ -2614,6 +2903,11 @@ impl Viewer {
             self.patch_list_key(key);
             return Action::None;
         }
+        if self.mode == ViewMode::Tree
+            && let Some(action) = self.tree_key(key)
+        {
+            return action;
+        }
         // Route movement keys to table when in Table mode; with Alt, Home and
         // End are the first and last tagged file.
         let edge = matches!(key.code, KeyCode::Home | KeyCode::End);
@@ -2740,6 +3034,12 @@ impl Viewer {
                         ViewMode::Table => ViewMode::Text,
                         _ => ViewMode::Table,
                     };
+                } else if self.tree.is_some() {
+                    match self.mode {
+                        ViewMode::Tree => self.tree_to_text(),
+                        ViewMode::Text => self.text_to_tree(),
+                        _ => self.mode = ViewMode::Tree,
+                    }
                 } else if self.md.is_some() && self.office.is_some() {
                     self.note = Some("This document has no text source: H shows its bytes".into());
                 } else if self.md.is_some() {
@@ -2760,6 +3060,10 @@ impl Viewer {
                 // Lines exist in the source: the filter opens over it.
                 ViewMode::Rendered => {
                     self.rendered_to_text();
+                    Action::FilterLines
+                }
+                ViewMode::Tree => {
+                    self.tree_to_text();
                     Action::FilterLines
                 }
                 ViewMode::Table => Action::FilterSql,
@@ -2912,9 +3216,11 @@ impl Viewer {
     fn toggle_mode(&mut self) {
         match self.mode {
             ViewMode::Rendered => return self.rendered_to_text(),
+            ViewMode::Tree => return self.tree_to_text(),
             ViewMode::Text | ViewMode::Hex | ViewMode::Table => {}
         }
         self.mode = match self.mode {
+            ViewMode::Hex if self.tree.is_some() => ViewMode::Tree,
             ViewMode::Hex if self.md.is_some() => ViewMode::Rendered,
             ViewMode::Text => ViewMode::Hex,
             ViewMode::Hex => {
@@ -2924,7 +3230,7 @@ impl Viewer {
                     ViewMode::Text
                 }
             }
-            ViewMode::Table | ViewMode::Rendered => ViewMode::Text,
+            ViewMode::Table | ViewMode::Rendered | ViewMode::Tree => ViewMode::Text,
         };
         self.top = 0;
         self.sub_top = 0;
@@ -2934,6 +3240,16 @@ impl Viewer {
     /// New search, from the start/end of the file or the current page.
     pub fn search(&mut self, pattern: &Pattern, forward: bool, from: SearchFrom) -> bool {
         self.forward = forward;
+        if self.mode == ViewMode::Tree {
+            let at = match from {
+                SearchFrom::Edge => None,
+                SearchFrom::Page => self
+                    .tree
+                    .as_ref()
+                    .and_then(|t| t.rows().get(self.tree_cursor).copied()),
+            };
+            return self.find_tree(pattern, forward, at);
+        }
         let pos = match (from, forward) {
             (SearchFrom::Edge, true) => (0, 0),
             (SearchFrom::Edge, false) => (usize::MAX, usize::MAX),
@@ -2958,6 +3274,16 @@ impl Viewer {
     /// Next match after the last one found (or the page).
     pub fn search_next(&mut self, pattern: &Pattern, forward: bool) -> bool {
         self.forward = forward;
+        if self.mode == ViewMode::Tree {
+            let at = match self.hit.filter(|h| h.mode == ViewMode::Tree) {
+                Some(h) => Some(h.line as u32),
+                None => self
+                    .tree
+                    .as_ref()
+                    .and_then(|t| t.rows().get(self.tree_cursor).copied()),
+            };
+            return self.find_tree(pattern, forward, at);
+        }
         let row = |h: Hit| match h.mode {
             ViewMode::Text => self.row_of_line(h.line),
             _ => h.line,
@@ -2997,7 +3323,7 @@ impl Viewer {
                     end: e,
                 })
             }
-            ViewMode::Table => None,
+            ViewMode::Table | ViewMode::Tree => None,
             ViewMode::Rendered => self.find_rendered(pattern, forward, line, col),
         };
         match hit {
@@ -6393,5 +6719,68 @@ new mode 100755
         let v = Viewer::open(path, LOAD).unwrap();
         assert_eq!(v.mode, ViewMode::Text);
         assert!(v.note.as_deref().unwrap().contains("showing the source"));
+    }
+
+    #[test]
+    fn json_opens_as_a_tree_that_folds() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("a.json");
+        std::fs::write(&path, r#"{"a": {"b": [1, 2]}, "c": "x", "a": 3}"#).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 10;
+        v.width = 60;
+        assert_eq!(v.mode, ViewMode::Tree);
+        assert_eq!(v.tree.as_ref().unwrap().dups, 1);
+        let text = |v: &mut Viewer| -> Vec<String> {
+            v.styled(10)
+                .into_iter()
+                .map(|r| r.segments.iter().map(|s| s.0.as_str()).collect())
+                .collect()
+        };
+        assert_eq!(text(&mut v)[1], "  ▾ a: {");
+        press(&mut v, KeyCode::Down);
+        assert_eq!(v.tree_path().as_deref(), Some(".a"));
+        press(&mut v, KeyCode::Left);
+        assert_eq!(text(&mut v)[1], "  ▸ a: {1 key}");
+        press(&mut v, KeyCode::Right);
+        press(&mut v, KeyCode::Right);
+        assert_eq!(v.tree_path().as_deref(), Some(".a.b"));
+        press(&mut v, KeyCode::Enter);
+        assert_eq!(text(&mut v)[2], "    ▸ b: [2 items]");
+        // A search opens the way to what it finds.
+        let p = Pattern::new(&crate::search::SearchSpec::new("2")).unwrap();
+        assert!(v.search(&p, true, SearchFrom::Edge));
+        assert_eq!(v.tree_path().as_deref(), Some(".a.b[1]"));
+        // T: the text at the node's line, and back.
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Text);
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Tree);
+        // H: tree, text, hex, tree.
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Text);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Hex);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Tree);
+        // Esc still closes.
+        assert_eq!(press(&mut v, KeyCode::Esc), Action::Close);
+    }
+
+    #[test]
+    fn what_is_not_valid_stays_text() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("bad.json");
+        std::fs::write(&path, "{\"a\": ").unwrap();
+        let v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Text);
+        assert!(v.note.as_deref().unwrap().starts_with("Not valid JSON"));
+        let path = tmp.path().join("c.yaml");
+        std::fs::write(&path, "a: &x [1]\nb: *x\n").unwrap();
+        let v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Tree);
+        let path = tmp.path().join("Cargo.toml");
+        std::fs::write(&path, "[package]\nname = \"x\"\n").unwrap();
+        assert_eq!(Viewer::open(path, LOAD).unwrap().mode, ViewMode::Tree);
     }
 }

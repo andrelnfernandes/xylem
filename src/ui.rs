@@ -3423,6 +3423,26 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             Style::new().fg(theme().key),
         ));
     }
+    if v.mode == ViewMode::Tree
+        && let Some(t) = &v.tree
+    {
+        if t.dups > 0 {
+            title.push(Span::styled(
+                format!(
+                    "  {} repeated key{} (marked dup key)",
+                    t.dups,
+                    if t.dups == 1 { "" } else { "s" }
+                ),
+                Style::new().fg(theme().error),
+            ));
+        }
+        if t.cut {
+            title.push(Span::styled(
+                "  (tree of the start only)",
+                Style::new().fg(theme().error),
+            ));
+        }
+    }
     if v.mode == ViewMode::Text && v.ansi_removed() > 0 {
         title.push(Span::styled(
             format!("  [ANSI: {} removed]", v.ansi_removed()),
@@ -3452,6 +3472,9 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         ViewMode::Text => " TEXT ".to_string(),
         ViewMode::Hex => " HEX ".to_string(),
         ViewMode::Rendered => " RENDERED ".to_string(),
+        ViewMode::Tree => v.tree.as_ref().map_or(" TREE ".to_string(), |t| {
+            format!(" TREE: {} ", t.format.name())
+        }),
         ViewMode::Table => v
             .table
             .as_ref()
@@ -3514,6 +3537,14 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             fmt_num(v.total_lines().max(1) as u64)
         ),
         ViewMode::Hex => format!("Offset {:08X}", v.top * viewer::HEX_WIDTH),
+        ViewMode::Tree => {
+            let rows = v.tree.as_ref().map_or(0, |t| t.rows().len());
+            format!(
+                "Row {} of {}",
+                fmt_num(v.tree_cursor as u64 + 1),
+                fmt_num(rows.max(1) as u64)
+            )
+        }
         ViewMode::Table => {
             if let Some(t) = &v.table {
                 let cell_col_letter = crate::viewer::tabular_loader::column_letter(t.cursor_col);
@@ -3632,6 +3663,21 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                     || (v.mode != ViewMode::Table && v.text_changed())
                 {
                     vec![("R", "reload"), ("Esc", "close")]
+                } else if v.mode == ViewMode::Tree {
+                    vec![
+                        ("← →", "fold"),
+                        ("*", "open all"),
+                        ("k", "copy path"),
+                        ("Space", "next hit"),
+                        ("Esc", "close"),
+                    ]
+                } else if v.patch_summary().is_some() && v.mode == ViewMode::Text {
+                    vec![
+                        ("] [", "file"),
+                        ("} {", "hunk"),
+                        ("Tab", "files"),
+                        ("Esc", "close"),
+                    ]
                 } else if v.mode == ViewMode::Table {
                     vec![
                         ("Enter", "record"),
@@ -3670,6 +3716,9 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                     && let Some(at) = v.patch_position()
                 {
                     language.push_str(&format!("{at}  ·  "));
+                }
+                if let Some(path) = v.tree_path() {
+                    language = format!("{path}  ·  ");
                 }
                 let wrap_badge = if v.wrap { "[Wrap] " } else { "" };
                 let num_badge = if v.line_numbers { "[#] " } else { "" };
@@ -4371,7 +4420,8 @@ fn draw_viewer_body(frame: &mut Frame, v: &mut Viewer, title: String, area: Rect
     }
     let mark = highlight(true).add_modifier(Modifier::BOLD);
     let digits = v.total_lines().to_string().len().max(1);
-    let show_numbers = v.line_numbers && matches!(v.mode, ViewMode::Text | ViewMode::Rendered);
+    let show_numbers =
+        v.line_numbers && matches!(v.mode, ViewMode::Text | ViewMode::Rendered | ViewMode::Tree);
     let t = theme();
     let lines: Vec<Line> = v
         .styled(inner.height as usize)

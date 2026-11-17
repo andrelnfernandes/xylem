@@ -69,6 +69,7 @@ vte = "0.15"
 quick-xml = "0.42"
 zip = { version = "9.0.2", default-features = false, features = ["deflate"] }
 pulldown-cmark = { version = "0.13.6", default-features = false }
+saphyr-parser = "0.3.4"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31.3", features = ["fs", "net", "process", "user"] }
