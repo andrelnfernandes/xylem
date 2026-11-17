@@ -3423,6 +3423,15 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             Style::new().fg(theme().key),
         ));
     }
+    if v.mode == ViewMode::Text && v.ansi_removed() > 0 {
+        title.push(Span::styled(
+            format!("  [ANSI: {} removed]", v.ansi_removed()),
+            Style::new().fg(theme().key),
+        ));
+    }
+    if v.mode == ViewMode::Text && v.following() {
+        title.push(Span::styled("  [FOLLOW]", Style::new().fg(theme().key)));
+    }
     if v.mode == ViewMode::Text
         && let Some(summary) = v.patch_summary()
     {

@@ -393,7 +393,7 @@ pub fn tone(rgb: (u8, u8, u8)) -> Color {
 }
 
 /// The text color after the SGR sequence with these parameters (`1;32`).
-fn sgr(params: &str, mut fg: Option<(u8, u8, u8)>) -> Option<(u8, u8, u8)> {
+pub fn sgr(params: &str, mut fg: Option<(u8, u8, u8)>) -> Option<(u8, u8, u8)> {
     let mut nums = params.split([';', ':']).map(|p| {
         if p.is_empty() {
             Some(0)
