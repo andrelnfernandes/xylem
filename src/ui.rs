@@ -3423,6 +3423,14 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             Style::new().fg(theme().key),
         ));
     }
+    if v.mode == ViewMode::Text
+        && let Some(summary) = v.patch_summary()
+    {
+        title.push(Span::styled(
+            format!("  [{summary}]"),
+            Style::new().fg(theme().key),
+        ));
+    }
     if let Some((i, n)) = tagged {
         title.push(Span::styled(
             format!("  [tagged {i} of {n}]"),
@@ -3450,7 +3458,20 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         } else {
             "Sheet"
         };
-        draw_sheet_list(frame, list, grid, word, body);
+        let mark = |i: usize| grid.view_mark(i);
+        draw_sheet_list(
+            frame,
+            list,
+            &grid.sheets,
+            grid.current_sheet,
+            &mark,
+            word,
+            body,
+        );
+    }
+    let (names, current) = v.patch_list_names();
+    if let Some(list) = &mut v.patch_list {
+        draw_sheet_list(frame, list, &names, current, &|_| "", "File", body);
     }
     if let Some(view) = &mut v.structure_view {
         draw_structure(frame, view, body);
@@ -3550,6 +3571,16 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             "COLUMNS",
             &[("↑↓ PgUp PgDn", "scroll"), ("Esc", "back")],
         )]
+    } else if v.patch_list.is_some() {
+        vec![menu_line(
+            "FILES",
+            &[
+                ("↑↓", "move"),
+                ("letters", "narrow the list"),
+                ("Enter", "go to"),
+                ("Esc", "back"),
+            ],
+        )]
     } else if v.sheet_list.is_some() {
         let title = format!("{}S", sheet_word(&v.path).to_uppercase());
         vec![menu_line(
@@ -3622,10 +3653,15 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                     .add_modifier(Modifier::BOLD),
             ),
             None => {
-                let language = v
+                let mut language = v
                     .language()
                     .map(|l| format!("{l}  ·  "))
                     .unwrap_or_default();
+                if v.mode == ViewMode::Text
+                    && let Some(at) = v.patch_position()
+                {
+                    language.push_str(&format!("{at}  ·  "));
+                }
                 let wrap_badge = if v.wrap { "[Wrap] " } else { "" };
                 let num_badge = if v.line_numbers { "[#] " } else { "" };
                 let sheets = match (&v.mode, &v.table) {
@@ -3695,10 +3731,14 @@ fn sheet_word(path: &Path) -> &'static str {
 
 /// The list of sheets or tables, over the grid. Only the rows on screen are built:
 /// a hostile file can have any number of names. They were made safe when read.
+/// The list of a table's sheets, or of a patch's files (Tab): `names`, with
+/// `current` the one open and `mark` what follows a name.
 fn draw_sheet_list(
     frame: &mut Frame,
     list: &mut crate::viewer::table::SheetList,
-    grid: &TableGrid,
+    names: &[String],
+    current: usize,
+    mark: &dyn Fn(usize) -> &'static str,
     word: &str,
     area: Rect,
 ) {
@@ -3723,7 +3763,7 @@ fn draw_sheet_list(
         format!(
             " {word}s: {} of {} ",
             fmt_num(list.shown.len() as u64),
-            fmt_num(grid.sheets.len() as u64)
+            fmt_num(names.len() as u64)
         ),
         true,
     );
@@ -3746,13 +3786,9 @@ fn draw_sheet_list(
         ));
     }
     for (row, &sheet) in list.shown.iter().enumerate().skip(list.scroll).take(rows) {
-        let name = grid.sheets.get(sheet).map_or("", String::as_str);
-        let open = if sheet == grid.current_sheet {
-            '*'
-        } else {
-            ' '
-        };
-        let mark = grid.view_mark(sheet);
+        let name = names.get(sheet).map_or("", String::as_str);
+        let open = if sheet == current { '*' } else { ' ' };
+        let mark = mark(sheet);
         let name = fit(name, name_width.saturating_sub(mark.len()));
         let text = format!("{open} {}{mark}", name.trim_end());
         lines.push(if row == list.cursor {

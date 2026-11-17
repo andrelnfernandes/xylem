@@ -6,6 +6,7 @@ pub mod line_filter;
 pub mod lines;
 pub mod markdown;
 mod parquet_pages;
+pub mod patch;
 pub mod records;
 pub mod sql_filter;
 pub mod table;
@@ -315,6 +316,12 @@ pub struct Viewer {
     pub table: Option<table::TableGrid>,
     /// The list of the table's sheets, while it is open (Tab).
     pub sheet_list: Option<table::SheetList>,
+    /// The index of a patch read whole (see `patch`).
+    patch: Option<Arc<patch::PatchIndex>>,
+    /// The text is a patch (by its name or contents), read whole or not.
+    patch_file: bool,
+    /// The list of a patch's files, while it is open (Tab).
+    pub patch_list: Option<table::SheetList>,
     /// The structure of the table, while it is open (`i`).
     pub structure_view: Option<table::StructureView>,
     /// The record under the cursor as a form, while it is open (Enter).
@@ -449,9 +456,13 @@ impl Viewer {
         v.bidi.clone_from(&bidi);
         let window = TextWindow::new(&path, size, stamp, v.charset, lines, bidi);
         v.lines = Text::Window(Box::new(window));
-        // The colors and the rendered mode read the text from its start.
-        v.colors = None;
-        v.colors_on = false;
+        // The colors and the rendered mode read the text from its start, but
+        // those made line by line (patches, logs) hold anywhere.
+        if !v.colors.as_ref().is_some_and(Highlighter::is_per_line) {
+            v.colors = None;
+            v.colors_on = false;
+        }
+        v.patch = None;
         v.md = None;
         v.md_file = false;
         if v.mode == ViewMode::Rendered {
@@ -463,6 +474,129 @@ impl Viewer {
         v.load_table();
         v.fill_window();
         v
+    }
+
+    /// The colors of the text, by its name (`color_name`, or else `path`) or
+    /// its contents. A patch gets its own, and its index when it is read whole.
+    fn choose_colors(&mut self) {
+        let target = self.color_name.clone().unwrap_or_else(|| self.path.clone());
+        self.patch = None;
+        self.patch_list = None;
+        let special = target == Path::new(crate::highlight::GIT_STATUS)
+            || target == Path::new(crate::highlight::ANSI);
+        self.patch_file =
+            !special && (patch::is_patch_name(&target) || patch::looks_like_patch(&self.lines));
+        if self.patch_file {
+            let index = (!self.windowed()).then(|| Arc::new(patch::index(&self.lines)));
+            self.colors = patch::colors(index.clone());
+            self.patch = index;
+        } else {
+            self.colors = Highlighter::for_name(&target, &self.lines);
+        }
+    }
+
+    /// The summary of a patch for the header: `12 files, +340 −98`.
+    pub fn patch_summary(&self) -> Option<String> {
+        self.patch.as_ref().map(|ix| ix.summary())
+    }
+
+    /// Where the top of the screen is in a patch: `3/12 src/a.rs @@ 2/5`.
+    pub fn patch_position(&self) -> Option<String> {
+        let ix = self.patch.as_ref()?;
+        let line = self.top_line();
+        let file = ix.file_at(line)?;
+        let name = patch::shown(&ix.files[file].name);
+        let mut s = format!("{}/{} {name}", file + 1, ix.files.len());
+        if let Some((hunk, hunks)) = ix.hunk_at(line) {
+            s.push_str(&format!(" @@ {hunk}/{hunks}"));
+        }
+        Some(s)
+    }
+
+    /// `]` `[` (file) and `}` `{` (hunk) in a patch.
+    fn patch_jump(&mut self, key: char) {
+        let Some(ix) = self.patch.clone() else {
+            self.note = Some("No file list in a patch this big".into());
+            return;
+        };
+        let forward = matches!(key, ']' | '}');
+        let line = self.top_line();
+        let target = if matches!(key, ']' | '[') {
+            patch::PatchIndex::next(ix.files.iter().map(|f| f.line), line, forward)
+        } else {
+            patch::PatchIndex::next(ix.hunks.iter().copied(), line, forward)
+        };
+        match target {
+            Some(t) => {
+                self.goto_line(t + 1);
+                self.note = self.patch_position();
+            }
+            None => {
+                let what = if matches!(key, ']' | '[') {
+                    "file"
+                } else {
+                    "hunk"
+                };
+                let way = if forward { "next" } else { "previous" };
+                self.note = Some(format!("No {way} {what}"));
+            }
+        }
+    }
+
+    /// Tab in a patch: the list of its files.
+    fn open_patch_list(&mut self) {
+        let Some(ix) = &self.patch else {
+            self.note = Some("No file list in a patch this big".into());
+            return;
+        };
+        if ix.files.is_empty() {
+            self.note = Some("This patch has no files".into());
+            return;
+        }
+        let current = ix.file_at(self.top_line()).unwrap_or(0);
+        self.patch_list = Some(table::SheetList::new(&ix.names(), current));
+    }
+
+    /// The names in the patch's list and the file at the top of the screen.
+    pub fn patch_list_names(&self) -> (Vec<String>, usize) {
+        match self.patch.as_ref().filter(|_| self.patch_list.is_some()) {
+            Some(ix) => (ix.names(), ix.file_at(self.top_line()).unwrap_or(0)),
+            None => (Vec::new(), 0),
+        }
+    }
+
+    /// A key in the patch's list of files, like one in the list of sheets.
+    fn patch_list_key(&mut self, key: KeyEvent) {
+        let (Some(list), Some(ix)) = (&mut self.patch_list, self.patch.clone()) else {
+            self.patch_list = None;
+            return;
+        };
+        let names = ix.names();
+        let last = list.shown.len().saturating_sub(1);
+        let page = self.page.max(1);
+        let plain = !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        match key.code {
+            KeyCode::Up => list.cursor = list.cursor.saturating_sub(1),
+            KeyCode::Down => list.cursor = (list.cursor + 1).min(last),
+            KeyCode::PageUp => list.cursor = list.cursor.saturating_sub(page),
+            KeyCode::PageDown => list.cursor = (list.cursor + page).min(last),
+            KeyCode::Home => list.cursor = 0,
+            KeyCode::End => list.cursor = last,
+            KeyCode::Backspace => list.pop(&names),
+            KeyCode::Char(c) if plain => list.push(c, &names),
+            KeyCode::Esc | KeyCode::Tab => self.patch_list = None,
+            KeyCode::Enter => {
+                let target = list.shown.get(list.cursor).map(|&f| ix.files[f].line);
+                self.patch_list = None;
+                if let Some(line) = target {
+                    self.goto_line(line + 1);
+                    self.note = self.patch_position();
+                }
+            }
+            _ => {}
+        }
     }
 
     /// The text is a window over a big file.
@@ -1414,13 +1548,13 @@ impl Viewer {
         let data_len = data.len() as u64;
         let text = text_lines(&charset::decode(&data, charset), line_budget(limit));
         let (lines, bidi) = (Text::from(text.lines), text.bidi);
-        let colors = (!binary)
-            .then(|| text_colors(&path, None, &lines))
-            .flatten();
-        Viewer {
+        let mut v = Viewer {
             color_name: None,
-            colors_on: colors.is_some(),
-            colors,
+            colors_on: false,
+            colors: None,
+            patch: None,
+            patch_file: false,
+            patch_list: None,
             path,
             size,
             mode,
@@ -1458,7 +1592,12 @@ impl Viewer {
             seeking: None,
             awaited: None,
             wish: None,
+        };
+        if !binary {
+            v.choose_colors();
+            v.colors_on = v.colors.is_some();
         }
+        v
     }
 
     pub fn charset(&self) -> Charset {
@@ -1525,9 +1664,13 @@ impl Viewer {
         self.lines_cut = text.cut;
         self.refilter();
         let had_colors = self.colors.is_some();
-        self.colors = readable
-            .then(|| text_colors(&self.path, self.color_name.as_deref(), &self.lines))
-            .flatten();
+        if readable {
+            self.choose_colors();
+        } else {
+            self.colors = None;
+            self.patch = None;
+            self.patch_file = false;
+        }
         self.colors_on = self.colors.is_some() && (self.colors_on || !had_colors);
         self.hit = None;
         if !self.render_markdown() && self.mode == ViewMode::Rendered {
@@ -1545,9 +1688,9 @@ impl Viewer {
     /// `highlight::GIT_STATUS`).
     pub fn colored_as(mut self, name: &Path) -> Self {
         if self.mode == ViewMode::Text {
-            self.colors = Highlighter::for_name(name, &self.lines);
-            self.colors_on = self.colors.is_some();
             self.color_name = Some(name.to_path_buf());
+            self.choose_colors();
+            self.colors_on = self.colors.is_some();
         }
         self
     }
@@ -2198,6 +2341,10 @@ impl Viewer {
             self.sheet_list_key(key);
             return Action::None;
         }
+        if self.patch_list.is_some() {
+            self.patch_list_key(key);
+            return Action::None;
+        }
         // Route movement keys to table when in Table mode; with Alt, Home and
         // End are the first and last tagged file.
         let edge = matches!(key.code, KeyCode::Home | KeyCode::End);
@@ -2362,6 +2509,16 @@ impl Viewer {
             }
             KeyCode::Tab if self.mode == ViewMode::Table => {
                 self.open_sheet_list();
+                Action::None
+            }
+            KeyCode::Char(c @ (']' | '[' | '}' | '{'))
+                if self.mode == ViewMode::Text && self.patch_file =>
+            {
+                self.patch_jump(c);
+                Action::None
+            }
+            KeyCode::Tab if self.mode == ViewMode::Text && self.patch_file => {
+                self.open_patch_list();
                 Action::None
             }
             KeyCode::Char(']') => {
@@ -2972,14 +3129,6 @@ fn whole_utf8(data: &[u8]) -> &[u8] {
         break;
     }
     data
-}
-
-/// The syntax colors of a text: by the name they follow, else by `path`.
-fn text_colors(path: &Path, name: Option<&Path>, lines: &Text) -> Option<Highlighter> {
-    match name {
-        Some(n) => Highlighter::for_name(n, lines),
-        None => Highlighter::for_file(path, lines.first().unwrap_or("")),
-    }
 }
 
 /// The memory the lines of a text may take: twice the read limit. Ordinary
@@ -5775,5 +5924,79 @@ mod tests {
         let t = v.table.as_ref().unwrap();
         assert!(t.window.is_none());
         assert!(!v.partial());
+    }
+
+    const PATCH: &str = "\
+diff --git a/a.rs b/a.rs
+--- a/a.rs
++++ b/a.rs
+@@ -1,2 +1,2 @@
+-old
++new
+ same
+@@ -9 +9 @@
+-x
++y
+diff --git a/run.sh b/run.sh
+old mode 100644
+new mode 100755
+";
+
+    #[test]
+    fn a_patch_has_its_colors_summary_and_keys() {
+        let mut v = Viewer::from_bytes("f.patch".into(), PATCH.len() as u64, PATCH.into());
+        v.page = 3;
+        assert_eq!(v.language(), Some("Patch"));
+        assert_eq!(
+            v.patch_summary().as_deref(),
+            Some("2 files, +2 −2, 1 to check")
+        );
+        assert_eq!(v.patch_position().as_deref(), Some("1/2 a.rs"));
+        press(&mut v, KeyCode::Char('}'));
+        assert_eq!(v.top_line(), 3);
+        assert_eq!(v.note.as_deref(), Some("1/2 a.rs @@ 1/2"));
+        press(&mut v, KeyCode::Char('}'));
+        assert_eq!(v.top_line(), 7);
+        press(&mut v, KeyCode::Char('{'));
+        assert_eq!(v.top_line(), 3);
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.top_line(), 10);
+        assert_eq!(v.note.as_deref(), Some("2/2 run.sh"));
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.note.as_deref(), Some("No next file"));
+        press(&mut v, KeyCode::Char('['));
+        assert_eq!(v.top_line(), 0);
+        // The colors: added, removed, hunk, and the mode that makes it executable.
+        let colors = |v: &mut Viewer, line: usize| {
+            v.top = line;
+            v.styled(1)[0].segments[0].1
+        };
+        let (added, removed) = (colors(&mut v, 4), colors(&mut v, 5));
+        assert!(added.is_some() && removed.is_some() && added != removed);
+        assert_ne!(colors(&mut v, 12), colors(&mut v, 11), "100755 is marked");
+    }
+
+    #[test]
+    fn tab_lists_the_files_of_a_patch() {
+        let mut v = Viewer::from_bytes("f.diff".into(), PATCH.len() as u64, PATCH.into());
+        v.page = 3;
+        press(&mut v, KeyCode::Tab);
+        assert_eq!(
+            v.patch_list_names().0,
+            ["+2 −2  a.rs", "+0 −0  run.sh  ⚠ check"]
+        );
+        press(&mut v, KeyCode::Char('r'));
+        press(&mut v, KeyCode::Char('u'));
+        assert_eq!(v.patch_list.as_ref().unwrap().shown, [1]);
+        press(&mut v, KeyCode::Enter);
+        assert!(v.patch_list.is_none());
+        assert_eq!(v.top_line(), 10);
+        // A patch by its contents, with no name to say so.
+        let v = viewer(PATCH.as_bytes());
+        assert_eq!(v.language(), Some("Patch"));
+        // Not a patch: the keys stay the table's, and do nothing here.
+        let mut v = viewer(b"a\nb\n");
+        press(&mut v, KeyCode::Tab);
+        assert!(v.patch_list.is_none());
     }
 }

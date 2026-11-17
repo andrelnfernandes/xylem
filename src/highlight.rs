@@ -95,7 +95,23 @@ pub struct Highlighter {
     /// Language name, e.g. "Rust".
     pub language: String,
     failed: bool,
+    /// Colors each line from the line alone (patches, logs): any line, in any
+    /// order, so it also works in a window over a big file.
+    per_line: Option<PerLine>,
 }
+
+/// The colors of one line, by its number and text.
+pub type LineColors = Box<dyn FnMut(usize, &str) -> Vec<(Color, String)> + Send>;
+
+struct PerLine {
+    colors: LineColors,
+    /// The lines already colored, cleared when it grows past `PER_LINE_CACHE`.
+    cache: std::collections::HashMap<usize, Vec<(Color, String)>>,
+    /// A line not read yet (in a window): colored, but not kept.
+    scratch: Vec<(Color, String)>,
+}
+
+const PER_LINE_CACHE: usize = 4096;
 
 /// The language of `path` (by extension, file name or first line, like
 /// `#!/bin/sh`), if known: "Rust", "Python", "Markdown"...
@@ -169,6 +185,7 @@ impl Highlighter {
             background,
             language: "Git status".into(),
             failed: false,
+            per_line: None,
         })
     }
 
@@ -201,7 +218,34 @@ impl Highlighter {
             background,
             language: syntax.name.clone(),
             failed: false,
+            per_line: None,
         })
+    }
+
+    /// Colors made line by line by `colors` (see [`LineColors`]), named
+    /// `language` in the header. `None` when colors are off.
+    pub fn per_line(language: &str, colors: LineColors) -> Option<Self> {
+        if !enabled() {
+            return None;
+        }
+        let background = STYLE.read().unwrap_or_else(|e| e.into_inner()).1;
+        Some(Highlighter {
+            lines: None,
+            done: Vec::new(),
+            background,
+            language: language.into(),
+            failed: false,
+            per_line: Some(PerLine {
+                colors,
+                cache: std::collections::HashMap::new(),
+                scratch: Vec::new(),
+            }),
+        })
+    }
+
+    /// Colors a line from itself alone, so they hold in a window too.
+    pub fn is_per_line(&self) -> bool {
+        self.per_line.is_some()
     }
 
     /// Colored segments of line `i` of `lines`, highlighting the lines
@@ -211,6 +255,21 @@ impl Highlighter {
         i: usize,
         lines: &(impl LineSource + ?Sized),
     ) -> Option<&[(Color, String)]> {
+        if let Some(p) = &mut self.per_line {
+            if i >= lines.count() {
+                return None;
+            }
+            let text = lines.line(i);
+            if text == crate::viewer::text_window::MISSING {
+                p.scratch = Vec::new();
+                return Some(&p.scratch);
+            }
+            if p.cache.len() >= PER_LINE_CACHE && !p.cache.contains_key(&i) {
+                p.cache.clear();
+            }
+            let PerLine { colors, cache, .. } = p;
+            return Some(cache.entry(i).or_insert_with(|| colors(i, text)));
+        }
         if i >= MAX_LINES || i >= lines.count() {
             return None;
         }
@@ -320,8 +379,17 @@ pub fn from_ansi(text: &[u8]) -> (Vec<u8>, Option<Highlighter>) {
         background,
         language: "Git graph".into(),
         failed: false,
+        per_line: None,
     };
     (plain.into_bytes(), Some(colors))
+}
+
+/// `rgb` made readable on the viewer's background, for the colorings the
+/// viewer makes itself (patches, logs).
+pub fn tone(rgb: (u8, u8, u8)) -> Color {
+    let background = STYLE.read().unwrap_or_else(|e| e.into_inner()).1;
+    let (r, g, b) = readable(rgb, background);
+    Color::Rgb(r, g, b)
 }
 
 /// The text color after the SGR sequence with these parameters (`1;32`).

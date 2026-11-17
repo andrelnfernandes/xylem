@@ -1201,10 +1201,6 @@ impl Text {
         }
     }
 
-    pub fn first(&self) -> Option<&str> {
-        (self.len() > 0).then(|| &self[0])
-    }
-
     pub fn window(&self) -> Option<&TextWindow> {
         match self {
             Text::Whole(_) => None,
@@ -1559,5 +1555,16 @@ mod tests {
         let (text, _, cut) = v.batch_text().unwrap();
         assert_eq!(text.lines().count(), 3_000);
         assert!(!cut);
+    }
+
+    #[test]
+    fn a_big_patch_keeps_its_colors_but_has_no_index() {
+        let text = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n".repeat(4);
+        let (_tmp, mut v) = open("big.patch", text.as_bytes());
+        assert!(v.windowed());
+        assert_eq!(v.language(), Some("Patch"));
+        assert_eq!(v.patch_summary(), None);
+        v.handle_key(KeyEvent::new(KeyCode::Char(']'), KeyModifiers::NONE));
+        assert_eq!(v.note.as_deref(), Some("No file list in a patch this big"));
     }
 }
