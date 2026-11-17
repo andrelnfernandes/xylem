@@ -3,6 +3,7 @@
 
 pub mod batch;
 pub mod binaries;
+pub mod certs;
 pub mod doc_events;
 pub mod jupyter;
 pub mod line_filter;
@@ -353,6 +354,10 @@ pub struct Viewer {
     office: Option<office::Kind>,
     /// The file is an executable, a library or an object (see `binaries`).
     exe: bool,
+    /// The file is a certificate or a key (see `certs`); in DER, it has no
+    /// text of its own.
+    cert: bool,
+    cert_der: bool,
     /// JSON, YAML or TOML: its format, and its tree when it could be read.
     tree_format: Option<tree::Format>,
     pub tree: Option<tree::Tree>,
@@ -1031,6 +1036,8 @@ impl Viewer {
         self.notebook = new.notebook;
         self.office = new.office;
         self.exe = new.exe;
+        self.cert = new.cert;
+        self.cert_der = new.cert_der;
         self.patch = new.patch;
         self.patch_file = new.patch_file;
         self.log_file = new.log_file;
@@ -1478,6 +1485,8 @@ impl Viewer {
         v.notebook = jupyter::is_notebook(shown_name);
         v.office = (!failed).then(|| office::kind(shown_name)).flatten();
         v.exe = !failed && found.binary && binaries::is_binary(&v.data);
+        v.cert = !failed && !v.exe && certs::detect(shown_name, &v.data);
+        v.cert_der = v.cert && found.binary;
         v.md_file = !failed && !found.binary && (markdown::is_markdown(shown_name) || v.notebook);
         if let Some(name) = &name {
             v = v.colored_as(name);
@@ -1772,6 +1781,25 @@ impl Viewer {
         if self.exe {
             return self.render_binary();
         }
+        if self.cert {
+            let (time, budget, width) = (
+                self.load.limits.time,
+                self.load.limits.output.saturating_mul(16).max(16 << 20),
+                self.content_width(),
+            );
+            let (path, data) = (&self.path, &self.data);
+            match crate::panic_guard::catch(|| certs::render(path, data, time, budget, width)) {
+                Some(Ok(doc)) => self.md = Some(doc),
+                Some(Err(why)) => {
+                    self.note.get_or_insert(why);
+                }
+                None => {
+                    self.note
+                        .get_or_insert_with(|| "Could not read this certificate or key".into());
+                }
+            }
+            return self.md.is_some();
+        }
         if !self.md_file {
             return false;
         }
@@ -1904,7 +1932,7 @@ impl Viewer {
     /// A document with no text of its own (Office, an executable): `T` has no
     /// source to show, and `H` goes to the bytes.
     fn no_source(&self) -> bool {
-        self.office.is_some() || self.exe
+        self.office.is_some() || self.exe || self.cert_der
     }
 
     pub fn limit(&self) -> u64 {
@@ -2197,6 +2225,8 @@ impl Viewer {
             notebook: false,
             office: None,
             exe: false,
+            cert: false,
+            cert_der: false,
             tree_format: None,
             tree: None,
             tree_cursor: 0,
@@ -6858,5 +6888,21 @@ new mode 100755
         assert_eq!(v.mode, ViewMode::Rendered);
         // A few bytes that only start like one stay in hex.
         assert_eq!(viewer(b"\x7fELF\0\0").mode, ViewMode::Hex);
+    }
+
+    #[test]
+    fn a_certificate_opens_as_a_report_and_a_key_hides_its_text() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("server.pem");
+        std::fs::write(&path, include_str!("../tests/data/cert.pem")).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Text, "a PEM has its text");
+        // A private key, in Autoview: the report, not the text.
+        let key = tmp.path().join("id_rsa");
+        std::fs::write(&key, include_str!("../tests/data/key.pem")).unwrap();
+        let v = Viewer::open(key, LoadOptions::autoview()).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
     }
 }
