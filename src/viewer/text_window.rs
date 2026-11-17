@@ -839,6 +839,35 @@ impl TextWindow {
         })
     }
 
+    /// The file grew to `size` (a log being written): the count takes up from
+    /// where it ended, and the lines kept are read again, since the last one
+    /// may have gone on.
+    pub fn grow(&mut self, size: u64, stamp: Stamp) {
+        let mut index = std::mem::take(&mut *self.shared.lock());
+        // The last line was counted though it had no end: it goes on now.
+        if index.done && index.scanned > 0 && !index.ends_in_newline {
+            index.lines -= 1;
+        }
+        index.done = false;
+        index.changed = false;
+        let old = &self.shared;
+        self.shared = Arc::new(Shared {
+            path: old.path.clone(),
+            stamp,
+            size,
+            unit: old.unit,
+            utf8: old.utf8,
+            index: Mutex::new(index),
+        });
+        self.done = false;
+        self.changed = false;
+        self.counting = None;
+        self.searching = None;
+        self.filtering = None;
+        self.forget();
+        self.count();
+    }
+
     /// Starts the count the first time the text is looked at: a file seen
     /// only as a table or in hex is never counted.
     pub fn count_once(&mut self) {
@@ -1566,5 +1595,31 @@ mod tests {
         assert_eq!(v.patch_summary(), None);
         v.handle_key(KeyEvent::new(KeyCode::Char(']'), KeyModifiers::NONE));
         assert_eq!(v.note.as_deref(), Some("No file list in a patch this big"));
+    }
+
+    #[test]
+    fn a_big_log_is_followed_through_its_window() {
+        let (tmp, mut v) = open("big.log", &numbered(50));
+        let path = tmp.path().join("big.log");
+        assert!(v.windowed());
+        assert_eq!(v.language(), Some("Log"));
+        settle(&mut v);
+        press(&mut v, KeyCode::End);
+        v.poll_table();
+        assert!(v.following());
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap();
+        f.write_all(b"line 50\nline 51\n").unwrap();
+        drop(f);
+        v.poll_table();
+        settle(&mut v);
+        v.poll_table();
+        assert_eq!(v.line_count(), 52);
+        assert!(v.following());
+        let shown: Vec<String> = v.visible(5).into_iter().map(|(l, _)| l).collect();
+        assert_eq!(shown.last().map(String::as_str), Some("line 51"));
     }
 }

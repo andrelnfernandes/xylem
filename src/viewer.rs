@@ -4,6 +4,7 @@
 pub mod batch;
 pub mod line_filter;
 pub mod lines;
+pub mod log;
 pub mod markdown;
 mod parquet_pages;
 pub mod patch;
@@ -322,6 +323,12 @@ pub struct Viewer {
     patch_file: bool,
     /// The list of a patch's files, while it is open (Tab).
     pub patch_list: Option<table::SheetList>,
+    /// The text is a log (see `log`).
+    log_file: bool,
+    /// The ANSI sequences taken out of a log that were not a text color.
+    ansi_removed: usize,
+    /// Following a log as it grows (see `follow_tick`).
+    follow: Follow,
     /// The structure of the table, while it is open (`i`).
     pub structure_view: Option<table::StructureView>,
     /// The record under the cursor as a form, while it is open (Enter).
@@ -343,6 +350,39 @@ pub struct Viewer {
     awaited: Option<Hit>,
     /// The line a reload wants at the top, once the count gets there.
     wish: Option<usize>,
+}
+
+/// How often a log being followed is looked at.
+#[cfg(not(test))]
+const FOLLOW_EVERY: Duration = Duration::from_millis(500);
+#[cfg(test)]
+const FOLLOW_EVERY: Duration = Duration::ZERO;
+/// The bytes at the end of a followed log compared to tell it only grew.
+const FOLLOW_TAIL: u64 = 4096;
+
+/// A log followed as it grows: with the screen at its last line, new lines
+/// come in and the screen stays at the end (docs/plans/viewer-logs.md).
+#[derive(Debug, Default, Clone)]
+struct Follow {
+    on: bool,
+    last: Option<std::time::Instant>,
+    /// The size of the file when it was last read, and its last bytes then.
+    tail: Option<(u64, Vec<u8>)>,
+    /// The top the follow put the screen at: a key that moved it stops it.
+    top: usize,
+    /// The file was rotated or rewritten: only R reads it again.
+    rotated: bool,
+}
+
+/// The last [`FOLLOW_TAIL`] bytes of the first `size` of the file at `path`.
+fn read_tail(path: &Path, size: u64) -> Option<Vec<u8>> {
+    use std::io::{Seek, SeekFrom};
+    let mut file = File::open(path).ok()?;
+    let from = size.saturating_sub(FOLLOW_TAIL);
+    file.seek(SeekFrom::Start(from)).ok()?;
+    let mut buf = Vec::new();
+    file.take(size - from).read_to_end(&mut buf).ok()?;
+    (buf.len() as u64 == size - from).then_some(buf)
 }
 
 /// The line filter in effect and the lines it kept, in order.
@@ -486,13 +526,149 @@ impl Viewer {
             || target == Path::new(crate::highlight::ANSI);
         self.patch_file =
             !special && (patch::is_patch_name(&target) || patch::looks_like_patch(&self.lines));
+        self.log_file = !special
+            && !self.patch_file
+            && (log::is_log_name(&target) || log::looks_like_log(&self.lines));
+        self.ansi_removed = 0;
         if self.patch_file {
             let index = (!self.windowed()).then(|| Arc::new(patch::index(&self.lines)));
             self.colors = patch::colors(index.clone());
             self.patch = index;
+        } else if self.log_file {
+            self.colors = self.log_colors();
         } else {
             self.colors = Highlighter::for_name(&target, &self.lines);
         }
+    }
+
+    /// A log read whole loses its ANSI sequences (their text colors are kept)
+    /// and gets the level of each line; in a window, each line is colored by
+    /// its own level.
+    fn log_colors(&mut self) -> Option<Highlighter> {
+        if self.windowed() {
+            return log::colors(None, None);
+        }
+        let mut ansi = None;
+        let decoded = charset::decode(&self.data, self.charset);
+        if log::has_escapes(&decoded) {
+            let stripped = log::strip_ansi(&decoded);
+            let text = text_lines(&stripped.text, line_budget(self.load.limits.output));
+            self.lines = text.lines.into();
+            self.bidi = text.bidi;
+            self.lines_cut = text.cut;
+            self.ansi_removed = stripped.removed;
+            self.refilter();
+            ansi = stripped.colors.map(Arc::new);
+        }
+        let levels = Arc::new(log::levels(&self.lines));
+        log::colors(Some(levels), ansi)
+    }
+
+    /// The ANSI sequences taken out of a log that were not a text color.
+    pub fn ansi_removed(&self) -> usize {
+        self.ansi_removed
+    }
+
+    /// A log is being followed: new lines come in at the end.
+    pub fn following(&self) -> bool {
+        self.follow.on
+    }
+
+    /// The screen at the last lines, as End leaves it.
+    fn show_end(&mut self) {
+        let page = self.page.max(1);
+        if self.mode == ViewMode::Text && self.wrap {
+            self.top = self.text_rows().saturating_sub(1);
+            self.sub_top = 0;
+        } else {
+            self.top = self.line_count().saturating_sub(page);
+        }
+    }
+
+    /// The last line is on the screen, and all of them are known.
+    fn at_end(&self) -> bool {
+        if self.follow.on {
+            return self.top == self.follow.top;
+        }
+        self.mode == ViewMode::Text
+            && !self.counting_lines()
+            && self.top + self.page.max(1) >= self.text_rows()
+    }
+
+    /// Follows a log on disk while the screen is at its end: looks at the file
+    /// every [`FOLLOW_EVERY`]; if it only grew (its old last bytes are the
+    /// same), the new lines come in and the screen stays at the end. If it
+    /// shrank or changed, it was rotated or rewritten: the header says so, and
+    /// R reads it again. True if there is something new to show.
+    fn follow_tick(&mut self) -> bool {
+        let can = self.log_file
+            && self.on_disk
+            && self.mode == ViewMode::Text
+            && self.compression.is_none()
+            && self.behind.is_none()
+            && !self.follow.rotated
+            && (self.windowed() || !self.cut);
+        if !can || !self.at_end() {
+            let was = self.follow.on;
+            let rotated = self.follow.rotated;
+            self.follow = Follow {
+                rotated,
+                ..Follow::default()
+            };
+            return was;
+        }
+        // The lines a window is still counting: the screen goes with them.
+        if self.follow.on {
+            let before = self.top;
+            self.show_end();
+            self.follow.top = self.top;
+            if self.top != before || self.counting_lines() {
+                return true;
+            }
+        }
+        if self.follow.last.is_some_and(|t| t.elapsed() < FOLLOW_EVERY) {
+            return false;
+        }
+        self.follow.last = Some(std::time::Instant::now());
+        let known = self.lines.window().map_or(self.size, TextWindow::size);
+        let Some((size, tail)) = self.follow.tail.clone() else {
+            self.follow.tail = read_tail(&self.path, known).map(|t| (known, t));
+            self.follow.on = self.follow.tail.is_some();
+            self.follow.top = self.top;
+            return self.follow.on;
+        };
+        let Ok(now) = std::fs::metadata(&self.path).map(|m| m.len()) else {
+            return false;
+        };
+        if now == size {
+            return false;
+        }
+        let grew = now > size && read_tail(&self.path, size).as_deref() == Some(&tail[..]);
+        if !grew {
+            self.follow = Follow {
+                rotated: true,
+                ..Follow::default()
+            };
+            return true;
+        }
+        if let Some(w) = self.lines.window_mut() {
+            w.grow(now, records::file_stamp(&self.path));
+            self.size = now;
+            if self.filter.is_some() {
+                self.refilter();
+            }
+        } else {
+            let keep = self.follow.clone();
+            if self.reload().is_err() {
+                return false;
+            }
+            self.follow = keep;
+        }
+        self.follow.tail = read_tail(&self.path, now).map(|t| (now, t));
+        self.follow.on = true;
+        self.show_end();
+        self.follow.top = self.top;
+        true
     }
 
     /// The summary of a patch for the header: `12 files, +340 −98`.
@@ -609,9 +785,10 @@ impl Viewer {
         self.lines.window().is_some_and(TextWindow::counting)
     }
 
-    /// The file under the window is no longer the one that was opened.
+    /// The file under the window is no longer the one that was opened, or a
+    /// followed log was rotated.
     pub fn text_changed(&self) -> bool {
-        self.lines.window().is_some_and(TextWindow::changed)
+        self.lines.window().is_some_and(TextWindow::changed) || self.follow.rotated
     }
 
     /// Asks the window for what the screen shows and the lines around it.
@@ -947,7 +1124,8 @@ impl Viewer {
     /// a big text. True if there is something new to show.
     pub fn poll_table(&mut self) -> bool {
         let text = self.poll_text();
-        self.poll_grid() || text
+        let follow = self.follow_tick();
+        self.poll_grid() || text || follow
     }
 
     fn poll_grid(&mut self) -> bool {
@@ -1555,6 +1733,9 @@ impl Viewer {
             patch: None,
             patch_file: false,
             patch_list: None,
+            log_file: false,
+            ansi_removed: 0,
+            follow: Follow::default(),
             path,
             size,
             mode,
@@ -5998,5 +6179,71 @@ new mode 100755
         let mut v = viewer(b"a\nb\n");
         press(&mut v, KeyCode::Tab);
         assert!(v.patch_list.is_none());
+    }
+
+    #[test]
+    fn a_log_has_level_colors_and_loses_its_escapes() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("app.log");
+        std::fs::write(
+            &path,
+            "INFO start\n\x1b[31mERROR\x1b[0m bad\x1b]52;c;eA==\x07\nWARN slow\n",
+        )
+        .unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.language(), Some("Log"));
+        assert_eq!(v.ansi_removed(), 1, "the OSC 52");
+        assert_eq!(&v.lines[1], "ERROR bad");
+        assert!(v.data.contains(&0x1b), "the hex still has the bytes");
+        v.page = 5;
+        let rows = v.styled(3);
+        let color = |r: usize| rows[r].segments[0].1;
+        assert!(color(1).is_some() && color(2).is_some() && color(1) != color(2));
+        // Not a log: the colors are the language's.
+        let plain = viewer(b"fn main() {}\n");
+        assert_ne!(plain.language(), Some("Log"));
+    }
+
+    #[test]
+    fn a_log_at_its_end_is_followed_as_it_grows() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("app.log");
+        std::fs::write(&path, "a\nb\nc\n").unwrap();
+        let load = LoadOptions {
+            in_background: true,
+            ..LOAD
+        };
+        let mut v = Viewer::open(path.clone(), load).unwrap();
+        v.page = 2;
+        assert!(!v.poll_table() || !v.following(), "not at the end yet");
+        press(&mut v, KeyCode::End);
+        v.poll_table();
+        assert!(v.following());
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap();
+        f.write_all(b"d\ne\n").unwrap();
+        drop(f);
+        assert!(v.poll_table());
+        assert_eq!(v.line_count(), 5);
+        assert_eq!(v.top, 3, "still at the end");
+        assert!(v.following());
+        // Moving up stops it.
+        press(&mut v, KeyCode::Up);
+        v.poll_table();
+        assert!(!v.following());
+        press(&mut v, KeyCode::End);
+        v.poll_table();
+        assert!(v.following());
+        // Rotated: the header says so, and R reads it again.
+        std::fs::write(&path, "new\n").unwrap();
+        assert!(v.poll_table());
+        assert!(!v.following());
+        assert!(v.text_changed());
+        press(&mut v, KeyCode::Char('r'));
+        assert_eq!(v.line_count(), 1);
+        assert!(!v.text_changed());
     }
 }

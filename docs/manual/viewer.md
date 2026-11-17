@@ -61,6 +61,14 @@ A file over 8 MiB opens as its source, with a note. Rendering also stops at the 
 
 Markdown itself hides a few things: link definitions that nothing uses, and table cells beyond the columns of the header. To see everything, `T` shows the source. Italic and strikethrough depend on the terminal and its font, so they also have a color of their own.
 
+## Logs
+
+A log opens as text, with the colors of its levels, and the footer says `Log`. A file is a log by its name (`.log`, `.out`, `.err`, a rotated one like `app.log.1` or `app.log.2.gz`, `syslog`, `messages`, `kern.log`) or by its contents: most of its first lines start with a date and time (`2026-11-16 10:00`, `[2026-11-16 ...`, or syslog's `Nov 16 10:00:00`).
+
+- **Levels:** the first level word in the first 120 columns of a line, in any case, gives its color: errors (`ERROR`, `ERR`, `FATAL`, `CRIT`, `PANIC`...) in red, warnings (`WARN`, `WARNING`) in yellow, `DEBUG` and `TRACE` dimmed. Syslog's `<n>` at the start of a line counts too, and so does the level of a log in JSON (`"level":"error"`). A line with no level, like a stack trace, takes the one before it. `C` turns the colors off.
+- **ANSI colors:** the colors a program wrote into its log (`ESC [31m`) are shown as colors, and their sequences are taken out of the text. Any other sequence is dropped, since it could move the cursor or write to the clipboard (OSC 52), and the header counts them, as in `[ANSI: 3 removed]`. `H` still shows the bytes as they are, and a search looks at the text without the sequences. In a file over 16 MiB, read through a window, the sequences are shown as `·`, as in any text, and the colors are those of the levels.
+- **Following:** with the last line on the screen (End), new lines come in as the program writes them, and the screen stays at the end; the header says `[FOLLOW]`. The file is looked at every half second, also on a network share. Moving up, or searching, stops it; End takes it up again. With a filter (`&`), the new lines go through it. If the file shrank or changed instead of growing (rotated or rewritten), the header says `(the file changed: R reloads)`, and nothing is read until R. A compressed log is not followed.
+
 ## Patches
 
 A `.patch` or `.diff`, or any text that starts like one (`diff --git`, or `---`, `+++` and `@@`), opens as text with the colors of a patch. The Git diff (`D`) is shown the same way. The header sums it up, as in `[12 files, +340 −98]`, and the footer says where the top of the screen is: `3/12 src/viewer.rs @@ 2/5`.

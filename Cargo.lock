@@ -4282,6 +4282,7 @@ dependencies = [
  "trash",
  "tui-term",
  "vt100",
+ "vte",
  "windows-sys 0.61.2",
  "winresource",
  "zip",
