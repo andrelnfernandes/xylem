@@ -25,7 +25,9 @@ MANUAL = REPO / "docs" / "manual"
 SCREENSHOTS = REPO / "docs" / "screenshots"
 LANGUAGES = ["en", "pt", "es", "fr", "de", "zh"]
 # The pages of the site, in the order of the side menu (index.md first).
-PAGES = ["index.md", "in-action.md", "features.md", "screenshots.md", "install.md", "next.md", "about.md"]
+PAGES = ["index.md", "in-action.md", "screenshots.md", "next.md", "about.md"]
+# Pages of the site that became topics of the manual: old address, new one.
+MOVED = {"features": "overview", "install": "start"}
 # Not a topic of the manual.
 SKIP = {"TRANSLATING.md"}
 LINK = re.compile(r"\[[^\]]*\]\(([a-z0-9-]+\.md)(?:#[^)]*)?\)")
@@ -83,6 +85,7 @@ def redirects():
     Portuguese (/pt-br/) and the manual's own books (/manual/, /manual/LANG/)."""
     names = [p.name[:-3] for p in MANUAL.glob("*.md") if p.name not in SKIP]
     out = {"/pt-br/index.html": "../pt/index.html"}
+    out.update({f"/{old}.html": f"{new}.html" for old, new in MOVED.items()})
     for name in names:
         target = "manual" if name == "index" else name
         out[f"/manual/{name}.html"] = f"../{target}.html"
@@ -141,11 +144,12 @@ def main():
 """,
         encoding="utf-8",
     )
-    redirect = ""
-    if lang == "en":
-        redirect = "\n[output.html.redirect]\n" + "".join(
-            f'"{old}" = "{new}"\n' for old, new in sorted(redirects().items())
-        )
+    # English has all the addresses of before; the other books, the pages
+    # that became topics.
+    moved = redirects() if lang == "en" else {f"/{old}.html": f"{new}.html" for old, new in MOVED.items()}
+    redirect = "\n[output.html.redirect]\n" + "".join(
+        f'"{old}" = "{new}"\n' for old, new in sorted(moved.items())
+    )
     (dest / "book.toml").write_text(
         f"""[book]
 title = "Xylem File Manager"

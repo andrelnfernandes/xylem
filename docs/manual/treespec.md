@@ -39,7 +39,7 @@ used before, the last one at the bottom: those logged and the folders files
 were copied or moved to. Typing filters it, Enter puts a place in the line and
 Del takes it out of the list.
 
-**F11** brings a [bookmark](bookmarks.md) into the prompt, by its name: handy for
-long addresses of remote machines and containers.
+**F11** brings a [bookmark](bookmarks.md) into the prompt, by its name, in place
+of typing the address of a remote machine or a container.
 
 See also: [the tree window](tree.md), [bookmarks](bookmarks.md).

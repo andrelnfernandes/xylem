@@ -9,11 +9,12 @@ pede o destino.
 Um diretório (relativo ao diretório sob o cursor da árvore, absoluto ou com
 `~`) ou, para um único arquivo, um novo nome. Com a tela
 [dividida](split.md), o diretório da outra janela é sugerido. **F2** abre uma
-árvore para [escolher a pasta](picker.md); **↑** traz destinos anteriores.
+árvore para [escolher a pasta](picker.md); **↑** abre os destinos
+anteriores em uma [lista](execute.md#histórico).
 
-Sem a tela dividida, o prompt abre vazio, como no [Log](treespec.md), e **↑**
-percorre os mesmos lugares: as pastas para onde se copiou ou moveu e as que foram
-logadas, do último para o mais antigo. Enter com o prompt vazio não faz nada.
+Sem a tela dividida, o prompt abre vazio, como no [Log](treespec.md), e a
+lista do **↑** tem os mesmos lugares: as pastas para onde se copiou ou moveu e
+as que foram logadas, com o último embaixo. Enter com o prompt vazio não faz nada.
 
 **F11** traz um [favorito](bookmarks.md) para o prompt.
 
@@ -29,7 +30,7 @@ depende do modo. Para `/home/me/proj/src/ops/mod.rs`, listado a partir de
 
 | Modo | Resultado | |
 |---|---|---|
-| Full | `dest/home/me/proj/src/ops/mod.rs` | desde a raiz do disco, como no ZTreeWin (padrão) |
+| Full | `dest/home/me/proj/src/ops/mod.rs` | desde a raiz do disco (padrão) |
 | Tree | `dest/src/ops/mod.rs` | desde a raiz da árvore do Xylem (aqui `proj`) |
 | Current | `dest/ops/mod.rs` | desde a raiz da lista, incluindo seu nome |
 | Relative | `dest/mod.rs` | apenas o que está abaixo da raiz da lista |

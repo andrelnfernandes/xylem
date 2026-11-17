@@ -9,7 +9,7 @@ Xylem 可以通过 SSH 将另一台机器上的文件作为目录树显示出来
 - `user@host:` — 主目录；`user@host:/srv/www` — 指定目录；
 - `ssh://[user@]host[:port][/path]` — 指定端口，或省略用户名（使用 `~/.ssh/config` 中的配置）。
 
-Xylem 直接调用系统自带的 `ssh`，因此您在终端中能用的配置在这里同样有效：`~/.ssh/config`（主机别名、端口、ProxyJump）、密钥、ssh-agent 以及 `known_hosts`。无需在远程机器上安装任何额外软件：Xylem 使用所有 SSH 服务器都自带的 SFTP 协议通信（支持 Linux、BSD、macOS、Windows）。
+Xylem 直接调用系统自带的 `ssh`，因此您在终端中能用的配置在这里同样有效：`~/.ssh/config`（主机别名、端口、ProxyJump）、密钥、ssh-agent 以及 `known_hosts`。无需在远程主机上安装任何额外软件：Xylem 使用所有 SSH 服务器都自带的 SFTP 协议通信（支持 Linux、BSD、macOS、Windows）。
 
 若想下次不必再输入地址就能回来，可把该文件夹保存为 [书签](bookmarks.md)（Ctrl+F11）并为它命名。
 
@@ -30,7 +30,7 @@ Xylem 直接调用系统自带的 `ssh`，因此您在终端中能用的配置�
 
 **复制 (Copy)** 可将远程文件下载到本机，并保留其权限和修改日期（精确到秒，与 SFTP 一致）；在分屏状态下，会默认建议将本机窗口作为目标目录。Alt+C（保留路径）同样可用，路径从远程窗口的根目录算起。
 
-![分屏：左侧远程机器上已标记三个备份文件，即将复制到右侧本机的文件夹中](../../screenshots/remote.png)
+![分屏：左侧远程主机上已标记三个备份文件，即将复制到右侧本机的文件夹中](../../screenshots/remote.png)
 
 **重命名**（单个文件、目录，或用掩码重命名已标记的文件）和 **新建目录** 在远程主机上的用法与本机相同。重命名绝不会不经询问就覆盖文件；回答"是"之后，如果服务器支持（OpenSSH 支持），会一步完成替换，否则 Xylem 会提示并保留两个文件。
 
@@ -46,9 +46,9 @@ Xylem 直接调用系统自带的 `ssh`，因此您在终端中能用的配置�
 
 ## 远程主机上的终端
 
-在远程窗口中按 **Alt+X** 会在该远程机器上打开一个 shell（`ssh -t`），初始位于当前窗口所在的远程目录；在本地窗口中按 Alt+X 则像以前一样打开本地 shell（切换窗口时，两个 shell 都会在后台保持运行）。在 Linux 和 macOS 上，远程 shell 会复用已建立的 SSH 连接，因此无需再次输入密码；在 Windows 上，ssh 会在终端内提示输入密码。
+在远程窗口中按 **Alt+X** 会在该远程主机上打开一个 shell（`ssh -t`），初始位于当前窗口所在的远程目录；在本地窗口中按 Alt+X 则像以前一样打开本地 shell（切换窗口时，两个 shell 都会在后台保持运行）。在 Linux 和 macOS 上，远程 shell 会复用已建立的 SSH 连接，因此无需再次输入密码；在 Windows 上，ssh 会在终端内提示输入密码。
 
-![远程机器的 shell 位于其目录树下方，执行 cd logs 后，目录树也跟随定位到 logs](../../screenshots/remote-terminal.png)
+![远程主机的 shell 位于其目录树下方，执行 cd logs 后，目录树也跟随定位到 logs](../../screenshots/remote-terminal.png)
 
 当远程 shell 通过 OSC 7 序列上报其当前目录时，目录树会自动跟随远程 shell 的 `cd` 移动。许多系统默认已配置好此功能；对于 bash，可在 **远程主机上** 的 `~/.bashrc` 中添加以下内容：
 

@@ -1,7 +1,9 @@
 # The built-in terminal (Alt+X)
 
-Not in XTree or ZTreeWin: your shell (`$SHELL`) running inside Xylem's screen,
-in the bottom part, with the tree and the files still visible above it.
+Alt+X runs your shell (`$SHELL`) in the bottom part of Xylem's screen, with the
+tree and the files above it.
+[Using the tagged files in a shell command](howto-terminal-tagged.md) has an
+example.
 
 - **Alt+X** opens the terminal and goes back to Xylem. The shell keeps running
   while hidden, with its history and whatever it had on screen; `exit` closes

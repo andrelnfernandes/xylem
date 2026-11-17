@@ -1,7 +1,5 @@
 # Comparaison avec ZTreeWin
 
-> **Une ligne pas encore à jour.** Dans le tableau, la visionneuse n'a plus de limite de taille pour les fichiers sur disque ; voir la version anglaise.
-
 ## Avant tout, un remerciement
 
 J'utilise une variante de XTree depuis les années 1990, et j'ai une licence
@@ -41,8 +39,7 @@ les exceptions sont dans « Touches différentes », à la fin.
 
 ## Ce que Xylem n'a pas encore
 
-- **Arborescence :** Global (G), Graft (Alt+G), Mirror (Alt+M), Release/décharger
-  de la mémoire (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
+- **Arborescence :** Global (G, et Ctrl+G pour les marqués), Graft (Alt+G), Mirror (Alt+M), libération partielle (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
   (Ctrl+V), F5/F6 (masquer des niveaux de sous-répertoires), marquer par
   attribut (Alt+T/U), Treespec en mode édition (F5, jokers) et dossiers spéciaux
   (F6), recherche directe avec invite (`|`) et mode actif, changement de lecteur
@@ -66,7 +63,7 @@ Xylem laisse à d'autres programmes », plus bas.
 | Fonction | Dans ZTreeWin | Dans Xylem |
 |---|---|---|
 | Filespec | nom avec règles propres au nom et à l'extension, date, taille, attribut, filespec inversé (Ctrl+I), étiquettes | glob pour les noms, date et taille comme dans ZTreeWin (avec K/M/G) ; ni attributs, ni inversion, ni étiquettes |
-| Visionneuse | modes Alpha, Dump, Hex, Junk et Wrap ; jeux de caractères ; édition hexadécimale ; signets ; défilement automatique | texte, hexadécimal, tableaux avec filtre SQL et Markdown rendu, avec la recherche de ZTreeWin (F, B, /, \\, Space, + et -), retour à la ligne (W), numéros de ligne (#), aller à la ligne (g / :), filtre de lignes par regex (&) ; jusqu'à la limite de taille (`viewer_max_size`, de 16 Mio à 1 Gio) ; pas d'édition hexadécimale, par choix (voir « Ce que Xylem laisse à d'autres programmes ») |
+| Visionneuse | modes Alpha, Dump, Hex, Junk et Wrap ; jeux de caractères ; édition hexadécimale ; signets ; défilement automatique | texte, hexadécimal, tableaux avec filtre SQL et Markdown rendu, avec la recherche de ZTreeWin (F, B, /, \\, Space, + et -), retour à la ligne (W), numéros de ligne (#), aller à la ligne (g / :), filtre de lignes par regex (&) ; un fichier sur disque de n'importe quelle taille, lu à mesure que l'écran avance ; pas d'édition hexadécimale, par choix (voir « Ce que Xylem laisse à d'autres programmes ») |
 | Ctrl+S | texte, hexadécimal ou Unicode ; ne cherche que dans l'index des ZIP | texte ou hexadécimal |
 | Attributs | attributs Windows (R, A, S, H) | permissions Unix en octal (`644`) ; pas de propriétaire/groupe. Sous Windows, R, H, S et A, comme dans ZTreeWin |
 | Tri | Name, Ext, Date, Time, Length, Alpha, nuMber, Size, Value, Unsorted ; Charset ; same/diff en écran partagé | Name, Ext, Date, Size, croissant/décroissant, Path en premier ; chaque fenêtre a son propre ordre |
@@ -74,7 +71,7 @@ Xylem laisse à d'autres programmes », plus bas.
 | Prune | supprime seulement les sous-répertoires ou aussi le répertoire courant ; répertoires vides uniquement ; corbeille | supprime toujours tout le répertoire, définitivement ; confirmation configurable |
 | Log | plusieurs lecteurs lus, Global, changement de lecteur | une racine par fenêtre ; `L` ouvre un autre répertoire |
 | eXécuter | paramètres de batch `%1`–`%8`, nouvelle fenêtre (NTW) | `sh` avec `%f`, `%t` et `%d` ; toujours dans le terminal de Xylem |
-| Historique | fenêtre d'historique avec signets | ↑/↓ à l'invite, un historique par type, conservé entre les sessions |
+| Historique | fenêtre d'historique avec signets | ↑ à l'invite ouvre une liste (taper filtre, Del oublie), un historique par type, conservé entre les sessions |
 | Configuration | 7 pages, éditeur de couleurs par élément (F4), Alt-Export | 4 pages avec les options pertinentes sous Linux ; F4 choisit parmi 12 thèmes prêts à l'emploi ; couleurs individuelles dans `config.toml` |
 | Écran partagé | panneaux de statistiques optionnels de chaque côté | pas de panneau de statistiques |
 | Menus | menu Ctrl/Alt en maintenant la touche | idem dans les terminaux avec le protocole kitty ; F9 dans tous les terminaux |
@@ -94,12 +91,14 @@ Ce qui n'a pas d'équivalent dans le manuel de ZTreeWin v2.2 :
 - **Machines distantes via SSH** (`xy utilisateur@hote:`) : l'arborescence,
   Branch, la visionneuse et Copier fonctionnent sur une autre machine, qui a
   aussi son propre terminal. Voir [machines distantes](remote.md).
+- **Stockage cloud :** Google Drive, S3 et les autres services pris en charge par rclone, montés et affichés comme une arborescence. Voir [stockage cloud](cloud.md).
+- **SQL sur la liste de fichiers** (`W`) : `ext = 'jpg' AND size > 10000000` garde les fichiers qui remplissent la condition, et `contains()` et `words()` regardent à l'intérieur ; la boîte de recherche (`P`) trouve les fichiers par les mots qu'ils contiennent. Voir [trouver des fichiers](sql.md).
 - **Git** (optionnel) : lettres d'état dans la liste des fichiers, un menu Git
   (Ctrl+G) et des diffs dans la visionneuse. Voir [Git](git.md).
-- **Occupation du disque** (Alt+U) : les dossiers et fichiers d'une branche
+- **Utilisation du disque** (Alt+U) : les dossiers et fichiers d'une branche
   ensemble, les plus gros d'abord, jusqu'à ce qui remplit le disque ; Alt+K
   montre dans l'arborescence la part de chaque dossier. Voir
-  [occupation du disque](usage.md).
+  [utilisation du disque](usage.md).
 - **Doublons** (Alt+D) : fichiers et dossiers entiers au même contenu, comparés
   par SHA-256 ou, dans un dossier monté par rclone, par les empreintes du service,
   sans rien télécharger. Une copie de chaque groupe reste toujours. Voir
@@ -111,7 +110,7 @@ Ce qui n'a pas d'équivalent dans le manuel de ZTreeWin v2.2 :
   [la visionneuse](viewer.md).
 - **Tableaux et Markdown :** tableurs, CSV, JSON Lines, DBF, SQLite et Parquet
   s'ouvrent dans une grille avec filtre SQL, et les fichiers Markdown s'ouvrent
-  rendus. Voir [la visionneuse](viewer.md).
+  rendus. Voir [tableaux](tables.md).
 - **Des archives sans archiveur externe :** ZIP, 7z et TAR (brut, gzip, xz,
   bzip2, zstd) s'ouvrent comme des dossiers, et ZIP et TAR se créent, le tout
   par Xylem lui-même. Voir [archives](archives.md).
@@ -154,8 +153,8 @@ les fait mieux, et Xylem l'intègre.
   (`[editors]`).
 - **SSH :** le `ssh` du système, donc vos clés, l'agent, `~/.ssh/config` et les
   *jump hosts* fonctionnent comme partout ailleurs.
-- **Stockage en ligne :** Google Drive, S3 et d'autres via `rclone mount` ;
-  Xylem reconnaît le montage et s'adapte. Voir [stockage en ligne](cloud.md).
+- **Stockage cloud :** Google Drive, S3 et d'autres via `rclone mount` ;
+  Xylem reconnaît le montage et s'adapte. Voir [stockage cloud](cloud.md).
 - **Git :** le programme `git` lui-même.
 - **Ouvrir des fichiers** (O) : le programme du bureau pour chaque type
   (`xdg-open`).
@@ -184,7 +183,7 @@ Les touches suivent celles de ZTreeWin. Les exceptions :
 | Alt+O | Ouvrir dans une nouvelle fenêtre de terminal (non implémenté) | tape les fichiers marqués dans le terminal intégré |
 | Alt+D | (rien) | Doublons |
 | Alt+T | marquer par attribut (non implémenté) | (rien) |
-| Alt+U | démarquer par attribut (non implémenté) | occupation du disque |
+| Alt+U | démarquer par attribut (non implémenté) | utilisation du disque |
 | Ctrl+G | Global des fichiers marqués (non implémenté) | le menu Git (optionnel) |
 | Alt+Z | Zlist (non implémenté) | le terminal intégré en plein écran |
 | `/` | identique à `?` (statistiques) | Treespec, comme `\` (`?` affiche toujours les statistiques) |

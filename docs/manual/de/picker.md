@@ -2,8 +2,7 @@
 
 In jeder Eingabezeile, die nach einem Ordner fragt ([Kopieren und
 Verschieben](copy-move.md), [Log](treespec.md) sowie der Ordner bei
-[Batch](execute.md) und bei der [Archiverstellung](archives.md)), öffnet **F2**
-wie in ZTreeWin einen Baum zur Auswahl.
+[Batch](execute.md) und bei der [Archiverstellung](archives.md)), öffnet **F2** einen Baum zur Auswahl.
 
 Er startet bei dem bisher eingegebenen Ordner; die Baumtasten dienen zur
 Navigation (Verzeichnisse werden beim Öffnen eingelesen), **Tab** wechselt bei

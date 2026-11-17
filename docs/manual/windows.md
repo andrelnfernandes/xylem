@@ -4,7 +4,7 @@ Xylem also builds for Windows (Windows Terminal or the classic console). It
 passes the automated tests there, but has not been used day to day yet, so
 expect rough edges. What changes:
 
-- **Attributes** (`A`) edits R, H, S and A, as in ZTreeWin: `RA` sets exactly
+- **Attributes** (`A`) edits R, H, S and A: `RA` sets exactly
   those, `+H -A` turns some on or off. The file list shows them as `r-sa`.
 - **Hidden** files and directories are the ones with the H attribute (a name
   starting with a dot is an ordinary name).

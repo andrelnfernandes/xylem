@@ -1,8 +1,8 @@
 # Trier
 
-Alt+S trie les fichiers par **N**om (Name), **E**xtension (Ext), **D**ate ou
-**T**aille (**S**ize). **O**rdre (Order) inverse l'ordre croissant et
-décroissant, et **C**hemin (**P**ath) regroupe d'abord les fichiers par
+Alt+S trie les fichiers par **N**ame (nom), **E**xt (extension), **D**ate ou
+**S**ize (taille). **O**rder inverse l'ordre croissant et décroissant, et
+**P**ath (chemin) regroupe d'abord les fichiers par
 répertoire dans Branch et Showall (tous deux gardent le menu ouvert pour que
 vous puissiez choisir la clé ensuite).
 

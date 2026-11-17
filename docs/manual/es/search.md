@@ -3,9 +3,8 @@
 ## Ctrl+S
 
 Busca texto en todos los archivos marcados de la lista y **desmarca los que no
-lo contienen**, con barra de progreso y `Esc` para detener. En la entrada,
-**F2** alterna la distinción de mayúsculas y minúsculas (al ignorarlas, los
-acentos también se equiparan: `AÇÃO` encuentra `ação`) y **F4** alterna entre
+lo contienen**, con barra de progreso y `Esc` para detener. En el prompt,
+**F2** alterna la distinción de mayúsculas y minúsculas (al ignorarlas, también vale para las letras con acento: `AÇÃO` encuentra `ação`) y **F4** alterna entre
 texto y hexadecimal (pares de bytes como `4d 5a`). Un `*` en mitad del término
 coincide con cualquier cosa en la misma línea (`error*disk`); un término nunca
 cruza un salto de línea. También funciona dentro de

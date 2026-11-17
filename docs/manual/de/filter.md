@@ -5,13 +5,15 @@ ausgeblendet, nicht verändert: Mit eingeschalteten Zeilennummern (`#`) behält 
 Zeile ihre Nummer in der Datei, und die Lücken zeigen den Filter bei der Arbeit.
 Die Kopfzeile nennt das Ergebnis: `[filter error: 24 of 850 lines]`.
 
+Er funktioniert wie `grep`, und **F3** kehrt ihn um wie `grep -v`; die Taste ist die, die `less` dafür verwendet.
+
 | Taste in der Eingabe | Was sie tut |
 |---|---|
 | **F1** | diese Hilfe |
 | **F2** | Groß-/Kleinschreibung beachten oder ignorieren |
 | **F3** | umkehren: die nicht passenden Zeilen behalten |
 | **F4** | einfacher Text oder regulärer Ausdruck |
-| ↑ ↓ | frühere Filter |
+| ↑ | frühere Filter, als [Liste](execute.md#verlauf) |
 | Enter | anwenden |
 | Esc | abbrechen |
 
@@ -60,8 +62,8 @@ Ausdruck kann den Betrachter mit einem Muster wie `(a+)+$` zum Hängen bringen.
 
 ## Einfacher Text
 
-Dieselben Regeln wie bei der Suche: Beim Ignorieren der Groß-/Kleinschreibung
-zählen auch Akzente nicht (`AÇÃO` findet `ação`), und ein `*` in der Mitte passt
+Dieselben Regeln wie bei der Suche: Das Ignorieren der Groß-/Kleinschreibung
+gilt auch für Buchstaben mit Akzent (`AÇÃO` findet `ação`), und ein `*` in der Mitte passt
 auf alles in derselben Zeile (`fehler*platte`).
 
 ## Bei aktivem Filter

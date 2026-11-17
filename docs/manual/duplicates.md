@@ -1,11 +1,12 @@
 # Duplicates (Alt+D)
 
-Files with the same contents, whatever their names and folders, and the space
-the copies waste. **Alt+D** looks in the branch of the current directory; **D**
-in the Usage view looks in the folder listed there.
+**Alt+D** lists the files with the same contents in the branch of the current
+directory, whatever their names and folders, and the space the copies take.
+**D** in the Usage view looks in the folder listed there.
+[Finding duplicates](howto-duplicates.md) has the steps.
 
-> Up to version 0.7, Duplicates was Alt+Y, and Alt+D deleted the tagged files
-> (now only Ctrl+D). See [Ctrl and Alt](tagging.md#what-ctrl-and-alt-mean).
+**Changed in version 0.8.** Duplicates was Alt+Y, and Alt+D deleted the tagged
+files, which is now only Ctrl+D. See the [release notes](releases.md).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────

@@ -11,7 +11,7 @@ choose:
 - **A**ll new: unique + newer, what is missing to bring the other side up to
   date.
 
-**B** (or Alt+C in the tree, as in ZTreeWin) switches the scope to the whole
+**B** (or Alt+C in the tree) switches the scope to the whole
 branch: Xylem logs the branch, compares following the relative paths
 (`src/a.rs` ↔ `<other>/src/a.rs`) and opens the Branch with the tagged files.
 

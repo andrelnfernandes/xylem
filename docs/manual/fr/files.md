@@ -17,12 +17,12 @@ sélectionné).
 
 ## Modes d'affichage (Alt+F)
 
-Alt+F fait défiler, dans l'ordre de ZTreeWin, **noms sur plusieurs colonnes**,
+Alt+F fait défiler **noms sur plusieurs colonnes**,
 **noms et tailles en colonnes**, **détails** (une colonne avec taille, date et
 permissions, le mode par défaut) et **noms longs** (une colonne, noms complets
 uniquement).
 
-Avant les noms longs viennent deux modes que ZTreeWin n'a pas :
+Avant les noms longs viennent deux autres modes :
 
 - **propriétaire** : taille, `utilisateur:groupe` et permissions (non affiché
   sous Windows ou dans les archives) ;
@@ -75,6 +75,9 @@ après la fermeture de Xylem, sous X11 et Wayland.
 | `C` / `M` | [copier / déplacer](copy-move.md) le fichier |
 | `D` ou Del | le [supprimer](delete.md) (Shift+Del : définitivement) |
 | `R` | le [renommer](rename.md) ; Ctrl+R renomme les fichiers marqués avec un masque |
+| `W` / `Ctrl+W` | filtrer par [condition SQL](sql.md#une-condition-sql-w) (liste / marqués) |
+| `P` / `Ctrl+P` | [boîte de recherche](sql.md#la-boîte-de-recherche-p) : trouver des fichiers par mots au fil de la frappe |
+| `Alt+N` | [indexer](sql.md#mots-entiers-et-un-index--words) cette branche, pour words() dans W et dans la boîte de recherche |
 | `A` | [permissions](attributes.md) |
 | `N` | [modifier la date](attributes.md) |
 | Alt+S | [trier](sort.md) |

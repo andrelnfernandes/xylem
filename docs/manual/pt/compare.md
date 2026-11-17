@@ -11,7 +11,7 @@ escolha:
 - **A**ll new (todos os novos): únicos + mais novos, o que falta para atualizar
   o outro lado.
 
-**B** (ou Alt+C na árvore, como no ZTreeWin) muda o escopo para todo o ramo: o
+**B** (ou Alt+C na árvore) muda o escopo para todo o ramo: o
 Xylem lê o ramo, compara seguindo os caminhos relativos
 (`src/a.rs` ↔ `<outro>/src/a.rs`) e abre o Branch com os arquivos marcados.
 

@@ -64,7 +64,7 @@ proposée ; ou tapez un chemin de la fenêtre distante, ou son adresse
 (`utilisateur@hôte:/srv/www`, dans le dossier sur lequel la fenêtre a été
 ouverte). Chaque fichier est écrit dans un fichier temporaire à côté de la
 destination, sa taille est vérifiée, il reçoit ses permissions (sans setuid ni
-setgid) et sa date, et seulement alors il est mis à sa place ; Échap supprime
+setgid) et sa date, et seulement alors il est mis à sa place ; Esc supprime
 le fichier temporaire. Copier au sein de la machine distante fonctionne de la
 même façon. Les liens symboliques n'y sont pas recréés, et c'est signalé.
 

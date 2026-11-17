@@ -1,13 +1,12 @@
 # Uso do disco (Alt+U)
 
-Para onde vai o espaço. **Alt+U** lê todo o ramo do diretório atual e lista
-suas pastas e arquivos pelo espaço que ocupam, do maior para o menor, com uma
-barra e sua fração do diretório. Enter entra em uma pasta; de pasta em pasta,
-você chega ao que está enchendo o disco.
+**Alt+U** lê todo o ramo do diretório atual e lista suas pastas e arquivos pelo
+espaço que ocupam, do maior para o menor, com uma barra e sua fração do
+diretório. Enter entra em uma pasta.
+[Achar o que enche o disco](howto-disk-space.md) traz o passo a passo.
 
-
-> Até a versão 0.7, o Uso era Alt+W, e Alt+U desmarcava tudo (agora só
-> Ctrl+U). Veja [Ctrl e Alt](tagging.md#o-que-ctrl-e-alt-querem-dizer).
+**Mudou na versão 0.8.** O Uso era Alt+W, e Alt+U desmarcava tudo, o que agora
+é feito apenas por Ctrl+U. Veja as [notas de versão](releases.md).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar
@@ -81,16 +80,16 @@ seguida, com a visualização ainda aberta.
   Ctrl+D apaga esses. As marcas continuam quando a visualização fecha, para Copy
   ou Move.
 - **Outro disco nunca é tocado.** Uma linha `>` não pode ser marcada nem apagada,
-  e marcar ou apagar um ramo para onde há outro disco montado. Del recusa uma pasta
+  e marcar ou apagar um ramo se detém onde há outro disco montado. Del recusa uma pasta
   com um disco montado dentro; Alt+P apaga tudo menos ele.
-- Num archive ou numa máquina remota, só marcar e ver funcionam.
+- Num arquivo compactado ou numa máquina remota, só marcar e ver funcionam.
 
 ## Teclas
 
 | Tecla | O que faz |
 |---|---|
 | ↑ ↓ PgUp PgDn Home End | move o cursor |
-| Enter ou → | entra na pasta (em `>`: analisa aquele disco); num arquivo, abre o viewer |
+| Enter ou → | entra na pasta (em `>`: analisa aquele disco); num arquivo, abre o visualizador |
 | Backspace ou ← | volta para a pasta acima |
 | `\` | fecha a visualização, posicionando a árvore na pasta listada |
 | `A` | alterna entre espaço no disco e aparente |
@@ -101,7 +100,7 @@ seguida, com a visualização ainda aberta.
 | Del, Shift+Del | apaga o arquivo ou a pasta (Shift: de forma permanente) |
 | Ctrl+D, Ctrl+Shift+Del | apaga os arquivos marcados na pasta listada (Shift: de forma permanente) |
 | Alt+P | faz o [Prune](delete.md) da pasta |
-| `V` | abre o arquivo no viewer |
+| `V` | abre o arquivo no visualizador |
 | `D` | procura [duplicados](duplicates.md) na pasta listada |
 | F3 | relê a pasta listada |
 | Esc ou Alt+U | fecha |
