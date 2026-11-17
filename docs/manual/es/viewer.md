@@ -66,6 +66,111 @@ Un archivo de más de 8 MiB se abre como fuente, con un aviso. El renderizado ta
 
 El propio Markdown oculta algunas cosas: definiciones de enlace que nada usa y celdas de tabla más allá de las columnas de la cabecera. Para verlo todo, `T` muestra la fuente. La cursiva y el tachado dependen del terminal y de su fuente, por eso también tienen color propio.
 
+## JSON, YAML y TOML
+
+Un `.json` (también `.geojson`, `.har`, `.webmanifest`, y `.jsonc` y `.json5`, con comentarios y coma final), un `.yaml` o `.yml` y un `.toml` (también `Cargo.lock`) se abren como un árbol que se pliega, y el marco dice `TREE: JSON`. Un archivo minificado en una sola línea se lee tan fácil como cualquier otro. Un árbol de hasta 2.000 nodos se abre todo abierto; uno más grande muestra su primer nivel.
+
+| Tecla | Acción |
+|---|---|
+| ↑ ↓ RePág AvPág Inicio Fin | mueve el cursor |
+| → | abre el nodo (otra vez: entra en él) |
+| ← | cierra el nodo, o va al de arriba |
+| `Enter` | abre o cierra el nodo |
+| `*` | abre todo lo que hay bajo el nodo |
+| `k` | copia la ruta del nodo: `.servers[2].name` en JSON, `servers.2.name` en YAML y TOML |
+
+El pie muestra la ruta del nodo bajo el cursor. La búsqueda (`F`, `B`, `/`) mira claves y valores, también dentro de nodos cerrados, y abre el camino hasta lo que encuentra. `T` muestra el texto en la línea del nodo, y vuelve; `H` pasa por árbol, texto y hexadecimal. `&`, `g`, `#` y Ctrl+B actúan sobre las líneas del texto.
+
+- Un nodo cerrado dice lo que contiene: `{12 keys}`, `[340 items]`.
+- Un número se muestra como lo escribe el archivo: `12345678901234567890` sigue así, y `1_000` en TOML también.
+- Una cadena muestra el salto de línea como `↵`.
+- Una clave que aparece dos veces en un mismo objeto se muestra dos veces, marcada `dup key`, y la cabecera las cuenta. Los programas no se ponen de acuerdo sobre cuál de las dos vale, lo que puede ocultar un valor en una revisión.
+- Un ancla de YAML se muestra como `&a1` y un alias como `*a1`: el alias nunca se expande, así que un archivo hecho para multiplicarse (un "billion laughs") no cuesta más que su texto. Una etiqueta (`!Ref`) aparece antes del valor. Varios documentos quedan bajo una raíz, como `document 1`, `document 2`...
+
+Un archivo no válido, o anidado a más de 512 niveles, se abre como texto, y el aviso dice por qué y en qué línea. El árbol se arma con el archivo entero: uno por encima del límite de lectura se abre como texto.
+
+## Notebooks de Jupyter
+
+Un `.ipynb` se abre renderizado, celda por celda, y el marco dice `RENDERED`. Arriba: el kernel y cuántas celdas hay de cada tipo.
+
+- Una celda Markdown se renderiza como un archivo Markdown.
+- Una celda de código muestra `In [n]:` y su código, con los colores del lenguaje del notebook.
+- Las salidas vienen después, marcadas `Out [n]:`: el texto de un stream (`stderr:` cuando son los errores), el texto de un resultado (o su Markdown, renderizado) y un error con su traceback, sin los códigos ANSI del traceback.
+- Una salida de imagen, HTML, JavaScript, SVG o LaTeX es una línea que dice qué es y cuánto ocupa, como `[image/png, 34 KiB: not shown]`. Nada de un notebook se ejecuta: ni su código, ni los scripts de sus salidas, ni sus widgets.
+- Una celda raw se muestra tal cual.
+
+`T` muestra el JSON del notebook, y `H` sus bytes. Un archivo que no es un notebook que el visor pueda leer (JSON roto, formato desconocido) se abre en su fuente, con un aviso. El formato 3 (con worksheets) también se lee.
+
+## Documentos de Office
+
+Los archivos de Word (`.docx`, `.docm`, `.dotx`), de texto OpenDocument (`.odt`), de PowerPoint (`.pptx`, `.pptm`) y de Impress (`.odp`) se abren como documento: títulos, párrafos, listas, tablas, negrita, cursiva y enlaces, con la dirección real de cada enlace. Una presentación muestra cada diapositiva bajo `Slide n`, con las notas del orador después. Las notas al pie y los comentarios, con sus autores, van al final. Una imagen es una línea, como `[image: media/image1.png]`. El texto de un documento nunca se lee como Markdown.
+
+Antes del texto, un bloque dice lo que el documento trae además de él, ya que mucho de eso no se ve en el programa que lo hizo:
+
+- quién lo escribió, quién lo guardó por última vez, cuándo y con qué;
+- `Contains macros`, cuando las tiene. Nunca se leen ni se ejecutan;
+- `Fetches from outside when it opens`: una plantilla remota, un objeto OLE o un frame que apuntan fuera del archivo, con sus direcciones. Una plantilla remota es como llegaron ataques como Follina (CVE-2022-30190). Aquí nunca se descarga nada;
+- los objetos incrustados, por nombre y tamaño, y cuántos otros enlaces externos hay;
+- los cambios controlados: el texto insertado se muestra como `[inserted: ...]` y el borrado como `[deleted: ...]`, porque lo borrado suele ser lo que importa;
+- el texto oculto (`[hidden: ...]`), el texto blanco y el de un punto (`[invisible: ...]`), y las diapositivas ocultas.
+
+`H` muestra los bytes, y vuelve; `T` dice que el documento no tiene texto propio. Cada parte del archivo se descomprime solo hasta un límite (64 MiB cada una, 256 MiB en total; 4 MiB en Autoview), y la cabecera dice cuándo el documento quedó cortado. Una parte XML con DTD, o anidada a más de 256 niveles, se rechaza. Los antiguos `.doc` y `.ppt` se abren en hexadecimal, como antes.
+
+## Ejecutables
+
+Un ejecutable, una biblioteca o un archivo objeto se abre como un informe, sea cual sea su nombre: ELF (Linux, BSD), PE (`.exe`, `.dll`, `.sys` de Windows, también .NET) y Mach-O (macOS, también binarios universales con varias arquitecturas). Se reconoce por sus primeros bytes, nunca por su nombre. El informe dice:
+
+- qué es (ejecutable, biblioteca, objeto, core dump), para qué máquina, 32 o 64 bits, su punto de entrada, y su intérprete, subsistema o sistema mínimo;
+- **protecciones**, cada una `yes` o `no`, con `⚠` donde falta: en ELF, PIE, una pila que no ejecuta código (NX), RELRO (completo o parcial), el canario de la pila, FORTIFY y las rutas de bibliotecas (RPATH, RUNPATH: una relativa o una en `/tmp` se marca); en PE, ASLR, ASLR de alta entropía, DEP, Control Flow Guard; en Mach-O, PIE y pila ejecutable;
+- **firma**: si la hay y de qué tamaño. **No se verifica**, y el informe lo dice;
+- **señales** de algo escondido: una sección de entropía alta (empaquetada o cifrada), el nombre de un empaquetador (UPX...), datos después de la última sección (un overlay, donde los instaladores y algunos malware guardan datos), una sección a la vez escribible y ejecutable, un punto de entrada fuera de toda sección ejecutable;
+- **identidad**: build ID, debug link, UUID, ruta del PDB, el compilador, la versión de Go; la fecha de compilación de un PE, que escribe el enlazador y puede ser cualquiera;
+- las bibliotecas que necesita, y las listas de secciones, segmentos, importaciones, exportaciones y símbolos, de hasta 2.000 filas cada una.
+
+Nada se ejecuta ni se carga para hacer el informe: ni siquiera `ldd`, que en algunos casos ejecuta el programa. `H` muestra los bytes, y vuelve. Un archivo más grande que el límite de lectura se lee solo donde el informe lo necesita, 256 MiB como máximo en total; Autoview hace el informe del comienzo que leyó, y dice que puede dejar cosas fuera.
+
+## Certificados y claves
+
+Un certificado, una cadena o un conjunto de ellos, una solicitud de certificado (CSR), una lista de revocación (CRL), una clave privada o pública, una clave OpenSSH, `authorized_keys` y `known_hosts` se abren como un informe. El PEM se lee en un archivo con nombre para ello (`.pem`, `.crt`, `.cer`, `.key`, `.csr`, `.crl`, `.pub`...) o sin extensión (`id_ed25519`); el DER en un `.der`, `.cer`, `.crt`, `.crl` o `.csr` que sea un valor DER entero. Un bloque PEM dentro de código fuente o de un documento deja ese archivo como está.
+
+- **Un certificado:** su subject y su issuer (y si es autofirmado), el número de serie, la validez con los días que quedan (vencido, todavía no válido, o que vence en 30 días o menos se marcan `⚠`), la clave pública (RSA por debajo de 2048 bits y DSA se marcan), la firma (MD5 y SHA-1 se marcan), los nombres (se señala un nombre en punycode `xn--`), el uso de la clave, el uso extendido, si es una CA, las direcciones de su CRL y de la información de la autoridad, una extensión crítica desconocida (marcada) y su huella SHA-256.
+- **Varios certificados:** el informe dice si están en orden, cada uno emitido por el siguiente, comprobado solo por sus nombres e identificadores de clave. **Aquí no se verifica ninguna firma**, y el informe lo dice.
+- **Una clave privada:** solo su tipo y su tamaño (RSA 2048 bits, EC P-256, PKCS#8 cifrada con PBES2...) y, en OpenSSH, si está cifrada y su huella. Sus números nunca aparecen en el informe. En Autoview, una clave privada muestra este informe, nunca su texto, para que no aparezca en la pantalla solo por pasar sobre ella; `T` en el visor muestra el texto.
+- **Claves públicas, `authorized_keys` y `known_hosts`:** una fila por clave, con su tipo y tamaño, su huella SHA-256 tal como la escribe `ssh-keygen -l`, y su comentario. Una opción `command=` se marca, porque cambia lo que la clave permite; un host con hash se muestra como tal.
+
+Nada se descarga: las direcciones de una CRL o de un OCSP solo se muestran. Antes de que cualquier parser vea un bloque, se comprueban su anidamiento (64 niveles como máximo) y sus longitudes; un archivo tiene como máximo 1.000 bloques de 64 KiB cada uno. No se leen PKCS#12 (`.p12`, `.pfx`) ni claves PGP.
+
+## Logs
+
+Un log se abre como texto, con los colores de sus niveles, y el pie dice `Log`. Un archivo es un log por su nombre (`.log`, `.out`, `.err`, uno rotado como `app.log.1` o `app.log.2.gz`, `syslog`, `messages`, `kern.log`) o por su contenido: la mayoría de sus primeras líneas empieza con fecha y hora (`2026-11-16 10:00`, `[2026-11-16 ...`, o el `Nov 16 10:00:00` de syslog).
+
+- **Niveles:** la primera palabra de nivel en las primeras 120 columnas de una línea, en mayúsculas o no, le da su color: errores (`ERROR`, `ERR`, `FATAL`, `CRIT`, `PANIC`...) en rojo, avisos (`WARN`, `WARNING`) en amarillo, `DEBUG` y `TRACE` atenuados. También cuenta el `<n>` de syslog al comienzo de una línea, y el nivel de un log en JSON (`"level":"error"`). Una línea sin nivel, como un stack trace, toma el de la anterior. `C` apaga los colores.
+- **Colores ANSI:** los colores que un programa escribió en su log (`ESC [31m`) se muestran como colores, y sus secuencias salen del texto. Cualquier otra secuencia se descarta, porque podría mover el cursor o escribir en el portapapeles (OSC 52), y la cabecera las cuenta, como en `[ANSI: 3 removed]`. `H` sigue mostrando los bytes tal cual, y la búsqueda mira el texto sin las secuencias. En un archivo de más de 16 MiB, leído a través de una ventana, las secuencias se muestran como `·`, como en cualquier texto, y los colores son los de los niveles.
+- **Seguir:** con la última línea en pantalla (Fin), las líneas nuevas entran a medida que el programa las escribe, y la pantalla se queda al final; la cabecera dice `[FOLLOW]`. El archivo se mira cada medio segundo, también en un recurso compartido de red. Subir, o buscar, deja de seguirlo; Fin lo retoma. Con un filtro (`&`), las líneas nuevas pasan por él. Si el archivo se achicó o cambió en lugar de crecer (rotado o reescrito), la cabecera dice `(the file changed: R reloads)`, y no se lee nada hasta R. Un log comprimido no se sigue.
+
+## Parches
+
+Un `.patch` o `.diff`, o cualquier texto que empiece como uno (`diff --git`, o `---`, `+++` y `@@`), se abre como texto con los colores de un parche. El Git diff (`D`) se muestra igual. La cabecera lo resume, como en `[12 files, +340 −98]`, y el pie dice dónde está la parte de arriba de la pantalla: `3/12 src/viewer.rs @@ 2/5`.
+
+| Tecla | Acción |
+|---|---|
+| `]` `[` | archivo siguiente o anterior |
+| `}` `{` | hunk siguiente o anterior |
+| `Tab` | la lista de los archivos, con `+` y `−` de cada uno; las letras la filtran, `Enter` va a uno |
+
+Algunos cambios hacen más que cambiar líneas, y es fácil pasarlos por alto en una lectura rápida. Se muestran en rojo, y la cabecera los cuenta como `to check`:
+
+- un archivo que pasa a ser ejecutable (`100755`), un enlace simbólico (`120000`) o un submódulo (`160000`);
+- una ruta absoluta, que sube con `..`, que entra en `.git` (un hook es código que Git ejecuta), o con caracteres de control.
+
+La cabecera también cuenta:
+
+- `look unchanged`: una línea quitada y una añadida que solo difieren en lo que no se ve, como espacios, `\r`, caracteres invisibles o letras parecidas (una `а` cirílica en lugar de una `a` latina). El par se muestra en amarillo;
+- `hunks with wrong counts`: un hunk cuya línea `@@` no coincide con sus líneas. El índice sigue las líneas que hay, nunca los números;
+- `whitespace`: líneas añadidas con un espacio al final, o con un espacio antes de un tabulador en la sangría, como lo señala `git diff --check`.
+
+Una serie de `git format-patch` muestra cada mensaje en la lista, por su asunto. Nunca se aplica nada. En un archivo de más de 16 MiB, leído a través de una ventana, los colores se mantienen, pero no hay índice: `]`, `}` y Tab lo dicen.
+
 ## Caracteres de control de dirección
 
 Algunos caracteres invisibles cambian la dirección del texto y pueden hacer que un código parezca distinto de lo que realmente dice (Trojan Source, CVE-2021-42574). El visor nunca los oculta: cada uno aparece como un `·` rojo, y el encabezado indica cuántos hay.

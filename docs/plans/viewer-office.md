@@ -1,7 +1,7 @@
 # Plano: DOCX, ODT e PPTX como documento no viewer
 
 Origem: conversa de 2026-11-16 (veja [viewer-logs.md](viewer-logs.md)).
-**Spec proposto, ainda não aprovado.**
+**Implementado em 2026-11-16 no branch `viewers-next`, ainda sem revisão do autor** (veja "Implementação", no fim).
 
 ## Objetivo
 
@@ -123,3 +123,18 @@ Antes do texto, um bloco com o que o documento traz além dele:
 - EPUB, que também é ZIP, mas o conteúdo é XHTML (o HTML no viewer está fora
   por decisão).
 - Extrair um objeto embutido para uma pasta, com uma ação explícita.
+
+## Implementação (2026-11-16)
+
+Feito (commit `bff6bf3`), em `src/viewer/office.rs`, `src/viewer/doc_events.rs`,
+`src/viewer/markdown.rs` (`from_events`) e `src/viewer.rs`: as etapas 1 a 4, com
+as respostas propostas às questões ?1 a ?4.
+
+Diferente do spec:
+
+- as revisões aparecem como `[inserted: …]` e `[deleted: …]`, com o autor só na
+  contagem (e não ao lado de cada uma);
+- no ODT, o texto apagado de uma revisão fica guardado à parte no arquivo
+  (`text:tracked-changes`): é contado, mas não aparece no meio do texto;
+- texto invisível é detectado por cor branca ou fonte de até 1 ponto; não há
+  comparação com a cor do fundo da página.

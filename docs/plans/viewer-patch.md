@@ -1,7 +1,7 @@
 # Plano: patch e diff no viewer
 
 Origem: conversa de 2026-11-16 (veja [viewer-logs.md](viewer-logs.md)).
-**Spec proposto, ainda não aprovado.**
+**Implementado em 2026-11-16 no branch `viewers-next`, ainda sem revisão do autor** (veja "Implementação", no fim).
 
 ## Objetivo
 
@@ -109,3 +109,19 @@ Na lista e na própria linha do patch:
 - Lado a lado, numa tela larga.
 - Abrir o arquivo do patch, na linha do hunk, com o editor (`E`).
 - Patch de outros sistemas (`svn diff`, `hg diff`), que são quase o mesmo formato.
+
+## Implementação (2026-11-16)
+
+Feito (commit `a7625fc`), em `src/viewer/patch.rs`, `src/viewer.rs` e `src/ui.rs`:
+as etapas 1, 2 e 3, com as teclas propostas (?1) e a saída do `D` igual (?2). O
+lado a lado (?3) ficou para depois, como proposto.
+
+Diferente do spec:
+
+- **num arquivo em janela (acima de 16 MiB), não há índice:** as cores ficam
+  (são feitas linha a linha), mas `]`, `}` e Tab dizem `No file list in a patch
+  this big`. O passe junto com a contagem de linhas fica para depois;
+- **espaço em branco** só é contado no cabeçalho (`n whitespace`), sem marca na
+  linha: a cor da linha é só a do texto, e um espaço não tem cor que se veja;
+- o bloco de um patch binário não é recolhido numa linha: aparece como está,
+  com a cor de aviso.

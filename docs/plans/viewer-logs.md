@@ -2,8 +2,7 @@
 
 Origem: conversa de 2026-11-16, que escolheu sete viewers novos; a lista e a
 ordem estão em [viewers.md](viewers.md), na seção "Viewers novos". Este é o
-subprojeto 4 de lá. O filtro de linhas (`&`) já está feito. **Spec proposto,
-ainda não aprovado.**
+subprojeto 4 de lá. O filtro de linhas (`&`) já está feito. **Implementado em 2026-11-16 no branch `viewers-next`, ainda sem revisão do autor** (veja "Implementação", no fim).
 
 ## Objetivo
 
@@ -151,3 +150,35 @@ do manual ficam para o fim do trabalho, como de costume.
 - Seguir um arquivo remoto (SFTP), com o mesmo intervalo.
 - Ir para uma hora (`g 10:30`), com busca binária pelas datas das linhas.
 - Juntar os arquivos rodados (`app.log.3.gz` … `app.log`) numa leitura só.
+
+## Implementação (2026-11-16)
+
+Feito (commit `cd69f5f`), em `src/viewer/log.rs` e `src/viewer.rs`:
+
+- detecção pelo nome e pelo conteúdo, com as listas de nomes e de formatos de
+  data desta página;
+- cor por nível, feita linha a linha (`Highlighter::per_line`, em
+  `highlight.rs`), que por isso vale também em arquivo em janela; a linha sem
+  nível herda o anterior até 200 linhas, quando o arquivo é lido inteiro;
+- ANSI com o `vte`: a cor SGR fica e todo o resto sai e é contado no cabeçalho
+  (`[ANSI: n removed]`); as formas de 8 bits viram as de 7 antes do parser;
+- seguir o arquivo sem tecla nova (?1 resolvido como proposto): a cada 500 ms,
+  com os últimos 4 KiB conferidos; em janela, a contagem continua de onde
+  parou (`TextWindow::grow`); rotação ou reescrita deixa `(the file changed: R
+  reloads)` no cabeçalho;
+- ?2 resolvido de outro jeito: a detecção pelo conteúdo vale também no
+  Autoview, porque custa só 200 linhas; ?3 como proposto (o Autoview não segue).
+
+Diferente do spec:
+
+- **ANSI só no arquivo lido inteiro** (até o limite, 16 MiB por padrão). Num
+  arquivo em janela, as sequências continuam aparecendo como `·`, como em
+  qualquer texto: a janela lê as linhas do disco, e tirar sequências mudaria as
+  colunas que a busca e o filtro usam. A cor por nível continua valendo ali.
+
+Falta:
+
+- **etapa 1:** End lendo o texto em janela de trás para a frente (o ?3 de
+  `text-windowed.md`); hoje End espera a contagem, que é rápida (`memchr`);
+- **etapa 5:** o fim de um log comprimido em segundo plano;
+- seguir um arquivo remoto.
