@@ -2,10 +2,13 @@
 //! hexadecimal mode, with search.
 
 pub mod batch;
+pub mod doc_events;
+pub mod jupyter;
 pub mod line_filter;
 pub mod lines;
 pub mod log;
 pub mod markdown;
+pub mod office;
 mod parquet_pages;
 pub mod patch;
 pub mod records;
@@ -340,6 +343,10 @@ pub struct Viewer {
     md: Option<markdown::Doc>,
     /// The file's name says Markdown: the document follows a new encoding.
     md_file: bool,
+    /// The document is a Jupyter notebook, not Markdown.
+    notebook: bool,
+    /// The file is an Office document, shown as a document (see `office`).
+    office: Option<office::Kind>,
     /// Only the start of the file is in `data`, since it opens as a table:
     /// the rest is read when the text or the hex is wanted (see `settle_text`).
     partial: bool,
@@ -459,6 +466,13 @@ impl Viewer {
             partial,
             ..Self::from_file(path, size, raw, load)
         };
+        // An Office document bigger than the bytes read: from the file.
+        if v.office.is_some() && v.md.is_none() && v.cut && load.c_parsers {
+            v.note = None;
+            if v.render_markdown() {
+                v.mode = ViewMode::Rendered;
+            }
+        }
         v.load_table();
         v.settle_text();
         Ok(v)
@@ -1002,6 +1016,12 @@ impl Viewer {
         self.problem = new.problem;
         self.md = new.md;
         self.md_file = new.md_file;
+        self.notebook = new.notebook;
+        self.office = new.office;
+        self.patch = new.patch;
+        self.patch_file = new.patch_file;
+        self.log_file = new.log_file;
+        self.ansi_removed = new.ansi_removed;
         if self.charset_manual {
             self.set_charset(charset);
         }
@@ -1442,7 +1462,9 @@ impl Viewer {
         let limit = load.limits.output;
         let mut v = Self::build(path.clone(), size, data, found.charset, found.binary, limit);
         let shown_name = name.as_deref().unwrap_or(&path);
-        v.md_file = !failed && !found.binary && markdown::is_markdown(shown_name);
+        v.notebook = jupyter::is_notebook(shown_name);
+        v.office = (!failed).then(|| office::kind(shown_name)).flatten();
+        v.md_file = !failed && !found.binary && (markdown::is_markdown(shown_name) || v.notebook);
         if let Some(name) = &name {
             v = v.colored_as(name);
         }
@@ -1468,6 +1490,9 @@ impl Viewer {
     /// Anything else leaves the source, and the note says why.
     fn render_markdown(&mut self) -> bool {
         self.md = None;
+        if let Some(kind) = self.office {
+            return self.render_office(kind);
+        }
         if !self.md_file {
             return false;
         }
@@ -1484,14 +1509,75 @@ impl Viewer {
         let limits = self.load.limits;
         let budget = limits.output.min(markdown::MAX_INPUT).saturating_mul(16);
         let width = self.content_width();
-        let doc = crate::panic_guard::catch(|| {
-            let mut doc = markdown::parse(&text, limits.time, budget);
-            doc.layout(width);
-            doc
-        });
+        let doc = if self.notebook {
+            match crate::panic_guard::catch(|| jupyter::render(&text, limits.time, budget, width)) {
+                Some(Ok(doc)) => Some(doc),
+                Some(Err(why)) => {
+                    self.note.get_or_insert(why);
+                    None
+                }
+                None => None,
+            }
+        } else {
+            crate::panic_guard::catch(|| {
+                let mut doc = markdown::parse(&text, limits.time, budget);
+                doc.layout(width);
+                doc
+            })
+        };
         self.md = doc.filter(|d| !d.is_empty_cut());
         if self.md.is_none() && self.note.is_none() {
             self.note = Some("Could not render this file: showing the source".into());
+        }
+        self.md.is_some()
+    }
+
+    /// An Office document as a document: from the bytes read when they are
+    /// all of it, else (with V) from the file. Anything else leaves the
+    /// bytes, and the note says why.
+    fn render_office(&mut self, kind: office::Kind) -> bool {
+        // Autoview reads little and must be quick: a small part and a small
+        // whole, from what it read.
+        let autoview = !self.load.c_parsers;
+        let (part, total) = if autoview {
+            (4 << 20, 4 << 20)
+        } else {
+            (64 << 20, 256 << 20)
+        };
+        let limits = office::Limits {
+            part,
+            total,
+            time: self.load.limits.time,
+            budget: self.load.limits.output.saturating_mul(16).max(16 << 20),
+        };
+        let width = self.content_width();
+        let result = if !self.cut {
+            let data = &self.data;
+            crate::panic_guard::catch(|| {
+                office::render(std::io::Cursor::new(data.as_slice()), kind, limits, width)
+            })
+        } else if self.on_disk && !autoview && self.compression.is_none() {
+            let path = self.path.clone();
+            crate::panic_guard::catch(|| {
+                let file = File::open(&path).map_err(|e| format!("Cannot read the file: {e}"))?;
+                office::render(std::io::BufReader::new(file), kind, limits, width)
+            })
+        } else {
+            if self.note.is_none() {
+                self.note = Some("Too big to read here: V shows it as a document".into());
+            }
+            return false;
+        };
+        match result {
+            Some(Ok(doc)) => self.md = Some(doc),
+            Some(Err(why)) => {
+                self.note.get_or_insert(why);
+            }
+            None => {
+                self.note.get_or_insert_with(|| {
+                    "Could not read this document: showing the bytes".into()
+                });
+            }
         }
         self.md.is_some()
     }
@@ -1769,6 +1855,8 @@ impl Viewer {
             filter: None,
             md: None,
             md_file: false,
+            notebook: false,
+            office: None,
             partial: false,
             seeking: None,
             awaited: None,
@@ -2652,6 +2740,8 @@ impl Viewer {
                         ViewMode::Table => ViewMode::Text,
                         _ => ViewMode::Table,
                     };
+                } else if self.md.is_some() && self.office.is_some() {
+                    self.note = Some("This document has no text source: H shows its bytes".into());
                 } else if self.md.is_some() {
                     match self.mode {
                         ViewMode::Rendered => self.rendered_to_text(),
@@ -2796,6 +2886,13 @@ impl Viewer {
 
     /// To the source, at the line the document was showing.
     fn rendered_to_text(&mut self) {
+        // An Office document has no text of its own: its bytes.
+        if self.office.is_some() {
+            self.mode = ViewMode::Hex;
+            self.top = 0;
+            self.left = 0;
+            return;
+        }
         let line = self.rendered_line();
         self.mode = ViewMode::Text;
         self.top = self.row_of_line(line);
@@ -6245,5 +6342,56 @@ new mode 100755
         press(&mut v, KeyCode::Char('r'));
         assert_eq!(v.line_count(), 1);
         assert!(!v.text_changed());
+    }
+
+    #[test]
+    fn an_office_document_opens_as_a_document() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("a.docx");
+        std::fs::write(
+            &path,
+            office::test_docs::docx("<w:p><w:r><w:t>Hello **world**</w:t></w:r></w:p>"),
+        )
+        .unwrap();
+        let mut v = Viewer::open(path.clone(), LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        let doc = v.md.as_ref().unwrap();
+        assert!((0..doc.line_count()).any(|i| doc.line(i) == "Hello **world**"));
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Rendered);
+        assert_eq!(
+            v.note.as_deref(),
+            Some("This document has no text source: H shows its bytes")
+        );
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Hex);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // In Autoview too, being small.
+        let v = Viewer::open(path, LoadOptions::autoview()).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // Not a package: the bytes, and the note says why.
+        let bad = tmp.path().join("b.docx");
+        std::fs::write(&bad, b"PK\x03\x04 broken").unwrap();
+        let v = Viewer::open(bad, LOAD).unwrap();
+        assert_ne!(v.mode, ViewMode::Rendered);
+        assert!(v.note.as_deref().unwrap().contains("showing the bytes"));
+    }
+
+    #[test]
+    fn a_notebook_opens_rendered_or_as_its_source() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("n.ipynb");
+        std::fs::write(
+            &path,
+            r#"{"nbformat": 4, "cells": [{"cell_type": "code", "source": "x = 1", "outputs": []}]}"#,
+        )
+        .unwrap();
+        let v = Viewer::open(path.clone(), LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        std::fs::write(&path, "{ not json").unwrap();
+        let v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Text);
+        assert!(v.note.as_deref().unwrap().contains("showing the source"));
     }
 }
