@@ -5593,6 +5593,56 @@ mod tests {
         assert!(text.contains("(V to view)"), "{text}");
     }
 
+    /// The screen of the new viewers: what the header, the frame and the
+    /// footer say.
+    #[test]
+    fn the_new_viewers_say_what_they_show() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let screen = |app: &mut App| -> Vec<String> {
+            let mut term = Terminal::new(TestBackend::new(120, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            let buf = term.backend().buffer();
+            (0..20)
+                .map(|y| (0..120).map(|x| buf[(x, y)].symbol()).collect())
+                .collect()
+        };
+        // A tree: its frame, the repeated key, and the path in the footer.
+        let json = tmp.path().join("a.json");
+        std::fs::write(&json, r#"{"k": {"x": 1}, "k": 2}"#).unwrap();
+        let mut v =
+            crate::viewer::Viewer::open(json, crate::viewer::LoadOptions::view(1 << 20)).unwrap();
+        v.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        app.viewer = Some(v);
+        let rows = screen(&mut app);
+        let all = rows.join("\n");
+        assert!(rows[0].contains("1 repeated key (marked dup key)"), "{all}");
+        assert!(all.contains(" TREE: JSON "), "{all}");
+        assert!(all.contains("▾ k: {"), "{all}");
+        assert!(all.contains(".k  ·  Row 2 of"), "{all}");
+        // A patch: the summary in the header and the file in the footer.
+        let text = "diff --git a/x b/x\nnew mode 100755\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n";
+        app.viewer = Some(crate::viewer::Viewer::from_bytes(
+            "f.patch".into(),
+            text.len() as u64,
+            text.into(),
+        ));
+        let rows = screen(&mut app);
+        let all = rows.join("\n");
+        assert!(rows[0].contains("[1 file, +1 −1, 1 to check]"), "{all}");
+        assert!(all.contains("Patch  ·  1/1 x"), "{all}");
+        assert!(all.contains("] [") && all.contains("hunk"), "{all}");
+        // A log with ANSI: the count of what was taken out.
+        let log = tmp.path().join("a.log");
+        std::fs::write(&log, "INFO \x1b[2Jok\n").unwrap();
+        app.viewer = Some(
+            crate::viewer::Viewer::open(log, crate::viewer::LoadOptions::view(1 << 20)).unwrap(),
+        );
+        let rows = screen(&mut app);
+        assert!(rows[0].contains("[ANSI: 1 removed]"), "{}", rows.join("\n"));
+    }
+
     #[test]
     fn viewer_header_counts_bidi_controls() {
         use ratatui::{Terminal, backend::TestBackend};

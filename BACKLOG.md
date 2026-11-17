@@ -123,8 +123,10 @@ as a link is what `cp -a` and `rsync -l` do).
   of reading the file from its end (for the logs). Fixed-width and multi-record files (SDF,
   CNAB, SPED) are out, by decision (2026-11-11): they go to a separate product
   ([docs/plans/viewer-positional.md](docs/plans/viewer-positional.md)).
-  Seven new viewers proposed on 2026-11-16, none approved yet (the list and order
-  are in "Viewers novos" of [docs/plans/viewers.md](docs/plans/viewers.md)):
+  Seven new viewers, built on 2026-11-16 in the branch `viewers-next`, not reviewed
+  yet (the list and order are in "Viewers novos" of
+  [docs/plans/viewers.md](docs/plans/viewers.md); what each one still lacks is in the
+  "Implementação" section of its spec):
   logs ([viewer-logs.md](docs/plans/viewer-logs.md), which is subproject 4), JSON,
   YAML and TOML as a tree ([viewer-tree.md](docs/plans/viewer-tree.md)), DOCX,
   ODT and PPTX ([viewer-office.md](docs/plans/viewer-office.md)), executables

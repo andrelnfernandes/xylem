@@ -1,7 +1,7 @@
 # Plano: executáveis no viewer (ELF, PE e Mach-O)
 
 Origem: conversa de 2026-11-16 (veja [viewer-logs.md](viewer-logs.md)).
-**Spec proposto, ainda não aprovado.**
+**Implementado em 2026-11-16 no branch `viewers-next`, ainda sem revisão do autor** (veja "Implementação", no fim).
 
 ## Objetivo
 
@@ -140,3 +140,24 @@ Tab lista), com o filtro SQL e o Ctrl+B que a tabela já tem:
   mínimo configurável.
 - Verificar a assinatura, se houver um leitor em Rust que não dependa do
   sistema.
+
+## Implementação (2026-11-16)
+
+Feito (commit `c37329d`), em `src/viewer/binaries.rs` e `src/viewer.rs`: as
+etapas 1 a 4, com abertura no relatório (?1), só o resumo e os segmentos num
+core dump (?2) e sem demangling (?3).
+
+Revisão das dependências: `object` fixado em **0.39.1**, não na 0.41, que mudou
+os tipos das flags para nada que o relatório use. O `unsafe` dele fica no
+`pod.rs`, que confere o tamanho (com `checked_mul`) e o alinhamento antes de
+cada conversão. O `ReadRef` próprio (`Bounded`) usa o `ReadCache` do `object`
+por baixo, que já confere a faixa contra o tamanho do arquivo antes de
+reservar; o `Bounded` soma o total lido contra o teto de 256 MiB.
+
+Diferente do spec:
+
+- **as listas são tabelas no próprio relatório** (até 2.000 linhas cada, com o
+  total), e não folhas do modo tabela: sem filtro SQL nem Ctrl+B sobre elas,
+  por enquanto;
+- a entropia é medida nos primeiros 16 MiB de cada seção;
+- a versão do Rust não é procurada (só o `.comment`, que costuma trazê-la).

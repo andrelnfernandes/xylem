@@ -124,7 +124,11 @@ Opções descartadas:
 ## Viewers novos (conversa de 2026-11-16)
 
 Sete formatos comuns que podem ser lidos em Rust, dentro do Xylem, sem programa
-externo. Cada um tem seu spec. **Todos propostos, nenhum aprovado ainda.**
+externo. Cada um tem seu spec. **Implementados em 2026-11-16 no branch
+`viewers-next`, ainda sem revisão do autor.** As dependências novas
+(`saphyr-parser`, `object` e `x509-parser`) foram aprovadas pelo autor no mesmo
+dia, e a revisão do `unsafe` de cada uma está no spec dela. O que ficou de fora
+ou mudou está na seção "Implementação" de cada spec.
 
 | # | Formato | Spec | Dependência nova | Depende de |
 |---|---|---|---|---|

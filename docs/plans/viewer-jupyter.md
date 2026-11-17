@@ -1,7 +1,7 @@
 # Plano: notebooks do Jupyter no viewer
 
 Origem: conversa de 2026-11-16 (veja [viewer-logs.md](viewer-logs.md)).
-**Spec proposto, ainda não aprovado.**
+**Implementado em 2026-11-16 no branch `viewers-next`, ainda sem revisão do autor** (veja "Implementação", no fim).
 
 ## Objetivo
 
@@ -79,3 +79,14 @@ filtro de ANSI), que ele reaproveita.
 - Os metadados de cada célula (tags, `collapsed`).
 - Outros formatos de notebook (R Markdown, Quarto `.qmd`), que já são quase
   Markdown.
+
+## Implementação (2026-11-16)
+
+Feito (commit `bff6bf3`), em `src/viewer/jupyter.rs`, com as respostas
+propostas às questões ?1 e ?2.
+
+Diferente do spec:
+
+- o limite é o de leitura do viewer (16 MiB por padrão), não 64 MiB;
+- um notebook com tipos trocados (um número onde se espera texto) não abre
+  pela metade: abre como fonte, com a nota de onde o JSON não bate.

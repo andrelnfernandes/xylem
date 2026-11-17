@@ -1,7 +1,7 @@
 # Plano: certificados e chaves no viewer
 
 Origem: conversa de 2026-11-16 (veja [viewer-logs.md](viewer-logs.md)).
-**Spec proposto, ainda não aprovado.**
+**Implementado em 2026-11-16 no branch `viewers-next`, ainda sem revisão do autor** (veja "Implementação", no fim).
 
 ## Objetivo
 
@@ -139,3 +139,24 @@ muda o que a chave permite. Em `known_hosts`, o host aparece em claro ou como
 - Chaves PGP.
 - Conferir uma chave de `known_hosts` contra a que o servidor mostrou numa
   conexão SSH já aberta pelo Xylem.
+
+## Implementação (2026-11-16)
+
+Feito (commit `0a2b17a`), em `src/viewer/certs.rs` e `src/viewer.rs`: as etapas
+1 a 4, menos o PKCS#7, com as respostas propostas às questões ?1 a ?3.
+
+Revisão das dependências: `x509-parser` 0.18.1, sem a feature `verify` (que
+traria o `ring`). Ele e os crates dele (`der-parser`, `asn1-rs`, `oid-registry`,
+`rusticata-macros`) declaram `#![forbid(unsafe_code)]`. O `nom` tem 4 usos de
+`unsafe` e o `data-encoding` tem 6 (base64), dois crates muito usados.
+
+Diferente do spec:
+
+- **PEM só num arquivo com nome de certificado ou chave** (`.pem`, `.crt`,
+  `.key`, `.pub`…) ou sem extensão: um bloco PEM de exemplo dentro de código ou
+  de um documento deixava o arquivo inteiro como relatório;
+- sem fingerprint SHA-1 (precisaria de um crate a mais só para isso);
+- PKCS#7 (`.p7b`) não é lido: o bloco aparece como de um tipo não lido aqui;
+- o `tests/data/` tem um certificado, uma corrente e uma chave feitos só para
+  os testes. A chave não protege nada, mas é uma chave privada no repositório,
+  e um verificador de segredos pode apontá-la.

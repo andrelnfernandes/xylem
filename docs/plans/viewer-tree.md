@@ -1,7 +1,7 @@
 # Plano: JSON, YAML e TOML como árvore no viewer
 
 Origem: conversa de 2026-11-16 (veja [viewer-logs.md](viewer-logs.md)).
-**Spec proposto, ainda não aprovado.**
+**Implementado em 2026-11-16 no branch `viewers-next`, ainda sem revisão do autor** (veja "Implementação", no fim).
 
 ## Objetivo
 
@@ -138,3 +138,32 @@ Nova dependência: só o `saphyr-parser`, que precisa de revisão (princípio 7 
   executar nada.
 - Notebooks do Jupyter (`.ipynb`), que são JSON, como documento (item 7 da
   conversa de 2026-11-16).
+
+## Implementação (2026-11-16)
+
+Feito (commit `170c29e`), em `src/viewer/tree.rs`, `src/viewer.rs` e `src/ui.rs`:
+as etapas 1 a 4, com `k` para copiar o caminho (?2), Enter abrindo e fechando
+(?4) e todos os formatos abrindo na árvore (?3). Sobre ?1: abre tudo até 2.000
+nós; acima disso, só a raiz aberta, com os filhos fechados.
+
+Revisão das dependências (princípio 7 de `viewers.md`):
+
+- `saphyr-parser` 0.3.4: nenhum `unsafe`. Traz o `arraydeque`, que tem 73 usos
+  de `unsafe` (é um buffer circular), mas só no `BufferedInput`; o Xylem lê de
+  `&str` (`StrInput`), que não o usa.
+- O `saphyr-parser` não dá o nome das âncoras, só um número: a âncora aparece
+  como `&a1` e o alias como `*a1`, e não com o nome escrito no arquivo.
+
+Diferente do spec:
+
+- **os nós guardam o texto** da chave e do valor (até 4.096 caracteres), em vez
+  de faixas da fonte: simplifica a busca e os escapes do JSON. O teto de nós é
+  2 milhões (cerca de 100 MB no pior caso), não 16 por KiB, que cortaria um
+  `[1,1,1…]` legítimo;
+- **profundidade acima de 512** recusa a árvore inteira (a nota diz por quê),
+  em vez de cortar só aquele ramo;
+- o tamanho máximo é o limite de leitura do viewer (16 MiB por padrão), não
+  64 MiB: a árvore é montada só com o arquivo inteiro.
+
+Falta: abrir um array de objetos como tabela, JSON5 completo, filtrar a árvore
+por caminho.
