@@ -2,6 +2,7 @@
 //! hexadecimal mode, with search.
 
 pub mod batch;
+pub mod binaries;
 pub mod doc_events;
 pub mod jupyter;
 pub mod line_filter;
@@ -350,6 +351,8 @@ pub struct Viewer {
     notebook: bool,
     /// The file is an Office document, shown as a document (see `office`).
     office: Option<office::Kind>,
+    /// The file is an executable, a library or an object (see `binaries`).
+    exe: bool,
     /// JSON, YAML or TOML: its format, and its tree when it could be read.
     tree_format: Option<tree::Format>,
     pub tree: Option<tree::Tree>,
@@ -474,8 +477,9 @@ impl Viewer {
             partial,
             ..Self::from_file(path, size, raw, load)
         };
-        // An Office document bigger than the bytes read: from the file.
-        if v.office.is_some() && v.md.is_none() && v.cut && load.c_parsers {
+        // An Office document or a binary bigger than the bytes read: from the
+        // file.
+        if v.no_source() && v.md.is_none() && v.cut && load.c_parsers {
             v.note = None;
             if v.render_markdown() {
                 v.mode = ViewMode::Rendered;
@@ -1026,6 +1030,7 @@ impl Viewer {
         self.md_file = new.md_file;
         self.notebook = new.notebook;
         self.office = new.office;
+        self.exe = new.exe;
         self.patch = new.patch;
         self.patch_file = new.patch_file;
         self.log_file = new.log_file;
@@ -1472,6 +1477,7 @@ impl Viewer {
         let shown_name = name.as_deref().unwrap_or(&path);
         v.notebook = jupyter::is_notebook(shown_name);
         v.office = (!failed).then(|| office::kind(shown_name)).flatten();
+        v.exe = !failed && found.binary && binaries::is_binary(&v.data);
         v.md_file = !failed && !found.binary && (markdown::is_markdown(shown_name) || v.notebook);
         if let Some(name) = &name {
             v = v.colored_as(name);
@@ -1763,6 +1769,9 @@ impl Viewer {
         if let Some(kind) = self.office {
             return self.render_office(kind);
         }
+        if self.exe {
+            return self.render_binary();
+        }
         if !self.md_file {
             return false;
         }
@@ -1850,6 +1859,52 @@ impl Viewer {
             }
         }
         self.md.is_some()
+    }
+
+    /// An executable as a report: from the bytes read when they are all of
+    /// it; else, with V, from the file, read only where the report needs it
+    /// (256 MiB at most in all); in Autoview, from its start, and the report
+    /// says it may miss things.
+    fn render_binary(&mut self) -> bool {
+        /// What a report may read of a file, in all.
+        const MAX_BINARY: u64 = 256 << 20;
+        let autoview = !self.load.c_parsers;
+        if self.cut && !autoview && !self.on_disk {
+            // Read from the file once it is known to be on disk (`open`).
+            return false;
+        }
+        let (time, budget, width) = (
+            self.load.limits.time,
+            self.load.limits.output.saturating_mul(16).max(16 << 20),
+            self.content_width(),
+        );
+        let from_file = self.cut && !autoview && self.compression.is_none();
+        let (data, cut, path) = (&self.data, self.cut, &self.path);
+        let result = crate::panic_guard::catch(|| {
+            if from_file {
+                binaries::render_file(path, MAX_BINARY, time, budget, width)
+            } else {
+                binaries::render(data, cut, time, budget, width)
+            }
+        });
+        match result {
+            Some(Ok(doc)) => self.md = Some(doc),
+            Some(Err(why)) => {
+                self.note
+                    .get_or_insert_with(|| format!("{why}: showing the bytes"));
+            }
+            None => {
+                self.note
+                    .get_or_insert_with(|| "Could not read this binary: showing the bytes".into());
+            }
+        }
+        self.md.is_some()
+    }
+
+    /// A document with no text of its own (Office, an executable): `T` has no
+    /// source to show, and `H` goes to the bytes.
+    fn no_source(&self) -> bool {
+        self.office.is_some() || self.exe
     }
 
     pub fn limit(&self) -> u64 {
@@ -2141,6 +2196,7 @@ impl Viewer {
             md_file: false,
             notebook: false,
             office: None,
+            exe: false,
             tree_format: None,
             tree: None,
             tree_cursor: 0,
@@ -3040,7 +3096,7 @@ impl Viewer {
                         ViewMode::Text => self.text_to_tree(),
                         _ => self.mode = ViewMode::Tree,
                     }
-                } else if self.md.is_some() && self.office.is_some() {
+                } else if self.md.is_some() && self.no_source() {
                     self.note = Some("This document has no text source: H shows its bytes".into());
                 } else if self.md.is_some() {
                     match self.mode {
@@ -3190,8 +3246,8 @@ impl Viewer {
 
     /// To the source, at the line the document was showing.
     fn rendered_to_text(&mut self) {
-        // An Office document has no text of its own: its bytes.
-        if self.office.is_some() {
+        // An Office document or a binary has no text of its own: its bytes.
+        if self.no_source() {
             self.mode = ViewMode::Hex;
             self.top = 0;
             self.left = 0;
@@ -6782,5 +6838,25 @@ new mode 100755
         let path = tmp.path().join("Cargo.toml");
         std::fs::write(&path, "[package]\nname = \"x\"\n").unwrap();
         assert_eq!(Viewer::open(path, LOAD).unwrap().mode, ViewMode::Tree);
+    }
+
+    #[test]
+    fn an_executable_opens_as_a_report() {
+        let me = std::env::current_exe().unwrap();
+        let mut v = Viewer::open(me, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered, "{:?}", v.note);
+        let doc = v.md.as_ref().unwrap();
+        assert!((0..doc.line_count()).any(|i| doc.line(i).starts_with("Entry point")));
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(
+            v.note.as_deref(),
+            Some("This document has no text source: H shows its bytes")
+        );
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Hex);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // A few bytes that only start like one stay in hex.
+        assert_eq!(viewer(b"\x7fELF\0\0").mode, ViewMode::Hex);
     }
 }
