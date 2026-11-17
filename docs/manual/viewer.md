@@ -111,6 +111,19 @@ Before the text, a block says what the document has besides it, since much of it
 
 `H` shows the bytes, and comes back; `T` says the document has no text of its own. Every part of the file is decompressed only up to a limit (64 MiB each, 256 MiB in all; 4 MiB in Autoview), and the header says when the document was cut. An XML part with a DTD, or nested deeper than 256 levels, is refused. The old `.doc` and `.ppt` open in hex, as before.
 
+## Executables
+
+An executable, a library or an object file opens as a report, whatever its name: ELF (Linux, BSD), PE (Windows `.exe`, `.dll`, `.sys`, also .NET) and Mach-O (macOS, also universal binaries with several architectures). It is told by its first bytes, never by its name. The report says:
+
+- what it is (executable, library, object, core dump), for what machine, 32 or 64 bits, its entry point, and its interpreter, subsystem or minimum system;
+- **protections**, each one `yes` or `no`, with `⚠` where it is missing: on ELF, PIE, a stack that does not run code (NX), RELRO (full or partial), the stack canary, FORTIFY and the library paths (RPATH, RUNPATH: a relative one or one in `/tmp` is marked); on PE, ASLR, high-entropy ASLR, DEP, Control Flow Guard; on Mach-O, PIE and an executable stack;
+- **signature**: whether there is one and how big. It is **not verified**, and the report says so;
+- **signs** of something hidden: a section of high entropy (packed or encrypted), the name of a packer (UPX...), data after the last section (an overlay, where installers and some malware keep data), a section both writable and executable, an entry point outside every executable section;
+- **identity**: build ID, debug link, UUID, PDB path, the compiler, the Go version; the build date of a PE, which the linker writes and can be anything;
+- the libraries it needs, and the lists of sections, segments, imports, exports and symbols, of up to 2,000 rows each.
+
+Nothing is run or loaded to make the report: not even `ldd`, which runs the program in some cases. `H` shows the bytes, and comes back. A file bigger than the read limit is read only where the report needs it, 256 MiB at most in all; Autoview reports on the start it read, and says it may miss things.
+
 ## Logs
 
 A log opens as text, with the colors of its levels, and the footer says `Log`. A file is a log by its name (`.log`, `.out`, `.err`, a rotated one like `app.log.1` or `app.log.2.gz`, `syslog`, `messages`, `kern.log`) or by its contents: most of its first lines start with a date and time (`2026-11-16 10:00`, `[2026-11-16 ...`, or syslog's `Nov 16 10:00:00`).

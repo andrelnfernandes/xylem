@@ -70,6 +70,8 @@ quick-xml = "0.42"
 zip = { version = "9.0.2", default-features = false, features = ["deflate"] }
 pulldown-cmark = { version = "0.13.6", default-features = false }
 saphyr-parser = "0.3.4"
+# Executables in the viewer (docs/plans/viewer-binaries.md): read only.
+object = { version = "0.39.1", default-features = false, features = ["read_core", "elf", "pe", "macho", "coff", "std"] }
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31.3", features = ["fs", "net", "process", "user"] }
