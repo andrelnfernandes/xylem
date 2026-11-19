@@ -878,10 +878,11 @@ fn a_real_container_is_browsed_and_changed() {
     xy.wait_for("in /srv/x");
 }
 
-/// Where `text` first is on the screen: (column, row), from 0.
+/// Where `text` first is on the screen, below the header (whose path may
+/// have it too): (column, row), from 0.
 fn position_of(xy: &Xy, text: &str) -> (u16, u16) {
     let parser = xy.screen.lock().unwrap();
-    for (y, row) in parser.screen().rows(0, COLS).enumerate() {
+    for (y, row) in parser.screen().rows(0, COLS).enumerate().skip(1) {
         if let Some(i) = row.find(text) {
             return (row[..i].chars().count() as u16, y as u16);
         }
@@ -904,7 +905,7 @@ fn the_mouse_turned_on_in_f12_clicks_and_survives_a_program() {
     xy.press("\x1b[24~"); // F12
     xy.wait_for("Programs and formats");
     xy.press("\x1b[6~"); // PgDn: Display and sorting
-    xy.wait_for("Mouse (wheel");
+    xy.wait_for("Mouse (clicks");
     xy.press("r");
     xy.press("\x1b[13~"); // F3
     xy.wait_for("Configuration saved");
@@ -929,6 +930,21 @@ fn the_mouse_turned_on_in_f12_clicks_and_survives_a_program() {
         y + 1
     ));
     xy.wait_for("project/sub");
+
+    // The right button on the folder: its menu; Esc closes it.
+    let (x, y) = position_of(&xy, "sub");
+    xy.press(&format!(
+        "\x1b[<2;{};{}M\x1b[<2;{};{}m",
+        x + 1,
+        y + 1,
+        x + 1,
+        y + 1
+    ));
+    xy.wait_for("Make a directory");
+    xy.press("\x1b");
+    eventually("the menu closed", || {
+        !xy.contents().contains("Make a directory")
+    });
 
     // A program that turns the mouse off as it ends (vim, less): Xylem
     // turns it on again when it gets the terminal back.

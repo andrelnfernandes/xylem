@@ -26,6 +26,7 @@ Delete still asks, and a command that cannot run here is still refused.
 | The text of a prompt | the cursor goes there | | |
 | A table in the viewer | picks the cell | its Enter: the record | 3 rows; Shift+wheel, a column |
 | The viewer, the help | a link of the help is followed | | scrolls, as ↑ and ↓; Shift+wheel scrolls the viewer sideways |
+| Anywhere a menu makes sense | the right button opens it (below) | | |
 
 A double click never opens a file with a program of the system: a file you
 did not create may be hostile, and a click by mistake must not run it. Open
@@ -33,6 +34,28 @@ did not create may be hostile, and a click by mistake must not run it. Open
 
 Dragging with the left button moves the cursor along a list; past its top
 or bottom edge, the list scrolls a row at each move.
+
+## The menu of the right button
+
+The right button moves the cursor to the item under the pointer, as a
+click, and opens a menu of what can be done with it, next to the pointer.
+The **Menu** key of the keyboard, or **Shift+F10**, opens the same menu for
+the item under the cursor, with no mouse.
+
+| Under the pointer | The menu |
+|---|---|
+| A file | View, Edit, Open with the system, Info; Tag or Untag; Copy, Move, Rename, Delete, Attributes, New date, Yank the path |
+| A file, with files tagged | the same, and a group for the tagged ones: Copy, Move, Rename (mask), Delete, View, Yank, Untag all |
+| A directory of the tree | Files, Log, Relog, Expand all, Collapse, Release; Branch, Showall; Make a directory, Rename, Delete, Prune, Attributes; Tag its files, Untag; Terminal here, Usage, Duplicates, Bookmark it, Yank the path |
+| The file window, past its files | Filespec, Sort, File display; Tag all, Untag all, Invert tags |
+| The viewer | Search, Next match, Go to line, and the keys of its mode (Wrap, Line numbers, Hex, SQL filter...), Edit, Yank the path, Close |
+
+Each line shows its key on the right, as your configuration has it, so
+the menu is also a way to learn the keys. What cannot run here is left out:
+inside an archive there is no Delete, Move or Rename. A line runs as its key
+would: Delete still asks first.
+
+↑↓ choose, Enter runs, Esc closes; a click off the menu only closes it.
 
 ## Tagging
 

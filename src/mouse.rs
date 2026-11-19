@@ -135,6 +135,8 @@ pub enum Spot {
     /// The text of a prompt, from column `start` on: a click puts its cursor
     /// there.
     Prompt { start: u16 },
+    /// The screen around the context menu: a click there closes it.
+    Outside,
 }
 
 /// The lists that are not a tree or files.
@@ -152,6 +154,8 @@ pub enum Own {
     /// The Usage view of a window (index into `App::panes`).
     Usage(usize),
     Duplicates(usize),
+    /// The lines of the context menu.
+    Menu,
 }
 
 /// What a click hit: the spot and the item under it, if it is a list.
@@ -208,6 +212,34 @@ impl HitMap {
             x,
             y,
         })
+    }
+
+    /// Where row `item` of `list` is on screen (its first column and row),
+    /// if it is.
+    pub fn row_of(&self, list: List, item: usize) -> Option<(u16, u16)> {
+        self.spots
+            .iter()
+            .rev()
+            .find_map(|(area, spot)| match *spot {
+                Spot::Rows {
+                    list: l, offset, ..
+                } if l == list && item >= offset && item - offset < usize::from(area.height) => {
+                    Some((area.x, area.y + (item - offset) as u16))
+                }
+                Spot::Grid {
+                    list: l,
+                    top,
+                    cols,
+                    cell,
+                    ..
+                } if l == list && item / cols.max(1) >= top => {
+                    let row = item / cols.max(1) - top;
+                    let col = (item % cols.max(1)) as u16;
+                    (row < usize::from(area.height))
+                        .then(|| (area.x + col * cell, area.y + row as u16))
+                }
+                _ => None,
+            })
     }
 
     /// The footer's lines, as drawn from row `area.y` on: each entry that
