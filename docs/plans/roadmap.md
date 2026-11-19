@@ -54,14 +54,19 @@ do viewer ainda será conferido nesses specs.
 | 9 | | **SSH 4a:** Edit e Open por cópia temporária que volta ao salvar | |
 | 10 | | **SSH 4b:** atualização periódica no lugar do inotify; eXecute por ssh | |
 | 11 | | **SSH 4c:** Git por ssh | |
-| 12 a 14 | | **Viewer em janelas (subprojeto 3):** índice de linhas em segundo plano, leitura sob demanda, Esc cancela. É o coração do viewer: fica em branch até busca, quebra de linha, "ir para a linha" e cores funcionarem | [viewers.md](viewers.md) |
-| 15 | | **Logs (subprojeto 4):** follow, ir para o fim, cor por nível, ANSI só SGR | [viewers.md](viewers.md) |
+| 12 a 14 | 0.8.0 | **Viewer em janelas (subprojeto 3):** índice de linhas em segundo plano, leitura sob demanda, Esc cancela. É o coração do viewer: fica em branch até busca, quebra de linha, "ir para a linha" e cores funcionarem (feito) | [viewers.md](viewers.md) |
+| 15 | 0.8.0 | **Logs (subprojeto 4):** follow, ir para o fim, cor por nível, ANSI só SGR (feito) | [viewers.md](viewers.md) |
 
 A 0.6.1 (2026-11-03) foi só a correção de segurança do calamine. Os releases semanais
 pararam depois dela, e a **0.7.0** juntou as semanas 2 a 8 com o que veio fora da tabela:
 compartilhamentos de rede em segundo plano, log sob demanda, os prompts do `L`, do Copy e
 do Move vazios, e os favoritos com nome. Os layouts posicionais entraram no `main` e saíram
 antes dela (ver "Fora, por decisão").
+
+A **0.8.0** traz o viewer em janelas (texto e tabelas sem limite de linhas) e os logs
+(linhas 12 a 15), e fora da tabela: as teclas Alt como no ZTreeWin, todo comando num menu,
+os filtros por SQL (W, Alt+N) e a caixa de busca (P), o mouse, mais seis viewers (árvore
+JSON/YAML/TOML, patches, Jupyter, Office, executáveis, certificados) e o build no macOS.
 
 Decisões já tomadas:
 

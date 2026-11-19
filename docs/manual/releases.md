@@ -52,7 +52,17 @@ height.
 - `P` opens a search box that lists files by the words typed.
   [The search box](sql.md#the-search-box-p)
 - CSV, TSV, JSON Lines, DBF and SQLite tables have no limit of rows in the
-  viewer. Spreadsheets keep the limit of 50,000 rows. [The viewer](viewer.md)
+  viewer. Spreadsheets keep the limit of 50,000 rows. [Tables](tables.md)
+- In a table, Enter shows the record as a form, and `c` copies it; `c` also
+  copies the structure shown by `i`. [Tables](tables.md)
+- A text over 16 MiB is read through a window, with no size limit.
+  [Big files](viewer.md#big-files)
+- New viewers: JSON, YAML and TOML as a tree that folds; logs with the colors
+  of their levels, and follow; patches with an index of files and hunks and
+  what to check; Jupyter notebooks; Office documents, with their macros,
+  remote templates and hidden text; executables (ELF, PE, Mach-O) and
+  certificates and keys as reports. [The viewer](viewer.md)
+- It builds on macOS (not tested on a Mac yet).
 - Alt+L makes the directory under the cursor the root of the tree.
 - In Treespec, Ctrl+← takes the last folder off the path and Ctrl+→ brings
   it back.
