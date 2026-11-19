@@ -192,6 +192,11 @@ version; the sync removes the note and the entry.
 
 ## To evaluate
 
+- **The memory of a big tree (JSON, YAML, TOML):** the tree stops at 2,000,000
+  nodes, which take about 170 MiB; a JSON of 4 MiB such as `[0,0,0,...]` reaches
+  that. Nothing breaks, but a lower limit, or nodes made smaller, would weigh
+  less (found in the audit of #122).
+
 - **The wheel over less or man in the built-in terminal:** a program on the
   alternate screen that did not ask for the mouse has no scrollback, so the wheel
   does nothing there. xterm's `alternateScroll` sends ↑ and ↓ instead; but some

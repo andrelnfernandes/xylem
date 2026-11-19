@@ -563,8 +563,10 @@ fn is_number(w: &str) -> bool {
 
 // ---------------------------------------------------------------- TOML
 
-/// How deep `text` nests its `[` and `{`, outside strings and comments: the
-/// TOML parser recurses, so a file nested too deep never gets to it.
+/// How deep `text` nests its `[` and `{`, outside strings and comments, to
+/// refuse a file nested too deep with a clear note. It is a count, not a TOML
+/// parser, and a file can fool it (`"""x"y"""`): what keeps the stack is
+/// `toml_edit`'s own limit on its recursion.
 fn bracket_depth(text: &str) -> usize {
     let (mut depth, mut most) = (0usize, 0usize);
     let mut chars = text.chars().peekable();
@@ -1136,8 +1138,27 @@ enum Part {
     Index(usize),
 }
 
+/// A key between quotes, for a path that goes to the clipboard: a line end, a
+/// control or a bidi character of a hostile key is escaped, so that pasting
+/// the path into a shell never runs a line of it.
 fn quoted(k: &str) -> String {
-    format!("\"{}\"", k.replace('\\', "\\\\").replace('"', "\\\""))
+    let mut out = String::with_capacity(k.len() + 2);
+    out.push('"');
+    for c in k.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            '\r' => out.push_str("\\r"),
+            c if c.is_control() || crate::bidi::is_bidi(c) => {
+                out.push_str(&format!("\\u{:04x}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// A key or a value on one row: a line end as `↵`, a tab as a space. Other
@@ -1200,6 +1221,24 @@ mod tests {
         assert_eq!(t.dups, 1);
         let a = t.find(None, true, |s| s == "a").unwrap();
         assert_eq!(t.path(a), ".list[3].a");
+        // A hostile key never puts a line end or a bidi control in the path
+        // copied to the clipboard.
+        let hostile = parse_json(
+            "{\"x\\ncurl e|sh\\n\": 1, \"a\\u202eb\\u001b\": 2}",
+            false,
+            T,
+        )
+        .unwrap();
+        let paths: Vec<String> = hostile.rows()[1..]
+            .iter()
+            .map(|&r| hostile.path(r))
+            .collect();
+        assert_eq!(paths, ["[\"x\\ncurl e|sh\\n\"]", "[\"a\\u202eb\\u001b\"]"]);
+        assert!(
+            paths
+                .iter()
+                .all(|p| !p.chars().any(|c| c.is_control() || crate::bidi::is_bidi(c)))
+        );
         let list = t.find(None, true, |s| s == "list").unwrap();
         assert!(
             t.set_open_clone(list, false)
