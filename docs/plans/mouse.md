@@ -388,7 +388,31 @@ Testes: num archive não há Delete; no remoto não há Edit; com marcados apare
 grupo; Enter num item roda o `Command` no item do cursor; Esc e clique fora fecham sem
 mover nada.
 
-### Etapa 4: terminal e editor no quadro (~3 dias)
+### Etapa 4: terminal e editor no quadro (~3 dias) (feita, 2026-11-19)
+
+Como ficou:
+
+- `term::encode_mouse(ev, col, row, mode, encoding)`: botões 0/1/2, soltar 3 (no SGR,
+  o próprio botão e `m`), arrasto +32, roda 64 a 67, Shift +4, Alt +8, Ctrl +16. O
+  modo filtra: `Press` (X10, `?9`) só apertos e sem modificadores; `PressRelease`
+  mais o soltar; `ButtonMotion` mais o arrasto; `AnyMotion` mais o `Moved`, que o
+  Xylem nunca recebe (não pede o `?1003`). Coordenada presa em 223 no X10 e em 2015 no
+  UTF-8.
+- `Terminal::send_mouse(ev, col, row, lines)`: sem modo pedido, a roda move o
+  `scrollback` (`lines` por vez) e o clique não faz nada; com modo, prende ao tamanho
+  do painel, volta o `scrollback` a 0 e escreve no PTY.
+- `Spot::Pty` no interior do painel (`draw_terminal_panel`, que serve ao terminal e ao
+  editor no quadro). `handle_mouse` o testa antes do resto; um aperto ali abre um
+  `Drag::Pty { area }`, e os arrastos e o soltar seguem para o programa mesmo fora do
+  painel (presos à borda).
+- O botão direito sobre o painel vai ao programa, não ao menu do Xylem.
+- Fora do plano, anotado no BACKLOG para avaliar: a roda sobre less ou man (tela
+  alternativa sem pedido de mouse) não faz nada; o xterm manda ↑↓ nesse caso.
+
+Testes: as codificações SGR, padrão, UTF-8 e X10 com modos escritos num `vt100`
+(clique em (5, 3) vira `\x1b[<0;6;4M`; coluna 300 presa); bash de verdade: a roda no
+prompt muda o `scrollback`, e um `cat` depois de `?1000h?1006h` recebe o clique, preso
+ao painel; o editor no quadro recebe clique, arrasto para fora (preso) e soltar.
 
 - `Terminal::send_mouse` nas três codificações, coordenadas relativas e presas.
 - Sem pedido do programa: roda no histórico da tela.

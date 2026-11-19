@@ -137,6 +137,9 @@ pub enum Spot {
     Prompt { start: u16 },
     /// The screen around the context menu: a click there closes it.
     Outside,
+    /// The screen of the program in the built-in terminal or the framed
+    /// editor: its mouse, if it asked for it (`Terminal::send_mouse`).
+    Pty,
 }
 
 /// The lists that are not a tree or files.

@@ -18,7 +18,8 @@ Delete still asks, and a command that cannot run here is still refused.
 | The file window | picks the file and moves to the file window | View, in Xylem's own viewer | moves the cursor 3 files (a row in the column modes) |
 | The scroll bar on the right border | above or below the thumb: a page; drag the thumb to go anywhere | | |
 | The other side of a [split screen](split.md) | makes it the active window, then picks | | moves that side's cursor, the active one stays |
-| The tree above the [built-in terminal](terminal.md) | goes back to Xylem, as Alt+X | | |
+| The [built-in terminal](terminal.md), the framed editor | to the program, if it asked for the mouse (mc, vim, htop, tmux); else nothing | | to the program, if it asked; else back through the lines that went off the screen, as Shift+PgUp |
+| The tree above the built-in terminal | goes back to Xylem, as Alt+X | | |
 | The footer | the key of the entry: `Copy` is C, `Esc cancel` is Esc, `Yes` answers the question | | |
 | F12 | an option changes, as its letter (nothing is saved before F3); a theme of the list (F4) is previewed | the theme is chosen | moves the selection |
 | Bookmarks, the search box, Usage, Duplicates | picks the row | its Enter | 3 rows |
@@ -92,5 +93,9 @@ in iTerm2. To copy the path of a file, Yank (`Y`) needs no mouse.
 Xylem asks for clicks and for moves with a button held, in the SGR format
 that every current terminal knows; never for the moves of the pointer alone,
 which would send a stream of events for nothing, a weight over SSH. A
+program in the built-in terminal or the framed editor gets the mouse in the
+format it asked for, with the corners of its own panel: it never reaches the
+rest of the screen, nor your terminal. A drag that goes off the panel stays
+with the program, held at its edge. A
 program run by eXecute or Edit may turn the mouse off as it ends; Xylem
 turns it on again when it gets the screen back.
