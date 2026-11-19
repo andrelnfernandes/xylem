@@ -561,6 +561,11 @@ pub struct KeySpec {
 }
 
 impl KeySpec {
+    /// The key and its modifiers.
+    pub fn parts(&self) -> (KeyCode, KeyModifiers) {
+        (self.code, self.mods)
+    }
+
     pub fn from_event(key: KeyEvent) -> Self {
         let code = match key.code {
             KeyCode::Char(c) => KeyCode::Char(c.to_ascii_lowercase()),
@@ -767,6 +772,25 @@ impl Keymap {
             }
         }
         None
+    }
+
+    /// The key that runs `cmd` in the window `focus`, as shown on screen
+    /// (`C`, `Ctrl+C`): the shortest of those `lookup` takes there.
+    pub fn key_in(&self, cmd: Command, focus: Focus) -> Option<String> {
+        let scope = match focus {
+            Focus::Tree => Tree,
+            Focus::Files => Files,
+        };
+        let mut keys: Vec<(String, KeySpec)> = [scope, Any]
+            .iter()
+            .filter_map(|s| self.maps.get(s))
+            .flatten()
+            .filter(|(_, c)| **c == Some(cmd))
+            .filter(|(k, _)| self.lookup_spec(**k, focus) == Some(cmd))
+            .map(|(k, _)| (k.to_string(), *k))
+            .collect();
+        keys.sort_by_key(|(k, _)| (k.len(), k.clone()));
+        keys.into_iter().next().map(|(k, _)| k)
     }
 
     /// The key bound to `cmd` in both windows, as shown on screen (`Alt+X`).

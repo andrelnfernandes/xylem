@@ -37,6 +37,7 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 - [Installieren und die ersten fünf Minuten](start.md)
 - [Der Bildschirm](screen.md): Baum, Dateifenster, Statistiken, Menüleiste
 - [Die Menüs, Ctrl und Alt](menus.md): Buchstabe allein, mit Ctrl, mit Alt, und F9
+- [The mouse](mouse.md) (in English for now): turning it on in F12, the wheel, clicks and the footer
 - [Vokabular](glossary.md): Log, Branch, Tag, Filespec
 
 ## Befehle

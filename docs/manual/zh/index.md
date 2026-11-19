@@ -24,6 +24,7 @@ Xylem 将外部文件视为潜在恶意：绝不应因文件内容或文件名�
 - [安装与最初五分钟](start.md)
 - [屏幕](screen.md)：目录树、文件窗口、统计信息与底部状态栏
 - [菜单、Ctrl 与 Alt](menus.md)：单独字母、配合 Ctrl、配合 Alt 与 F9
+- [The mouse](mouse.md) (in English for now): turning it on in F12, the wheel, clicks and the footer
 - [术语](glossary.md)：Log、Branch、Tag、Filespec
 
 ## 命令
