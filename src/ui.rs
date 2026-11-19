@@ -234,7 +234,7 @@ const USAGE_BAR: usize = 16;
 
 /// Alt+U: the folders and files of a directory by the space they take, and
 /// a line with the totals at the bottom.
-fn draw_usage(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
+fn draw_usage(frame: &mut Frame, pane: &mut Pane, index: usize, active: bool, area: Rect) {
     use crate::usage::{self, Item};
     let Some(view) = pane.usage.as_mut() else {
         return;
@@ -328,6 +328,12 @@ fn draw_usage(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
     view.shown = view.list.selected().and_then(|i| rows.get(i).cloned());
     let list = List::new(items).highlight_style(highlight(active));
     frame.render_stateful_widget(list, list_area, &mut view.list);
+    let spot = Spot::Item {
+        list: mouse::Own::Usage(index),
+        offset: view.list.offset(),
+        len: rows.len(),
+    };
+    hit(list_area, spot);
 
     // The totals, and how much of the disk they are.
     let mut parts = Vec::new();
@@ -386,7 +392,7 @@ fn count(n: usize, what: &str) -> String {
 }
 
 /// Alt+D: the groups of equal files or folders, and a line about them.
-fn draw_duplicates(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
+fn draw_duplicates(frame: &mut Frame, pane: &mut Pane, index: usize, active: bool, area: Rect) {
     use crate::duplicates::Row;
     use crate::usage;
     let Some(view) = pane.duplicates.as_mut() else {
@@ -462,6 +468,12 @@ fn draw_duplicates(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect)
     state.select(Some(view.at - view.offset));
     let list = List::new(items).highlight_style(highlight(active));
     frame.render_stateful_widget(list, list_area, &mut state);
+    let spot = Spot::Item {
+        list: mouse::Own::Duplicates(index),
+        offset: view.offset,
+        len: rows.len(),
+    };
+    hit(list_area, spot);
 
     let (tagged, bytes) = view.tagged();
     let free: u64 = groups.iter().map(|g| g.free).sum();
@@ -527,14 +539,17 @@ fn draw_pane(
 ) {
     // Their own lists: the wheel stands for their ↑ and ↓ (stage 2 points
     // at their rows).
+    let index = match owner {
+        Owner::Main(i) | Owner::Picker(i) => i,
+    };
     if pane.usage.is_some() {
-        draw_usage(frame, pane, active, area);
         hit(area, Spot::Window(mouse::List::Files(owner)));
+        draw_usage(frame, pane, index, active, area);
         return;
     }
     if pane.duplicates.is_some() {
-        draw_duplicates(frame, pane, active, area);
         hit(area, Spot::Window(mouse::List::Files(owner)));
+        draw_duplicates(frame, pane, index, active, area);
         return;
     }
     if pane.focus == Focus::Files {
@@ -897,8 +912,62 @@ fn draw_tree(
         offset,
         len: pane.rows.len(),
     };
-    hit(Block::bordered().inner(area), rows);
+    let inner = Block::bordered().inner(area);
+    hit(inner, rows);
+    // The mark before each folder: `+` expands, `?` logs, `─` collapses.
+    for (y, row) in pane
+        .rows
+        .iter()
+        .enumerate()
+        .skip(offset)
+        .take(usize::from(inner.height))
+    {
+        let width = row.prefix.chars().count() as u16;
+        if width == 0 || width > inner.width {
+            continue;
+        }
+        let mark = Rect::new(inner.x + width - 1, inner.y + (y - offset) as u16, 1, 1);
+        hit(mark, Spot::Marker { list: tree, row: y });
+    }
+    hit_scrollbar(area, tree, pane.rows.len(), pane.tree_page, offset, 1);
     draw_scroll_thumb(frame, area, pane.rows.len(), pane.tree_page, offset, active);
+}
+
+/// The thumb of a scroll bar: its first row in the track (under the top
+/// border) and its length. `None` when it all fits.
+fn thumb(area: Rect, len: usize, page: usize, offset: usize) -> Option<(usize, usize)> {
+    let track = area.height.saturating_sub(2) as usize;
+    if len <= page || page == 0 || track < 3 || area.width < 2 {
+        return None;
+    }
+    let size = (track * page / len).clamp(1, track - 1);
+    let last = len - page;
+    let start = (track - size) * offset.min(last) / last;
+    Some((start, size))
+}
+
+/// The scroll bar of `list` (on the right border of `area`) as a spot, when
+/// there is one: `len` rows of `cols` items each.
+fn hit_scrollbar(
+    area: Rect,
+    list: mouse::List,
+    len: usize,
+    page: usize,
+    offset: usize,
+    cols: usize,
+) {
+    let Some((start, size)) = thumb(area, len, page, offset) else {
+        return;
+    };
+    let track = Rect::new(area.right() - 1, area.y + 1, 1, area.height - 2);
+    let bar = Spot::Scrollbar {
+        list,
+        len,
+        page,
+        cols,
+        thumb: (start as u16, size as u16),
+    };
+    hit(track, bar);
 }
 
 /// Where a long list is: a thumb on the right border, as long as the share
@@ -911,13 +980,9 @@ fn draw_scroll_thumb(
     offset: usize,
     active: bool,
 ) {
-    let track = area.height.saturating_sub(2) as usize;
-    if len <= page || page == 0 || track < 3 || area.width < 2 {
+    let Some((start, size)) = thumb(area, len, page, offset) else {
         return;
-    }
-    let size = (track * page / len).clamp(1, track - 1);
-    let last = len - page;
-    let start = (track - size) * offset.min(last) / last;
+    };
     let color = if active {
         theme().active_border
     } else {
@@ -1243,6 +1308,7 @@ fn draw_files(
         len,
     };
     hit(Block::bordered().inner(area), rows);
+    hit_scrollbar(area, files, pane.files.len(), pane.file_page, offset, 1);
     draw_scroll_thumb(
         frame,
         area,
@@ -1389,6 +1455,7 @@ fn draw_file_columns(
         len: n,
     };
     hit(inner, grid);
+    hit_scrollbar(area, list, rows, height, top, cols);
     draw_scroll_thumb(frame, area, rows, height, top, active);
 }
 
@@ -2531,6 +2598,11 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
     let bold = Style::new().add_modifier(Modifier::BOLD);
     let col = area.x + (prompt.label.chars().count() + prompt.input.cursor) as u16;
     frame.set_cursor_position((col.min(area.right().saturating_sub(1)), area.y));
+    let start = area.x + prompt.label.chars().count() as u16;
+    hit(
+        Rect::new(area.x, area.y, area.width, 1),
+        Spot::Prompt { start },
+    );
     let help = if let Some(list) = prompt.input.list() {
         // Drawn at the end, over everything: see [`draw`].
         list.anchor.set(Some(area.y));
@@ -2682,6 +2754,12 @@ fn draw_history_list(frame: &mut Frame, input: &LineInput, list: &HistoryList, p
     // A short list sits at the bottom, next to the line.
     scroll = scroll.min(list.shown.len().saturating_sub(rows));
     list.scroll.set(scroll);
+    let spot = Spot::Item {
+        list: mouse::Own::History,
+        offset: scroll,
+        len: list.shown.len(),
+    };
+    hit(inner, spot);
     let text_width = usize::from(inner.width).saturating_sub(1);
     let lines: Vec<Line> = list
         .shown
@@ -2741,6 +2819,12 @@ fn draw_search_box(frame: &mut Frame, sb: &mut crate::search_box::SearchBox, scr
     .areas(inner);
 
     sb.page = usize::from(results_area.height);
+    let spot = Spot::Item {
+        list: mouse::Own::SearchResults,
+        offset: sb.scroll,
+        len: sb.results.len(),
+    };
+    hit(results_area, spot);
     sb.keep_visible();
     sb.ensure_snippets();
 
@@ -3020,6 +3104,14 @@ fn draw_settings(frame: &mut Frame, s: &Settings) {
     let inner = block.inner(body);
     frame.render_widget(block, body);
     hit(body, Spot::Scroll);
+    if s.editing.is_none() && s.picker.is_none() {
+        let spot = Spot::Item {
+            list: mouse::Own::Settings,
+            offset: 0,
+            len: items.len(),
+        };
+        hit(inner, spot);
+    }
     let width = inner.width as usize;
     let mut lines: Vec<Line> = items
         .iter()
@@ -3081,6 +3173,12 @@ fn draw_settings(frame: &mut Frame, s: &Settings) {
             area,
             &mut state,
         );
+        let spot = Spot::Item {
+            list: mouse::Own::Theme,
+            offset: state.offset(),
+            len: config::THEMES.len(),
+        };
+        hit(Block::bordered().inner(area), spot);
     }
 
     let lines = if let Some((opt, input)) = &s.editing {
@@ -3097,6 +3195,11 @@ fn draw_settings(frame: &mut Frame, s: &Settings) {
         };
         let col = menu.x + (label.len() + input.cursor) as u16;
         frame.set_cursor_position((col.min(menu.right().saturating_sub(1)), menu.y));
+        let start = menu.x + label.len() as u16;
+        hit(
+            Rect::new(menu.x, menu.y, menu.width, 1),
+            Spot::Prompt { start },
+        );
         vec![
             Line::from(vec![
                 Span::styled(label, bold),
@@ -3168,6 +3271,7 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
     let block = panel(title, true);
     let inner = block.inner(body);
     frame.render_widget(block, body);
+    hit(body, Spot::Scroll);
 
     let home = platform::home_dir();
     let format_path = |p: &std::path::Path| -> String {
@@ -3230,6 +3334,12 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
             .map(|l| l.chars().count())
             .max()
             .map_or(0, |w| w.min(width / 2));
+        let spot = Spot::Item {
+            list: mouse::Own::Bookmarks,
+            offset: 0,
+            len: app.bookmarks.len(),
+        };
+        hit(inner, spot);
         for (i, ((k, bm), label)) in app.bookmarks.iter().zip(&labels).enumerate() {
             let missing = view.missing.contains(k);
             let cursor = if i == view.selected { "▶ " } else { "  " };
@@ -3274,7 +3384,6 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
         render_footer(frame, lines, menu, KeyModifiers::NONE);
         return;
     }
-    hit(body, Spot::Scroll);
     let keys: &[(&str, &str)] = if view.pick {
         &[
             ("Enter / key", "put it in the prompt"),
@@ -4588,6 +4697,17 @@ fn draw_table_grid(
             let formatted_cell = format!("{:<width$} ", fit(cell_text, w), width = w);
             row_spans.push(Span::styled(formatted_cell, cell_style));
             row_spans.push(Span::styled("│ ", Style::new().fg(t.border)));
+            let cell = Rect::new(
+                inner.x.saturating_add(cur_w as u16),
+                inner.y + 1 + r_offset as u16,
+                (w + 2) as u16,
+                1,
+            );
+            let spot = Spot::Cell {
+                row: display_row_idx,
+                col: col_idx,
+            };
+            hit(cell.intersection(inner), spot);
             cur_w += w + 2;
         }
         lines.push(Line::from(row_spans));

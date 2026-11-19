@@ -11,14 +11,41 @@ Delete still asks, and a command that cannot run here is still refused.
 
 ## What it does
 
-| Where | Click | Wheel |
-|---|---|---|
-| The tree | picks the directory; the file window follows it | moves the cursor 3 directories |
-| The file window | picks the file and moves to the file window | moves the cursor 3 files (a row in the column modes) |
-| The other side of a [split screen](split.md) | makes it the active window, then picks | moves that side's cursor, the active one stays |
-| The tree above the [built-in terminal](terminal.md) | goes back to Xylem, as Alt+X | |
-| The footer | the key of the entry: `Copy` is C, `Esc cancel` is Esc, `Yes` answers the question | |
-| The viewer, the help, F12, the bookmarks | `F3 save`, `Esc`, a link of the help | scrolls, as ↑ and ↓; Shift+wheel scrolls the viewer sideways |
+| Where | Click | Double click | Wheel |
+|---|---|---|---|
+| The tree | picks the directory; the file window follows it | Enter: to its files | moves the cursor 3 directories |
+| The mark before a folder | `+` opens it, `?` logs and opens it, the `─` of an open one closes it | | |
+| The file window | picks the file and moves to the file window | View, in Xylem's own viewer | moves the cursor 3 files (a row in the column modes) |
+| The scroll bar on the right border | above or below the thumb: a page; drag the thumb to go anywhere | | |
+| The other side of a [split screen](split.md) | makes it the active window, then picks | | moves that side's cursor, the active one stays |
+| The tree above the [built-in terminal](terminal.md) | goes back to Xylem, as Alt+X | | |
+| The footer | the key of the entry: `Copy` is C, `Esc cancel` is Esc, `Yes` answers the question | | |
+| F12 | an option changes, as its letter (nothing is saved before F3); a theme of the list (F4) is previewed | the theme is chosen | moves the selection |
+| Bookmarks, the search box, Usage, Duplicates | picks the row | its Enter | 3 rows |
+| The history of a prompt (↑) | puts that entry in the prompt | | 3 rows |
+| The text of a prompt | the cursor goes there | | |
+| A table in the viewer | picks the cell | its Enter: the record | 3 rows; Shift+wheel, a column |
+| The viewer, the help | a link of the help is followed | | scrolls, as ↑ and ↓; Shift+wheel scrolls the viewer sideways |
+
+A double click never opens a file with a program of the system: a file you
+did not create may be hostile, and a click by mistake must not run it. Open
+(`O`) is still there.
+
+Dragging with the left button moves the cursor along a list; past its top
+or bottom edge, the list scrolls a row at each move.
+
+## Tagging
+
+| Gesture | What it does |
+|---|---|
+| Middle button, or Ctrl+click, on a file | tags or untags it; the cursor stays where it is |
+| The same on a folder of the tree | picks it and tags its files, or untags them when all were tagged |
+| Shift+click on a file | tags every file from the cursor to that one, and the cursor goes there |
+
+Many terminals keep Shift+click for their own selection; there the
+middle button or Ctrl+click tags each file.
+
+## The focus, the menus and the questions
 
 The wheel moves the list under the pointer, not the one with the focus: the
 small file window under the tree scrolls without leaving the tree.

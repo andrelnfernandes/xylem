@@ -334,7 +334,24 @@ coordenada fora da tela não faz nada. e2e: ligar no F12, salvar, conferir
 `mouse_protocol_mode()` no `vt100` do teste, mandar `\x1b[<0;x;yM` e ver o cursor
 mudar; abrir e fechar o editor externo e conferir que o modo voltou.
 
-### Etapa 2: duplo clique, marcas, arrasto, listas próprias (~1 semana)
+### Etapa 2: duplo clique, marcas, arrasto, listas próprias (~1 semana) (feita, 2026-11-18)
+
+Como ficou:
+
+- Duplo clique: mesmo botão e mesma célula até 400 ms (`mouse::DOUBLE_CLICK`); um
+  terceiro clique recomeça. No rodapé, cada clique é uma tecla (não há duplo clique).
+  No F12, o segundo clique de um duplo não muda a opção de volta.
+- O "Enter" das listas próprias é a própria tecla Enter mandada a `handle_key`, então
+  vale o que cada tela já faz; no tema (F4), o clique anda de tema em tema com ↑↓
+  para a prévia acompanhar.
+- Marcar com Ctrl+clique/botão do meio na árvore usa o `Tag`/`Untag` de sempre (marca
+  ou desmarca os arquivos do diretório); na lista, inverte só o arquivo, sem mover o
+  cursor (o `T` do teclado anda uma linha, por isso não é usado).
+- Barra de rolagem: o clique acima ou abaixo do polegar é PgUp/PgDn; arrastar o
+  polegar leva o cursor à mesma proporção da lista.
+- Ficaram para depois (só roda, como ↑↓): a lista de planilhas, a estrutura e o
+  registro do viewer, e a lista do picker de favoritos dentro de um prompt.
+
 
 - Duplo clique (Enter do lugar; View no arquivo); marcadores `+`/`?`/`─` da árvore.
 - Botão do meio e Ctrl+clique marcam; Shift+clique marca intervalo.
