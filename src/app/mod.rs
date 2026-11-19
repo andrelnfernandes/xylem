@@ -49,6 +49,7 @@ mod commands;
 mod context_help;
 mod duplicates_cmd;
 mod git_cmd;
+mod mouse;
 mod prompts;
 mod remote_cmd;
 mod terminal;
@@ -289,6 +290,8 @@ pub struct App {
     terminal_remote: Option<std::sync::Arc<crate::remote::Remote>>,
     /// Editor running inside Xylem's frame (`editor_in_frame = true`).
     pub editor_pty: Option<EditorPty>,
+    /// What each part of the last frame drawn is, for the mouse.
+    pub hits: crate::mouse::HitMap,
 }
 
 /// The active window.
@@ -383,6 +386,7 @@ impl App {
             parked_terminals: Vec::new(),
             terminal_remote: None,
             editor_pty: None,
+            hits: crate::mouse::HitMap::default(),
         }
     }
 

@@ -296,7 +296,27 @@ com fmt, clippy e testes passando, para a branch poder ser revisada a qualquer m
 - Plano e decisões aprovados (2026-11-18). (feito)
 - BACKLOG e roadmap: o mouse saiu do que ficou de fora e entrou como frente. (feito)
 
-### Etapa 1: ligar, rolar, apontar, clicar no rodapé (~1 semana)
+### Etapa 1: ligar, rolar, apontar, clicar no rodapé (~1 semana) (feita, 2026-11-18)
+
+Como ficou, onde mudou em relação ao desenho acima:
+
+- O mapa é preenchido por um `thread_local` em `ui.rs` (`hit`, `render_footer`), que
+  vai para `App::hits` no fim de `ui::draw`: as funções de desenho não ganharam um
+  `&mut HitMap` cada; só árvore e arquivos ganharam o dono (`Owner::Main(i)` ou
+  `Owner::Picker(i)`).
+- As teclas do rodapé são reconhecidas por uma marca invisível no estilo de
+  `ui::key` (`mouse::KEY_MARK`, um modificador retirado), e não pela cor do tema:
+  os testes trocam o tema ao mesmo tempo, e uma mensagem em negrito não pode virar
+  tecla.
+- O título de uma linha (`CONFIG`, `HELP`) não faz parte da primeira entrada; uma
+  letra sozinha (`C` no viewer) mantém a maiúscula.
+- Usage e Duplicados: por ora a roda vale como ↑↓ quando estão na frente; o clique
+  só ativa o lado do split (as linhas próprias ficam para a etapa 2).
+- Texto da opção no F12: "Mouse (wheel, clicks, footer keys; Shift+drag selects
+  text)"; muda quando o menu de contexto entrar.
+- O `clippy --target x86_64-pc-windows-gnu` não rodou (o target não está instalado
+  nesta máquina); o código só do Windows é o `EnableMouseCapture`.
+
 
 - Opção `mouse` no config e no F12; `struct Mouse` com sync/restore/resume/pânico.
 - `Event::Mouse` no laço; `HitMap` e `App::handle_mouse` com a ordem dos modais.

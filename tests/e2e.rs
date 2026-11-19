@@ -877,3 +877,67 @@ fn a_real_container_is_browsed_and_changed() {
     xy.press("echo \"in $(pwd)\"\r");
     xy.wait_for("in /srv/x");
 }
+
+/// Where `text` first is on the screen: (column, row), from 0.
+fn position_of(xy: &Xy, text: &str) -> (u16, u16) {
+    let parser = xy.screen.lock().unwrap();
+    for (y, row) in parser.screen().rows(0, COLS).enumerate() {
+        if let Some(i) = row.find(text) {
+            return (row[..i].chars().count() as u16, y as u16);
+        }
+    }
+    panic!("{text:?} is not on the screen");
+}
+
+fn mouse_on(xy: &Xy) -> bool {
+    let parser = xy.screen.lock().unwrap();
+    parser.screen().mouse_protocol_mode() != vt100::MouseProtocolMode::None
+}
+
+#[test]
+fn the_mouse_turned_on_in_f12_clicks_and_survives_a_program() {
+    let (home, project) = sample();
+    let mut xy = Xy::start(home.path(), &[project.to_str().unwrap()]);
+    xy.wait_for("b.txt");
+    assert!(!mouse_on(&xy), "off by default");
+
+    xy.press("\x1b[24~"); // F12
+    xy.wait_for("Programs and formats");
+    xy.press("\x1b[6~"); // PgDn: Display and sorting
+    xy.wait_for("Mouse (wheel");
+    xy.press("r");
+    xy.press("\x1b[13~"); // F3
+    xy.wait_for("Configuration saved");
+    eventually("the mouse on", || mouse_on(&xy));
+    let saved = std::fs::read_to_string(home.path().join(".config/xylem/config.toml")).unwrap();
+    assert!(saved.contains("mouse = true"), "{saved}");
+    {
+        let parser = xy.screen.lock().unwrap();
+        assert_eq!(
+            parser.screen().mouse_protocol_encoding(),
+            vt100::MouseProtocolEncoding::Sgr
+        );
+    }
+
+    // A click on `sub` in the tree: the folder of the header.
+    let (x, y) = position_of(&xy, "sub");
+    xy.press(&format!(
+        "\x1b[<0;{};{}M\x1b[<0;{};{}m",
+        x + 1,
+        y + 1,
+        x + 1,
+        y + 1
+    ));
+    xy.wait_for("project/sub");
+
+    // A program that turns the mouse off as it ends (vim, less): Xylem
+    // turns it on again when it gets the terminal back.
+    xy.press("x");
+    xy.wait_for("EXECUTE");
+    xy.press("printf '\\033[?1000l\\033[?1002l\\033[?1006l'\r");
+    xy.wait_for("Press Enter to return");
+    eventually("the program turned it off", || !mouse_on(&xy));
+    xy.press("\r");
+    eventually("the mouse on again", || mouse_on(&xy));
+    xy.quit();
+}
