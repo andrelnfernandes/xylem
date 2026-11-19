@@ -16,12 +16,12 @@ al árbol, y **Esc** también (en el directorio del archivo seleccionado).
 
 ## Modos de visualización (Alt+F)
 
-Alt+F alterna, en el orden de ZTreeWin, entre **nombres en varias columnas**,
+Alt+F alterna entre **nombres en varias columnas**,
 **nombres y tamaños en columnas**, **detalles** (una columna con tamaño, fecha
 y permisos, el modo predeterminado) y **nombres largos** (una columna, solo
 nombres completos).
 
-Antes de nombres largos vienen dos modos que ZTreeWin no tiene:
+Antes de nombres largos vienen dos modos más:
 
 - **propietario**: tamaño, `usuario:grupo` y permisos (no se muestra en Windows
   ni dentro de archivos comprimidos);
@@ -71,6 +71,9 @@ tmux (OSC 52) y conserva el portapapeles tras salir de Xylem, en X11 y Wayland.
 | `C` / `M` | [copiar / mover](copy-move.md) el archivo |
 | `D` o Del | [eliminarlo](delete.md) (Shift+Del: permanentemente) |
 | `R` | [renombrarlo](rename.md); Ctrl+R renombra los archivos marcados con una máscara |
+| `W` / `Ctrl+W` | filtrar por [condición SQL](sql.md#una-condición-sql-w) (lista / marcados) |
+| `P` / `Ctrl+P` | [caja de búsqueda](sql.md#la-caja-de-búsqueda-p): buscar archivos por palabras mientras escribes |
+| `Alt+N` | [indexar](sql.md#palabras-enteras-y-un-índice-words) esta rama, para words() en W y en la caja de búsqueda |
 | `A` | [permisos](attributes.md) |
 | `N` | [cambiar la fecha](attributes.md) |
 | Alt+S | [ordenar](sort.md) |

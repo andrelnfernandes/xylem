@@ -9,15 +9,15 @@ direcciones, Renombrar, crear directorios y Eliminar.
 
 ## Por qué rclone
 
-Elegimos trabajar con rclone en lugar de hablar directamente con Google Drive y
-Amazon S3. Tener código propio para cada servicio sería un lugar más donde
-cometer errores, y Google Drive traería además las políticas de Google: una
-aplicación que lee todos los archivos de alguien requiere la verificación de
-Google y una auditoría de seguridad anual, o de lo contrario muestra un aviso de
-"aplicación no verificada" y queda limitada a unos pocos usuarios. Para S3, la
-biblioteca oficial es muy grande y añadiría mucha complejidad, algo que Xylem,
-por diseño, evita siempre que puede. rclone ya hace todo esto bien y para muchos
-servicios a la vez.
+Xylem accede a Google Drive y Amazon S3 a través de rclone y no tiene código
+propio para ninguno de los dos servicios, por dos razones:
+
+- Una aplicación que lee todos los archivos de Google Drive de un usuario
+  requiere la verificación de Google y una auditoría de seguridad anual. Sin
+  ellas, muestra un aviso de "aplicación no verificada" y queda limitada a unos
+  pocos usuarios.
+- La biblioteca oficial de S3 sería una dependencia pesada para un único
+  servicio. rclone ya soporta S3 y unos 70 servicios más.
 
 ## Configuración inicial (una sola vez)
 
@@ -75,12 +75,12 @@ panel indica simplemente rclone.
 
 ## Qué cambia allí
 
-**Cuente con lentitud en algunos momentos.** Todo pasa por rclone y por la red del servicio, así
-que puede ser bastante más lento que un disco local, por la propia naturaleza de esta
-integración. Ver un archivo, abrir un archivo comprimido o leer una carpeta grande puede tardar,
-y la pantalla puede no responder hasta que responda el servicio: en general es espera, no un
-bloqueo. En Google Drive, vale la pena crear su propio `client_id`: vea la sección sobre el
-error 403, más abajo.
+**Es más lento que un disco local.** Toda lectura pasa por rclone y por la red
+del servicio. Ver un archivo, abrir un archivo comprimido o leer una carpeta
+grande puede tardar segundos o minutos, y la pantalla puede no responder hasta
+que el servicio conteste. En Google Drive, tener tu propio `client_id` te da
+una cuota de peticiones propia: consulta la sección sobre el error 403
+más abajo.
 
 - **Todo va por la red.** Cada lectura de directorio es una petición, y un
   servicio como Google Drive las rechaza cuando son demasiadas. Por eso, en una
@@ -125,12 +125,12 @@ sudo mount -t drvfs '\\servidor\recurso$' /mnt/recurso
 
 Allí, como en un montaje de rclone, la lista de archivos no muestra las letras de Git
 (Ctrl+G sigue funcionando), lo que cambia en otro lugar aparece después de F3, y el
-Treespec no espera una carpeta que se está leyendo: el cursor sigue lo que usted
-escribe a medida que llegan las carpetas. `/`, Tab y Enter siguen esperando su
+Treespec no espera una carpeta que se está leyendo: el cursor sigue lo que
+escribes a medida que llegan las carpetas. `/`, Tab y Enter siguen esperando su
 lectura. `*`, Branch y Usage leen carpeta por carpeta, con progreso y Esc.
 
 No reconocido: un recurso compartido asignado a una letra de unidad en Windows
-(`mount -t drvfs Z: /mnt/z`) parece un disco local visto desde Linux; móntelo por
+(`mount -t drvfs Z: /mnt/z`) parece un disco local visto desde Linux; móntalo por
 su ruta UNC. NFS se lee como un disco local.
 
 ## Cuando el servicio rechaza: error 403

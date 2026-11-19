@@ -2,7 +2,7 @@
 
 ## La pantalla de configuración (F12)
 
-**F12** (o Alt+F10, como en ZTreeWin; en GNOME, Alt+F10 suele maximizar la
+**F12** (o Alt+F10; en GNOME, Alt+F10 suele maximizar la
 ventana y nunca llega a Xylem) abre cuatro páginas:
 
 | Página | Opciones |
@@ -10,17 +10,17 @@ ventana y nunca llega a Xylem) abre cuatro páginas:
 | 1. Programas y formatos | editor, abrir el editor dentro del marco de Xylem, tema de Xylem en el editor, editar archivos binarios con E, editor binario, idioma de la ayuda, programa para abrir, formato de fecha, formato numérico, comandos de Git, carpetas Git de confianza |
 | 2. Visualización y orden | archivos ocultos, orden y dirección iniciales, qué hace Enter en la ventana de archivos, modo de visualización inicial, colores de sintaxis, ajuste de línea, números de línea, archivos comprimidos, la codificación de textos antiguos, el límite de tamaño de lo que lee el visor, iconos y glifos (Nerd Fonts), nombres de archivo coloreados por tipo, bordes de las ventanas, colores de la terminal integrada, segundos en el reloj |
 | 3. Confirmaciones e historial | confirmar al salir, eliminar a la papelera, confirmación de Prune, no guardar entradas con `@`, historial propio de la terminal integrada |
-| 4. Copiar, comparar y actualizar | ignorar 2 s, ignorar 1 h, actualización automática, dónde empiezan las rutas de Alt+C/Alt+M |
+| 4. Copiar, comparar y actualizar | ignorar 2 s, ignorar 1 h, actualización automática, dónde empiezan las rutas de Alt+C/Alt+M, archivos y carpetas que quedan fuera del índice |
 
 El límite de tamaño del visor (**L** en la página 2) cuesta memoria y tiempo: con `1024` MiB, abrir un archivo de texto normal de ese tamaño ocupa unos 2,5 GiB de RAM y tarda unos 5 s, y los archivos de líneas muy cortas cuestan más por byte (consulta [el visor](viewer.md)).
 
-Los iconos y glifos (**M** en la página 2) requieren una fuente con el parche de Nerd Fonts. No necesita una fuente específica: cualquier fuente monoespaciada sirve (como Fira Code, JetBrains Mono, Hack, Meslo o Cascadia Code), siempre que sea su edición "Nerd Font". Nerd Fonts añade miles de glifos e iconos estándar a la zona privada de Unicode. Las fuentes comunes sin el parche (incluso la Fira Code original) no contienen estos dibujos y mostrarán cuadros vacíos (`□`). Para usarlos:
-- Descargue cualquier Nerd Font de su preferencia desde nerdfonts.com o instale un paquete de Nerd Fonts con el gestor de paquetes de su distribución.
-- Seleccione esa fuente en las preferencias de su emulador de terminal.
+Los iconos y glifos (**M** en la página 2) requieren una fuente con el parche de Nerd Fonts. No necesitas una fuente específica: cualquier fuente monoespaciada sirve (como Fira Code, JetBrains Mono, Hack, Meslo o Cascadia Code), siempre que sea su edición "Nerd Font". Nerd Fonts añade miles de glifos e iconos estándar a la zona privada de Unicode. Las fuentes comunes sin el parche (incluso la Fira Code original) no contienen estos dibujos y mostrarán cuadros vacíos (`□`). Para usarlos:
+- Descarga cualquier Nerd Font de tu preferencia desde nerdfonts.com o instala un paquete de Nerd Fonts con el gestor de paquetes de tu distribución.
+- Selecciona esa fuente en las preferencias de tu emulador de terminal.
 
-Si las columnas se desalinean con los iconos activados, probablemente la terminal dibuja los caracteres de "ancho ambiguo" como anchos (un ajuste habitual con fuentes chinas, japonesas y coreanas), mientras que Xylem cuenta cada icono como una celda. Ponga esa opción en estrecho o desactive los iconos.
+Si las columnas se desalinean con los iconos activados, probablemente la terminal dibuja los caracteres de "ancho ambiguo" como anchos (un ajuste habitual con fuentes chinas, japonesas y coreanas), mientras que Xylem cuenta cada icono como una celda. Pon esa opción en estrecho o desactiva los iconos.
 
-Los nombres coloreados por tipo (**N** en la página 2) dan a los archivos comprimidos, imágenes, audio y vídeo, documentos, código y datos un color del tema cada uno, solo por el nombre (no se lee nada). Desactivado, la lista tiene el aspecto clásico. Los bordes de las ventanas (**O**) son redondeados en los temas nord, gruvbox, slate, graphite, daylight y vivid, y rectos en los demás; `plain` o `rounded` los fija en todos los temas. La pantalla de inicio (**P**) muestra el nombre en letras de bloque durante dos segundos cuando Xylem se abre; cualquier tecla la cierra (esa tecla no hace nada más), y mientras tanto se lee la carpeta inicial. No aparece al conectarse a una máquina remota o a un contenedor desde la línea de órdenes, ni en un terminal de menos de 58 por 13.
+Los nombres coloreados por tipo (**N** en la página 2) dan a los archivos comprimidos, imágenes, audio y vídeo, documentos, código y datos un color del tema cada uno, solo por el nombre (no se lee nada). Desactivado, la lista tiene el aspecto clásico. Los bordes de las ventanas (**O**) son redondeados en los temas nord, gruvbox, slate, graphite, daylight y vivid, y rectos en los demás; `plain` o `rounded` los fija en todos los temas. La pantalla de inicio (**P**) muestra el nombre en letras de bloque durante dos segundos cuando Xylem se abre; cualquier tecla la cierra (esa tecla no hace nada más), y mientras tanto se lee la carpeta inicial. No aparece al conectarse a una máquina remota o a un contenedor desde la línea de comandos, ni en una terminal de menos de 58 por 13.
 
 La letra de la opción (o Enter) cambia el valor, PgUp/PgDn o 1–4 cambian de
 página, **F4** elige el tema de una lista (con vista previa instantánea), **F3**

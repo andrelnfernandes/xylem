@@ -5,13 +5,15 @@ ficam escondidas, não são alteradas: com os números de linha ligados (`#`), c
 linha mantém o seu número no arquivo, e as lacunas mostram o filtro agindo. O
 cabeçalho diz o resultado: `[filter error: 24 of 850 lines]`.
 
+Funciona como o `grep`, e o **F3** inverte o filtro como o `grep -v`; a tecla é a que o `less` usa para a mesma coisa.
+
 | Tecla no prompt | O que faz |
 |---|---|
 | **F1** | esta ajuda |
 | **F2** | diferenciar maiúsculas ou ignorar |
 | **F3** | inverter: manter as linhas que não combinam |
 | **F4** | texto simples ou expressão regular |
-| ↑ ↓ | filtros anteriores |
+| ↑ | filtros anteriores, em uma [lista](execute.md#histórico) |
 | Enter | aplicar |
 | Esc | cancelar |
 
@@ -60,8 +62,8 @@ ou expressão trava o visualizador com um padrão como `(a+)+$`.
 
 ## Texto simples
 
-As mesmas regras da busca: ignorando maiúsculas, os acentos também não contam
-(`AÇÃO` encontra `ação`), e um `*` no meio combina com qualquer coisa na mesma
+As mesmas regras da busca: ignorando maiúsculas, as letras acentuadas também
+valem (`AÇÃO` encontra `ação`), e um `*` no meio combina com qualquer coisa na mesma
 linha (`erro*disco`).
 
 ## Com um filtro ligado

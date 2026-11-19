@@ -1,7 +1,9 @@
 # The built-in terminal (Alt+X)
 
-Not in XTree or ZTreeWin: your shell (`$SHELL`) running inside Xylem's screen,
-in the bottom part, with the tree and the files still visible above it.
+Alt+X runs your shell (`$SHELL`) in the bottom part of Xylem's screen, with the
+tree and the files above it.
+[Using the tagged files in a shell command](howto-terminal-tagged.md) has an
+example.
 
 - **Alt+X** opens the terminal and goes back to Xylem. The shell keeps running
   while hidden, with its history and whatever it had on screen; `exit` closes
@@ -20,7 +22,9 @@ in the bottom part, with the tree and the files still visible above it.
 - **Alt+O** types the tagged files at the cursor, quoted and relative to the
   shell's directory (`wc -l 'a.txt' 'b c.txt'`). From the tree or the file
   window, it opens the terminal and types them.
-- **Shift+PgUp/PgDn** scroll back through what went off the screen.
+- **Shift+PgUp/PgDn** scroll back through what went off the screen; with
+  [the mouse](mouse.md) on, the wheel too, unless the program asked for the
+  mouse for itself.
 - On leaving the terminal, the open directories are reread.
 - **Quitting Xylem ends the shell** and whatever runs in it. If a program is
   running there (say, `vim`), Q and Alt+Q ask first, even with `confirm_quit`

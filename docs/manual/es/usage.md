@@ -1,13 +1,12 @@
 # Uso de disco (Alt+U)
 
-Adónde va el espacio. **Alt+U** registra toda la rama del directorio actual y
-lista sus carpetas y archivos según el espacio que ocupan, de mayor a menor, con
-una barra y su proporción dentro del directorio. Enter entra en una carpeta;
-carpeta a carpeta, llegas hasta lo que llena el disco.
+**Alt+U** registra toda la rama del directorio actual y lista sus carpetas y
+archivos según el espacio que ocupan, de mayor a menor, con una barra y su
+proporción dentro del directorio. Enter entra en una carpeta.
+[Encontrar lo que llena el disco](howto-disk-space.md) detalla el paso a paso.
 
-
-> Hasta la versión 0.7, el uso de disco era Alt+W, y Alt+U desmarcaba todo
-> (ahora solo Ctrl+U). Vea [Ctrl y Alt](tagging.md#qué-significan-ctrl-y-alt).
+**Cambió en la versión 0.8.** Uso de disco era Alt+W, y Alt+U desmarcaba todo,
+acción que ahora solo realiza Ctrl+U. Consulta las [notas de versión](releases.md).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar
@@ -67,20 +66,19 @@ tamaño propio de los archivos. La línea inferior siempre muestra ambos.
 | `@` | un enlace simbólico o archivo especial |
 | `e` | una carpeta vacía |
 
-## Actuar sobre lo que encuentre
+## Actuar sobre lo que encuentres
 
 Las preguntas son las mismas que en la ventana de archivos, y los totales se
 rehacen enseguida, con la vista todavía abierta.
 
-- **Supr en una carpeta** la borra con todo su contenido, a la papelera si esa es
-  su configuración; Alt+P la borra de forma permanente, con la confirmación
+- **Del en una carpeta** la borra con todo su contenido, a la papelera si esa es tu configuración; Alt+P la borra de forma permanente, con la confirmación
   escrita de Prune.
 - **Marcar una carpeta** marca todos sus archivos, también los ocultos. `■` indica
   un archivo o una carpeta entera marcada, `□` una carpeta marcada en parte, y la
   línea inferior dice cuántos hay marcados en la carpeta listada y cuánto ocupan.
   Ctrl+D borra esos. Las marcas siguen al cerrar la vista, para Copy o Move.
 - **Otro disco nunca se toca.** Una línea `>` no se puede marcar ni borrar, y marcar
-  o borrar una rama se detiene donde hay otro disco montado. Supr rechaza una
+  o borrar una rama se detiene donde hay otro disco montado. Del rechaza una
   carpeta con un disco montado dentro; Alt+P borra todo menos ese disco.
 - En un archivo comprimido o en una máquina remota, solo funcionan marcar y ver.
 
@@ -97,8 +95,8 @@ rehacen enseguida, con la vista todavía abierta.
 | `S` | ordenar por tamaño, nombre, número de archivos o fecha |
 | `T` / `U` | marcar o desmarcar el archivo, o todos los archivos de la carpeta |
 | Ctrl+T / Ctrl+U | marcar o desmarcar todo en la carpeta listada |
-| Supr, Mayús+Supr | borrar el archivo o la carpeta (Mayús: de forma permanente) |
-| Ctrl+D, Ctrl+Mayús+Supr | borrar los archivos marcados en la carpeta listada (Mayús: de forma permanente) |
+| Del, Shift+Del | borrar el archivo o la carpeta (Shift: de forma permanente) |
+| Ctrl+D, Ctrl+Shift+Del | borrar los archivos marcados en la carpeta listada (Shift: de forma permanente) |
 | Alt+P | [Prune](delete.md) de la carpeta |
 | `V` | ver el archivo |
 | `D` | buscar [duplicados](duplicates.md) en la carpeta listada |

@@ -89,6 +89,8 @@ Things the ZTreeWin v2.2 manual has no counterpart for:
 - **Remote machines over SSH** (`xy user@host:`): the tree, Branch, the viewer
   and Copy work on another machine, which has its own terminal too. See
   [remote machines](remote.md).
+- **Cloud storage:** Google Drive, S3 and the other services rclone supports, mounted and shown as a tree. See [cloud storage](cloud.md).
+- **SQL on the file list** (`W`): `ext = 'jpg' AND size > 10000000` keeps the files that meet it, and `contains()` and `words()` look inside them; the search box (`P`) finds files by the words in them. See [finding files](sql.md).
 - **Git** (optional): status letters in the file list, a Git menu (Ctrl+G) and
   diffs in the viewer. See [Git](git.md).
 - **Disk usage** (Alt+U): a branch's folders and files together, largest
@@ -104,7 +106,7 @@ Things the ZTreeWin v2.2 manual has no counterpart for:
   Source) shown instead of obeyed. See [the viewer](viewer.md).
 - **Tables and Markdown:** spreadsheets, CSV, JSON Lines, DBF, SQLite and
   Parquet open in a grid with a SQL filter, and Markdown files open rendered.
-  See [the viewer](viewer.md).
+  See [tables](tables.md).
 - **Archives without an external archiver:** ZIP, 7z and TAR (plain, gzip, xz,
   bzip2, zstd) open as folders, and ZIP and TAR are created, all by Xylem
   itself. See [archives](archives.md).

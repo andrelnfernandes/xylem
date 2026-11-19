@@ -17,12 +17,12 @@ Verzeichnis der ausgewählten Datei).
 
 ## Anzeigemodi (Alt+F)
 
-Alt+F wechselt in der Reihenfolge von ZTreeWin zwischen **Namen in mehreren
+Alt+F wechselt zwischen **Namen in mehreren
 Spalten**, **Namen und Größen in Spalten**, **Details** (eine Spalte mit Größe,
 Datum und Berechtigungen, Standard) und **langen Namen** (eine Spalte, nur
 vollständige Namen).
 
-Vor den langen Namen gibt es zwei Modi, die ZTreeWin nicht hat:
+Vor den langen Namen gibt es zwei weitere Modi:
 
 - **owner**: Größe, `Benutzer:Gruppe` und Berechtigungen (wird unter Windows
   oder in Archiven nicht angezeigt);
@@ -75,6 +75,9 @@ der Zwischenablage nach dem Beenden von Xylem unter X11 und Wayland bei.
 | `C` / `M` | Datei [kopieren / verschieben](copy-move.md) |
 | `D` oder Del | Datei [löschen](delete.md) (Shift+Del: endgültig) |
 | `R` | Datei [umbenennen](rename.md); Ctrl+R benennt markierte Dateien mit einer Maske um |
+| `W` / `Ctrl+W` | nach [SQL-Bedingung](sql.md#eine-sql-bedingung-w) filtern (Liste / markierte) |
+| `P` / `Ctrl+P` | [Suchfeld](sql.md#das-suchfeld-p): Dateien nach Wörtern finden, während Sie tippen |
+| `Alt+N` | diesen Zweig [indizieren](sql.md#ganze-wörter-und-ein-index-words), für words() in W und im Suchfeld |
 | `A` | [Berechtigungen](attributes.md) |
 | `N` | [Datum ändern](attributes.md) |
 | Alt+S | [Sortieren](sort.md) |

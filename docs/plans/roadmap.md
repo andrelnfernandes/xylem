@@ -78,6 +78,11 @@ Depois da Parte 1, nesta ordem:
 2. **Salvar e recarregar o log (Zlist):** a árvore de um disco ou Drive abre na hora e é
    atualizada depois. O arquivo salvo também é lido como hostil.
 
+**Mouse** ([mouse.md](mouse.md)), aprovado em 2026-11-18 (antes estava em "Fora, por
+decisão"): desligado por padrão, ligado no F12. Quatro etapas, cerca de 3 semanas, na
+branch `mouse`, com um PR só no fim; como fica em branch até terminar, não segura os
+releases. As quatro etapas estão feitas (2026-11-19), à espera do PR.
+
 **Favoritos com nome, e de máquinas remotas** ([named-bookmarks.md](named-bookmarks.md)),
 aprovados em 2026-11-12: feitos, na 0.7.0.
 
@@ -116,7 +121,7 @@ Não concorre com as frentes acima, e cada item é pequeno:
 ## Fora, por decisão
 
 Conversores externos (o mais arriscado, e `O` e `X` já cobrem o uso), Xylem em janela
-própria, HTML no viewer, treemap, mouse e o resto da lista do ZTreeWin que serve mais à
+própria, HTML no viewer, treemap e o resto da lista do ZTreeWin que serve mais à
 paridade do que ao uso (Wash, Volume, Hide, comandos de vídeo).
 
 **Arquivos posicionais e multi-registro (SDF, CNAB, SPED, COBOL), desde 2026-11-11:**

@@ -1,12 +1,12 @@
 # Duplicados (Alt+D)
 
-Arquivos com o mesmo conteúdo, quaisquer que sejam os nomes e as pastas, e o
-espaço que as cópias desperdiçam. **Alt+D** procura no ramo do diretório atual;
+**Alt+D** lista os arquivos com o mesmo conteúdo no ramo do diretório atual,
+quaisquer que sejam seus nomes e pastas, e o espaço que as cópias ocupam.
 **D** na tela de Uso procura na pasta listada ali.
+[Achar duplicados](howto-duplicates.md) traz o passo a passo.
 
-
-> Até a versão 0.7, Duplicados era Alt+Y, e Alt+D apagava os marcados
-> (agora só Ctrl+D). Veja [Ctrl e Alt](tagging.md#o-que-ctrl-e-alt-querem-dizer).
+**Mudou na versão 0.8.** Duplicados era Alt+Y, e Alt+D excluía os arquivos
+marcados, o que agora é feito apenas por Ctrl+D. Veja as [notas de versão](releases.md).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────

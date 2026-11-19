@@ -1,7 +1,5 @@
 # Vergleich mit ZTreeWin
 
-> **Eine Zeile ist noch nicht aktuell.** In der Tabelle hat der Betrachter für Dateien auf der Festplatte keine Größengrenze mehr; siehe die englische Fassung.
-
 ## Zuerst ein Dankeschön
 
 Ich benutze seit den 1990er-Jahren die eine oder andere Variante von XTree
@@ -42,8 +40,7 @@ Tasten sind, wo immer möglich, die von ZTreeWin; die Ausnahmen stehen unter
 
 ## Was Xylem noch fehlt
 
-- **Baum:** Global (G), Graft (Alt+G), Mirror (Alt+M), Freigeben/Aus dem
-  Speicher entladen (Ctrl+Backspace), Ausblenden (Alt+H), Wash
+- **Baum:** Global (G, und Ctrl+G für die markierten), Graft (Alt+G), Mirror (Alt+M), teilweises Freigeben (Ctrl+Backspace), Ausblenden (Alt+H), Wash
   (Alt+W), Volume (Ctrl+V), F5/F6 (Unterverzeichnisebenen ausblenden), nach
   Attribut markieren (Alt+T/U), Treespec im Bearbeitungsmodus (F5,
   Platzhalter) und spezielle Ordner (F6), direkte Suche mit Eingabezeile (`|`)
@@ -67,7 +64,7 @@ Xylem anderen Programmen überlässt" weiter unten.
 | Funktion | In ZTreeWin | In Xylem |
 |---|---|---|
 | Filespec | Name mit eigenen Regeln für Stamm und Erweiterung, Datum, Größe, Attribut, umgekehrter Filespec (Ctrl+I), Labels | Glob-Muster für Namen, Datum und Größe wie in ZTreeWin (mit K/M/G); keine Attribute, Umkehrung oder Labels |
-| Betrachter | Modi Alpha, Dump, Hex, Junk und Wrap; Zeichensätze; Hex-Bearbeitung; Lesezeichen; Auto-Scroll | Text, Hex, Tabellen mit SQL-Filter und gerendertes Markdown, mit ZTreeWin-Suche (F, B, /, \\, Space, + und -), Zeilenumbruch (W), Zeilennummern (#), Springen zu Zeile (g / :), Zeilenfilter mit Regex (&); bis zum Größenlimit (`viewer_max_size`, 16 MiB bis 1 GiB); bewusst keine Hex-Bearbeitung (siehe „Was Xylem anderen Programmen überlässt") |
+| Betrachter | Modi Alpha, Dump, Hex, Junk und Wrap; Zeichensätze; Hex-Bearbeitung; Lesezeichen; Auto-Scroll | Text, Hex, Tabellen mit SQL-Filter und gerendertes Markdown, mit ZTreeWin-Suche (F, B, /, \\, Space, + und -), Zeilenumbruch (W), Zeilennummern (#), Springen zu Zeile (g / :), Zeilenfilter mit Regex (&); eine Datei auf der Festplatte jeder Größe, gelesen, während der Bildschirm weiterläuft; bewusst keine Hex-Bearbeitung (siehe „Was Xylem anderen Programmen überlässt") |
 | Ctrl+S | Text, Hex oder Unicode; durchsucht nur den ZIP-Index | Text oder Hex |
 | Attribute | Windows-Attribute (R, A, S, H) | Unix-Berechtigungen oktal (`644`); kein Eigentümer/Gruppe. Unter Windows R, H, S und A wie in ZTreeWin |
 | Sortieren | Name, Ext, Date, Time, Length, Alpha, nuMber, Size, Value, Unsorted; Charset; gleich/unterschiedlich bei geteiltem Bildschirm | Name, Ext, Date, Size, aufsteigend/absteigend, Pfad zuerst; jedes Fenster hat seine eigene Reihenfolge |
@@ -75,7 +72,7 @@ Xylem anderen Programmen überlässt" weiter unten.
 | Prune | löscht nur Unterverzeichnisse oder auch das aktuelle; nur leere Verzeichnisse; Papierkorb | löscht immer das gesamte Verzeichnis endgültig; einstellbare Sicherheitsabfrage |
 | Log | mehrere eingelesene Laufwerke, Global, Laufwerkswechsel | eine Wurzel pro Fenster; `L` öffnet ein anderes Verzeichnis |
 | eXecute | Batch-Parameter `%1`–`%8`, neues Fenster (NTW) | `sh` mit `%f`, `%t` und `%d`; immer im Terminal von Xylem |
-| Verlauf | Verlaufsfenster mit Lesezeichen | ↑/↓ in der Eingabezeile, ein Verlauf pro Eingabetyp, bleibt zwischen Sitzungen erhalten |
+| Verlauf | Verlaufsfenster mit Lesezeichen | ↑ in der Eingabezeile öffnet eine Liste (Tippen filtert, Del vergisst), ein Verlauf pro Eingabetyp, bleibt zwischen Sitzungen erhalten |
 | Konfiguration | 7 Seiten, Farbeditor für einzelne Elemente (F4), Alt-Export | 4 Seiten mit den unter Linux sinnvollen Optionen; F4 wählt aus 12 fertigen Themen; Einzelfarben in `config.toml` |
 | Geteilter Bildschirm | optionale Statistikfelder je Seite | kein Statistikfeld |
 | Menüs | Ctrl-/Alt-Menü beim Gedrückthalten der Taste | ebenso in Terminals mit Kitty-Protokoll; F9 in jedem Terminal |
@@ -95,6 +92,8 @@ Dinge, für die das ZTreeWin-v2.2-Handbuch keine Entsprechung hat:
 - **Entfernte Rechner über SSH** (`xy benutzer@host:`): Baum, Branch,
   Betrachter und Kopieren funktionieren auf einem anderen Rechner, der auch
   sein eigenes Terminal hat. Siehe [entfernte Rechner](remote.md).
+- **Cloud-Speicher:** Google Drive, S3 und die anderen von rclone unterstützten Dienste, eingehängt und als Baum gezeigt. Siehe [Cloud-Speicher](cloud.md).
+- **SQL auf der Dateiliste** (`W`): `ext = 'jpg' AND size > 10000000` behält die Dateien, die die Bedingung erfüllen, und `contains()` und `words()` schauen hinein; das Suchfeld (`P`) findet Dateien über die Wörter darin. Siehe [Dateien finden](sql.md).
 - **Git** (optional): Statusbuchstaben in der Dateiliste, ein Git-Menü
   (Ctrl+G) und Diffs im Betrachter. Siehe [Git](git.md).
 - **Speicherbelegung** (Alt+U): die Ordner und Dateien eines Zweigs zusammen,
@@ -111,7 +110,7 @@ Dinge, für die das ZTreeWin-v2.2-Handbuch keine Entsprechung hat:
   [den Betrachter](viewer.md).
 - **Tabellen und Markdown:** Tabellenkalkulationen, CSV, JSON Lines, DBF, SQLite
   und Parquet öffnen sich in einem Raster mit SQL-Filter, Markdown-Dateien
-  gerendert. Siehe [den Betrachter](viewer.md).
+  gerendert. Siehe [Tabellen](tables.md).
 - **Archive ohne externes Packprogramm:** ZIP, 7z und TAR (unkomprimiert, gzip,
   xz, bzip2, zstd) öffnen sich als Ordner, und ZIP und TAR werden erstellt,
   alles von Xylem selbst. Siehe [Archive](archives.md).

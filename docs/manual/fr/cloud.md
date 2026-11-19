@@ -9,16 +9,15 @@ deux sens, Renommer, Créer un répertoire, Supprimer.
 
 ## Pourquoi rclone
 
-Nous avons choisi de nous appuyer sur rclone plutôt que de dialoguer directement
-avec Google Drive et Amazon S3. Écrire notre propre code pour chaque service
-ajouterait autant de sources d'erreurs, et Google Drive imposerait en outre les
-règles de Google : une application qui lit tous les fichiers d'un utilisateur
-doit être vérifiée par Google et passer un audit de sécurité annuel, sans quoi
-elle affiche un avertissement « application non vérifiée » et reste limitée à
-quelques utilisateurs. Pour S3, la bibliothèque officielle est très volumineuse
-et ajouterait beaucoup de complexité, ce que Xylem évite par principe chaque
-fois que possible. rclone fait déjà tout cela très bien, pour de nombreux
-services à la fois.
+Xylem accède à Google Drive et Amazon S3 via rclone et ne contient aucun code
+propre à ces services, pour deux raisons :
+
+- Une application lisant tous les fichiers Google Drive d'un utilisateur
+  nécessite la vérification de Google et un audit de sécurité annuel. Sans cela,
+  elle affiche un avertissement « application non vérifiée » et reste limitée à
+  quelques utilisateurs.
+- La bibliothèque officielle S3 constituerait une dépendance lourde pour un seul
+  service. rclone prend déjà en charge S3 et environ 70 autres services.
 
 ## Configuration initiale (une seule fois)
 
@@ -77,18 +76,18 @@ le panneau indique simplement rclone.
 
 ## Ce qui change
 
-**Attendez-vous à des lenteurs par moments.** Tout passe par rclone et par le réseau du service :
-cela peut donc être bien plus lent qu'un disque local, de par la nature même de cette intégration.
-Afficher un fichier, ouvrir une archive ou lire un grand dossier peut prendre du temps, et l'écran
-peut ne pas répondre tant que le service n'a pas répondu : c'est en général de l'attente, pas un
-plantage. Sur Google Drive, il vaut la peine de créer votre propre `client_id` : voir la section
-sur l'erreur 403 plus bas.
+**C'est plus lent qu'un disque local.** Chaque lecture passe par rclone et par le
+réseau du service. Afficher un fichier, ouvrir une archive ou lire un grand
+dossier peut prendre des secondes ou des minutes, et l'écran peut ne pas répondre
+tant que le service n'a pas répondu. Sur Google Drive, disposer de votre propre
+`client_id` vous donne un quota de requêtes dédié : voir la section sur
+l'erreur 403 ci-dessous.
 
 - **Tout passe par le réseau.** Chaque lecture de répertoire est une requête, et
   un service comme Google Drive les refuse quand elles sont trop nombreuses.
   Aussi, sur un dossier monté, `*`, Branch (`B`), la vue Usage et Compare sur une branche demandent à rclone
   toute la branche en une seule liste, bien plus rapide, sauf si elle est déjà
-  entièrement lue ; Échap laisse l'arbre tel quel. Si rclone échoue ou montre
+  entièrement lue ; Esc laisse l'arbre tel quel. Si rclone échoue ou montre
   d'autres dossiers que le montage, ils lisent dossier par dossier. Seul `*`
   déplie l'arbre.
 - **L'écran n'attend pas.** L'arbre s'affiche aussitôt et se remplit à mesure que

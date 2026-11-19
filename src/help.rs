@@ -154,6 +154,25 @@ pub fn resolve_language(configured: &str) -> String {
 /// The topics, by name (the file name without `.md`), in the man page's order.
 pub const TOPICS: &[(&str, &str)] = &[
     ("index", include_str!("../docs/manual/index.md")),
+    ("overview", include_str!("../docs/manual/overview.md")),
+    ("start", include_str!("../docs/manual/start.md")),
+    ("screen", include_str!("../docs/manual/screen.md")),
+    ("menus", include_str!("../docs/manual/menus.md")),
+    ("mouse", include_str!("../docs/manual/mouse.md")),
+    ("glossary", include_str!("../docs/manual/glossary.md")),
+    ("commands", include_str!("../docs/manual/commands.md")),
+    (
+        "commands-ctrl",
+        include_str!("../docs/manual/commands-ctrl.md"),
+    ),
+    (
+        "commands-alt",
+        include_str!("../docs/manual/commands-alt.md"),
+    ),
+    (
+        "commands-keys",
+        include_str!("../docs/manual/commands-keys.md"),
+    ),
     ("tree", include_str!("../docs/manual/tree.md")),
     ("files", include_str!("../docs/manual/files.md")),
     ("split", include_str!("../docs/manual/split.md")),
@@ -164,12 +183,14 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("rename", include_str!("../docs/manual/rename.md")),
     ("attributes", include_str!("../docs/manual/attributes.md")),
     ("filespec", include_str!("../docs/manual/filespec.md")),
+    ("sql", include_str!("../docs/manual/sql.md")),
     ("treespec", include_str!("../docs/manual/treespec.md")),
     ("compare", include_str!("../docs/manual/compare.md")),
     ("sort", include_str!("../docs/manual/sort.md")),
     ("execute", include_str!("../docs/manual/execute.md")),
     ("archives", include_str!("../docs/manual/archives.md")),
     ("viewer", include_str!("../docs/manual/viewer.md")),
+    ("tables", include_str!("../docs/manual/tables.md")),
     ("filter", include_str!("../docs/manual/filter.md")),
     ("search", include_str!("../docs/manual/search.md")),
     ("info", include_str!("../docs/manual/info.md")),
@@ -184,9 +205,45 @@ pub const TOPICS: &[(&str, &str)] = &[
         "configuration",
         include_str!("../docs/manual/configuration.md"),
     ),
+    (
+        "howto-copy-with-paths",
+        include_str!("../docs/manual/howto-copy-with-paths.md"),
+    ),
+    (
+        "howto-rename-mask",
+        include_str!("../docs/manual/howto-rename-mask.md"),
+    ),
+    (
+        "howto-sql-filter",
+        include_str!("../docs/manual/howto-sql-filter.md"),
+    ),
+    (
+        "howto-duplicates",
+        include_str!("../docs/manual/howto-duplicates.md"),
+    ),
+    (
+        "howto-disk-space",
+        include_str!("../docs/manual/howto-disk-space.md"),
+    ),
+    (
+        "howto-table-sql",
+        include_str!("../docs/manual/howto-table-sql.md"),
+    ),
+    (
+        "howto-ssh-copy",
+        include_str!("../docs/manual/howto-ssh-copy.md"),
+    ),
+    (
+        "howto-terminal-tagged",
+        include_str!("../docs/manual/howto-terminal-tagged.md"),
+    ),
+    ("cli", include_str!("../docs/manual/cli.md")),
+    ("terminals", include_str!("../docs/manual/terminals.md")),
+    ("security", include_str!("../docs/manual/security.md")),
     ("quit", include_str!("../docs/manual/quit.md")),
     ("windows", include_str!("../docs/manual/windows.md")),
     ("ztreewin", include_str!("../docs/manual/ztreewin.md")),
+    ("releases", include_str!("../docs/manual/releases.md")),
     ("keys", include_str!("../docs/manual/keys.md")),
 ];
 
@@ -242,10 +299,21 @@ enum Block {
     Para(String),
     /// Nesting level (0 at the margin) and text.
     Item(usize, String),
+    /// A numbered step: its number as written (`1.`) and text.
+    Step(String, String),
     /// Rows of cells; the first row is the header (may be all empty).
     Table(Vec<Vec<String>>),
     Code(Vec<String>),
     Blank,
+}
+
+/// The number of a numbered list item (`12.` of `12. text`) and its text.
+fn numbered(trimmed: &str) -> Option<(&str, &str)> {
+    let digits = trimmed.bytes().take_while(u8::is_ascii_digit).count();
+    let rest = trimmed.get(digits..)?.strip_prefix(". ")?;
+    (1..=3)
+        .contains(&digits)
+        .then(|| (&trimmed[..=digits], rest))
 }
 
 fn blocks(md: &str) -> Vec<Block> {
@@ -257,6 +325,7 @@ fn blocks(md: &str) -> Vec<Block> {
         t.is_empty()
             || l.starts_with('#')
             || t.starts_with("- ")
+            || numbered(t).is_some()
             || t.starts_with('|')
             || t.starts_with("```")
             || t.starts_with("![")
@@ -319,6 +388,20 @@ fn blocks(md: &str) -> Vec<Block> {
                 i += 1;
             }
             out.push(Block::Item(indent / 2, text));
+        } else if let Some((number, rest)) = numbered(trimmed) {
+            let indent = line.len() - trimmed.len();
+            let mut text = rest.to_string();
+            i += 1;
+            // Continuation lines, indented past the number.
+            while i < lines.len()
+                && !starts_block(lines[i])
+                && lines[i].len() - lines[i].trim_start().len() > indent
+            {
+                text.push(' ');
+                text.push_str(lines[i].trim());
+                i += 1;
+            }
+            out.push(Block::Step(number.to_string(), text));
         } else {
             let mut text = line.trim().to_string();
             i += 1;
@@ -403,7 +486,8 @@ fn inline(text: &str, base: Kind, links: &mut Vec<String>) -> Vec<Span> {
             let label = &rest[1..close];
             let target = &rest[close + 2..close + end];
             i += rest[..close + end + 1].chars().count();
-            let kind = match target.strip_suffix(".md") {
+            let file_target = target.split('#').next().unwrap_or(target);
+            let kind = match file_target.strip_suffix(".md") {
                 Some(name) if !target.contains("://") => {
                     links.push(name.to_string());
                     Kind::Link(links.len() - 1)
@@ -572,6 +656,12 @@ pub fn layout(md: &str, width: usize) -> Page {
             Block::Item(level, t) => {
                 let spans = inline(&t, Kind::Text, &mut names);
                 let lead = format!("{}• ", "  ".repeat(level));
+                let indent = str_width(&lead);
+                push(&mut page, wrap(&spans, width, &lead, indent));
+            }
+            Block::Step(number, t) => {
+                let spans = inline(&t, Kind::Text, &mut names);
+                let lead = format!("{number} ");
                 let indent = str_width(&lead);
                 push(&mut page, wrap(&spans, width, &lead, indent));
             }
@@ -793,6 +883,14 @@ impl Help {
         }
     }
 
+    /// A click on link `id`: follows it, as Enter does on the selected one.
+    pub fn follow(&mut self, id: usize) {
+        if let Some((target, _)) = self.links().get(id).cloned() {
+            self.selected = Some(id);
+            self.go(&target);
+        }
+    }
+
     /// Handles a key; returns `false` when the help should close.
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
         let page = self.height.max(1);
@@ -881,6 +979,13 @@ fn roff_blocks(md: &str, out: &mut String) {
                 out.push_str(&format!(
                     ".IP \\(bu {}\n{}\n",
                     2 + 2 * level,
+                    roff_inline(&t)
+                ));
+            }
+            Block::Step(number, t) => {
+                out.push_str(&format!(
+                    ".IP {} 4\n{}\n",
+                    roff_escape(&number),
                     roff_inline(&t)
                 ));
             }
@@ -1007,7 +1112,7 @@ mod tests {
             let mut links = Vec::new();
             for block in blocks(md) {
                 let t = match block {
-                    Block::Para(t) | Block::Item(_, t) | Block::Heading(t) => t,
+                    Block::Para(t) | Block::Item(_, t) | Block::Step(_, t) | Block::Heading(t) => t,
                     Block::Table(rows) => rows.concat().join(" "),
                     _ => continue,
                 };
@@ -1043,6 +1148,22 @@ mod tests {
                 assert!(reached, "{lang}/index.md does not link to {name}");
             }
         }
+    }
+
+    #[test]
+    fn numbered_steps_keep_their_numbers_and_wrap_under_the_text() {
+        let md = "# T\n\n1. Press `B`.\n2. A step long enough to wrap\n   onto a second line of the page.\n\nAfter.\n";
+        let lines = text(&layout(md, 24));
+        assert!(
+            lines.iter().any(|l| l.starts_with("1. Press B.")),
+            "{lines:?}"
+        );
+        let second = lines.iter().position(|l| l.starts_with("2. ")).unwrap();
+        assert!(lines[second + 1].starts_with("   "), "{lines:?}");
+        assert!(lines.iter().any(|l| l == "After."), "{lines:?}");
+        // A year at the start of a line is not a step.
+        assert_eq!(numbered("2026. text"), None);
+        assert_eq!(numbered("12. text"), Some(("12.", "text")));
     }
 
     #[test]
