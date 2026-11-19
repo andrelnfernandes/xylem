@@ -158,6 +158,9 @@ version; the sync removes the note and the entry.
 
 - `viewer.md`: tables with no limit of 50,000 rows (0.8.0,
   [docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)).
+- `mouse.md`: new, in English only; each translated `index.md` links to it
+  with an English line, `configuration.md` and `releases.md` do not mention it
+  yet ([docs/plans/mouse.md](docs/plans/mouse.md)).
 - `viewer.md` ("Big files") and `ztreewin.md` (the Viewer row): big text files read
   as the screen moves ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)).
 

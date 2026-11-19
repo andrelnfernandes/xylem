@@ -34,6 +34,7 @@ native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`
 - [Install and first five minutes](start.md)
 - [The screen](screen.md): the tree, the file window, the statistics, the footer
 - [The menus, Ctrl and Alt](menus.md): a letter alone, with Ctrl, with Alt, and F9
+- [The mouse](mouse.md): turning it on in F12, the wheel, clicks and the footer
 - [Vocabulary](glossary.md): log, branch, tag, filespec
 
 ## Commands

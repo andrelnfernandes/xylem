@@ -57,6 +57,8 @@ height.
 - In Treespec, Ctrl+← takes the last folder off the path and Ctrl+→ brings
   it back.
 - `clock_seconds` shows seconds in the header's clock.
+- The mouse, off by default (F12, page 2, R): the wheel, clicks on the tree,
+  the file window and the footer's keys. [The mouse](mouse.md)
 - This manual: the pages on the screen, the menus, the commands of each
   menu, the vocabulary and the how-to pages.
 

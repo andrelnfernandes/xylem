@@ -561,6 +561,11 @@ pub struct KeySpec {
 }
 
 impl KeySpec {
+    /// The key and its modifiers.
+    pub fn parts(&self) -> (KeyCode, KeyModifiers) {
+        (self.code, self.mods)
+    }
+
     pub fn from_event(key: KeyEvent) -> Self {
         let code = match key.code {
             KeyCode::Char(c) => KeyCode::Char(c.to_ascii_lowercase()),
