@@ -24,7 +24,9 @@ en donne un exemple.
   guillemets et relatifs au répertoire du shell (`wc -l 'a.txt' 'b c.txt'`).
   Depuis l'arborescence ou la fenêtre de fichiers, il ouvre le terminal et les
   insère.
-- **Shift+PgUp/PgDn** font défiler ce qui est sorti de l'écran.
+- **Shift+PgUp/PgDn** font défiler ce qui est sorti de l'écran ; avec
+  [la souris](mouse.md) activée, la molette aussi, sauf si le programme a
+  demandé la souris pour lui-même.
 - En quittant le terminal, les répertoires ouverts sont relus.
 - **Quitter Xylem ferme le shell** et tout ce qui y tourne. Si un programme y
   est en cours d'exécution (par exemple `vim`), Q et Alt+Q demandent d'abord
