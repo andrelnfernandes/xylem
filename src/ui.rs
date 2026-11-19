@@ -3728,6 +3728,43 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             Style::new().fg(theme().key),
         ));
     }
+    if v.mode == ViewMode::Tree
+        && let Some(t) = &v.tree
+    {
+        if t.dups > 0 {
+            title.push(Span::styled(
+                format!(
+                    "  {} repeated key{} (marked dup key)",
+                    t.dups,
+                    if t.dups == 1 { "" } else { "s" }
+                ),
+                Style::new().fg(theme().error),
+            ));
+        }
+        if t.cut {
+            title.push(Span::styled(
+                "  (tree of the start only)",
+                Style::new().fg(theme().error),
+            ));
+        }
+    }
+    if v.mode == ViewMode::Text && v.ansi_removed() > 0 {
+        title.push(Span::styled(
+            format!("  [ANSI: {} removed]", v.ansi_removed()),
+            Style::new().fg(theme().key),
+        ));
+    }
+    if v.mode == ViewMode::Text && v.following() {
+        title.push(Span::styled("  [FOLLOW]", Style::new().fg(theme().key)));
+    }
+    if v.mode == ViewMode::Text
+        && let Some(summary) = v.patch_summary()
+    {
+        title.push(Span::styled(
+            format!("  [{summary}]"),
+            Style::new().fg(theme().key),
+        ));
+    }
     if let Some((i, n)) = tagged {
         title.push(Span::styled(
             format!("  [tagged {i} of {n}]"),
@@ -3740,6 +3777,9 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         ViewMode::Text => " TEXT ".to_string(),
         ViewMode::Hex => " HEX ".to_string(),
         ViewMode::Rendered => " RENDERED ".to_string(),
+        ViewMode::Tree => v.tree.as_ref().map_or(" TREE ".to_string(), |t| {
+            format!(" TREE: {} ", t.format.name())
+        }),
         ViewMode::Table => v
             .table
             .as_ref()
@@ -3755,7 +3795,20 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         } else {
             "Sheet"
         };
-        draw_sheet_list(frame, list, grid, word, body);
+        let mark = |i: usize| grid.view_mark(i);
+        draw_sheet_list(
+            frame,
+            list,
+            &grid.sheets,
+            grid.current_sheet,
+            &mark,
+            word,
+            body,
+        );
+    }
+    let (names, current) = v.patch_list_names();
+    if let Some(list) = &mut v.patch_list {
+        draw_sheet_list(frame, list, &names, current, &|_| "", "File", body);
     }
     if let Some(view) = &mut v.structure_view {
         draw_structure(frame, view, body);
@@ -3789,6 +3842,14 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             fmt_num(v.total_lines().max(1) as u64)
         ),
         ViewMode::Hex => format!("Offset {:08X}", v.top * viewer::HEX_WIDTH),
+        ViewMode::Tree => {
+            let rows = v.tree.as_ref().map_or(0, |t| t.rows().len());
+            format!(
+                "Row {} of {}",
+                fmt_num(v.tree_cursor as u64 + 1),
+                fmt_num(rows.max(1) as u64)
+            )
+        }
         ViewMode::Table => {
             if let Some(t) = &v.table {
                 let cell_col_letter = crate::viewer::tabular_loader::column_letter(t.cursor_col);
@@ -3860,6 +3921,16 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 ("Esc", "back"),
             ],
         )]
+    } else if v.patch_list.is_some() {
+        vec![menu_line(
+            "FILES",
+            &[
+                ("↑↓", "move"),
+                ("letters", "narrow the list"),
+                ("Enter", "go to"),
+                ("Esc", "back"),
+            ],
+        )]
     } else if v.sheet_list.is_some() {
         let title = format!("{}S", sheet_word(&v.path).to_uppercase());
         vec![menu_line(
@@ -3910,6 +3981,21 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                     || (v.mode != ViewMode::Table && v.text_changed())
                 {
                     vec![("R", "reload"), ("Esc", "close")]
+                } else if v.mode == ViewMode::Tree {
+                    vec![
+                        ("← →", "fold"),
+                        ("*", "open all"),
+                        ("k", "copy path"),
+                        ("Space", "next hit"),
+                        ("Esc", "close"),
+                    ]
+                } else if v.patch_summary().is_some() && v.mode == ViewMode::Text {
+                    vec![
+                        ("] [", "file"),
+                        ("} {", "hunk"),
+                        ("Tab", "files"),
+                        ("Esc", "close"),
+                    ]
                 } else if v.mode == ViewMode::Table {
                     vec![
                         ("Enter", "record"),
@@ -3940,10 +4026,18 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                     .add_modifier(Modifier::BOLD),
             ),
             None => {
-                let language = v
+                let mut language = v
                     .language()
                     .map(|l| format!("{l}  ·  "))
                     .unwrap_or_default();
+                if v.mode == ViewMode::Text
+                    && let Some(at) = v.patch_position()
+                {
+                    language.push_str(&format!("{at}  ·  "));
+                }
+                if let Some(path) = v.tree_path() {
+                    language = format!("{path}  ·  ");
+                }
                 let wrap_badge = if v.wrap { "[Wrap] " } else { "" };
                 let num_badge = if v.line_numbers { "[#] " } else { "" };
                 let sheets = match (&v.mode, &v.table) {
@@ -4013,10 +4107,14 @@ fn sheet_word(path: &Path) -> &'static str {
 
 /// The list of sheets or tables, over the grid. Only the rows on screen are built:
 /// a hostile file can have any number of names. They were made safe when read.
+/// The list of a table's sheets, or of a patch's files (Tab): `names`, with
+/// `current` the one open and `mark` what follows a name.
 fn draw_sheet_list(
     frame: &mut Frame,
     list: &mut crate::viewer::table::SheetList,
-    grid: &TableGrid,
+    names: &[String],
+    current: usize,
+    mark: &dyn Fn(usize) -> &'static str,
     word: &str,
     area: Rect,
 ) {
@@ -4041,7 +4139,7 @@ fn draw_sheet_list(
         format!(
             " {word}s: {} of {} ",
             fmt_num(list.shown.len() as u64),
-            fmt_num(grid.sheets.len() as u64)
+            fmt_num(names.len() as u64)
         ),
         true,
     );
@@ -4064,13 +4162,9 @@ fn draw_sheet_list(
         ));
     }
     for (row, &sheet) in list.shown.iter().enumerate().skip(list.scroll).take(rows) {
-        let name = grid.sheets.get(sheet).map_or("", String::as_str);
-        let open = if sheet == grid.current_sheet {
-            '*'
-        } else {
-            ' '
-        };
-        let mark = grid.view_mark(sheet);
+        let name = names.get(sheet).map_or("", String::as_str);
+        let open = if sheet == current { '*' } else { ' ' };
+        let mark = mark(sheet);
         let name = fit(name, name_width.saturating_sub(mark.len()));
         let text = format!("{open} {}{mark}", name.trim_end());
         lines.push(if row == list.cursor {
@@ -4609,7 +4703,8 @@ fn draw_viewer_body(frame: &mut Frame, v: &mut Viewer, title: String, area: Rect
     }
     let mark = highlight(true).add_modifier(Modifier::BOLD);
     let digits = v.total_lines().to_string().len().max(1);
-    let show_numbers = v.line_numbers && matches!(v.mode, ViewMode::Text | ViewMode::Rendered);
+    let show_numbers =
+        v.line_numbers && matches!(v.mode, ViewMode::Text | ViewMode::Rendered | ViewMode::Tree);
     let t = theme();
     let lines: Vec<Line> = v
         .styled(inner.height as usize)
@@ -5813,6 +5908,56 @@ mod tests {
         ));
         let text = draw_text(&mut app);
         assert!(text.contains("(V to view)"), "{text}");
+    }
+
+    /// The screen of the new viewers: what the header, the frame and the
+    /// footer say.
+    #[test]
+    fn the_new_viewers_say_what_they_show() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let screen = |app: &mut App| -> Vec<String> {
+            let mut term = Terminal::new(TestBackend::new(120, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            let buf = term.backend().buffer();
+            (0..20)
+                .map(|y| (0..120).map(|x| buf[(x, y)].symbol()).collect())
+                .collect()
+        };
+        // A tree: its frame, the repeated key, and the path in the footer.
+        let json = tmp.path().join("a.json");
+        std::fs::write(&json, r#"{"k": {"x": 1}, "k": 2}"#).unwrap();
+        let mut v =
+            crate::viewer::Viewer::open(json, crate::viewer::LoadOptions::view(1 << 20)).unwrap();
+        v.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        app.viewer = Some(v);
+        let rows = screen(&mut app);
+        let all = rows.join("\n");
+        assert!(rows[0].contains("1 repeated key (marked dup key)"), "{all}");
+        assert!(all.contains(" TREE: JSON "), "{all}");
+        assert!(all.contains("▾ k: {"), "{all}");
+        assert!(all.contains(".k  ·  Row 2 of"), "{all}");
+        // A patch: the summary in the header and the file in the footer.
+        let text = "diff --git a/x b/x\nnew mode 100755\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n";
+        app.viewer = Some(crate::viewer::Viewer::from_bytes(
+            "f.patch".into(),
+            text.len() as u64,
+            text.into(),
+        ));
+        let rows = screen(&mut app);
+        let all = rows.join("\n");
+        assert!(rows[0].contains("[1 file, +1 −1, 1 to check]"), "{all}");
+        assert!(all.contains("Patch  ·  1/1 x"), "{all}");
+        assert!(all.contains("] [") && all.contains("hunk"), "{all}");
+        // A log with ANSI: the count of what was taken out.
+        let log = tmp.path().join("a.log");
+        std::fs::write(&log, "INFO \x1b[2Jok\n").unwrap();
+        app.viewer = Some(
+            crate::viewer::Viewer::open(log, crate::viewer::LoadOptions::view(1 << 20)).unwrap(),
+        );
+        let rows = screen(&mut app);
+        assert!(rows[0].contains("[ANSI: 1 removed]"), "{}", rows.join("\n"));
     }
 
     #[test]

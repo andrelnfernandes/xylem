@@ -135,6 +135,17 @@ as a link is what `cp -a` and `rsync -l` do).
   of reading the file from its end (for the logs). Fixed-width and multi-record files (SDF,
   CNAB, SPED) are out, by decision (2026-11-11): they go to a separate product
   ([docs/plans/viewer-positional.md](docs/plans/viewer-positional.md)).
+  Seven new viewers, built on 2026-11-16 in the branch `viewers-next`, not reviewed
+  yet (the list and order are in "Viewers novos" of
+  [docs/plans/viewers.md](docs/plans/viewers.md); what each one still lacks is in the
+  "Implementação" section of its spec):
+  logs ([viewer-logs.md](docs/plans/viewer-logs.md), which is subproject 4), JSON,
+  YAML and TOML as a tree ([viewer-tree.md](docs/plans/viewer-tree.md)), DOCX,
+  ODT and PPTX ([viewer-office.md](docs/plans/viewer-office.md)), executables
+  ([viewer-binaries.md](docs/plans/viewer-binaries.md)), certificates and keys
+  ([viewer-certs.md](docs/plans/viewer-certs.md)), Jupyter notebooks
+  ([viewer-jupyter.md](docs/plans/viewer-jupyter.md)) and patches
+  ([viewer-patch.md](docs/plans/viewer-patch.md)).
 - **Rendered Markdown in the viewer**
   ([docs/plans/markdown.md](docs/plans/markdown.md)): done, on `.md` and
   `.markdown`. Still open: the help's small parser could move to the same
@@ -185,6 +196,11 @@ version; the sync removes the note and the entry.
   it is caught: log the error of `write_script` in the test.
 
 ## To evaluate
+
+- **The memory of a big tree (JSON, YAML, TOML):** the tree stops at 2,000,000
+  nodes, which take about 170 MiB; a JSON of 4 MiB such as `[0,0,0,...]` reaches
+  that. Nothing breaks, but a lower limit, or nodes made smaller, would weigh
+  less (found in the audit of #122).
 
 - **The wheel over less or man in the built-in terminal:** a program on the
   alternate screen that did not ask for the mouse has no scrollback, so the wheel
