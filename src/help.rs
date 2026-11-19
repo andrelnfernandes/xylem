@@ -158,6 +158,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("start", include_str!("../docs/manual/start.md")),
     ("screen", include_str!("../docs/manual/screen.md")),
     ("menus", include_str!("../docs/manual/menus.md")),
+    ("mouse", include_str!("../docs/manual/mouse.md")),
     ("glossary", include_str!("../docs/manual/glossary.md")),
     ("commands", include_str!("../docs/manual/commands.md")),
     (
@@ -879,6 +880,14 @@ impl Help {
         let line = links[next].1;
         if line < self.scroll || line >= self.scroll + self.height {
             self.scroll = line.saturating_sub(self.height / 3);
+        }
+    }
+
+    /// A click on link `id`: follows it, as Enter does on the selected one.
+    pub fn follow(&mut self, id: usize) {
+        if let Some((target, _)) = self.links().get(id).cloned() {
+            self.selected = Some(id);
+            self.go(&target);
         }
     }
 

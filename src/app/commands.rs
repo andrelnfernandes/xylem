@@ -35,6 +35,10 @@ impl App {
             }
             return;
         }
+        if self.context_menu.is_some() {
+            self.context_menu_key(key);
+            return;
+        }
         if self.terminal_focus {
             self.terminal_key(key);
             return;
@@ -362,6 +366,12 @@ impl App {
                 }
                 LineEvent::Editing => {}
             }
+            return;
+        }
+        // The context menu, from the keyboard (Shift+F10 would otherwise
+        // be F10, Quit). Usage and Duplicates keep their keys.
+        if context_menu::is_menu_key(key) && self.usage.is_none() && self.duplicates.is_none() {
+            self.open_menu_from_keys();
             return;
         }
         if let Some(viewer) = &mut self.viewer {

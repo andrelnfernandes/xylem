@@ -105,8 +105,15 @@ as a link is what `cp -a` and `rsync -l` do).
 - Postponed by choice: macros, chown, Graft. macOS: to look at again when there
   is a machine to test on.
 - Left out by decision: Xylem in its own window, external converters, HTML in the
-  viewer, a treemap, the mouse, and what of ZTreeWin serves parity more than use
+  viewer, a treemap, and what of ZTreeWin serves parity more than use
   (Wash, Volume, Hide, video commands).
+- **The mouse** ([docs/plans/mouse.md](docs/plans/mouse.md)): approved by the
+  author on 2026-11-18, after being left out before. Off by default, turned on in
+  F12; the wheel, clicks on the tree, the lists and the footer, double click, tagging
+  with the middle button, a right-click menu, and the mouse passed to the programs of
+  the built-in terminal. The four stages are done in the `mouse` branch, one PR at
+  the end. Not yet: clicks on the viewer's list of sheets, its structure and its
+  record (the wheel works there), and a right-click menu in Usage and Duplicates.
 - **New file viewers** ([docs/plans/viewers.md](docs/plans/viewers.md)):
   six subprojects, security first. Done: subproject 1 (encodings, compressed
   files, the size limit; PRs #44 to #49), and the table mode with SQLite and the
@@ -153,6 +160,10 @@ version; the sync removes the note and the entry.
 
 - `viewer.md`: tables with no limit of 50,000 rows (0.8.0,
   [docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)).
+- `mouse.md`: new, in English only; each translated `index.md` links to it
+  with an English line, `configuration.md`, `releases.md` and `terminal.md` (the
+  wheel over the terminal) do not mention it yet
+  ([docs/plans/mouse.md](docs/plans/mouse.md)).
 - `viewer.md` ("Big files") and `ztreewin.md` (the Viewer row): big text files read
   as the screen moves ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)).
 
@@ -170,6 +181,10 @@ version; the sync removes the note and the entry.
 
 ## To evaluate
 
+- **The wheel over less or man in the built-in terminal:** a program on the
+  alternate screen that did not ask for the mouse has no scrollback, so the wheel
+  does nothing there. xterm's `alternateScroll` sends ↑ and ↓ instead; but some
+  programs take ↑ as something else, so it needs a look.
 Details from an outside list of suggestions (2026-11-01) that the items above do
 not have. Nothing here is decided. The rest of that list was already planned, or
 postponed by choice (macros, chown).
