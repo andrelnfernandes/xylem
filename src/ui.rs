@@ -4572,6 +4572,7 @@ fn draw_terminal_panel(
     let block = panel(title, true);
     let inner = block.inner(area);
     term.resize(inner.height, inner.width);
+    hit(inner, Spot::Pty);
     // Starts from the terminal's own colors, so that `apply_theme` sees the
     // cells the shell has not painted as default ones.
     frame.render_widget(Clear, inner);

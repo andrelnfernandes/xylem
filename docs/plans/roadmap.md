@@ -81,7 +81,7 @@ Depois da Parte 1, nesta ordem:
 **Mouse** ([mouse.md](mouse.md)), aprovado em 2026-11-18 (antes estava em "Fora, por
 decisão"): desligado por padrão, ligado no F12. Quatro etapas, cerca de 3 semanas, na
 branch `mouse`, com um PR só no fim; como fica em branch até terminar, não segura os
-releases.
+releases. As quatro etapas estão feitas (2026-11-19), à espera do PR.
 
 **Favoritos com nome, e de máquinas remotas** ([named-bookmarks.md](named-bookmarks.md)),
 aprovados em 2026-11-12: feitos, na 0.7.0.

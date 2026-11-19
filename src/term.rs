@@ -18,9 +18,13 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use ratatui::buffer::Buffer;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use ratatui::layout::Rect;
 use ratatui::style::Color;
+
+use vt100::{MouseProtocolEncoding, MouseProtocolMode};
 
 use crate::config::TerminalTheme;
 
@@ -344,6 +348,37 @@ impl Terminal {
         }
     }
 
+    /// The mouse over the panel, at column `col`, row `row` of it: to the
+    /// program, if it asked for the mouse, coded as it asked. If not (the
+    /// shell at its prompt), the wheel moves through the scrollback, as
+    /// Shift+PgUp/PgDn, and clicks do nothing.
+    pub fn send_mouse(&mut self, ev: MouseEvent, col: u16, row: u16, lines: usize) {
+        let (mode, encoding) = {
+            let parser = self.parser();
+            let screen = parser.screen();
+            (
+                screen.mouse_protocol_mode(),
+                screen.mouse_protocol_encoding(),
+            )
+        };
+        if mode == MouseProtocolMode::None {
+            let lines = isize::try_from(lines).unwrap_or(isize::MAX);
+            match ev.kind {
+                MouseEventKind::ScrollUp => self.scroll(lines),
+                MouseEventKind::ScrollDown => self.scroll(-lines),
+                _ => {}
+            }
+            return;
+        }
+        // Never past the panel, even for a drag that left it.
+        let col = col.min(self.size.1 - 1);
+        let row = row.min(self.size.0 - 1);
+        if let Some(bytes) = encode_mouse(ev, col, row, mode, encoding) {
+            self.parser().screen_mut().set_scrollback(0);
+            self.write(&bytes);
+        }
+    }
+
     /// Shift+PgUp/PgDn: moves through the lines that went off the screen.
     pub fn scroll(&mut self, lines: isize) {
         let mut parser = self.parser();
@@ -650,6 +685,73 @@ fn default_shell() -> String {
         .ok()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| if cfg!(windows) { "cmd.exe" } else { "/bin/sh" }.into())
+}
+
+/// The bytes an xterm sends for the mouse event `ev` at column `col`, row
+/// `row` (from 0) of the program's screen, in the `mode` and `encoding` it
+/// asked for; `None` for what that mode does not report.
+pub fn encode_mouse(
+    ev: MouseEvent,
+    col: u16,
+    row: u16,
+    mode: MouseProtocolMode,
+    encoding: MouseProtocolEncoding,
+) -> Option<Vec<u8>> {
+    use MouseProtocolMode as M;
+    let button = |b: MouseButton| match b {
+        MouseButton::Left => 0u32,
+        MouseButton::Middle => 1,
+        MouseButton::Right => 2,
+    };
+    let sgr = encoding == MouseProtocolEncoding::Sgr;
+    let (code, release) = match ev.kind {
+        MouseEventKind::Down(b) => (button(b), false),
+        MouseEventKind::Up(b) if mode != M::Press => (if sgr { button(b) } else { 3 }, true),
+        MouseEventKind::Drag(b) if matches!(mode, M::ButtonMotion | M::AnyMotion) => {
+            (button(b) + 32, false)
+        }
+        MouseEventKind::Moved if mode == M::AnyMotion => (3 + 32, false),
+        MouseEventKind::ScrollUp => (64, false),
+        MouseEventKind::ScrollDown => (65, false),
+        MouseEventKind::ScrollLeft => (66, false),
+        MouseEventKind::ScrollRight => (67, false),
+        _ => return None,
+    };
+    // X10 (press only) has no modifiers.
+    let mods = if mode == M::Press {
+        0
+    } else {
+        let m = ev.modifiers;
+        u32::from(m.contains(KeyModifiers::SHIFT)) * 4
+            + u32::from(m.contains(KeyModifiers::ALT)) * 8
+            + u32::from(m.contains(KeyModifiers::CONTROL)) * 16
+    };
+    let code = code + mods;
+    let (x, y) = (u32::from(col) + 1, u32::from(row) + 1);
+    let mut out = Vec::new();
+    match encoding {
+        MouseProtocolEncoding::Sgr => {
+            let end = if release { 'm' } else { 'M' };
+            out.extend_from_slice(format!("\x1b[<{code};{x};{y}{end}").as_bytes());
+        }
+        // One byte each, 32 + the value: no column past 223.
+        MouseProtocolEncoding::Default => {
+            out.extend_from_slice(b"\x1b[M");
+            for v in [code, x.min(223), y.min(223)] {
+                out.push(u8::try_from(32 + v).unwrap_or(u8::MAX));
+            }
+        }
+        // The same values as characters, up to 2015.
+        MouseProtocolEncoding::Utf8 => {
+            out.extend_from_slice(b"\x1b[M");
+            for v in [code, x.min(2015), y.min(2015)] {
+                let c = char::from_u32(32 + v).unwrap_or(' ');
+                let mut buf = [0; 4];
+                out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+            }
+        }
+    }
+    Some(out)
 }
 
 /// The bytes an xterm sends for `key`. `app_cursor`: the program asked for
@@ -978,6 +1080,73 @@ mod tests {
         encode_key(KeyEvent::new(code, mods), false).unwrap()
     }
 
+    fn mouse(kind: MouseEventKind, mods: KeyModifiers) -> MouseEvent {
+        MouseEvent {
+            kind,
+            column: 0,
+            row: 0,
+            modifiers: mods,
+        }
+    }
+
+    /// The mode and the encoding a program leaves after writing `asked`.
+    fn modes(asked: &[u8]) -> (MouseProtocolMode, MouseProtocolEncoding) {
+        let mut parser = vt100::Parser::new(24, 80, 0);
+        parser.process(asked);
+        let screen = parser.screen();
+        (
+            screen.mouse_protocol_mode(),
+            screen.mouse_protocol_encoding(),
+        )
+    }
+
+    #[test]
+    fn encodes_the_mouse_as_the_program_asked() {
+        let none = KeyModifiers::NONE;
+        let left = MouseEventKind::Down(MouseButton::Left);
+        let (mode, enc) = modes(b"\x1b[?1000h\x1b[?1006h");
+        let at = |kind, mods, col, row| encode_mouse(mouse(kind, mods), col, row, mode, enc);
+        assert_eq!(at(left, none, 5, 3).unwrap(), b"\x1b[<0;6;4M");
+        let up = MouseEventKind::Up(MouseButton::Left);
+        assert_eq!(at(up, none, 5, 3).unwrap(), b"\x1b[<0;6;4m");
+        let right = MouseEventKind::Down(MouseButton::Right);
+        assert_eq!(
+            at(right, KeyModifiers::CONTROL, 0, 0).unwrap(),
+            b"\x1b[<18;1;1M"
+        );
+        let wheel = MouseEventKind::ScrollDown;
+        assert_eq!(at(wheel, none, 300, 0).unwrap(), b"\x1b[<65;301;1M");
+        // 1000 does not report the moves with a button held; 1002 does.
+        let drag = MouseEventKind::Drag(MouseButton::Left);
+        assert_eq!(at(drag, none, 1, 1), None);
+        let (mode, enc) = modes(b"\x1b[?1002h\x1b[?1006h");
+        let ev = mouse(drag, none);
+        assert_eq!(encode_mouse(ev, 1, 1, mode, enc).unwrap(), b"\x1b[<32;2;2M");
+
+        // The old encoding: a byte each, the column held at 223.
+        let (mode, enc) = modes(b"\x1b[?1000h");
+        let ev = mouse(left, none);
+        assert_eq!(
+            encode_mouse(ev, 300, 2, mode, enc).unwrap(),
+            b"\x1b[M \xff#"
+        );
+        let ev = mouse(up, none);
+        assert_eq!(encode_mouse(ev, 0, 0, mode, enc).unwrap(), b"\x1b[M#!!");
+        // UTF-8: past 95 the values are characters.
+        let (mode, enc) = modes(b"\x1b[?1000h\x1b[?1005h");
+        let ev = mouse(left, none);
+        assert_eq!(
+            encode_mouse(ev, 199, 0, mode, enc).unwrap(),
+            "\x1b[M \u{e8}!".as_bytes()
+        );
+        // X10: presses only, with no modifiers.
+        let (mode, enc) = modes(b"\x1b[?9h");
+        assert_eq!(mode, MouseProtocolMode::Press);
+        let ev = mouse(left, KeyModifiers::SHIFT);
+        assert_eq!(encode_mouse(ev, 0, 0, mode, enc).unwrap(), b"\x1b[M !!");
+        assert_eq!(encode_mouse(mouse(up, none), 0, 0, mode, enc), None);
+    }
+
     #[test]
     fn encodes_like_xterm() {
         let none = KeyModifiers::NONE;
@@ -1028,6 +1197,43 @@ mod tests {
             term.cwd().unwrap().canonicalize().unwrap(),
             sub.canonicalize().unwrap()
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_mouse_scrolls_back_at_the_prompt_and_goes_to_a_program_that_asks() {
+        let dir = crate::testing::tempdir();
+        let mut term = bash(dir.path());
+        term.resize(10, 40);
+        term.write(b"seq 1 50; echo XT-$((1+1))\r");
+        wait_for(&term, "XT-2");
+        let ev = |kind| MouseEvent {
+            kind,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::NONE,
+        };
+        // The shell did not ask: the wheel goes back through what scrolled
+        // off, a click does nothing.
+        term.send_mouse(ev(MouseEventKind::ScrollUp), 0, 0, 3);
+        assert_eq!(term.parser().screen().scrollback(), 3);
+        term.send_mouse(ev(MouseEventKind::ScrollDown), 0, 0, 3);
+        assert_eq!(term.parser().screen().scrollback(), 0);
+
+        // A program that asks gets the click where it was on the panel,
+        // held inside it; the line discipline echoes it as ^[.
+        term.write(b"printf '\\033[?1000h\\033[?1006h'; cat -v\r");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while term.parser().screen().mouse_protocol_mode() == MouseProtocolMode::None {
+            assert!(std::time::Instant::now() < deadline, "no mouse mode");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let left = MouseEventKind::Down(MouseButton::Left);
+        term.send_mouse(ev(left), 5, 3, 3);
+        wait_for(&term, "^[[<0;6;4M");
+        term.send_mouse(ev(left), 300, 300, 3);
+        wait_for(&term, "^[[<0;40;10M");
+        term.write(b"\x03");
     }
 
     #[cfg(target_os = "linux")]

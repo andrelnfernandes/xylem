@@ -16,6 +16,9 @@ pub enum Drag {
     /// The cursor of a list follows the pointer; `area` is where its rows
     /// are, so that past its edges the list scrolls.
     Rows { list: List, area: Rect },
+    /// A button held down on the program of a terminal (`area` is its
+    /// screen): the moves and the release go to it, even off the panel.
+    Pty { area: Rect },
     /// The thumb of a scroll bar (`area` is its track).
     Thumb {
         list: List,
@@ -44,6 +47,23 @@ impl App {
         let mods = ev.modifiers;
         if self.context_menu.is_some() {
             return self.menu_mouse(ev.kind, hit);
+        }
+        if let Some(Drag::Pty { area }) = self.drag
+            && matches!(ev.kind, MouseEventKind::Drag(_) | MouseEventKind::Up(_))
+        {
+            if matches!(ev.kind, MouseEventKind::Up(_)) {
+                self.drag = None;
+            }
+            return self.pty_mouse(ev, area);
+        }
+        if let Some(h) = hit
+            && h.spot == Spot::Pty
+            && self.splash.is_none()
+        {
+            self.last_click = None;
+            self.drag =
+                matches!(ev.kind, MouseEventKind::Down(_)).then_some(Drag::Pty { area: h.area });
+            return self.pty_mouse(ev, h.area);
         }
         match ev.kind {
             MouseEventKind::Down(button) => {
@@ -88,6 +108,19 @@ impl App {
         }
     }
 
+    /// The mouse over the screen `area` of the program in the framed editor
+    /// or the built-in terminal, which has the keys.
+    fn pty_mouse(&mut self, ev: MouseEvent, area: Rect) {
+        let col = ev.column.saturating_sub(area.x);
+        let row = ev.row.saturating_sub(area.y);
+        let term = match (&mut self.editor_pty, &mut self.terminal) {
+            (Some(ed), _) => &mut ed.term,
+            (None, Some(t)) if self.terminal_focus => t,
+            _ => return,
+        };
+        term.send_mouse(ev, col, row, WHEEL_LINES);
+    }
+
     /// Something in front of the windows that the keys go to (a question, a
     /// prompt, work in progress): the windows behind it take no clicks.
     fn windows_blocked(&self) -> bool {
@@ -115,7 +148,8 @@ impl App {
         if self.splash.take().is_some() {
             return;
         }
-        // The framed editor has the whole screen (its mouse: stage 4).
+        // The framed editor has the whole screen: only its panel takes the
+        // mouse (`pty_mouse`).
         if self.editor_pty.is_some() {
             return;
         }
@@ -124,7 +158,8 @@ impl App {
             // Each click on a key is a press of it, as fast as they come.
             Spot::Key(key) => self.handle_key(key),
             // Only with the context menu open, which `menu_mouse` handles.
-            Spot::Outside => {}
+            // The program of a terminal: `pty_mouse`, before it gets here.
+            Spot::Outside | Spot::Pty => {}
             Spot::Link(id) => {
                 if let Some(help) = &mut self.help {
                     help.follow(id);
@@ -365,6 +400,8 @@ impl App {
                     }
                 });
             }
+            // Handled before it gets here (`handle_mouse`).
+            Drag::Pty { .. } => {}
         }
     }
 
@@ -653,7 +690,7 @@ impl App {
                 let code = if up { KeyCode::Up } else { KeyCode::Down };
                 self.wheel_keys(code);
             }
-            Spot::Key(_) | Spot::Prompt { .. } | Spot::Outside => {}
+            Spot::Key(_) | Spot::Prompt { .. } | Spot::Outside | Spot::Pty => {}
         }
     }
 
@@ -1408,5 +1445,51 @@ mod tests {
             .unwrap();
         app.run_menu_line(i);
         assert!(app.viewer.is_none());
+    }
+
+    /// The framed editor's program asked for the mouse: a click and a drag
+    /// go to it, where they were on its panel, even a drag that left it.
+    #[cfg(unix)]
+    #[test]
+    fn the_program_of_the_framed_editor_gets_its_mouse() {
+        let (tmp, mut app) = sample();
+        let file = tmp.path().join("a.txt");
+        let line = "printf '\\033[?1002h\\033[?1006h'; cat > %f";
+        let ext = crate::shell::editor_command(line, &file, tmp.path());
+        app.start_framed_editor(ext).unwrap();
+        let screen = |app: &App| {
+            let ed = app.editor_pty.as_ref().unwrap();
+            ed.term.parser().screen().contents()
+        };
+        let wait = |app: &App, ok: &dyn Fn(&App) -> bool| {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while !ok(app) {
+                assert!(Instant::now() < deadline, "screen:\n{}", screen(app));
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        };
+        wait(&app, &|app| {
+            let ed = app.editor_pty.as_ref().unwrap();
+            ed.term.parser().screen().mouse_protocol_mode() != vt100::MouseProtocolMode::None
+        });
+        draw(&mut app);
+        // The panel's border is around it: its first cell is (1, 2).
+        let at = |kind, column, row| MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        };
+        let now = Instant::now();
+        app.handle_mouse(at(MouseEventKind::Down(MouseButton::Left), 6, 5), now);
+        wait(&app, &|app| screen(app).contains("^[[<0;6;4M"));
+        // Off the panel, held at its edge (the last row of a screen of 30
+        // rows, less the header, the footer and the border).
+        app.handle_mouse(at(MouseEventKind::Drag(MouseButton::Left), 0, 29), now);
+        wait(&app, &|app| screen(app).contains("^[[<32;1;25M"));
+        app.handle_mouse(at(MouseEventKind::Up(MouseButton::Left), 0, 29), now);
+        wait(&app, &|app| screen(app).contains("^[[<0;1;25m"));
+        assert!(app.drag.is_none());
+        app.editor_pty.as_mut().unwrap().term.write(b"\x04");
     }
 }
