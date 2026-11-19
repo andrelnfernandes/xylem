@@ -31,6 +31,7 @@ use crate::help::{self, Help};
 use crate::icons::{DirKind, SLOT_WIDTH};
 use crate::input::{Command, HistoryList, LineInput};
 use crate::model::tree::{FileEntry, FileKind, NodeId};
+use crate::mouse::{self, HitMap, Owner, Spot};
 use crate::ops::{Conflict, Facts, Operation};
 use crate::pane::{Count, FileDisplay, FileRef};
 use crate::platform;
@@ -47,7 +48,36 @@ const SMALL_FILE_WINDOW: u16 = 5;
 /// Below this height, the tree is shown without the small file window.
 const MIN_TREE_WITH_FILES: u16 = 12;
 
+thread_local! {
+    /// The spots of the frame being drawn (`mouse::HitMap`): each part of
+    /// the screen says what it is as it is drawn, and the map goes to
+    /// `App::hits` at the end, for the clicks on what is on screen.
+    static HITS: std::cell::RefCell<HitMap> = std::cell::RefCell::default();
+}
+
+/// `area` of this frame is `spot`, over what was added before.
+fn hit(area: Rect, spot: Spot) {
+    HITS.with_borrow_mut(|h| h.add(area, spot));
+}
+
+/// The footer `lines`, as drawn in `area`: its keys become spots.
+fn hit_footer(lines: &[Line], area: Rect, mods: KeyModifiers) {
+    HITS.with_borrow_mut(|h| h.add_footer(lines, area, mods));
+}
+
+/// Draws a footer and makes its keys spots.
+fn render_footer(frame: &mut Frame, lines: Vec<Line<'static>>, area: Rect, mods: KeyModifiers) {
+    hit_footer(&lines, area, mods);
+    frame.render_widget(Paragraph::new(lines), area);
+}
+
 pub fn draw(frame: &mut Frame, app: &mut App) {
+    HITS.with_borrow_mut(|h| *h = HitMap::default());
+    draw_frame(frame, app);
+    app.hits = HITS.take();
+}
+
+fn draw_frame(frame: &mut Frame, app: &mut App) {
     let list = || app.prompt.as_ref().and_then(|p| p.input.list());
     if let Some(list) = list() {
         list.anchor.set(None);
@@ -61,6 +91,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     }
     if let Some(sb) = &mut app.search_box {
         draw_search_box(frame, sb, frame.area());
+    }
+    if let Some(menu) = &app.context_menu {
+        draw_context_menu(frame, menu);
     }
     if app.splash.is_some() {
         draw_splash(frame, &theme());
@@ -143,6 +176,7 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
         draw_files(
             frame,
             &mut app.panes[active],
+            Owner::Main(active),
             true,
             list,
             git,
@@ -168,7 +202,17 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
                 .areas(main);
         let active = app.active;
         for (i, (pane, area)) in app.panes.iter_mut().zip(halves).enumerate() {
-            draw_pane(frame, pane, i == active, true, area, git, app.options.icons);
+            let owner = Owner::Main(i);
+            draw_pane(
+                frame,
+                pane,
+                owner,
+                i == active,
+                true,
+                area,
+                git,
+                app.options.icons,
+            );
         }
     } else {
         let [left, stats] =
@@ -177,6 +221,7 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
         draw_pane(
             frame,
             &mut app.panes[0],
+            Owner::Main(0),
             true,
             false,
             left,
@@ -192,7 +237,7 @@ const USAGE_BAR: usize = 16;
 
 /// Alt+U: the folders and files of a directory by the space they take, and
 /// a line with the totals at the bottom.
-fn draw_usage(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
+fn draw_usage(frame: &mut Frame, pane: &mut Pane, index: usize, active: bool, area: Rect) {
     use crate::usage::{self, Item};
     let Some(view) = pane.usage.as_mut() else {
         return;
@@ -286,6 +331,12 @@ fn draw_usage(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
     view.shown = view.list.selected().and_then(|i| rows.get(i).cloned());
     let list = List::new(items).highlight_style(highlight(active));
     frame.render_stateful_widget(list, list_area, &mut view.list);
+    let spot = Spot::Item {
+        list: mouse::Own::Usage(index),
+        offset: view.list.offset(),
+        len: rows.len(),
+    };
+    hit(list_area, spot);
 
     // The totals, and how much of the disk they are.
     let mut parts = Vec::new();
@@ -344,7 +395,7 @@ fn count(n: usize, what: &str) -> String {
 }
 
 /// Alt+D: the groups of equal files or folders, and a line about them.
-fn draw_duplicates(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect) {
+fn draw_duplicates(frame: &mut Frame, pane: &mut Pane, index: usize, active: bool, area: Rect) {
     use crate::duplicates::Row;
     use crate::usage;
     let Some(view) = pane.duplicates.as_mut() else {
@@ -420,6 +471,12 @@ fn draw_duplicates(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect)
     state.select(Some(view.at - view.offset));
     let list = List::new(items).highlight_style(highlight(active));
     frame.render_stateful_widget(list, list_area, &mut state);
+    let spot = Spot::Item {
+        list: mouse::Own::Duplicates(index),
+        offset: view.offset,
+        len: rows.len(),
+    };
+    hit(list_area, spot);
 
     let (tagged, bytes) = view.tagged();
     let free: u64 = groups.iter().map(|g| g.free).sum();
@@ -472,25 +529,34 @@ fn draw_duplicates(frame: &mut Frame, pane: &mut Pane, active: bool, area: Rect)
 
 /// One window: tree on top and files below, or just the files.
 /// With a split screen, the tree title shows the current directory.
+#[allow(clippy::too_many_arguments)]
 fn draw_pane(
     frame: &mut Frame,
     pane: &mut Pane,
+    owner: Owner,
     active: bool,
     split: bool,
     area: Rect,
     git: Option<&StatusCache>,
     icons: IconStyle,
 ) {
+    // Their own lists: the wheel stands for their ↑ and ↓ (stage 2 points
+    // at their rows).
+    let index = match owner {
+        Owner::Main(i) | Owner::Picker(i) => i,
+    };
     if pane.usage.is_some() {
-        draw_usage(frame, pane, active, area);
+        hit(area, Spot::Window(mouse::List::Files(owner)));
+        draw_usage(frame, pane, index, active, area);
         return;
     }
     if pane.duplicates.is_some() {
-        draw_duplicates(frame, pane, active, area);
+        hit(area, Spot::Window(mouse::List::Files(owner)));
+        draw_duplicates(frame, pane, index, active, area);
         return;
     }
     if pane.focus == Focus::Files {
-        draw_files(frame, pane, active, area, git, icons);
+        draw_files(frame, pane, owner, active, area, git, icons);
         return;
     }
     let width = area.width.saturating_sub(4) as usize;
@@ -510,7 +576,7 @@ fn draw_pane(
     // Too low for both (e.g. above the terminal's panel): the tree alone,
     // rather than a tree of one or two lines.
     if area.height < MIN_TREE_WITH_FILES {
-        draw_tree(frame, pane, active, title, area, icons);
+        draw_tree(frame, pane, owner, active, title, area, icons);
         return;
     }
     let [tree, files] = Layout::vertical([
@@ -518,8 +584,8 @@ fn draw_pane(
         Constraint::Length(small_file_window(area.height)),
     ])
     .areas(area);
-    draw_tree(frame, pane, active, title, tree, icons);
-    draw_files(frame, pane, false, files, git, icons);
+    draw_tree(frame, pane, owner, active, title, tree, icons);
+    draw_files(frame, pane, owner, false, files, git, icons);
 }
 
 /// Height of the small file window for a tree area of `height` rows.
@@ -737,6 +803,7 @@ fn dir_kind(pane: &Pane, id: NodeId) -> DirKind {
 fn draw_tree(
     frame: &mut Frame,
     pane: &mut Pane,
+    owner: Owner,
     active: bool,
     title: String,
     area: Rect,
@@ -841,7 +908,69 @@ fn draw_tree(
         .highlight_style(highlight(active));
     frame.render_stateful_widget(list, area, &mut state);
     let offset = pane.tree_state.offset();
+    let tree = mouse::List::Tree(owner);
+    hit(area, Spot::Window(tree));
+    let rows = Spot::Rows {
+        list: tree,
+        offset,
+        len: pane.rows.len(),
+    };
+    let inner = Block::bordered().inner(area);
+    hit(inner, rows);
+    // The mark before each folder: `+` expands, `?` logs, `─` collapses.
+    for (y, row) in pane
+        .rows
+        .iter()
+        .enumerate()
+        .skip(offset)
+        .take(usize::from(inner.height))
+    {
+        let width = row.prefix.chars().count() as u16;
+        if width == 0 || width > inner.width {
+            continue;
+        }
+        let mark = Rect::new(inner.x + width - 1, inner.y + (y - offset) as u16, 1, 1);
+        hit(mark, Spot::Marker { list: tree, row: y });
+    }
+    hit_scrollbar(area, tree, pane.rows.len(), pane.tree_page, offset, 1);
     draw_scroll_thumb(frame, area, pane.rows.len(), pane.tree_page, offset, active);
+}
+
+/// The thumb of a scroll bar: its first row in the track (under the top
+/// border) and its length. `None` when it all fits.
+fn thumb(area: Rect, len: usize, page: usize, offset: usize) -> Option<(usize, usize)> {
+    let track = area.height.saturating_sub(2) as usize;
+    if len <= page || page == 0 || track < 3 || area.width < 2 {
+        return None;
+    }
+    let size = (track * page / len).clamp(1, track - 1);
+    let last = len - page;
+    let start = (track - size) * offset.min(last) / last;
+    Some((start, size))
+}
+
+/// The scroll bar of `list` (on the right border of `area`) as a spot, when
+/// there is one: `len` rows of `cols` items each.
+fn hit_scrollbar(
+    area: Rect,
+    list: mouse::List,
+    len: usize,
+    page: usize,
+    offset: usize,
+    cols: usize,
+) {
+    let Some((start, size)) = thumb(area, len, page, offset) else {
+        return;
+    };
+    let track = Rect::new(area.right() - 1, area.y + 1, 1, area.height - 2);
+    let bar = Spot::Scrollbar {
+        list,
+        len,
+        page,
+        cols,
+        thumb: (start as u16, size as u16),
+    };
+    hit(track, bar);
 }
 
 /// Where a long list is: a thumb on the right border, as long as the share
@@ -854,13 +983,9 @@ fn draw_scroll_thumb(
     offset: usize,
     active: bool,
 ) {
-    let track = area.height.saturating_sub(2) as usize;
-    if len <= page || page == 0 || track < 3 || area.width < 2 {
+    let Some((start, size)) = thumb(area, len, page, offset) else {
         return;
-    }
-    let size = (track * page / len).clamp(1, track - 1);
-    let last = len - page;
-    let start = (track - size) * offset.min(last) / last;
+    };
     let color = if active {
         theme().active_border
     } else {
@@ -1036,6 +1161,7 @@ fn draw_picker(frame: &mut Frame, app: &mut App, main: Rect, menu: Rect) {
     let Some(picker) = &mut app.picker else {
         return;
     };
+    let owner = Owner::Picker(picker.active);
     let windows = picker.panes.len();
     let width = main.width.saturating_sub(4) as usize;
     let path = picker.pane().current_path();
@@ -1046,6 +1172,7 @@ fn draw_picker(frame: &mut Frame, app: &mut App, main: Rect, menu: Rect) {
     draw_tree(
         frame,
         picker.pane_mut(),
+        owner,
         true,
         title,
         main,
@@ -1072,13 +1199,14 @@ fn draw_picker(frame: &mut Frame, app: &mut App, main: Rect, menu: Rect) {
         .into_iter()
         .map(|l| fit_menu(l, menu.width as usize))
         .collect();
-    frame.render_widget(Paragraph::new(lines), menu);
+    render_footer(frame, lines, menu, KeyModifiers::NONE);
 }
 
 /// With `git`, files in a repository show their status before the name.
 fn draw_files(
     frame: &mut Frame,
     pane: &mut Pane,
+    owner: Owner,
     active: bool,
     area: Rect,
     git: Option<&StatusCache>,
@@ -1120,8 +1248,10 @@ fn draw_files(
         FileView::Dir => pane.tree.node(pane.current()).error.is_some(),
         _ => false,
     };
+    let files = mouse::List::Files(owner);
+    hit(area, Spot::Window(files));
     if pane.display.multi_column() && !pane.files.is_empty() && !error {
-        draw_file_columns(frame, pane, active, area, title, &marker, icons);
+        draw_file_columns(frame, pane, files, active, area, title, &marker, icons);
         return;
     }
     pane.file_cols = 1;
@@ -1133,6 +1263,7 @@ fn draw_files(
         FileView::Dir => pane.tree.node(pane.current()).error.as_ref(),
         _ => None,
     };
+    let has_error = error.is_some();
     // Not read until asked for (+ or *): nothing of it is known.
     let not_logged = pane.view == FileView::Dir
         && !pane.tree.node(pane.current()).scanned
@@ -1168,6 +1299,19 @@ fn draw_files(
         .highlight_style(highlight(active));
     frame.render_stateful_widget(list, area, &mut state);
     let offset = pane.file_state.offset();
+    // An error or "Not logged" in the window: no file to point at.
+    let len = if has_error || not_logged {
+        0
+    } else {
+        pane.files.len()
+    };
+    let rows = Spot::Rows {
+        list: files,
+        offset,
+        len,
+    };
+    hit(Block::bordered().inner(area), rows);
+    hit_scrollbar(area, files, pane.files.len(), pane.file_page, offset, 1);
     draw_scroll_thumb(
         frame,
         area,
@@ -1204,9 +1348,11 @@ const MAX_COLUMN_NAME: usize = 20;
 
 /// Multi-column modes (Alt+F): files run left to right and then onto the next
 /// row down, as in XTree.
+#[allow(clippy::too_many_arguments)]
 fn draw_file_columns(
     frame: &mut Frame,
     pane: &mut Pane,
+    list: mouse::List,
     active: bool,
     area: Rect,
     title: String,
@@ -1304,6 +1450,15 @@ fn draw_file_columns(
         })
         .collect();
     frame.render_widget(Paragraph::new(lines), inner);
+    let grid = Spot::Grid {
+        list,
+        top,
+        cols,
+        cell: cell_w as u16,
+        len: n,
+    };
+    hit(inner, grid);
+    hit_scrollbar(area, list, rows, height, top, cols);
     draw_scroll_thumb(frame, area, rows, height, top, active);
 }
 
@@ -1722,6 +1877,9 @@ fn draw_stats(frame: &mut Frame, app: &App, area: Rect) {
 
 fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
     let bold = Style::new().add_modifier(Modifier::BOLD);
+    // The modifier of the words of the menu, for the mouse: a click on Copy
+    // in the Ctrl menu is Ctrl+C.
+    let mut mods = KeyModifiers::NONE;
     let lines = if let Some(prompt) = &app.prompt {
         prompt_lines(frame, prompt, area)
     } else if app.terminal_focus {
@@ -1847,7 +2005,8 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                 ),
             },
         ]
-    } else if app.usage.is_some() && app.job.is_none() {
+    } else if app.usage.is_some() && app.job.is_none() && app.confirm.is_none() && app.op.is_none()
+    {
         let about = "> other disk  ! unreadable  . incomplete  H hard link  @ link  e empty";
         vec![
             menu_line(
@@ -2021,6 +2180,11 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
             },
         ]
     } else {
+        mods = match app.menu_mode() {
+            MenuMode::Ctrl => KeyModifiers::CONTROL,
+            MenuMode::Alt => KeyModifiers::ALT,
+            MenuMode::Normal | MenuMode::Git => KeyModifiers::NONE,
+        };
         let mut lines = idle_menu(app, area.width as usize);
         let first = match &app.message {
             Some(msg) => Line::from(Span::styled(
@@ -2042,7 +2206,7 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
         .into_iter()
         .map(|l| fit_menu(l, area.width as usize))
         .collect();
-    frame.render_widget(Paragraph::new(lines), area);
+    render_footer(frame, lines, area, mods);
 }
 
 /// A footer menu as data: the words (each with its highlighted letter), the
@@ -2437,6 +2601,11 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
     let bold = Style::new().add_modifier(Modifier::BOLD);
     let col = area.x + (prompt.label.chars().count() + prompt.input.cursor) as u16;
     frame.set_cursor_position((col.min(area.right().saturating_sub(1)), area.y));
+    let start = area.x + prompt.label.chars().count() as u16;
+    hit(
+        Rect::new(area.x, area.y, area.width, 1),
+        Spot::Prompt { start },
+    );
     let help = if let Some(list) = prompt.input.list() {
         // Drawn at the end, over everything: see [`draw`].
         list.anchor.set(Some(area.y));
@@ -2511,6 +2680,9 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
         }
         if prompt.is_search() {
             help.push(("F2", "match case"));
+            if prompt.is_viewer_search() {
+                help.push(("F3", "direction"));
+            }
             help.push(("F4", "text/hex"));
         }
         if prompt.is_line_filter() {
@@ -2585,6 +2757,12 @@ fn draw_history_list(frame: &mut Frame, input: &LineInput, list: &HistoryList, p
     // A short list sits at the bottom, next to the line.
     scroll = scroll.min(list.shown.len().saturating_sub(rows));
     list.scroll.set(scroll);
+    let spot = Spot::Item {
+        list: mouse::Own::History,
+        offset: scroll,
+        len: list.shown.len(),
+    };
+    hit(inner, spot);
     let text_width = usize::from(inner.width).saturating_sub(1);
     let lines: Vec<Line> = list
         .shown
@@ -2608,6 +2786,77 @@ fn draw_history_list(frame: &mut Frame, input: &LineInput, list: &HistoryList, p
             .style(Style::new().fg(t.text).bg(t.background)),
         rect,
     );
+}
+
+/// The context menu (right button, Menu key, Shift+F10), with its corner
+/// at `menu.at`, moved up and left as needed to stay on the screen. Each
+/// line has its key on the right.
+fn draw_context_menu(frame: &mut Frame, menu: &app::ContextMenu) {
+    let screen = frame.area();
+    let label_w = |l: &app::MenuLine| match l {
+        app::MenuLine::Run { label, key, .. } => label.chars().count() + key.chars().count() + 4,
+        app::MenuLine::Title(t) => t.chars().count() + 2,
+        app::MenuLine::Separator => 0,
+    };
+    let inner_w = menu.lines.iter().map(label_w).max().unwrap_or(10).max(16);
+    let width = (inner_w as u16 + 2).min(screen.width);
+    let height = (menu.lines.len() as u16 + 2).min(screen.height);
+    let x = menu.at.0.min(screen.right().saturating_sub(width));
+    // Below the row clicked, or above it when there is no room.
+    let below = menu.at.1.saturating_add(1);
+    let y = if below + height <= screen.bottom() {
+        below
+    } else {
+        menu.at.1.saturating_sub(height).max(screen.y)
+    };
+    let area = Rect::new(x, y, width, height).intersection(screen);
+    let t = theme();
+    let inner_w = usize::from(area.width.saturating_sub(2));
+    let lines: Vec<Line> = menu
+        .lines
+        .iter()
+        .enumerate()
+        .map(|(i, line)| match line {
+            app::MenuLine::Run { label, key, .. } => {
+                let pad = inner_w.saturating_sub(label.chars().count() + key.chars().count() + 3);
+                let text = format!(" {label}{} ", " ".repeat(pad));
+                let mut spans = vec![
+                    Span::raw(text),
+                    Span::styled(key.clone(), Style::new().fg(t.key)),
+                ];
+                spans.push(Span::raw(" "));
+                let line = Line::from(spans);
+                if i == menu.selected {
+                    line.style(highlight(true))
+                } else {
+                    line
+                }
+            }
+            app::MenuLine::Title(title) => Line::styled(
+                format!(" {title}"),
+                Style::new().fg(t.dim).add_modifier(Modifier::BOLD),
+            ),
+            app::MenuLine::Separator => {
+                Line::styled("─".repeat(inner_w), Style::new().fg(t.border))
+            }
+        })
+        .collect();
+    frame.render_widget(Clear, area);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(panel("", true))
+            .style(Style::new().fg(t.text).bg(t.background)),
+        area,
+    );
+    // Over everything: a click off the menu only closes it.
+    hit(screen, Spot::Outside);
+    hit(area, Spot::Scroll);
+    let spot = Spot::Item {
+        list: mouse::Own::Menu,
+        offset: 0,
+        len: menu.lines.len(),
+    };
+    hit(Block::bordered().inner(area), spot);
 }
 
 /// Floating modal for the search box (P / Ctrl+P).
@@ -2644,6 +2893,12 @@ fn draw_search_box(frame: &mut Frame, sb: &mut crate::search_box::SearchBox, scr
     .areas(inner);
 
     sb.page = usize::from(results_area.height);
+    let spot = Spot::Item {
+        list: mouse::Own::SearchResults,
+        offset: sb.scroll,
+        len: sb.results.len(),
+    };
+    hit(results_area, spot);
     sb.keep_visible();
     sb.ensure_snippets();
 
@@ -2922,6 +3177,15 @@ fn draw_settings(frame: &mut Frame, s: &Settings) {
     let block = panel(format!(" {title} "), true);
     let inner = block.inner(body);
     frame.render_widget(block, body);
+    hit(body, Spot::Scroll);
+    if s.editing.is_none() && s.picker.is_none() {
+        let spot = Spot::Item {
+            list: mouse::Own::Settings,
+            offset: 0,
+            len: items.len(),
+        };
+        hit(inner, spot);
+    }
     let width = inner.width as usize;
     let mut lines: Vec<Line> = items
         .iter()
@@ -2983,6 +3247,12 @@ fn draw_settings(frame: &mut Frame, s: &Settings) {
             area,
             &mut state,
         );
+        let spot = Spot::Item {
+            list: mouse::Own::Theme,
+            offset: state.offset(),
+            len: config::THEMES.len(),
+        };
+        hit(Block::bordered().inner(area), spot);
     }
 
     let lines = if let Some((opt, input)) = &s.editing {
@@ -2999,6 +3269,11 @@ fn draw_settings(frame: &mut Frame, s: &Settings) {
         };
         let col = menu.x + (label.len() + input.cursor) as u16;
         frame.set_cursor_position((col.min(menu.right().saturating_sub(1)), menu.y));
+        let start = menu.x + label.len() as u16;
+        hit(
+            Rect::new(menu.x, menu.y, menu.width, 1),
+            Spot::Prompt { start },
+        );
         vec![
             Line::from(vec![
                 Span::styled(label, bold),
@@ -3038,7 +3313,7 @@ fn draw_settings(frame: &mut Frame, s: &Settings) {
         .into_iter()
         .map(|l| fit_menu(l, menu.width as usize))
         .collect();
-    frame.render_widget(Paragraph::new(lines), menu);
+    render_footer(frame, lines, menu, KeyModifiers::NONE);
 }
 
 fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
@@ -3070,6 +3345,7 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
     let block = panel(title, true);
     let inner = block.inner(body);
     frame.render_widget(block, body);
+    hit(body, Spot::Scroll);
 
     let home = platform::home_dir();
     let format_path = |p: &std::path::Path| -> String {
@@ -3132,6 +3408,12 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
             .map(|l| l.chars().count())
             .max()
             .map_or(0, |w| w.min(width / 2));
+        let spot = Spot::Item {
+            list: mouse::Own::Bookmarks,
+            offset: 0,
+            len: app.bookmarks.len(),
+        };
+        hit(inner, spot);
         for (i, ((k, bm), label)) in app.bookmarks.iter().zip(&labels).enumerate() {
             let missing = view.missing.contains(k);
             let cursor = if i == view.selected { "▶ " } else { "  " };
@@ -3173,7 +3455,7 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
     // The name of a bookmark is typed here, over the list.
     if let Some(prompt) = app.prompt.as_ref().filter(|p| p.is_bookmark_name()) {
         let lines = prompt_lines(frame, prompt, menu);
-        frame.render_widget(Paragraph::new(lines), menu);
+        render_footer(frame, lines, menu, KeyModifiers::NONE);
         return;
     }
     let keys: &[(&str, &str)] = if view.pick {
@@ -3192,7 +3474,8 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
             ("Esc", "exit"),
         ]
     };
-    frame.render_widget(fit_menu(menu_line("", keys), menu.width as usize), menu);
+    let line = fit_menu(menu_line("", keys), menu.width as usize);
+    render_footer(frame, vec![line], menu, KeyModifiers::NONE);
 }
 
 /// The help key to show in the footer: F1, unless the terminal is one of
@@ -3233,6 +3516,7 @@ fn draw_help(frame: &mut Frame, help: &mut Help) {
     let block = panel("", true);
     let inner = block.inner(body);
     frame.render_widget(block, body);
+    hit(body, Spot::Scroll);
     help.height = inner.height as usize;
     let selected = help.selected;
     let scroll = help.scroll;
@@ -3260,6 +3544,24 @@ fn draw_help(frame: &mut Frame, help: &mut Help) {
             )
         })
         .collect();
+    // Each link a spot, where it is on screen.
+    for (row, pieces) in page
+        .lines
+        .iter()
+        .skip(scroll)
+        .take(inner.height as usize)
+        .enumerate()
+    {
+        let mut x = 0u16;
+        for p in pieces {
+            let width = Line::raw(p.text.as_str()).width() as u16;
+            if let help::Kind::Link(id) = p.kind {
+                let area = Rect::new(inner.x + x, inner.y + row as u16, width, 1);
+                hit(area.intersection(inner), Spot::Link(id));
+            }
+            x = x.saturating_add(width);
+        }
+    }
     frame.render_widget(Paragraph::new(lines), inner);
 
     let percent = ((scroll + inner.height as usize).min(total.max(1)) * 100) / total.max(1);
@@ -3271,8 +3573,9 @@ fn draw_help(frame: &mut Frame, help: &mut Help) {
         }
         Line::from(spans)
     };
-    frame.render_widget(
-        Paragraph::new(vec![
+    render_footer(
+        frame,
+        vec![
             {
                 let mut first = keys(&[
                     ("Tab", "link"),
@@ -3293,8 +3596,9 @@ fn draw_help(frame: &mut Frame, help: &mut Help) {
                 format!("{:9}{percent}%", ""),
                 Style::new().fg(theme().dim),
             )),
-        ]),
+        ],
         menu,
+        KeyModifiers::NONE,
     );
 }
 
@@ -3315,6 +3619,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         Constraint::Length(2),
     ])
     .areas(frame.area());
+    hit(body, Spot::Scroll);
 
     let mut title = vec![
         Span::styled("View: ", Style::new().fg(theme().key)),
@@ -3597,6 +3902,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                     ("← →", "record"),
                     ("↑↓", "field"),
                     ("c", "copy record"),
+                    ("C", "numbered"),
                     ("y", "copy field"),
                     ("Esc", "back"),
                 ],
@@ -3609,7 +3915,11 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     } else if v.structure_view.is_some() {
         vec![menu_line(
             "COLUMNS",
-            &[("↑↓ PgUp PgDn", "scroll"), ("Esc", "back")],
+            &[
+                ("↑↓ PgUp PgDn", "scroll"),
+                ("c", "copy structure"),
+                ("Esc", "back"),
+            ],
         )]
     } else if v.patch_list.is_some() {
         vec![menu_line(
@@ -3642,11 +3952,19 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
             ],
         )]
     } else {
-        let mut words = vec![
-            "Find", "Backward", "Hex", "Colors", "Wrap", "#Num", "Goto", "Edit", "cOdepage",
-        ];
-        if v.can_render() {
-            words.insert(3, "Text");
+        // Find, the colors, Wrap, the line numbers and the codepage do
+        // nothing in the grid, so a table goes without them. B (Find
+        // backward) works as before, but F3 in Find turns the direction.
+        let table = v.mode == ViewMode::Table;
+        let mut words = if table {
+            vec!["Hex", "Goto", "Edit"]
+        } else {
+            vec![
+                "Find", "Hex", "Colors", "Wrap", "#Num", "Goto", "Edit", "cOdepage",
+            ]
+        };
+        if !table && v.can_render() {
+            words.insert(2, "Text");
         }
         if diff {
             words.push("Diff");
@@ -3681,7 +3999,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 } else if v.mode == ViewMode::Table {
                     vec![
                         ("Enter", "record"),
-                        ("&", "filter"),
+                        ("&", "SQL"),
                         ("i", "structure"),
                         ("m", "mark"),
                         ("Ctrl+B", "batch"),
@@ -3689,7 +4007,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                     ]
                 } else {
                     vec![
-                        ("&", "filter"),
+                        ("&", "grep"),
                         ("/ \\", "find here"),
                         ("Space", "next hit"),
                         ("Esc", "close"),
@@ -3738,7 +4056,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         .into_iter()
         .map(|l| fit_menu(l, menu.width as usize))
         .collect();
-    frame.render_widget(Paragraph::new(lines), menu);
+    render_footer(frame, lines, menu, KeyModifiers::NONE);
 }
 
 /// The most of a sheet's name that the frame shows.
@@ -3872,45 +4190,10 @@ const STRUCTURE_CELL_CHARS: usize = 40;
 fn draw_structure(frame: &mut Frame, view: &mut crate::viewer::table::StructureView, area: Rect) {
     let t = theme();
     let s = &view.structure;
-    let number = s.columns.len().max(1).to_string().len().max(1);
-    // Numbers (sizes, decimals) line up on the right.
-    let numeric: Vec<bool> = (0..s.titles.len())
-        .map(|c| {
-            s.columns.iter().all(|row| {
-                row.get(c)
-                    .is_none_or(|v| v.is_empty() || v == "?" || v.parse::<u64>().is_ok())
-            })
-        })
-        .collect();
-    let widths: Vec<usize> = s
-        .titles
-        .iter()
-        .enumerate()
-        .map(|(c, title)| {
-            s.columns
-                .iter()
-                .filter_map(|row| row.get(c))
-                .map(|v| v.chars().count())
-                .chain([title.chars().count()])
-                .max()
-                .unwrap_or(0)
-                .min(STRUCTURE_CELL_CHARS)
-        })
-        .collect();
-    let line = |first: &str, cells: &[String]| {
-        let mut text = format!("{first:>number$}");
-        for (c, width) in widths.iter().enumerate() {
-            let cell = fit(cells.get(c).map_or("", String::as_str), *width);
-            text.push_str("  ");
-            if numeric[c] {
-                text.push_str(&format!("{:>width$}", cell.trim_end()));
-            } else {
-                text.push_str(&cell);
-            }
-        }
-        text.trim_end().to_string()
-    };
-    let titles = line("#", &s.titles);
+    let mut table =
+        crate::viewer::table::TableGrid::structure_lines(s, STRUCTURE_CELL_CHARS).into_iter();
+    let titles = table.next().unwrap_or_default();
+    let rows_text: Vec<String> = table.collect();
     let wanted_width = s
         .about
         .iter()
@@ -3953,9 +4236,8 @@ fn draw_structure(frame: &mut Frame, view: &mut crate::viewer::table::StructureV
         Style::new().fg(t.key).add_modifier(Modifier::BOLD),
     ));
     lines.truncate(fixed);
-    for (i, row) in s.columns.iter().enumerate().skip(view.scroll).take(rows) {
-        let text = line(&(i + 1).to_string(), row);
-        lines.push(Line::raw(fit(&text, inner_width).trim_end().to_string()));
+    for text in rows_text.iter().skip(view.scroll).take(rows) {
+        lines.push(Line::raw(fit(text, inner_width).trim_end().to_string()));
     }
     frame.render_widget(Clear, rect);
     frame.render_widget(
@@ -4384,6 +4666,7 @@ fn draw_terminal_panel(
     let block = panel(title, true);
     let inner = block.inner(area);
     term.resize(inner.height, inner.width);
+    hit(inner, Spot::Pty);
     // Starts from the terminal's own colors, so that `apply_theme` sees the
     // cells the shell has not painted as default ones.
     frame.render_widget(Clear, inner);
@@ -4584,6 +4867,17 @@ fn draw_table_grid(
             let formatted_cell = format!("{:<width$} ", fit(cell_text, w), width = w);
             row_spans.push(Span::styled(formatted_cell, cell_style));
             row_spans.push(Span::styled("│ ", Style::new().fg(t.border)));
+            let cell = Rect::new(
+                inner.x.saturating_add(cur_w as u16),
+                inner.y + 1 + r_offset as u16,
+                (w + 2) as u16,
+                1,
+            );
+            let spot = Spot::Cell {
+                row: display_row_idx,
+                col: col_idx,
+            };
+            hit(cell.intersection(inner), spot);
             cur_w += w + 2;
         }
         lines.push(Line::from(row_spans));
@@ -4610,11 +4904,17 @@ fn draw_table_grid(
     frame.render_widget(Paragraph::new(lines).block(panel(title, true)), area);
 }
 
+/// The style of a key in the footers. It also carries `mouse::KEY_MARK`,
+/// which shows nothing, for the mouse to tell the keys by whatever the theme.
+pub fn key_style() -> Style {
+    Style::new()
+        .fg(theme().key)
+        .add_modifier(Modifier::BOLD)
+        .remove_modifier(mouse::KEY_MARK)
+}
+
 fn key(k: &str) -> Span<'static> {
-    Span::styled(
-        k.to_string(),
-        Style::new().fg(theme().key).add_modifier(Modifier::BOLD),
-    )
+    Span::styled(k.to_string(), key_style())
 }
 
 fn menu_line(title: &str, entries: &[(&str, &str)]) -> Line<'static> {
@@ -5474,6 +5774,11 @@ mod tests {
         app.viewer = Some(Viewer::open(path, LoadOptions::view(1 << 20)).unwrap());
         let screen = draw_text(&mut app);
         assert!(screen.contains("i structure"), "{screen}");
+        assert!(screen.contains("& SQL"), "{screen}");
+        assert!(
+            !screen.contains("Find") && !screen.contains("Wrap"),
+            "what does nothing in a grid is not offered: {screen}"
+        );
         assert!(screen.contains("Ctrl+End first, last row"), "{screen}");
         let v = app.viewer.as_mut().unwrap();
         v.handle_key(KeyEvent::from(KeyCode::Char('i')));
@@ -5492,6 +5797,18 @@ mod tests {
             "{screen}"
         );
         assert!(screen.contains("COLUMNS  ↑↓ PgUp PgDn scroll"), "{screen}");
+        assert!(screen.contains("c copy structure"), "{screen}");
+        // As text, the same file has Find and the line filter, as grep.
+        let v = app.viewer.as_mut().unwrap();
+        v.handle_key(KeyEvent::from(KeyCode::Esc));
+        v.handle_key(KeyEvent::from(KeyCode::Char('t')));
+        let screen = draw_text(&mut app);
+        assert!(screen.contains("& grep"), "{screen}");
+        assert!(screen.contains("Find"), "{screen}");
+        assert!(
+            !screen.contains("Backward"),
+            "F3 in Find turns it: {screen}"
+        );
     }
 
     #[test]
@@ -6367,5 +6684,50 @@ mod tests {
         );
         assert_eq!(border_type(&with("gruvbox", "theme")), BorderType::Rounded);
         assert!(!with("classic", "theme").type_colors);
+    }
+
+    /// The manual's command pages list the words of each menu, in the
+    /// menu's order and with its key: a word added to a menu needs its row.
+    #[test]
+    fn the_manual_lists_every_menu_word_in_order() {
+        // The 5-column rows of a page: key, command, tree, files, text.
+        fn rows(topic: &str) -> Vec<Vec<String>> {
+            let md = crate::help::topic(topic).unwrap_or_else(|| panic!("no topic {topic}"));
+            md.lines()
+                .filter(|l| l.starts_with("| "))
+                .map(|l| {
+                    l.trim_matches('|')
+                        .split('|')
+                        .map(|c| c.trim().to_string())
+                        .collect::<Vec<_>>()
+                })
+                .filter(|cells| cells.len() == 5 && cells[0] != "Key" && !cells[0].starts_with('-'))
+                .collect()
+        }
+        let pages: [(&str, &str, &[&str], &[&str]); 3] = [
+            ("commands", "", DIR_WORDS, FILE_WORDS),
+            ("commands-ctrl", "Ctrl+", CTRL_TREE_WORDS, CTRL_FILE_WORDS),
+            ("commands-alt", "Alt+", ALT_TREE_WORDS, ALT_FILE_WORDS),
+        ];
+        for (topic, mods, tree, files) in pages {
+            let rows = rows(topic);
+            for (column, words) in [(2, tree), (3, files)] {
+                let listed: Vec<&str> = rows
+                    .iter()
+                    .filter(|r| r[column] == "yes")
+                    .map(|r| r[1].as_str())
+                    .collect();
+                assert_eq!(listed, words, "{topic}.md, column {column}");
+            }
+            for row in &rows {
+                let key = word_key(&row[1]).to_ascii_uppercase();
+                let want = if mods.is_empty() {
+                    format!("`{key}`")
+                } else {
+                    format!("{mods}{key}")
+                };
+                assert_eq!(row[0], want, "{topic}.md: the key of {}", row[1]);
+            }
+        }
     }
 }

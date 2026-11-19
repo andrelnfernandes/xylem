@@ -15,9 +15,9 @@
 
 ## Tailles des répertoires (Alt+K)
 
-Affiche à droite de chaque répertoire de l'arborescence la **T**aille (**S**ize,
-total en K), le **N**ombre (**C**ount) de fichiers ou le **P**ourcentage
-(**P**ercent) ; **A**ucun (**N**one) désactive l'affichage. Avant de choisir,
+Affiche à droite de chaque répertoire de l'arborescence la taille (**S**ize,
+total en K), le nombre (**C**ount) de fichiers ou le pourcentage
+(**P**ercent) ; **N**one désactive l'affichage. Avant de choisir,
 **A**ll ou **T**agged compte tous les fichiers ou seulement les fichiers
 marqués, et **B**ranch ou **D**irectory additionne toute la branche ou seulement
 le répertoire. Les répertoires non encore lus affichent `?`. Chaque fenêtre a
@@ -35,4 +35,4 @@ son total ; la somme des parts de ses sous-répertoires peut donc être inférie
 monté via rclone, c'est ainsi que l'on trouve ce qui les remplit : voir
 [Stockage cloud](cloud.md). Pour un disque entier, la [vue d'utilisation du
 disque](usage.md) (Alt+U) va plus loin : fichiers et dossiers ensemble, espace
-sur le disque, liens matériels comptés une seule fois.
+sur le disque, liens physiques comptés une seule fois.

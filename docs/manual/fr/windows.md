@@ -4,7 +4,7 @@ Xylem se compile aussi pour Windows (Windows Terminal ou la console classique).
 Il y passe les tests automatisés, mais n'a pas encore été utilisé au quotidien ;
 attendez-vous donc à quelques aspérités. Ce qui change :
 
-- **Attributs** (`A`) modifie R, H, S et A, comme dans ZTreeWin : `RA` définit
+- **Attributs** (`A`) modifie R, H, S et A : `RA` définit
   exactement ceux-ci, `+H -A` en active ou en désactive certains. La liste des
   fichiers les affiche sous la forme `r-sa`.
 - Les fichiers et répertoires **cachés** sont ceux qui portent l'attribut H (un

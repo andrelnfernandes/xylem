@@ -32,6 +32,7 @@ pub enum Opt {
     Borders,
     Splash,
     ClockSeconds,
+    Mouse,
     Sort,
     SortDescending,
     EnterViews,
@@ -138,6 +139,11 @@ pub const PAGES: &[Page] = &[
             ('O', "Window borders", Opt::Borders),
             ('P', "Start screen with the name", Opt::Splash),
             ('Q', "Clock with seconds", Opt::ClockSeconds),
+            (
+                'R',
+                "Mouse (clicks, wheel, right-click menu; Shift+drag selects text)",
+                Opt::Mouse,
+            ),
         ],
     ),
     (
@@ -250,6 +256,7 @@ impl Opt {
             Opt::Borders => o.borders.as_str().into(),
             Opt::Splash => yes_no(o.splash),
             Opt::ClockSeconds => yes_no(o.clock_seconds),
+            Opt::Mouse => yes_no(o.mouse),
             Opt::FileDisplay => match o.file_display.as_str() {
                 "names" => "Names in columns".into(),
                 "names_size" => "Names and sizes in columns".into(),
@@ -349,6 +356,7 @@ impl Opt {
             Opt::Borders => o.borders = o.borders.next(),
             Opt::Splash => o.splash = !o.splash,
             Opt::ClockSeconds => o.clock_seconds = !o.clock_seconds,
+            Opt::Mouse => o.mouse = !o.mouse,
             Opt::FileDisplay => o.file_display = o.file_display.next(),
             Opt::Sort => o.sort = o.sort.next(),
             Opt::SortDescending => o.sort_descending = !o.sort_descending,

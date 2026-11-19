@@ -1,7 +1,5 @@
 # Comparación con ZTreeWin
 
-> **Una fila aún sin actualizar.** En la tabla, el visor ya no tiene límite de tamaño para archivos en disco; vea la versión en inglés.
-
 ## Antes que nada, un agradecimiento
 
 Uso alguna variante de XTree desde los años noventa y tengo una licencia
@@ -34,18 +32,16 @@ Ctrl+T/U), Copiar/Mover/Eliminar/Renombrar con las versiones Ctrl (marcados) y
 Alt (marcados con rutas), crear directorio, eliminar directorio, Prune,
 Atributos, Visor, Editar, eJecutar, Comparar (directorio y rama), Ordenar, Log,
 pantalla dividida (F8 y Tab), releer (F3), Abrir (`O`), actualización
-automática, exploración y extracción de archivos comprimidos, historial en las
-entradas, marcadores, ayuda (F1) y pantalla de configuración. Las teclas son las
+automática, exploración y extracción de archivos comprimidos, historial en los prompts, marcadores, ayuda (F1) y pantalla de configuración. Las teclas son las
 de ZTreeWin siempre que es posible; las excepciones están en "Teclas
 diferentes", al final.
 
 ## Lo que Xylem todavía no tiene
 
-- **Árbol:** Global (G), Graft (Alt+G), Mirror (Alt+M), liberar/descargar de la
-  memoria (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
+- **Árbol:** Global (G, y Ctrl+G para los marcados), Graft (Alt+G), Mirror (Alt+M), liberación parcial (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
   (Ctrl+V), F5/F6 (ocultar niveles de subdirectorios), marcar por atributo
   (Alt+T/U), Treespec en modo de edición (F5, comodines) y carpetas especiales
-  (F6), búsqueda directa con entrada (`|`) y modo activo, cambio de unidad (`<`
+  (F6), búsqueda directa con prompt (`|`) y modo activo, cambio de unidad (`<`
   y `>`).
 - **Archivos:** Abrir en una nueva ventana de terminal (Alt+O), Batch del
   archivo actual (Alt+B), JFC (J, comparar el contenido de dos archivos),
@@ -66,15 +62,15 @@ deja a otros programas", más abajo.
 | Función | En ZTreeWin | En Xylem |
 |---|---|---|
 | Filespec | nombre con reglas propias de nombre y extensión, fecha, tamaño, atributo, filtro invertido (Ctrl+I), etiquetas | glob para nombres, fecha y tamaño como en ZTreeWin (con K/M/G); sin atributos, inversión ni etiquetas |
-| Visor | modos Alpha, Dump, Hex, Junk y Wrap; juegos de caracteres; edición hexadecimal; marcadores; desplazamiento automático | texto, hexadecimal, tablas con filtro SQL y Markdown renderizado, con la búsqueda de ZTreeWin (F, B, /, \\, Space, + y -), ajuste de línea (W), números de línea (#), ir a línea (g / :), filtro de líneas con regex (&); hasta el límite de tamaño (`viewer_max_size`, de 16 MiB a 1 GiB); sin edición hexadecimal, por decisión propia (consulta "Lo que Xylem deja a otros programas") |
+| Visor | modos Alpha, Dump, Hex, Junk y Wrap; juegos de caracteres; edición hexadecimal; marcadores; desplazamiento automático | texto, hexadecimal, tablas con filtro SQL y Markdown renderizado, con la búsqueda de ZTreeWin (F, B, /, \\, Space, + y -), ajuste de línea (W), números de línea (#), ir a línea (g / :), filtro de líneas con regex (&); un archivo en disco de cualquier tamaño, leído a medida que avanza la pantalla; sin edición hexadecimal, por decisión propia (consulta "Lo que Xylem deja a otros programas") |
 | Ctrl+S | texto, hexadecimal o Unicode; en archivos ZIP busca solo en el índice | texto o hexadecimal |
 | Atributos | atributos de Windows (R, A, S, H) | permisos Unix en octal (`644`); sin propietario/grupo. En Windows, R, H, S y A, como en ZTreeWin |
-| Ordenar | Name, Ext, Date, Time, Length, Alpha, nuMber, Size, Value, Unsorted; Charset; igual/diferente en pantalla dividida | Nombre, Extensión, Fecha, Tamaño, ascendente/descendente, Ruta primero; cada ventana tiene su propio orden |
+| Ordenar | Name, Ext, Date, Time, Length, Alpha, nuMber, Size, Value, Unsorted; Charset; igual/diferente en pantalla dividida | Name, Ext, Date, Size, ascendente/descendente, Path primero; cada ventana tiene su propio orden |
 | Comparar | opciones Identical, Unique, Newer, Older, Size, Binary, Case; filtro de visualización | marca únicos, más recientes, más antiguos, idénticos, diferentes o únicos+más recientes; sin comparación binaria |
 | Prune | elimina solo los subdirectorios o también el actual; solo directorios vacíos; papelera de reciclaje | elimina siempre todo el directorio, permanentemente; confirmación configurable |
 | Log | varias unidades registradas, Global, cambio de unidad | una raíz por ventana; `L` abre otro directorio |
 | eJecutar | parámetros de lote `%1`–`%8`, ventana nueva (NTW) | `sh` con `%f`, `%t` y `%d`; siempre en la terminal de Xylem |
-| Historial | ventana de historial con marcadores | ↑/↓ en la entrada, un historial por tipo, guardado entre sesiones |
+| Historial | ventana de historial con marcadores | ↑ en el prompt abre una lista (escribir filtra, Del olvida), un historial por tipo, guardado entre sesiones |
 | Configuración | 7 páginas, editor de color por elemento (F4), Alt-Export | 4 páginas con las opciones que tienen sentido en Linux; F4 elige entre 12 temas listos para usar; colores individuales en `config.toml` |
 | Pantalla dividida | paneles de estadísticas opcionales por lado | sin panel de estadísticas |
 | Menús | menú Ctrl/Alt al mantener pulsada la tecla | igual en terminales con el protocolo de kitty; F9 en cualquier terminal |
@@ -94,6 +90,8 @@ Cosas para las que el manual de ZTreeWin v2.2 no tiene equivalente:
 - **Máquinas remotas por SSH** (`xy usuario@host:`): el árbol, Branch, el visor
   y Copiar funcionan en otra máquina, que también tiene su propia terminal.
   Consulta [máquinas remotas](remote.md).
+- **Almacenamiento en la nube:** Google Drive, S3 y los demás servicios que admite rclone, montados y mostrados como un árbol. Consulta [almacenamiento en la nube](cloud.md).
+- **SQL sobre la lista de archivos** (`W`): `ext = 'jpg' AND size > 10000000` deja los archivos que cumplen la condición, y `contains()` y `words()` miran dentro de ellos; la caja de búsqueda (`P`) encuentra archivos por las palabras que contienen. Consulta [encontrar archivos](sql.md).
 - **Git** (opcional): letras de estado en la lista de archivos, un menú de Git
   (Ctrl+G) y diffs en el visor. Consulta [Git](git.md).
 - **Uso del disco** (Alt+U): las carpetas y archivos de una rama juntos, los
@@ -110,7 +108,7 @@ Cosas para las que el manual de ZTreeWin v2.2 no tiene equivalente:
   [el visor](viewer.md).
 - **Tablas y Markdown:** hojas de cálculo, CSV, JSON Lines, DBF, SQLite y
   Parquet se abren en una cuadrícula con filtro SQL, y los archivos Markdown se
-  abren renderizados. Consulta [el visor](viewer.md).
+  abren renderizados. Consulta [tablas](tables.md).
 - **Archivos comprimidos sin compresor externo:** ZIP, 7z y TAR (sin
   comprimir, gzip, xz, bzip2, zstd) se abren como carpetas, y ZIP y TAR se
   crean, todo por el propio Xylem. Consulta [archivos comprimidos](archives.md).

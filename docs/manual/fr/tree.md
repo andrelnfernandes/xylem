@@ -43,13 +43,13 @@ les autres répertoires nécessitent toujours F3.
 
 - `B` (Branch) : les fichiers de toute la branche, en la lisant d'abord.
 - `S` (Showall) : les fichiers de tout ce qui a été lu.
-- Ctrl+S : Showall des seuls fichiers marqués (le mode Tags-Only de ZTreeWin).
+- Ctrl+S : Showall des seuls fichiers marqués.
   Les fichiers démarqués y restent jusqu'à ce que la liste soit relue (F3) ;
   sans plus aucune marque, tous les fichiers réapparaissent.
 - `F` ([Filespec](filespec.md)) : quels fichiers afficher, par nom, date et taille.
-- `W` ([une condition SQL](filespec.md#une-condition-sql-w)) : quels fichiers afficher, selon une condition sur leur nom, taille, date et emplacement ; `Ctrl+W` sur les marqués.
-- `P` ([boîte de recherche](filespec.md#la-boite-de-recherche-p)) : recherche les fichiers lus par mots au fil de la frappe, avec extraits ; `Ctrl+P` sur les marqués.
-- `Alt+N` ([index](filespec.md#mots-entiers-et-un-index-words)) : indexe les mots des fichiers lus de la branche, pour que `words()` dans W réponde instantanément.
+- `W` ([une condition SQL](sql.md#une-condition-sql-w)) : quels fichiers afficher, selon une condition sur leur nom, taille, date et emplacement ; `Ctrl+W` sur les marqués.
+- `P` ([boîte de recherche](sql.md#la-boîte-de-recherche-p)) : recherche les fichiers lus par mots au fil de la frappe, avec extraits ; `Ctrl+P` sur les marqués.
+- `Alt+N` ([index](sql.md#mots-entiers-et-un-index--words)) : indexe les mots des fichiers lus de la branche, pour que `words()` dans W réponde instantanément.
 
 Dans Branch et Showall, `\` va au répertoire du fichier sélectionné. `B` à nouveau revient
 à la liste du répertoire lui-même.

@@ -1,12 +1,14 @@
 # Duplikate (Alt+D)
 
-Dateien mit gleichem Inhalt, egal mit welchen Namen und in welchen Ordnern, und
-der Platz, den die Kopien verschwenden. **Alt+D** sucht im Zweig des aktuellen
-Verzeichnisses; **D** in der Belegungsansicht sucht im dort gezeigten Ordner.
+**Alt+D** listet die Dateien mit gleichem Inhalt im Zweig des aktuellen
+Verzeichnisses auf, unabhängig von Namen und Ordnern, sowie den von den Kopien
+belegten Platz. **D** in der Belegungsansicht sucht im dort gezeigten Ordner.
+[Duplikate finden und eine Kopie behalten](howto-duplicates.md) beschreibt die
+Schritte.
 
-
-> Bis Version 0.7 waren die Duplikate Alt+Y, und Alt+D löschte die markierten
-> Dateien (jetzt nur Ctrl+D). Siehe [Ctrl und Alt](tagging.md#was-ctrl-und-alt-bedeuten).
+**Geändert in Version 0.8.** Duplikate lagen auf Alt+Y, und Alt+D löschte die
+markierten Dateien, was nun ausschließlich über Ctrl+D geschieht. Siehe die
+[Versionshinweise](releases.md).
 
 ```
 ── 3 × 1.2 GiB (2.4 GiB to free) ──────────────────────
@@ -32,8 +34,8 @@ markieren.
 | `A` | in jeder Gruppe alle bis auf eine markieren; erneut `A` ändert, welche bleibt: die älteste, die neueste, der kürzeste Pfad |
 | `F` | in jeder Gruppe mit einer Kopie im Ordner dieser Kopie jene behalten |
 | `U` | alle Markierungen aufheben |
-| `D`, Entf oder Strg+D | löscht die markierten, wie der Befehl Delete (in den Papierkorb, wenn `delete_to_trash` an ist) |
-| `M` oder Strg+M | verschiebt die markierten Dateien |
+| `D`, Del oder Ctrl+D | löscht die markierten, wie der Befehl Delete (in den Papierkorb, wenn `delete_to_trash` an ist) |
+| `M` oder Ctrl+M | verschiebt die markierten Dateien |
 | `G` | Dateien oder ganze Ordner |
 | `V` oder Enter | zeigt die Datei |
 | `E` | schreibt die Liste in eine Datei (nie über eine vorhandene): Größe, Datum, Markierung und Pfad, eine Leerzeile zwischen den Gruppen |

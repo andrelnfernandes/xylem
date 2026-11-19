@@ -1,35 +1,60 @@
 # Xylem-Handbuch
 
-Xylem ist ein textbasierter Dateimanager, inspiriert von XTree und ZTreeWin:
-oben ein Verzeichnisbaum, darunter die Dateien des aktuellen Verzeichnisses
-und rechts die Statistiken. Er liest (loggt) Verzeichnisse in den Speicher ein,
-sodass Sie Dateien über einen gesamten Zweig hinweg markieren und in einem
-Schritt kopieren, verschieben, löschen, vergleichen oder umbenennen können.
+Xylem ist ein textbasierter Dateimanager mit dem Bildschirm und den Tasten von
+XTree und ZTreeWin: oben ein Verzeichnisbaum, darunter die Dateien des aktuellen
+Verzeichnisses und rechts die Statistiken. Er liest Verzeichnisse in den
+Speicher ein, sodass eine einzige Liste Dateien eines ganzen Zweigs vereinen
+kann und ein einziger Befehl alle markierten Dateien kopiert, verschiebt, löscht,
+vergleicht oder umbenennt.
 
-Xylem behandelt nicht vertrauenswürdige Dateien als potenziell feindlich: Es
-sollte niemals abstürzen, einfrieren, Code ausführen, außerhalb des Zielorts
-schreiben oder den Speicher erschöpfen, ganz gleich, was eine Datei enthält oder
-wie sie benannt ist. Dennoch können Fehler vorkommen. Eine vollständige Liste
-der Schutzmaßnahmen und Empfehlungen finden Sie in der Sicherheitserklärung
-im README.
+Xylem behandelt Dateien, die es nicht selbst erstellt hat, als potenziell
+feindlich: Weder der Inhalt noch der Name einer Datei darf dazu führen, dass
+Xylem abstürzt, einfriert, Code ausführt, außerhalb des Zielorts schreibt oder
+den Speicher erschöpft. [Sicherheit](security.md) beschreibt die Maßnahmen und
+was nicht abgedeckt ist.
 
-**F1** (oder **Alt+H** in Terminals, die F1 selbst belegen) öffnet die Hilfe zu
-dem, was Sie gerade tun: in einer Eingabezeile die Hilfe zu dieser Eingabe; im
-Baum- oder Dateifenster die Hilfe zu diesem Fenster. In der Hilfe wählen
-**Tab** und **Shift+Tab** einen Link aus, **Enter** folgt ihm, **Backspace**
-geht zurück, **I** zeigt diesen Index, **K** die aktiven Tasten, **L** wechselt
-die Sprache und **Esc** schließt die Hilfe.
+**F1** (oder **Alt+H** für Terminals, die F1 selbst belegen) öffnet die Hilfe zu
+dem, was auf dem Bildschirm zu sehen ist: in einer Eingabezeile das Thema
+dieser Eingabezeile; im Baum- oder Dateifenster das Thema dieses Fensters.
 
-**Hilfe bei der Übersetzung:** Diese Fassung des Handbuchs wurde nicht von
-Muttersprachlern geprüft. Wenn Sie einen Fehler oder eine seltsam klingende
-Stelle finden, schlagen Sie bitte eine Verbesserung vor: `https://github.com/andrelnfernandes/xylem/issues`.
+| Taste in der Hilfe | Funktion |
+|---|---|
+| Tab, Shift+Tab | wählt den nächsten oder vorherigen Link aus |
+| Enter | folgt dem Link |
+| Backspace | geht zurück |
+| `I` | dieser Index |
+| `K` | die gültigen Tasten |
+| `L` | wechselt die Sprache |
+| Esc | schließt die Hilfe |
+
+Die spanische, französische, deutsche und chinesische Fassung dieses Handbuchs
+wurden nicht von Muttersprachlern geprüft. Korrekturen:
+`https://github.com/andrelnfernandes/xylem/issues`.
+
+## Hier starten
+
+- [Was Xylem ist](overview.md): Einlesen, Markierungen und was die Befehle abdecken
+- [Installieren und die ersten fünf Minuten](start.md)
+- [Der Bildschirm](screen.md): Baum, Dateifenster, Statistiken, Menüleiste
+- [Die Menüs, Ctrl und Alt](menus.md): Buchstabe allein, mit Ctrl, mit Alt, und F9
+- [The mouse](mouse.md) (in English for now): turning it on in F12, the wheel, clicks and the footer
+- [Vokabular](glossary.md): Log, Branch, Tag, Filespec
+
+## Befehle
+
+- [Die Menüs DIR und FILE](commands.md): die einzelnen Buchstaben
+- [Das Ctrl-Menü](commands-ctrl.md): die markierten Dateien
+- [Das Alt-Menü](commands-alt.md): der Zweig, die Pfade und die Werkzeuge
+- [Git](git.md): das Git-Menü (Ctrl+G)
+- [Funktionstasten und Symbole](commands-keys.md)
+- [Die gültigen Tasten](keys.md): mit den Änderungen aus der Konfiguration
 
 ## Fenster und Ansichten
 
 - [Das Baumfenster](tree.md): Navigation, Einlesen, Branch und Showall
 - [Das Dateifenster](files.md): Anzeigemodi, Autoview, Dateien öffnen
 - [Geteilter Bildschirm](split.md): zwei Fenster nebeneinander
-- [Der Betrachter](viewer.md): Text und Hex, Suche, Syntaxfarben
+- [Der Betrachter](viewer.md): Text, Hex und Tabellen, Suche, Syntaxfarben
 - [Zeilen filtern](filter.md): `&` im Betrachter, mit einer Anleitung zu regulären Ausdrücken
 - [Markierte Dateien durchsuchen](search.md): Ctrl+S und Ctrl+V
 - [Informationen](info.md): Info, Avail, Statistiken und Verzeichnisgrößen
@@ -52,15 +77,30 @@ Stelle finden, schlagen Sie bitte eine Verbesserung vor: `https://github.com/and
 ## Über XTree hinaus
 
 - [Das integrierte Terminal](terminal.md)
-- [Entfernte Rechner (SSH)](remote.md): anderen Rechner durchsuchen, sein Terminal
+- [Entfernte Rechner (SSH)](remote.md): ein entfernter Rechner oder Container als Baum
 - [Cloud-Speicher (rclone)](cloud.md): Google Drive, S3 und andere
-- [Git](git.md)
+- [Dateien mit SQL finden](sql.md): eine Bedingung über die Dateien und ihren Inhalt (W), und die Wörter darin (P)
+- [Tabellen](tables.md): Tabellenkalkulationen, CSV, dBase, SQLite und Parquet als Raster, mit SQL-Filter und jedem Datensatz als Formular
 - [Lesezeichen](bookmarks.md)
 
-## Einrichtung
+## Anleitungen
+
+- [Dateien aus mehreren Ordnern mit ihren Pfaden kopieren](howto-copy-with-paths.md)
+- [Viele Dateien mit einem Zähler umbenennen](howto-rename-mask.md)
+- [Dateien mit einer SQL-Bedingung auswählen](howto-sql-filter.md)
+- [Duplikate finden und eine Kopie behalten](howto-duplicates.md)
+- [Finden, was die Platte füllt](howto-disk-space.md)
+- [Eine CSV-Datei oder Tabelle mit SQL filtern](howto-table-sql.md)
+- [Dateien von einem anderen Rechner per SSH kopieren](howto-ssh-copy.md)
+- [Die markierten Dateien in einem Shell-Befehl verwenden](howto-terminal-tagged.md)
+
+## Referenz
 
 - [Konfiguration](configuration.md): der F12-Bildschirm, Themen, Tasten
+- [Die Befehlszeile](cli.md)
+- [Terminals und Tasten](terminals.md): F1, Ctrl+M, das Kitty-Tastaturprotokoll
+- [Sicherheit](security.md)
 - [Beenden und Verzeichnis der Shell wechseln](quit.md)
 - [Windows](windows.md)
 - [Vergleich mit ZTreeWin](ztreewin.md)
-- Aktive Tastenbelegung: drücken Sie **K** in der Hilfe.
+- [Versionshinweise](releases.md)

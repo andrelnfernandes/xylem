@@ -39,7 +39,7 @@ quieras dejar abierto en su propia ventana, añade `&` al final del comando (por
 ejemplo, `imhex %f &` o `ghex %f &`): Xylem lo lanza directamente sin abrir el
 marco de terminal.
 
-El marco avisa de que es un programa externo y de cómo salir de los más comunes. Recibe todas las teclas, y **Esc** puede no cerrarlo: en `hexedit`, **Ctrl+X** guarda y sale, y **Ctrl+C** sale sin guardar. Tras **Esc**, `hexedit` espera otra tecla y puede decir `Unknown command`: pulse **Espacio** y repita.
+El marco avisa de que es un programa externo y de cómo salir de los más comunes. Recibe todas las teclas, y **Esc** puede no cerrarlo: en `hexedit`, **Ctrl+X** guarda y sale, y **Ctrl+C** sale sin guardar. Tras **Esc**, `hexedit` espera otra tecla y puede decir `Unknown command`: pulsa **Espacio** y repite.
 
 Si prefieres que `E` no abra archivos binarios (y solo lo indique en el pie de
 página sugiriendo `O` para abrirlos con el programa del sistema), pon **Edit
@@ -63,12 +63,9 @@ clave que coincida, en el orden del archivo. `binary` es para los archivos
 binarios que ningún patrón haya capturado cuando `binary_editor` está vacío; el
 resto de archivos se abren en el editor de texto habitual.
 
-Xylem no tiene un editor hexadecimal propio, y es una decisión deliberada:
-desarrollar y mantener uno supondría mucho trabajo para poco uso, y editar bytes
-a mano es una forma fácil de corromper un archivo. En su lugar, Xylem integra
-editores hexadecimales dedicados directamente dentro de su marco y con su tema
-de colores, y permite desactivar la edición de binarios con una sola opción en
-**F12** si no la deseas.
+Xylem no tiene un editor hexadecimal propio. Ejecuta el que tengas instalado
+dentro de su marco, con su tema de colores, y `edit_binary` en la página 1 de
+**F12** desactiva la edición de archivos binarios.
 
 ## eJecutar (X)
 
@@ -114,7 +111,7 @@ Un archivo existente no se sobrescribe.
 
 Con una tabla o un texto abierto en el [visor](viewer.md), **Ctrl+B** escribe una línea por registro, a partir del archivo entero: más allá de las 50 000 filas de la pantalla, con los valores enteros y tal como están en el archivo. Respeta el filtro en uso (el filtro SQL en la tabla, el [filtro de líneas](filter.md) en el texto). La tabla se vuelve a leer en ese momento; el texto sale como lo leyó el visor, hasta el límite de tamaño, y la vista previa avisa cuando eso no es todo el archivo. Pide el archivo, luego la máscara, y muestra las primeras líneas antes de escribir: **Enter** escribe, **Esc** desiste. Durante la escritura, Esc cancela y elimina el archivo incompleto. Un archivo existente no se sobrescribe.
 
-Mientras escribe la máscara, un recuadro encima muestra una máscara que funciona en este archivo, sus campos y las plantillas que tiene, cada una con la primera frase de su comentario inicial (`%%#`). **↑↓** eligen una plantilla, **F3** la muestra entera antes de usarla y **PgUp**/**PgDn** recorren el historial. La descripción la escribió quien hizo la plantilla: lea con F3 una plantilla de otra persona antes de usarla. Un error en la máscara mantiene el prompt abierto con lo que escribió e indica qué está mal.
+Mientras escribes la máscara, un recuadro encima muestra una máscara que funciona en este archivo, sus campos y las plantillas que tienes, cada una con la primera frase de su comentario inicial (`%%#`). **↑↓** eligen una plantilla, **F3** la muestra entera antes de usarla y **PgUp** abre el [historial](#historial). La descripción la escribió quien hizo la plantilla: lee con F3 una plantilla de otra persona antes de usarla. Un error en la máscara mantiene el prompt abierto con lo que escribiste e indica qué está mal.
 
 | Campo | Valor |
 |---|---|
@@ -159,7 +156,7 @@ Los valores vienen de un archivo que puede ser hostil y pueden ir a algo que vas
 
 En un archivo `.json`, `.jsonl`, `.ndjson`, `.csv`, `.tsv`, `.xml`, `.html` o `.htm`, deja la máscara **vacía** para escribir registros enteros, con las reglas del formato: un array JSON de objetos, un objeto por línea, una tabla con fila de cabecera, un `<record>` por registro o una página con una tabla. Para escribir solo algunos campos, empieza la máscara con `@`: `@id, nombre, #`. El texto da `line_number`, `line` y los grupos del filtro. Los campos se descubren en los primeros 1000 registros: una clave de JSON Lines que solo aparezca después queda fuera, y el mensaje final lo avisa.
 
-Un archivo `.db`, `.sqlite` o `.sqlite3` también recibe registros enteros, en una tabla `records`, y rechaza máscaras y plantillas. Cada valor conserva su tipo: las columnas no tienen tipo, así que un `007` de un CSV sigue siendo `007`. Por eso los valores de un CSV son texto; para compararlos como números, use `CAST(balance AS REAL)`.
+Un archivo `.db`, `.sqlite` o `.sqlite3` también recibe registros enteros, en una tabla `records`, y rechaza máscaras y plantillas. Cada valor conserva su tipo: las columnas no tienen tipo, así que un `007` de un CSV sigue siendo `007`. Por eso los valores de un CSV son texto; para compararlos como números, usa `CAST(balance AS REAL)`.
 
 ### Plantillas
 
@@ -194,7 +191,7 @@ En el registro, `%%if condición`, `%%else` y `%%end` eligen qué escribir, y `%
 
 `%{#}` es la posición del registro en lo leído, y `%{count}` y el mensaje final cuentan los registros que escribieron algo. La vista previa indica qué ramas no siguió ningún registro examinado, pues solo lee los primeros 1000. Una línea que empieza por `%%if ` o `%%stop if ` es siempre uno de estos comandos.
 
-En el pie, `%{sum:columna}`, `%{min:columna}`, `%{max:columna}` y `%{avg:columna}` totalizan los registros escritos, en decimal exacto. Un número se lee como `1234.56`; para otros archivos, indique cómo lo escriben, `%{sum:valor:br}` para `1.234,56` o `%{sum:valor:us}` para `1,234.56`, y el total sale igual. Un valor vacío no cuenta, y uno que no es número queda fuera y se cuenta en el mensaje final.
+En el pie, `%{sum:columna}`, `%{min:columna}`, `%{max:columna}` y `%{avg:columna}` totalizan los registros escritos, en decimal exacto. Un número se lee como `1234.56`; para otros archivos, indica cómo lo escriben, `%{sum:valor:br}` para `1.234,56` o `%{sum:valor:us}` para `1,234.56`, y el total sale igual. Un valor vacío no cuenta, y uno que no es número queda fuera y se cuenta en el mensaje final.
 
 En el pie, `%{count}` es cuántos registros se escribieron. La cabecera no puede tenerlo, porque se escribe antes de leerlos.
 
@@ -202,7 +199,22 @@ En un `.sh`, `%{$HOME}` escribe el valor de ahora, mientras que `$HOME` se lee c
 
 ## Historial
 
-En cada entrada, ↑ y ↓ recuperan entradas anteriores. Cada tipo de entrada
-(Filespec, destino, Log, eJecutar...) tiene su propio historial, guardado en
-`~/.local/state/xylem/history.toml`, legible solo por ti, ya que puede contener
-comandos escritos.
+En cada prompt, **↑** abre las entradas anteriores como una lista, justo encima
+de la línea, con la última abajo y el cursor en ella:
+
+| Tecla en la lista | Qué hace |
+|---|---|
+| ↑ ↓ PgUp PgDn Home End | eligen |
+| Enter | pone la entrada en la línea, para editarla o confirmarla con otro Enter |
+| escribir | muestra solo las entradas que contienen lo escrito, sin distinguir mayúsculas de minúsculas |
+| Del | quita la entrada del historial, definitivamente |
+| Esc | cierra la lista, con la línea como estaba |
+
+Lo escrito antes de ↑ también filtra la lista; un texto que el prompt trae ya
+puesto (el directorio de la otra ventana en Copy, por ejemplo) no la filtra,
+hasta que lo editas. Mientras la lista está abierta, las teclas propias del
+prompt (F2, F11...) esperan a que se cierre.
+
+Cada tipo de prompt (Filespec, Log y destinos, eXecute...) tiene su propio
+historial, guardado en `~/.local/state/xylem/history.toml`, legible solo por ti,
+ya que puede contener comandos escritos.

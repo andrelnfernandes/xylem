@@ -85,6 +85,9 @@ borders = "theme"
 splash = true
 # Seconds in the clock at the top right (the dates in the lists never have them).
 clock_seconds = false
+# The mouse: the wheel, clicks on the tree, the lists and the footer's keys.
+# With it on, the terminal selects text with Shift+drag (Option+drag in iTerm2).
+mouse = false
 # Initial mode of the files window (Alt+F changes it while running): "names"
 # (several columns), "names_size" (columns with size), "details" (one
 # column with size, date and permissions), "owner" (size, owner and group,
@@ -257,6 +260,8 @@ pub struct Options {
     pub splash: bool,
     /// Seconds in the clock of the header.
     pub clock_seconds: bool,
+    /// The mouse (docs/plans/mouse.md).
+    pub mouse: bool,
     /// Initial mode of the files window (Alt+F changes it while running).
     pub file_display: FileDisplay,
     /// Initial file sort order.
@@ -314,6 +319,7 @@ impl Default for Options {
             borders: Borders::Theme,
             splash: true,
             clock_seconds: false,
+            mouse: false,
             file_display: FileDisplay::Details,
             sort: SortKey::Name,
             sort_descending: false,
@@ -375,6 +381,7 @@ impl Options {
             ("borders", s(self.borders.as_str())),
             ("splash", Value::from(self.splash)),
             ("clock_seconds", Value::from(self.clock_seconds)),
+            ("mouse", Value::from(self.mouse)),
             ("file_display", s(self.file_display.as_str())),
             ("sort", s(self.sort.as_str())),
             ("sort_descending", Value::from(self.sort_descending)),
@@ -1633,6 +1640,13 @@ mod tests {
         let c = Config::parse("[options]\nclock_seconds = true").unwrap();
         assert!(c.options.clock_seconds);
         assert!(!Config::parse("").unwrap().options.clock_seconds);
+        assert!(
+            Config::parse("[options]\nmouse = true")
+                .unwrap()
+                .options
+                .mouse
+        );
+        assert!(!Config::parse("").unwrap().options.mouse);
     }
 
     #[test]

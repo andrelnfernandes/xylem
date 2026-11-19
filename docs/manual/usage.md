@@ -1,12 +1,12 @@
 # Disk usage (Alt+U)
 
-Where the space goes. **Alt+U** logs the whole branch of the current
-directory and lists its folders and files by the space they take, largest
-first, with a bar and their share of the directory. Enter goes into a
-folder; folder by folder, you get down to what fills the disk.
+**Alt+U** logs the whole branch of the current directory and lists its
+folders and files by the space they take, largest first, with a bar and their
+share of the directory. Enter goes into a folder.
+[Finding what fills the disk](howto-disk-space.md) has the steps.
 
-> Up to version 0.7, Usage was Alt+W, and Alt+U untagged everything (now only
-> Ctrl+U). See [Ctrl and Alt](tagging.md#what-ctrl-and-alt-mean).
+**Changed in version 0.8.** Usage was Alt+W, and Alt+U untagged everything,
+which is now only Ctrl+U. See the [release notes](releases.md).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar

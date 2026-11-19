@@ -21,6 +21,7 @@ mod info;
 mod input;
 mod keymap;
 mod model;
+mod mouse;
 mod ops;
 mod pane;
 mod panic_guard;
@@ -226,6 +227,7 @@ fn main() -> anyhow::Result<()> {
     // `init` also installs a panic hook that restores the terminal.
     let mut terminal = ratatui::init();
     let mut keyboard = Keyboard::detect();
+    let mut mouse = Mouse::new();
     if splash {
         app.splash = Some(Instant::now() + app::SPLASH);
     }
@@ -237,7 +239,8 @@ fn main() -> anyhow::Result<()> {
             previous(info);
         }
     }));
-    let result = run(&mut terminal, &mut app, &mut keyboard);
+    let result = run(&mut terminal, &mut app, &mut keyboard, &mut mouse);
+    mouse.restore();
     keyboard.restore();
     ratatui::restore();
     // Files extracted from ZIP/TAR to open with O, the terminal's script.
@@ -342,14 +345,64 @@ impl Keyboard {
     }
 }
 
+/// The mouse, when the option is on (docs/plans/mouse.md): turned on and off
+/// as the option changes, off while another program has the terminal, and
+/// sent again when it gives the terminal back, since that program (vim,
+/// less) may have turned it off on leaving.
+struct Mouse {
+    on: bool,
+}
+
+impl Mouse {
+    fn new() -> Self {
+        // A panic with the mouse on would leave the shell receiving the
+        // clicks as text. Turning it off when it was not on is harmless.
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let _ = mouse::disable(&mut stdout());
+            previous(info);
+        }));
+        Mouse { on: false }
+    }
+
+    fn sync(&mut self, app: &App) -> std::io::Result<()> {
+        let want = app.options.mouse;
+        if want == self.on {
+            return Ok(());
+        }
+        if want {
+            mouse::enable(&mut stdout())?;
+        } else {
+            mouse::disable(&mut stdout())?;
+        }
+        self.on = want;
+        Ok(())
+    }
+
+    fn restore(&mut self) {
+        if self.on {
+            let _ = mouse::disable(&mut stdout());
+        }
+    }
+
+    /// After a `restore`: on again if it was on.
+    fn resume(&mut self) {
+        if self.on {
+            let _ = mouse::enable(&mut stdout());
+        }
+    }
+}
+
 /// Hands the terminal to an external program (editor, command) and takes it
 /// back when it finishes.
 fn run_external(
     terminal: &mut DefaultTerminal,
     keyboard: &mut Keyboard,
+    mouse: &mut Mouse,
     ext: &shell::External,
     editor_theme: bool,
 ) -> std::io::Result<std::process::ExitStatus> {
+    mouse.restore();
     keyboard.restore();
     terminal::disable_raw_mode()?;
     execute!(stdout(), LeaveAlternateScreen, cursor::Show)?;
@@ -371,6 +424,7 @@ fn run_external(
     execute!(stdout(), EnterAlternateScreen)?;
     terminal::enable_raw_mode()?;
     keyboard.resume();
+    mouse.resume();
     terminal.clear()?;
     status
 }
@@ -379,6 +433,7 @@ fn run(
     terminal: &mut DefaultTerminal,
     app: &mut App,
     keyboard: &mut Keyboard,
+    mouse: &mut Mouse,
 ) -> anyhow::Result<()> {
     // Without inotify (limit exhausted, unsupported system), there is just no
     // automatic refresh.
@@ -387,6 +442,7 @@ fn run(
     let mut last_fs_check = Instant::now();
     while !app.should_quit {
         keyboard.sync(app)?;
+        mouse.sync(app)?;
         if let Some(w) = &mut watcher {
             let dirs = if app.options.auto_refresh {
                 app.watched_dirs()
@@ -449,8 +505,16 @@ fn run(
             continue;
         }
         // Press, repeat and release: the App decides which to use.
-        if let Event::Key(key) = event::read()? {
-            app.handle_key(key);
+        match event::read()? {
+            Event::Key(key) => app.handle_key(key),
+            // The pointer moving with no button held: nothing to redraw
+            // (Windows reports it; Unix does not ask for it).
+            Event::Mouse(m) if m.kind == event::MouseEventKind::Moved => {
+                redraw = false;
+                continue;
+            }
+            Event::Mouse(m) => app.handle_mouse(m, Instant::now()),
+            _ => {}
         }
         if let Some(ext) = app.external.take() {
             let backgrounded = ext.line.to_string_lossy().trim_end().ends_with('&');
@@ -459,7 +523,8 @@ fn run(
                     app.message = Some(format!("Cannot start editor: {e}"));
                 }
             } else {
-                let result = run_external(terminal, keyboard, &ext, app.options.editor_theme);
+                let result =
+                    run_external(terminal, keyboard, mouse, &ext, app.options.editor_theme);
                 app.after_external(result);
             }
         }

@@ -1,14 +1,13 @@
 # Speicherplatzbelegung (Alt+U)
 
-Wohin der Speicherplatz geht. **Alt+U** liest den gesamten Zweig des aktuellen
-Verzeichnisses ein und listet dessen Ordner und Dateien nach dem belegten Platz
-auf, die größten zuerst, mit einem Balken und ihrem Anteil am Verzeichnis.
-Enter wechselt in einen Ordner; Ordner für Ordner gelangen Sie so zu dem, was
-die Festplatte füllt.
+**Alt+U** liest den gesamten Zweig des aktuellen Verzeichnisses ein und listet
+dessen Ordner und Dateien nach dem belegten Platz auf, die größten zuerst, mit
+einem Balken und ihrem Anteil am Verzeichnis. Enter wechselt in einen Ordner.
+[Finden, was die Platte füllt](howto-disk-space.md) beschreibt die Schritte.
 
-
-> Bis Version 0.7 war die Speicherplatzbelegung Alt+W, und Alt+U hob alle
-> Markierungen auf (jetzt nur Ctrl+U). Siehe [Ctrl und Alt](tagging.md#was-ctrl-und-alt-bedeuten).
+**Geändert in Version 0.8.** Die Speicherplatzbelegung lag auf Alt+W, und Alt+U
+hob alle Markierungen auf, was nun ausschließlich über Ctrl+U geschieht. Siehe
+die [Versionshinweise](releases.md).
 
 ```
        32.9 GiB ████████████████   45%   wsl-ubuntu-backup.tar
@@ -77,17 +76,17 @@ Byte-Größe der Dateien. Die untere Zeile zeigt immer beide Werte an.
 Die Rückfragen sind dieselben wie im Dateifenster, und die Summen werden gleich
 danach neu berechnet, während die Ansicht offen bleibt.
 
-- **Entf auf einem Ordner** löscht ihn mit allem Inhalt, in den Papierkorb, wenn
+- **Del auf einem Ordner** löscht ihn mit allem Inhalt, in den Papierkorb, wenn
   das so eingestellt ist; Alt+P löscht endgültig, mit der getippten Bestätigung
   von Prune.
 - **Einen Ordner markieren** markiert alle seine Dateien, auch versteckte. `■`
   steht für eine markierte Datei oder einen ganz markierten Ordner, `□` für einen
   teilweise markierten Ordner, und die untere Zeile nennt Anzahl und Platzbedarf
-  der Markierten im angezeigten Ordner. Strg+D löscht diese. Die Markierungen
+  der Markierten im angezeigten Ordner. Ctrl+D löscht diese. Die Markierungen
   bleiben nach dem Schließen der Ansicht erhalten, für Copy oder Move.
 - **Ein anderer Datenträger wird nie angetastet.** Eine `>`-Zeile lässt sich weder
   markieren noch löschen, und Markieren oder Löschen eines Zweigs endet dort, wo
-  ein anderer Datenträger eingehängt ist. Entf verweigert einen Ordner, in dem ein
+  ein anderer Datenträger eingehängt ist. Del verweigert einen Ordner, in dem ein
   Datenträger eingehängt ist; Alt+P löscht alles außer diesem.
 - In einem Archiv oder auf einem entfernten Rechner gehen nur Markieren und Anzeigen.
 
@@ -103,9 +102,9 @@ danach neu berechnet, während die Ansicht offen bleibt.
 | `C` | Dateianzahl ein- oder ausblenden |
 | `S` | nach Größe, Name, Dateianzahl oder Datum sortieren |
 | `T` / `U` | die Datei oder alle Dateien des Ordners markieren oder die Markierung aufheben |
-| Strg+T / Strg+U | alles im angezeigten Ordner markieren oder die Markierung aufheben |
-| Entf, Umschalt+Entf | die Datei oder den Ordner löschen (Umschalt: endgültig) |
-| Strg+D, Strg+Umschalt+Entf | die markierten Dateien im angezeigten Ordner löschen (Umschalt: endgültig) |
+| Ctrl+T / Ctrl+U | alles im angezeigten Ordner markieren oder die Markierung aufheben |
+| Del, Shift+Del | die Datei oder den Ordner löschen (Shift: endgültig) |
+| Ctrl+D, Ctrl+Shift+Del | die markierten Dateien im angezeigten Ordner löschen (Shift: endgültig) |
 | Alt+P | [Prune](delete.md) des Ordners |
 | `V` | die Datei anzeigen |
 | `D` | im gezeigten Ordner nach [Duplikaten](duplicates.md) suchen |

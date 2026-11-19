@@ -11,7 +11,7 @@ markiert nach Ihrer Wahl:
 - **A**ll new: nur hier vorhanden + neuer – alles, was fehlt, um die andere
   Seite auf den neuesten Stand zu bringen.
 
-**B** (oder Alt+C im Baum, wie in ZTreeWin) erweitert den Bereich auf den
+**B** (oder Alt+C im Baum) erweitert den Bereich auf den
 gesamten Zweig: Xylem liest den Zweig ein, vergleicht anhand der relativen
 Pfade (`src/a.rs` ↔ `<andere>/src/a.rs`) und öffnet die Branch-Ansicht mit den
 markierten Dateien.
