@@ -47,6 +47,8 @@ mod batch_cmd;
 pub use batch_cmd::{BatchGuide, BatchPreview, TemplateReading};
 mod commands;
 mod context_help;
+mod context_menu;
+pub use context_menu::{ContextMenu, MenuLine};
 mod duplicates_cmd;
 mod git_cmd;
 mod mouse;
@@ -296,6 +298,8 @@ pub struct App {
     pub(crate) last_click: Option<mouse::LastClick>,
     /// What the left button is dragging.
     pub(crate) drag: Option<mouse::Drag>,
+    /// The context menu (right button, Menu key, Shift+F10).
+    pub context_menu: Option<ContextMenu>,
 }
 
 /// The active window.
@@ -393,6 +397,7 @@ impl App {
             hits: crate::mouse::HitMap::default(),
             last_click: None,
             drag: None,
+            context_menu: None,
         }
     }
 

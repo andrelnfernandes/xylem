@@ -364,7 +364,21 @@ Testes: duplo clique com `Instant`s a 300 ms e a 500 ms; marcar com o meio não 
 cursor; Shift+clique marca exatamente o intervalo; arrasto além da borda rola; F12:
 clicar numa opção muda o valor e não grava.
 
-### Etapa 3: menu de contexto (~1 semana)
+### Etapa 3: menu de contexto (~1 semana) (feita, 2026-11-18)
+
+Como ficou:
+
+- `src/app/context_menu.rs`: as linhas são `Command`s (filtrados por `refusal`) ou,
+  no viewer, teclas dele (o viewer não tem `Command`s). O atalho de cada linha vem de
+  `Keymap::key_in(cmd, focus)`, a tecla mais curta que de fato roda aquele comando na
+  janela (respeita o `[keys]` do usuário).
+- Com o menu aberto, ele recebe todas as teclas e todos os cliques: o mapa ganha um
+  `Spot::Outside` sobre a tela inteira, e o clique fora só fecha.
+- Shift+F10 é interceptado antes do mapa de teclas (o `KeySpec` ignora Shift, então
+  viraria F10, Quit); F22 também, para terminais que mandam Shift+F10 assim.
+- Pelo teclado, o menu abre ao lado da linha do cursor (`HitMap::row_of`).
+- Usage e Duplicados não têm menu nesta etapa (a tecla Menu fica com eles).
+
 
 - Widget `ContextMenu` (estado no `App`, desenho no `ui.rs`), aberto pelo botão
   direito, pela tecla Menu e pelo Shift+F10.

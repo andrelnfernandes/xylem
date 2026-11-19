@@ -6,6 +6,7 @@
 use ratatui::crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
 
+use super::context_menu::MenuTarget;
 use super::*;
 use crate::mouse::{DOUBLE_CLICK, Hit, List, Own, Owner, Spot, WHEEL_LINES};
 
@@ -41,6 +42,9 @@ impl App {
         }
         let hit = self.hits.at(ev.column, ev.row);
         let mods = ev.modifiers;
+        if self.context_menu.is_some() {
+            return self.menu_mouse(ev.kind, hit);
+        }
         match ev.kind {
             MouseEventKind::Down(button) => {
                 let double = self.last_click.is_some_and(|c| {
@@ -65,7 +69,7 @@ impl App {
                     }
                     MouseButton::Left => self.click(hit, double),
                     MouseButton::Middle => self.tag_click(hit),
-                    MouseButton::Right => {}
+                    MouseButton::Right => self.right_click(hit),
                 }
             }
             MouseEventKind::Drag(MouseButton::Left) => self.drag_to(ev.column, ev.row),
@@ -119,6 +123,8 @@ impl App {
         match hit.spot {
             // Each click on a key is a press of it, as fast as they come.
             Spot::Key(key) => self.handle_key(key),
+            // Only with the context menu open, which `menu_mouse` handles.
+            Spot::Outside => {}
             Spot::Link(id) => {
                 if let Some(help) = &mut self.help {
                     help.follow(id);
@@ -362,6 +368,90 @@ impl App {
         }
     }
 
+    /// The mouse while the context menu is open: it takes every click. A
+    /// line runs; a click off the menu closes it and does nothing else.
+    fn menu_mouse(&mut self, kind: MouseEventKind, hit: Option<Hit>) {
+        let on_line = match hit {
+            Some(Hit {
+                spot: Spot::Item {
+                    list: Own::Menu, ..
+                },
+                item,
+                ..
+            }) => Some(item),
+            _ => None,
+        };
+        match kind {
+            MouseEventKind::Down(_) => match on_line {
+                Some(Some(i)) => self.run_menu_line(i),
+                // The border of the menu.
+                Some(None) => {}
+                None if hit.is_some_and(|h| h.spot == Spot::Scroll) => {}
+                None => self.context_menu = None,
+            },
+            MouseEventKind::ScrollUp => self.press(KeyCode::Up),
+            MouseEventKind::ScrollDown => self.press(KeyCode::Down),
+            _ => {}
+        }
+    }
+
+    /// The right button: the cursor goes to the item under the pointer (as a
+    /// click), and the menu of that item opens there.
+    fn right_click(&mut self, hit: Option<Hit>) {
+        if self.splash.take().is_some() || self.editor_pty.is_some() {
+            return;
+        }
+        let Some(hit) = hit else { return };
+        let at = (hit.x, hit.y);
+        let target = match hit.spot {
+            Spot::Rows {
+                list: list @ List::Tree(Owner::Main(_)),
+                ..
+            } if hit.item.is_some() => {
+                self.click_list(list, hit.item, false);
+                MenuTarget::Dir
+            }
+            Spot::Rows {
+                list: list @ List::Files(Owner::Main(_)),
+                ..
+            }
+            | Spot::Grid {
+                list: list @ List::Files(Owner::Main(_)),
+                ..
+            }
+            | Spot::Window(list @ List::Files(Owner::Main(_))) => {
+                if !self.click_list(list, hit.item, false) && hit.item.is_some() {
+                    return;
+                }
+                let on_file = hit.item.is_some() && self.focus == Focus::Files;
+                if self.windows_blocked() || self.usage.is_some() || self.duplicates.is_some() {
+                    return;
+                }
+                if on_file {
+                    MenuTarget::File
+                } else {
+                    MenuTarget::FileWindow
+                }
+            }
+            Spot::Scroll | Spot::Cell { .. }
+                if self.viewer.is_some()
+                    && self.help.is_none()
+                    && self.prompt.is_none()
+                    && self.confirm.is_none() =>
+            {
+                if let Spot::Cell { row, col } = hit.spot {
+                    self.click_cell(row, col, false);
+                }
+                MenuTarget::Viewer
+            }
+            _ => return,
+        };
+        if self.windows_blocked() {
+            return;
+        }
+        self.open_menu(target, at);
+    }
+
     /// The middle button, or Ctrl with the left one: tags or untags the file
     /// under the pointer without moving the cursor; on a folder of the tree,
     /// picks it and tags its files (or untags them, when all were tagged).
@@ -437,6 +527,7 @@ impl App {
     /// A row of a list of a screen of its own.
     fn click_item(&mut self, list: Own, i: usize, double: bool) {
         match list {
+            Own::Menu => self.run_menu_line(i),
             Own::Settings => {
                 // As its letter: picks and changes the option (nothing is
                 // saved before F3).
@@ -562,7 +653,7 @@ impl App {
                 let code = if up { KeyCode::Up } else { KeyCode::Down };
                 self.wheel_keys(code);
             }
-            Spot::Key(_) | Spot::Prompt { .. } => {}
+            Spot::Key(_) | Spot::Prompt { .. } | Spot::Outside => {}
         }
     }
 
@@ -1136,5 +1227,186 @@ mod tests {
         click(&mut app, (x, y));
         let grid = app.viewer.as_ref().unwrap().table.as_ref().unwrap();
         assert_eq!((grid.cursor_row, grid.cursor_col), (2, 1));
+    }
+
+    fn right_click(app: &mut App, at: (u16, u16)) {
+        mouse(app, MouseEventKind::Down(MouseButton::Right), at);
+    }
+
+    /// The labels of the menu's lines that run something.
+    fn menu_labels(app: &App) -> Vec<String> {
+        let menu = app.context_menu.as_ref().expect("the menu is open");
+        menu.lines
+            .iter()
+            .filter_map(|l| match l {
+                MenuLine::Run { label, .. } => Some(label.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_right_button_on_a_file_picks_it_and_opens_its_menu() {
+        let (_tmp, mut app) = sample();
+        let screen = draw(&mut app);
+        right_click(&mut app, find(&screen, "b.txt", 1));
+        assert_eq!(app.focus, Focus::Files);
+        assert_eq!(app.file(app.selected_file().unwrap()).name, "b.txt");
+        let labels = menu_labels(&app);
+        for l in ["View", "Copy", "Delete", "Tag"] {
+            assert!(labels.contains(&l.to_string()), "{l} in {labels:?}");
+        }
+        assert!(
+            !labels.iter().any(|l| l.contains("tagged")),
+            "nothing tagged"
+        );
+        // Each line shows its key.
+        let menu = app.context_menu.as_ref().unwrap();
+        let copy = menu.lines.iter().find_map(|l| match l {
+            MenuLine::Run { label, key, .. } if label == "Copy" => Some(key.clone()),
+            _ => None,
+        });
+        assert_eq!(copy.as_deref(), Some("C"));
+        // Drawn, with the key beside the label.
+        let screen = draw(&mut app);
+        assert!(
+            screen
+                .iter()
+                .any(|r| r.contains("Copy") && r.contains(" C "))
+        );
+    }
+
+    #[test]
+    fn a_line_of_the_menu_runs_its_command_on_the_item() {
+        let (_tmp, mut app) = sample();
+        let screen = draw(&mut app);
+        right_click(&mut app, find(&screen, "c.txt", 1));
+        let screen = draw(&mut app);
+        // The menu's own "View" (the menu is drawn over the list).
+        let (x, y) = find(&screen, " View", 1);
+        click(&mut app, (x + 1, y));
+        assert!(app.context_menu.is_none());
+        let v = app.viewer.as_ref().expect("viewing");
+        assert!(v.path.ends_with("c.txt"));
+    }
+
+    #[test]
+    fn a_click_off_the_menu_closes_it_and_does_nothing_else() {
+        let (_tmp, mut app) = sample();
+        let screen = draw(&mut app);
+        right_click(&mut app, find(&screen, "a.txt", 1));
+        let before = (
+            app.focus,
+            app.tree_state.selected(),
+            app.file_state.selected(),
+        );
+        draw(&mut app);
+        click(&mut app, (1, 1));
+        assert!(app.context_menu.is_none());
+        let after = (
+            app.focus,
+            app.tree_state.selected(),
+            app.file_state.selected(),
+        );
+        assert_eq!(before, after);
+    }
+
+    #[test]
+    fn the_menu_from_the_keys_and_esc() {
+        let (_tmp, mut app) = sample();
+        draw(&mut app);
+        // Shift+F10 is the menu, not F10 (Quit).
+        app.handle_key(KeyEvent::new(KeyCode::F(10), KeyModifiers::SHIFT));
+        assert!(!app.should_quit && app.confirm.is_none());
+        let labels = menu_labels(&app);
+        assert!(
+            labels.contains(&"Make a directory".to_string()),
+            "{labels:?}"
+        );
+        // ↓ skips separators and titles; Esc closes.
+        let first = app.context_menu.as_ref().unwrap().selected;
+        press_key(&mut app, KeyCode::Down);
+        let menu = app.context_menu.as_ref().unwrap();
+        assert_ne!(menu.selected, first);
+        assert!(menu.lines[menu.selected].runs());
+        press_key(&mut app, KeyCode::Esc);
+        assert!(app.context_menu.is_none());
+        // The Menu key: the file window's menu.
+        app.focus = Focus::Files;
+        press_key(&mut app, KeyCode::Menu);
+        assert!(menu_labels(&app).contains(&"View".to_string()));
+        // Enter runs the chosen line: the first, View.
+        press_key(&mut app, KeyCode::Enter);
+        assert!(app.viewer.is_some());
+    }
+
+    #[test]
+    fn with_tags_the_menu_has_a_group_for_them() {
+        let (_tmp, mut app) = sample();
+        app.focus = Focus::Files;
+        app.apply(Command::TagAll);
+        let screen = draw(&mut app);
+        right_click(&mut app, find(&screen, "a.txt", 1));
+        let menu = app.context_menu.as_ref().unwrap();
+        assert!(
+            menu.lines
+                .contains(&MenuLine::Title("3 tagged files".into()))
+        );
+        let labels = menu_labels(&app);
+        assert!(labels.contains(&"Copy tagged".to_string()));
+        assert!(labels.contains(&"Untag".to_string()), "this one is tagged");
+    }
+
+    #[test]
+    fn inside_an_archive_the_menu_leaves_out_what_writes() {
+        let (tmp, mut app) = sample();
+        crate::archive::tests::make_zip(&tmp.path().join("z.zip"));
+        app.apply(Command::Relog);
+        app.focus = Focus::Files;
+        let at = app
+            .files
+            .iter()
+            .position(|&f| app.file(f).name == "z.zip")
+            .unwrap();
+        app.file_state.select(Some(at));
+        app.apply(Command::OpenArchive);
+        for _ in 0..200 {
+            app.poll_opening();
+            if app.archive.is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(app.archive.is_some(), "inside the zip");
+        app.focus = Focus::Files;
+        app.file_state.select(Some(0));
+        press_key(&mut app, KeyCode::Menu);
+        let labels = menu_labels(&app);
+        assert!(labels.contains(&"Copy".to_string()), "{labels:?}");
+        for l in ["Delete", "Move", "Rename", "Edit"] {
+            assert!(!labels.contains(&l.to_string()), "{l} in {labels:?}");
+        }
+    }
+
+    #[test]
+    fn the_right_button_in_the_viewer_opens_its_keys() {
+        let (_tmp, mut app) = sample();
+        app.focus = Focus::Files;
+        app.apply(Command::View);
+        let screen = draw(&mut app);
+        right_click(&mut app, find(&screen, "a.txt", 2));
+        let labels = menu_labels(&app);
+        assert!(labels.contains(&"Wrap".to_string()), "{labels:?}");
+        // Close: the viewer's Esc.
+        let i = app
+            .context_menu
+            .as_ref()
+            .unwrap()
+            .lines
+            .iter()
+            .position(|l| matches!(l, MenuLine::Run { label, .. } if label == "Close"))
+            .unwrap();
+        app.run_menu_line(i);
+        assert!(app.viewer.is_none());
     }
 }

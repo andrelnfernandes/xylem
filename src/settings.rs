@@ -141,7 +141,7 @@ pub const PAGES: &[Page] = &[
             ('Q', "Clock with seconds", Opt::ClockSeconds),
             (
                 'R',
-                "Mouse (wheel, clicks, footer keys; Shift+drag selects text)",
+                "Mouse (clicks, wheel, right-click menu; Shift+drag selects text)",
                 Opt::Mouse,
             ),
         ],

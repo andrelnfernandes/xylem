@@ -92,6 +92,9 @@ fn draw_frame(frame: &mut Frame, app: &mut App) {
     if let Some(sb) = &mut app.search_box {
         draw_search_box(frame, sb, frame.area());
     }
+    if let Some(menu) = &app.context_menu {
+        draw_context_menu(frame, menu);
+    }
     if app.splash.is_some() {
         draw_splash(frame, &theme());
     }
@@ -2783,6 +2786,77 @@ fn draw_history_list(frame: &mut Frame, input: &LineInput, list: &HistoryList, p
             .style(Style::new().fg(t.text).bg(t.background)),
         rect,
     );
+}
+
+/// The context menu (right button, Menu key, Shift+F10), with its corner
+/// at `menu.at`, moved up and left as needed to stay on the screen. Each
+/// line has its key on the right.
+fn draw_context_menu(frame: &mut Frame, menu: &app::ContextMenu) {
+    let screen = frame.area();
+    let label_w = |l: &app::MenuLine| match l {
+        app::MenuLine::Run { label, key, .. } => label.chars().count() + key.chars().count() + 4,
+        app::MenuLine::Title(t) => t.chars().count() + 2,
+        app::MenuLine::Separator => 0,
+    };
+    let inner_w = menu.lines.iter().map(label_w).max().unwrap_or(10).max(16);
+    let width = (inner_w as u16 + 2).min(screen.width);
+    let height = (menu.lines.len() as u16 + 2).min(screen.height);
+    let x = menu.at.0.min(screen.right().saturating_sub(width));
+    // Below the row clicked, or above it when there is no room.
+    let below = menu.at.1.saturating_add(1);
+    let y = if below + height <= screen.bottom() {
+        below
+    } else {
+        menu.at.1.saturating_sub(height).max(screen.y)
+    };
+    let area = Rect::new(x, y, width, height).intersection(screen);
+    let t = theme();
+    let inner_w = usize::from(area.width.saturating_sub(2));
+    let lines: Vec<Line> = menu
+        .lines
+        .iter()
+        .enumerate()
+        .map(|(i, line)| match line {
+            app::MenuLine::Run { label, key, .. } => {
+                let pad = inner_w.saturating_sub(label.chars().count() + key.chars().count() + 3);
+                let text = format!(" {label}{} ", " ".repeat(pad));
+                let mut spans = vec![
+                    Span::raw(text),
+                    Span::styled(key.clone(), Style::new().fg(t.key)),
+                ];
+                spans.push(Span::raw(" "));
+                let line = Line::from(spans);
+                if i == menu.selected {
+                    line.style(highlight(true))
+                } else {
+                    line
+                }
+            }
+            app::MenuLine::Title(title) => Line::styled(
+                format!(" {title}"),
+                Style::new().fg(t.dim).add_modifier(Modifier::BOLD),
+            ),
+            app::MenuLine::Separator => {
+                Line::styled("─".repeat(inner_w), Style::new().fg(t.border))
+            }
+        })
+        .collect();
+    frame.render_widget(Clear, area);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(panel("", true))
+            .style(Style::new().fg(t.text).bg(t.background)),
+        area,
+    );
+    // Over everything: a click off the menu only closes it.
+    hit(screen, Spot::Outside);
+    hit(area, Spot::Scroll);
+    let spot = Spot::Item {
+        list: mouse::Own::Menu,
+        offset: 0,
+        len: menu.lines.len(),
+    };
+    hit(Block::bordered().inner(area), spot);
 }
 
 /// Floating modal for the search box (P / Ctrl+P).
