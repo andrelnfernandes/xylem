@@ -118,7 +118,7 @@ pub fn render_file(
     budget: usize,
     width: usize,
 ) -> Result<Doc, String> {
-    let file = std::fs::File::open(path).map_err(|e| format!("Cannot read the file: {e}"))?;
+    let file = super::open_regular(path).map_err(|e| format!("Cannot read the file: {e}"))?;
     let bounded = Bounded::new(file, limit).map_err(|e| format!("Cannot read the file: {e}"))?;
     render_with(&bounded, false, time, budget, width)
 }

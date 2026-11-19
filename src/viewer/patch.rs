@@ -279,7 +279,8 @@ fn git_names(rest: &str) -> (String, String) {
 }
 
 /// A path that a patch should not touch without being looked at: absolute,
-/// climbing out with `..`, into `.git`, or with control characters.
+/// climbing out with `..`, into `.git`, or with control, bidi or invisible
+/// characters (a name that hides its real extension).
 pub fn dangerous_path(name: &str) -> bool {
     if name == "/dev/null" || name.is_empty() {
         return false;
@@ -288,7 +289,7 @@ pub fn dangerous_path(name: &str) -> bool {
     name.starts_with('/')
         || name.starts_with('\\')
         || windows_drive
-        || name.chars().any(char::is_control)
+        || name.chars().any(|c| c.is_control() || invisible(c))
         || name
             .split(['/', '\\'])
             .any(|part| part == ".." || part.eq_ignore_ascii_case(".git"))
@@ -847,6 +848,8 @@ index 0000000..3333333
             "x/.GIT/config",
             "C:\\x",
             "a\u{1b}b",
+            "invoice\u{202e}fdp.exe",
+            "a\u{200b}.rs",
         ] {
             assert!(dangerous_path(bad), "{bad}");
         }

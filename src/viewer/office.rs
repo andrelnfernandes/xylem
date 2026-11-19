@@ -330,11 +330,15 @@ fn rels<R: Read + Seek>(pkg: &mut Package<R>, part: &str) -> HashMap<String, Rel
 
 /// `target` from the folder `dir` of the package, or `None` if it climbs out.
 fn resolve(dir: &str, target: &str) -> Option<String> {
-    let mut parts: Vec<&str> = if let Some(abs) = target.strip_prefix('/') {
-        return resolve("", abs);
+    // An absolute target is from the root of the package. No recursion: a
+    // hostile target may start with millions of `/`.
+    let abs = target.trim_start_matches('/');
+    let (dir, target) = if abs.len() < target.len() {
+        ("", abs)
     } else {
-        dir.split('/').filter(|p| !p.is_empty()).collect()
+        (dir, target)
     };
+    let mut parts: Vec<&str> = dir.split('/').filter(|p| !p.is_empty()).collect();
     for p in target.split('/') {
         match p {
             "" | "." => {}
@@ -1565,6 +1569,9 @@ mod tests {
             Some("customXml/x.xml")
         );
         assert_eq!(resolve("word", "../../etc/passwd"), None);
+        // Millions of `/` do not take the stack.
+        let deep = format!("{}x", "/".repeat(4_000_000));
+        assert_eq!(resolve("word", &deep).as_deref(), Some("x"));
     }
 
     #[test]

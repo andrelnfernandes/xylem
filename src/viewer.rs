@@ -397,10 +397,29 @@ struct Follow {
     rotated: bool,
 }
 
+/// Opens `path` again to read it, refusing what is no longer a regular file:
+/// a FIFO put in its place would block the open, and so the screen, until
+/// someone wrote to it. On Unix the open does not wait (`O_NONBLOCK`, which
+/// changes nothing for a regular file), and the check is on what was opened.
+pub(crate) fn open_regular(path: &Path) -> io::Result<File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(nix::libc::O_NONBLOCK);
+    }
+    let file = options.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(io::Error::other("not a regular file"));
+    }
+    Ok(file)
+}
+
 /// The last [`FOLLOW_TAIL`] bytes of the first `size` of the file at `path`.
 fn read_tail(path: &Path, size: u64) -> Option<Vec<u8>> {
     use std::io::{Seek, SeekFrom};
-    let mut file = File::open(path).ok()?;
+    let mut file = open_regular(path).ok()?;
     let from = size.saturating_sub(FOLLOW_TAIL);
     file.seek(SeekFrom::Start(from)).ok()?;
     let mut buf = Vec::new();
@@ -4798,6 +4817,19 @@ mod tests {
         let v = from_gz("a.txt.gz", gz(b"one\n"), load);
         assert_eq!(v.mode, ViewMode::Hex);
         assert_eq!(v.compression, None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_fifo_in_place_of_the_file_is_refused_without_waiting() {
+        let tmp = crate::testing::tempdir();
+        let fifo = tmp.path().join("app.log");
+        nix::unistd::mkfifo(&fifo, nix::sys::stat::Mode::S_IRWXU).unwrap();
+        assert!(open_regular(&fifo).is_err());
+        assert_eq!(read_tail(&fifo, 10), None);
+        let file = tmp.path().join("a.txt");
+        std::fs::write(&file, "0123456789").unwrap();
+        assert_eq!(read_tail(&file, 10).as_deref(), Some(&b"0123456789"[..]));
     }
 
     #[test]
