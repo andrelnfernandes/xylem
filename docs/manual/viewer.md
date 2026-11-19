@@ -63,6 +63,111 @@ A file over 8 MiB opens as its source, with a note. Rendering also stops at the 
 
 Markdown itself hides a few things: link definitions that nothing uses, and table cells beyond the columns of the header. To see everything, `T` shows the source. Italic and strikethrough depend on the terminal and its font, so they also have a color of their own.
 
+## JSON, YAML and TOML
+
+A `.json` (also `.geojson`, `.har`, `.webmanifest`, and `.jsonc` and `.json5` with comments and trailing commas), a `.yaml` or `.yml`, and a `.toml` (also `Cargo.lock`) open as a tree that folds, and the frame says `TREE: JSON`. A minified file of one line reads as easily as any other. A tree of up to 2,000 nodes opens all open; a bigger one shows its first level.
+
+| Key | Action |
+|---|---|
+| ↑ ↓ PgUp PgDn Home End | move the cursor |
+| → | open the node (again: go into it) |
+| ← | close the node, or go to the one above it |
+| `Enter` | open or close the node |
+| `*` | open everything under the node |
+| `k` | copy the path of the node: `.servers[2].name` in JSON, `servers.2.name` in YAML and TOML |
+
+The footer shows the path of the node under the cursor. A search (`F`, `B`, `/`) looks at keys and values, also inside closed nodes, and opens the way to what it finds. `T` shows the text at the node's line, and comes back; `H` goes through tree, text and hex. `&`, `g`, `#` and Ctrl+B work on the lines of the text.
+
+- A closed node shows what it holds: `{12 keys}`, `[340 items]`.
+- A number is shown as the file writes it: `12345678901234567890` stays so, and `1_000` in TOML too.
+- A string shows a line end as `↵`.
+- A key that appears twice in one object is shown twice, marked `dup key`, and the header counts them. Programs disagree on which of the two wins, which can hide a value from a review.
+- A YAML anchor shows as `&a1` and an alias as `*a1`: an alias is never expanded, so a file built to multiply itself (a "billion laughs") costs no more than its text. A tag (`!Ref`) shows before its value. Several documents are shown under one root, as `document 1`, `document 2`...
+
+A file that is not valid, or nested deeper than 512 levels, opens as text, and the note says why and on which line. The tree is built from the whole file: one over the read limit opens as text.
+
+## Jupyter notebooks
+
+A `.ipynb` opens rendered, cell by cell, and the frame says `RENDERED`. At the top: the kernel, and how many cells of each kind there are.
+
+- A Markdown cell is rendered as a Markdown file is.
+- A code cell shows `In [n]:` and its code, in the colors of the notebook's language.
+- Its outputs follow, marked `Out [n]:`: the text of a stream (`stderr:` when it is the errors), the text of a result (or its Markdown, rendered), and an error with its traceback, without the traceback's ANSI codes.
+- An image, HTML, JavaScript, SVG or LaTeX output is one line that says what it is and how big, as `[image/png, 34 KiB: not shown]`. Nothing in a notebook is run: not its code, not the scripts of its outputs, not its widgets.
+- A raw cell is shown as it is.
+
+`T` shows the notebook's JSON, and `H` its bytes. A file that is not a notebook this viewer can read (broken JSON, an unknown format) opens as its source, with a note. Notebook format 3 (with worksheets) is read too.
+
+## Office documents
+
+Word (`.docx`, `.docm`, `.dotx`), OpenDocument text (`.odt`), PowerPoint (`.pptx`, `.pptm`) and Impress (`.odp`) files open as a document: headings, paragraphs, lists, tables, bold, italic and links, with each link's real address. A presentation shows each slide under `Slide n`, with its speaker notes after it. Footnotes and comments, with their authors, come at the end. An image is a line, as `[image: media/image1.png]`. The text of a document is never read as Markdown.
+
+Before the text, a block says what the document has besides it, since much of it does not show in the program that made it:
+
+- who wrote it, who saved it last, when, and with what;
+- `Contains macros`, when it has them. They are never read or run;
+- `Fetches from outside when it opens`: a remote template, an OLE object or a frame that point outside the file, with their addresses. A remote template is how attacks like Follina (CVE-2022-30190) came in. Nothing is ever fetched here;
+- the embedded objects, by name and size, and the count of other external links;
+- tracked changes: inserted text shows as `[inserted: ...]` and deleted text as `[deleted: ...]`, since what was deleted is often what matters;
+- hidden text (`[hidden: ...]`), white text and text of one point (`[invisible: ...]`), and hidden slides.
+
+`H` shows the bytes, and comes back; `T` says the document has no text of its own. Every part of the file is decompressed only up to a limit (64 MiB each, 256 MiB in all; 4 MiB in Autoview), and the header says when the document was cut. An XML part with a DTD, or nested deeper than 256 levels, is refused. The old `.doc` and `.ppt` open in hex, as before.
+
+## Executables
+
+An executable, a library or an object file opens as a report, whatever its name: ELF (Linux, BSD), PE (Windows `.exe`, `.dll`, `.sys`, also .NET) and Mach-O (macOS, also universal binaries with several architectures). It is told by its first bytes, never by its name. The report says:
+
+- what it is (executable, library, object, core dump), for what machine, 32 or 64 bits, its entry point, and its interpreter, subsystem or minimum system;
+- **protections**, each one `yes` or `no`, with `⚠` where it is missing: on ELF, PIE, a stack that does not run code (NX), RELRO (full or partial), the stack canary, FORTIFY and the library paths (RPATH, RUNPATH: a relative one or one in `/tmp` is marked); on PE, ASLR, high-entropy ASLR, DEP, Control Flow Guard; on Mach-O, PIE and an executable stack;
+- **signature**: whether there is one and how big. It is **not verified**, and the report says so;
+- **signs** of something hidden: a section of high entropy (packed or encrypted), the name of a packer (UPX...), data after the last section (an overlay, where installers and some malware keep data), a section both writable and executable, an entry point outside every executable section;
+- **identity**: build ID, debug link, UUID, PDB path, the compiler, the Go version; the build date of a PE, which the linker writes and can be anything;
+- the libraries it needs, and the lists of sections, segments, imports, exports and symbols, of up to 2,000 rows each.
+
+Nothing is run or loaded to make the report: not even `ldd`, which runs the program in some cases. `H` shows the bytes, and comes back. A file bigger than the read limit is read only where the report needs it, 256 MiB at most in all; Autoview reports on the start it read, and says it may miss things.
+
+## Certificates and keys
+
+A certificate, a chain or bundle of them, a certificate request (CSR), a revocation list (CRL), a private or public key, an OpenSSH key, `authorized_keys` and `known_hosts` open as a report. PEM is read in a file named for it (`.pem`, `.crt`, `.cer`, `.key`, `.csr`, `.crl`, `.pub`...) or with no extension (`id_ed25519`); DER in a `.der`, `.cer`, `.crt`, `.crl` or `.csr` that is one whole DER value. A PEM block inside source code or a document leaves that file as it is.
+
+- **A certificate:** its subject and issuer (and whether it is self-signed), serial, validity with the days left (expired, not valid yet, or expiring within 30 days are marked `⚠`), public key (RSA under 2048 bits and DSA are marked), signature (MD5 and SHA-1 are marked), names (a punycode name `xn--` is pointed out), key usage, extended key usage, whether it is a CA, the addresses of its CRL and authority information, an unknown critical extension (marked), and its SHA-256 fingerprint.
+- **Several certificates:** the report says whether they are in order, each one issued by the next, checked by their names and key identifiers only. **No signature is verified here**, and the report says so.
+- **A private key:** only its kind and size (RSA 2048 bits, EC P-256, PKCS#8 encrypted with PBES2...) and, for OpenSSH, whether it is encrypted and its fingerprint. Its numbers are never shown in the report. In Autoview, a private key shows this report, never its text, so it does not appear on the screen just by passing over it; `T` in the viewer shows the text.
+- **Public keys, `authorized_keys` and `known_hosts`:** one row per key, with its kind and size, its SHA-256 fingerprint as `ssh-keygen -l` writes it, and its comment. A `command=` option is marked, since it changes what the key allows; a hashed host shows as such.
+
+Nothing is fetched: the addresses of a CRL or OCSP are only shown. Before any parser sees a block, its nesting (at most 64 levels) and lengths are checked; a file has at most 1,000 blocks of 64 KiB each. PKCS#12 (`.p12`, `.pfx`) and PGP keys are not read.
+
+## Logs
+
+A log opens as text, with the colors of its levels, and the footer says `Log`. A file is a log by its name (`.log`, `.out`, `.err`, a rotated one like `app.log.1` or `app.log.2.gz`, `syslog`, `messages`, `kern.log`) or by its contents: most of its first lines start with a date and time (`2026-11-16 10:00`, `[2026-11-16 ...`, or syslog's `Nov 16 10:00:00`).
+
+- **Levels:** the first level word in the first 120 columns of a line, in any case, gives its color: errors (`ERROR`, `ERR`, `FATAL`, `CRIT`, `PANIC`...) in red, warnings (`WARN`, `WARNING`) in yellow, `DEBUG` and `TRACE` dimmed. Syslog's `<n>` at the start of a line counts too, and so does the level of a log in JSON (`"level":"error"`). A line with no level, like a stack trace, takes the one before it. `C` turns the colors off.
+- **ANSI colors:** the colors a program wrote into its log (`ESC [31m`) are shown as colors, and their sequences are taken out of the text. Any other sequence is dropped, since it could move the cursor or write to the clipboard (OSC 52), and the header counts them, as in `[ANSI: 3 removed]`. `H` still shows the bytes as they are, and a search looks at the text without the sequences. In a file over 16 MiB, read through a window, the sequences are shown as `·`, as in any text, and the colors are those of the levels.
+- **Following:** with the last line on the screen (End), new lines come in as the program writes them, and the screen stays at the end; the header says `[FOLLOW]`. The file is looked at every half second, also on a network share. Moving up, or searching, stops it; End takes it up again. With a filter (`&`), the new lines go through it. If the file shrank or changed instead of growing (rotated or rewritten), the header says `(the file changed: R reloads)`, and nothing is read until R. A compressed log is not followed.
+
+## Patches
+
+A `.patch` or `.diff`, or any text that starts like one (`diff --git`, or `---`, `+++` and `@@`), opens as text with the colors of a patch. The Git diff (`D`) is shown the same way. The header sums it up, as in `[12 files, +340 −98]`, and the footer says where the top of the screen is: `3/12 src/viewer.rs @@ 2/5`.
+
+| Key | Action |
+|---|---|
+| `]` `[` | next or previous file |
+| `}` `{` | next or previous hunk |
+| `Tab` | the list of the files, with `+` and `−` for each; letters narrow it, `Enter` goes to one |
+
+Some changes do more than change lines, and are easy to miss in a quick read. They are shown in red, and the header counts them as `to check`:
+
+- a file that becomes executable (`100755`), a symbolic link (`120000`) or a submodule (`160000`);
+- a path that is absolute, climbs out with `..`, goes into `.git` (a hook is code that Git runs), or has control characters.
+
+The header also counts:
+
+- `look unchanged`: a removed line and an added one that differ only in what cannot be seen, such as spaces, `\r`, invisible characters, or letters that look alike (a Cyrillic `а` for a Latin `a`). The pair is shown in yellow;
+- `hunks with wrong counts`: a hunk whose `@@` line does not match its lines. The index follows the lines that are there, never the counts;
+- `whitespace`: added lines with a space at the end, or a space before a tab in the indentation, as `git diff --check` reports.
+
+A `git format-patch` series shows each message in the list, by its subject. Nothing is ever applied. In a file over 16 MiB, read through a window, the colors stay, but there is no index: `]`, `}` and Tab say so.
+
 ## Text direction controls
 
 Some invisible characters change the direction of the text and can make code look different from what it really says (Trojan Source, CVE-2021-42574). The viewer never hides them: each one appears as a red `·`, and the header says how many there are.

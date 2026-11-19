@@ -65,6 +65,111 @@ Eine Datei über 8 MiB öffnet sich als Quelltext, mit einem Hinweis. Das Render
 
 Markdown selbst verbirgt einiges: Linkdefinitionen, die nichts verwendet, und Tabellenzellen jenseits der Spalten der Kopfzeile. Um alles zu sehen, zeigt `T` den Quelltext. Kursiv und Durchgestrichen hängen vom Terminal und seiner Schrift ab, daher haben sie auch eine eigene Farbe.
 
+## JSON, YAML und TOML
+
+Eine `.json` (auch `.geojson`, `.har`, `.webmanifest`, sowie `.jsonc` und `.json5` mit Kommentaren und abschließendem Komma), eine `.yaml` oder `.yml` und eine `.toml` (auch `Cargo.lock`) öffnen sich als Baum, der sich auf- und zuklappen lässt, und der Rahmen zeigt `TREE: JSON`. Eine minifizierte Datei in einer einzigen Zeile liest sich so leicht wie jede andere. Ein Baum mit bis zu 2.000 Knoten öffnet sich ganz aufgeklappt; ein größerer zeigt seine erste Ebene.
+
+| Taste | Aktion |
+|---|---|
+| ↑ ↓ Bild↑ Bild↓ Pos1 Ende | bewegt den Cursor |
+| → | klappt den Knoten auf (nochmals: geht hinein) |
+| ← | klappt den Knoten zu oder geht zum übergeordneten |
+| `Enter` | klappt den Knoten auf oder zu |
+| `*` | klappt alles unter dem Knoten auf |
+| `k` | kopiert den Pfad des Knotens: `.servers[2].name` in JSON, `servers.2.name` in YAML und TOML |
+
+Die Fußzeile zeigt den Pfad des Knotens unter dem Cursor. Eine Suche (`F`, `B`, `/`) durchsucht Schlüssel und Werte, auch in zugeklappten Knoten, und öffnet den Weg zum Fund. `T` zeigt den Text in der Zeile des Knotens und kehrt zurück; `H` wechselt zwischen Baum, Text und Hex. `&`, `g`, `#` und Strg+B arbeiten mit den Zeilen des Textes.
+
+- Ein zugeklappter Knoten zeigt, was er enthält: `{12 keys}`, `[340 items]`.
+- Eine Zahl erscheint so, wie die Datei sie schreibt: `12345678901234567890` bleibt so, und `1_000` in TOML ebenfalls.
+- Eine Zeichenkette zeigt einen Zeilenumbruch als `↵`.
+- Ein Schlüssel, der in einem Objekt zweimal vorkommt, wird zweimal gezeigt, mit `dup key` markiert, und die Kopfzeile zählt sie. Programme sind sich uneinig, welcher der beiden gilt, was bei einer Prüfung einen Wert verstecken kann.
+- Ein YAML-Anker erscheint als `&a1` und ein Alias als `*a1`: Ein Alias wird nie aufgelöst, sodass eine Datei, die sich vervielfachen soll (ein „Billion Laughs“), nicht mehr kostet als ihr Text. Ein Tag (`!Ref`) steht vor seinem Wert. Mehrere Dokumente stehen unter einer Wurzel, als `document 1`, `document 2`...
+
+Eine ungültige Datei oder eine, die tiefer als 512 Ebenen verschachtelt ist, öffnet sich als Text, und der Hinweis sagt, warum und in welcher Zeile. Der Baum wird aus der ganzen Datei gebaut: Eine Datei über dem Leselimit öffnet sich als Text.
+
+## Jupyter-Notebooks
+
+Eine `.ipynb` öffnet sich gerendert, Zelle für Zelle, und der Rahmen zeigt `RENDERED`. Oben: der Kernel und wie viele Zellen jeder Art es gibt.
+
+- Eine Markdown-Zelle wird wie eine Markdown-Datei gerendert.
+- Eine Code-Zelle zeigt `In [n]:` und ihren Code, in den Farben der Sprache des Notebooks.
+- Ihre Ausgaben folgen, markiert mit `Out [n]:`: der Text eines Streams (`stderr:`, wenn es die Fehler sind), der Text eines Ergebnisses (oder sein Markdown, gerendert) und ein Fehler mit seinem Traceback, ohne dessen ANSI-Codes.
+- Eine Ausgabe als Bild, HTML, JavaScript, SVG oder LaTeX ist eine Zeile, die sagt, was sie ist und wie groß, etwa `[image/png, 34 KiB: not shown]`. Nichts in einem Notebook wird ausgeführt: weder sein Code noch die Skripte seiner Ausgaben noch seine Widgets.
+- Eine Raw-Zelle wird so gezeigt, wie sie ist.
+
+`T` zeigt das JSON des Notebooks und `H` seine Bytes. Eine Datei, die kein Notebook ist, das der Viewer lesen kann (kaputtes JSON, unbekanntes Format), öffnet sich als Quelltext, mit einem Hinweis. Das Format 3 (mit Worksheets) wird ebenfalls gelesen.
+
+## Office-Dokumente
+
+Word- (`.docx`, `.docm`, `.dotx`), OpenDocument-Text- (`.odt`), PowerPoint- (`.pptx`, `.pptm`) und Impress-Dateien (`.odp`) öffnen sich als Dokument: Überschriften, Absätze, Listen, Tabellen, fett, kursiv und Links, mit der echten Adresse jedes Links. Eine Präsentation zeigt jede Folie unter `Slide n`, gefolgt von den Notizen des Vortragenden. Fußnoten und Kommentare stehen mit ihren Autoren am Ende. Ein Bild ist eine Zeile, etwa `[image: media/image1.png]`. Der Text eines Dokuments wird nie als Markdown gelesen.
+
+Vor dem Text sagt ein Block, was das Dokument außer ihm enthält, denn vieles davon zeigt das Programm, das es erstellt hat, nicht an:
+
+- wer es geschrieben hat, wer es zuletzt gespeichert hat, wann und womit;
+- `Contains macros`, wenn es welche hat. Sie werden nie gelesen oder ausgeführt;
+- `Fetches from outside when it opens`: eine entfernte Vorlage, ein OLE-Objekt oder ein Frame, die aus der Datei hinaus zeigen, mit ihren Adressen. Über eine entfernte Vorlage kamen Angriffe wie Follina (CVE-2022-30190). Hier wird nie etwas geladen;
+- die eingebetteten Objekte mit Name und Größe, und die Anzahl weiterer externer Links;
+- Änderungsverfolgung: eingefügter Text erscheint als `[inserted: ...]` und gelöschter als `[deleted: ...]`, denn das Gelöschte ist oft das, worauf es ankommt;
+- versteckter Text (`[hidden: ...]`), weißer Text und Text in einem Punkt Größe (`[invisible: ...]`), und ausgeblendete Folien.
+
+`H` zeigt die Bytes und kehrt zurück; `T` sagt, dass das Dokument keinen eigenen Text hat. Jeder Teil der Datei wird nur bis zu einem Limit entpackt (64 MiB je Teil, 256 MiB insgesamt; 4 MiB im Autoview), und die Kopfzeile sagt, wenn das Dokument abgeschnitten wurde. Ein XML-Teil mit einer DTD oder einer Verschachtelung tiefer als 256 Ebenen wird abgelehnt. Die alten `.doc` und `.ppt` öffnen sich wie bisher in Hex.
+
+## Ausführbare Dateien
+
+Eine ausführbare Datei, eine Bibliothek oder eine Objektdatei öffnet sich als Bericht, egal wie sie heißt: ELF (Linux, BSD), PE (Windows-`.exe`, `.dll`, `.sys`, auch .NET) und Mach-O (macOS, auch Universal-Binaries mit mehreren Architekturen). Sie wird an ihren ersten Bytes erkannt, nie am Namen. Der Bericht sagt:
+
+- was sie ist (ausführbare Datei, Bibliothek, Objekt, Core-Dump), für welche Maschine, 32 oder 64 Bit, ihren Einsprungpunkt und ihren Interpreter, ihr Subsystem oder ihr Mindestsystem;
+- **Schutzmechanismen**, jeweils `yes` oder `no`, mit `⚠`, wo er fehlt: bei ELF PIE, ein Stack, der keinen Code ausführt (NX), RELRO (vollständig oder teilweise), der Stack-Canary, FORTIFY und die Bibliothekspfade (RPATH, RUNPATH: ein relativer oder einer in `/tmp` wird markiert); bei PE ASLR, ASLR mit hoher Entropie, DEP, Control Flow Guard; bei Mach-O PIE und ein ausführbarer Stack;
+- **Signatur**: ob es eine gibt und wie groß. Sie wird **nicht geprüft**, und der Bericht sagt das;
+- **Anzeichen** für Verstecktes: ein Abschnitt mit hoher Entropie (gepackt oder verschlüsselt), der Name eines Packers (UPX...), Daten nach dem letzten Abschnitt (ein Overlay, in dem Installer und manche Schadsoftware Daten ablegen), ein Abschnitt, der zugleich schreibbar und ausführbar ist, ein Einsprungpunkt außerhalb jedes ausführbaren Abschnitts;
+- **Identität**: Build-ID, Debug-Link, UUID, PDB-Pfad, der Compiler, die Go-Version; das Build-Datum einer PE, das der Linker schreibt und das beliebig sein kann;
+- die Bibliotheken, die sie braucht, und die Listen der Abschnitte, Segmente, Importe, Exporte und Symbole, mit je bis zu 2.000 Zeilen.
+
+Für den Bericht wird nichts ausgeführt oder geladen: nicht einmal `ldd`, das das Programm in manchen Fällen ausführt. `H` zeigt die Bytes und kehrt zurück. Eine Datei, die größer als das Leselimit ist, wird nur dort gelesen, wo der Bericht es braucht, höchstens 256 MiB insgesamt; der Autoview berichtet über den gelesenen Anfang und sagt, dass ihm etwas entgehen kann.
+
+## Zertifikate und Schlüssel
+
+Ein Zertifikat, eine Kette oder ein Bündel davon, ein Zertifikatsantrag (CSR), eine Sperrliste (CRL), ein privater oder öffentlicher Schlüssel, ein OpenSSH-Schlüssel, `authorized_keys` und `known_hosts` öffnen sich als Bericht. PEM wird in einer dafür benannten Datei gelesen (`.pem`, `.crt`, `.cer`, `.key`, `.csr`, `.crl`, `.pub`...) oder in einer ohne Endung (`id_ed25519`); DER in einer `.der`, `.cer`, `.crt`, `.crl` oder `.csr`, die ein ganzer DER-Wert ist. Ein PEM-Block in Quellcode oder in einem Dokument lässt diese Datei, wie sie ist.
+
+- **Ein Zertifikat:** Subject und Issuer (und ob es selbstsigniert ist), Seriennummer, Gültigkeit mit den verbleibenden Tagen (abgelaufen, noch nicht gültig oder innerhalb von 30 Tagen ablaufend wird mit `⚠` markiert), öffentlicher Schlüssel (RSA unter 2048 Bit und DSA werden markiert), Signatur (MD5 und SHA-1 werden markiert), Namen (ein Punycode-Name `xn--` wird hervorgehoben), Schlüsselverwendung, erweiterte Schlüsselverwendung, ob es eine CA ist, die Adressen seiner CRL und der Zertifizierungsstellen-Informationen, eine unbekannte kritische Erweiterung (markiert) und sein SHA-256-Fingerabdruck.
+- **Mehrere Zertifikate:** Der Bericht sagt, ob sie in der richtigen Reihenfolge sind, jedes vom nächsten ausgestellt, geprüft nur anhand ihrer Namen und Schlüsselkennungen. **Hier wird keine Signatur geprüft**, und der Bericht sagt das.
+- **Ein privater Schlüssel:** nur seine Art und Größe (RSA 2048 Bit, EC P-256, PKCS#8 verschlüsselt mit PBES2...) und bei OpenSSH, ob er verschlüsselt ist, und sein Fingerabdruck. Seine Zahlen erscheinen nie im Bericht. Im Autoview zeigt ein privater Schlüssel diesen Bericht, nie seinen Text, damit er nicht auf dem Bildschirm erscheint, nur weil man darüber geht; `T` im Viewer zeigt den Text.
+- **Öffentliche Schlüssel, `authorized_keys` und `known_hosts`:** eine Zeile pro Schlüssel, mit Art und Größe, dem SHA-256-Fingerabdruck, wie ihn `ssh-keygen -l` schreibt, und dem Kommentar. Eine Option `command=` wird markiert, da sie ändert, was der Schlüssel erlaubt; ein gehashter Host erscheint als solcher.
+
+Nichts wird geladen: Die Adressen einer CRL oder eines OCSP werden nur gezeigt. Bevor ein Parser einen Block sieht, werden seine Verschachtelung (höchstens 64 Ebenen) und seine Längen geprüft; eine Datei hat höchstens 1.000 Blöcke zu je 64 KiB. PKCS#12 (`.p12`, `.pfx`) und PGP-Schlüssel werden nicht gelesen.
+
+## Logs
+
+Ein Log öffnet sich als Text, mit den Farben seiner Stufen, und die Fußzeile zeigt `Log`. Eine Datei ist ein Log nach ihrem Namen (`.log`, `.out`, `.err`, eine rotierte wie `app.log.1` oder `app.log.2.gz`, `syslog`, `messages`, `kern.log`) oder nach ihrem Inhalt: Die meisten ihrer ersten Zeilen beginnen mit Datum und Uhrzeit (`2026-11-16 10:00`, `[2026-11-16 ...` oder syslogs `Nov 16 10:00:00`).
+
+- **Stufen:** Das erste Stufenwort in den ersten 120 Spalten einer Zeile, egal in welcher Schreibung, gibt ihr die Farbe: Fehler (`ERROR`, `ERR`, `FATAL`, `CRIT`, `PANIC`...) in Rot, Warnungen (`WARN`, `WARNING`) in Gelb, `DEBUG` und `TRACE` abgeschwächt. Syslogs `<n>` am Zeilenanfang zählt auch, ebenso die Stufe eines Logs in JSON (`"level":"error"`). Eine Zeile ohne Stufe, etwa ein Stacktrace, übernimmt die der vorigen. `C` schaltet die Farben aus.
+- **ANSI-Farben:** Die Farben, die ein Programm in sein Log geschrieben hat (`ESC [31m`), werden als Farben gezeigt, und ihre Sequenzen werden aus dem Text entfernt. Jede andere Sequenz wird verworfen, da sie den Cursor bewegen oder in die Zwischenablage schreiben könnte (OSC 52), und die Kopfzeile zählt sie, etwa `[ANSI: 3 removed]`. `H` zeigt die Bytes weiterhin, wie sie sind, und eine Suche durchsucht den Text ohne die Sequenzen. In einer Datei über 16 MiB, die durch ein Fenster gelesen wird, erscheinen die Sequenzen wie in jedem Text als `·`, und die Farben sind die der Stufen.
+- **Verfolgen:** Steht die letzte Zeile auf dem Bildschirm (Ende), kommen neue Zeilen hinzu, sobald das Programm sie schreibt, und der Bildschirm bleibt am Ende; die Kopfzeile zeigt `[FOLLOW]`. Die Datei wird jede halbe Sekunde geprüft, auch auf einer Netzwerkfreigabe. Nach oben gehen oder suchen beendet das Verfolgen; Ende nimmt es wieder auf. Mit einem Filter (`&`) laufen die neuen Zeilen durch ihn. Ist die Datei geschrumpft oder hat sie sich geändert, statt zu wachsen (rotiert oder neu geschrieben), zeigt die Kopfzeile `(the file changed: R reloads)`, und bis R wird nichts gelesen. Ein komprimiertes Log wird nicht verfolgt.
+
+## Patches
+
+Eine `.patch` oder `.diff`, oder jeder Text, der wie eine beginnt (`diff --git`, oder `---`, `+++` und `@@`), öffnet sich als Text mit den Farben eines Patches. Der Git-Diff (`D`) wird genauso gezeigt. Die Kopfzeile fasst ihn zusammen, etwa `[12 files, +340 −98]`, und die Fußzeile sagt, wo der obere Bildschirmrand steht: `3/12 src/viewer.rs @@ 2/5`.
+
+| Taste | Aktion |
+|---|---|
+| `]` `[` | nächste oder vorige Datei |
+| `}` `{` | nächster oder voriger Hunk |
+| `Tab` | die Liste der Dateien, mit `+` und `−` für jede; Buchstaben grenzen sie ein, `Enter` springt zu einer |
+
+Manche Änderungen tun mehr, als Zeilen zu ändern, und gehen beim schnellen Lesen leicht unter. Sie werden rot gezeigt, und die Kopfzeile zählt sie als `to check`:
+
+- eine Datei, die ausführbar wird (`100755`), ein symbolischer Link (`120000`) oder ein Submodul (`160000`);
+- ein Pfad, der absolut ist, mit `..` nach oben steigt, in `.git` geht (ein Hook ist Code, den Git ausführt) oder Steuerzeichen enthält.
+
+Die Kopfzeile zählt außerdem:
+
+- `look unchanged`: eine entfernte und eine hinzugefügte Zeile, die sich nur in Unsichtbarem unterscheiden, etwa Leerzeichen, `\r`, unsichtbaren Zeichen oder ähnlich aussehenden Buchstaben (ein kyrillisches `а` statt eines lateinischen `a`). Das Paar wird gelb gezeigt;
+- `hunks with wrong counts`: ein Hunk, dessen `@@`-Zeile nicht zu seinen Zeilen passt. Der Index folgt den Zeilen, die da sind, nie den Zahlen;
+- `whitespace`: hinzugefügte Zeilen mit einem Leerzeichen am Ende oder einem Leerzeichen vor einem Tab in der Einrückung, wie `git diff --check` sie meldet.
+
+Eine Serie von `git format-patch` zeigt jede Nachricht mit ihrem Betreff in der Liste. Nichts wird je angewendet. In einer Datei über 16 MiB, die durch ein Fenster gelesen wird, bleiben die Farben, aber es gibt keinen Index: `]`, `}` und Tab sagen das.
+
 ## Steuerzeichen für die Schreibrichtung
 
 Manche unsichtbaren Zeichen ändern die Schreibrichtung des Textes und können Code anders aussehen lassen, als er wirklich lautet (Trojan Source, CVE-2021-42574). Der Betrachter versteckt sie nie: Jedes erscheint als rotes `·`, und die Kopfzeile nennt ihre Anzahl.

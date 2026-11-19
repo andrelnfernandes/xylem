@@ -2,16 +2,24 @@
 //! hexadecimal mode, with search.
 
 pub mod batch;
+pub mod binaries;
+pub mod certs;
+pub mod doc_events;
+pub mod jupyter;
 pub mod line_filter;
 pub mod lines;
+pub mod log;
 pub mod markdown;
+pub mod office;
 mod parquet_pages;
+pub mod patch;
 pub mod records;
 pub mod sql_filter;
 pub mod table;
 pub mod table_window;
 pub mod tabular_loader;
 pub mod text_window;
+pub mod tree;
 
 use std::fs::File;
 use std::io::{self, Read};
@@ -51,6 +59,8 @@ pub enum ViewMode {
     Table,
     /// A Markdown file as a document (see `markdown`).
     Rendered,
+    /// JSON, YAML or TOML as a tree that folds (see `tree`).
+    Tree,
 }
 
 /// Where a new search starts.
@@ -315,6 +325,18 @@ pub struct Viewer {
     pub table: Option<table::TableGrid>,
     /// The list of the table's sheets, while it is open (Tab).
     pub sheet_list: Option<table::SheetList>,
+    /// The index of a patch read whole (see `patch`).
+    patch: Option<Arc<patch::PatchIndex>>,
+    /// The text is a patch (by its name or contents), read whole or not.
+    patch_file: bool,
+    /// The list of a patch's files, while it is open (Tab).
+    pub patch_list: Option<table::SheetList>,
+    /// The text is a log (see `log`).
+    log_file: bool,
+    /// The ANSI sequences taken out of a log that were not a text color.
+    ansi_removed: usize,
+    /// Following a log as it grows (see `follow_tick`).
+    follow: Follow,
     /// The structure of the table, while it is open (`i`).
     pub structure_view: Option<table::StructureView>,
     /// The record under the cursor as a form, while it is open (Enter).
@@ -326,6 +348,21 @@ pub struct Viewer {
     md: Option<markdown::Doc>,
     /// The file's name says Markdown: the document follows a new encoding.
     md_file: bool,
+    /// The document is a Jupyter notebook, not Markdown.
+    notebook: bool,
+    /// The file is an Office document, shown as a document (see `office`).
+    office: Option<office::Kind>,
+    /// The file is an executable, a library or an object (see `binaries`).
+    exe: bool,
+    /// The file is a certificate or a key (see `certs`); in DER, it has no
+    /// text of its own.
+    cert: bool,
+    cert_der: bool,
+    /// JSON, YAML or TOML: its format, and its tree when it could be read.
+    tree_format: Option<tree::Format>,
+    pub tree: Option<tree::Tree>,
+    /// The row of the tree under the cursor.
+    pub tree_cursor: usize,
     /// Only the start of the file is in `data`, since it opens as a table:
     /// the rest is read when the text or the hex is wanted (see `settle_text`).
     partial: bool,
@@ -336,6 +373,58 @@ pub struct Viewer {
     awaited: Option<Hit>,
     /// The line a reload wants at the top, once the count gets there.
     wish: Option<usize>,
+}
+
+/// How often a log being followed is looked at.
+#[cfg(not(test))]
+const FOLLOW_EVERY: Duration = Duration::from_millis(500);
+#[cfg(test)]
+const FOLLOW_EVERY: Duration = Duration::ZERO;
+/// The bytes at the end of a followed log compared to tell it only grew.
+const FOLLOW_TAIL: u64 = 4096;
+
+/// A log followed as it grows: with the screen at its last line, new lines
+/// come in and the screen stays at the end (docs/plans/viewer-logs.md).
+#[derive(Debug, Default, Clone)]
+struct Follow {
+    on: bool,
+    last: Option<std::time::Instant>,
+    /// The size of the file when it was last read, and its last bytes then.
+    tail: Option<(u64, Vec<u8>)>,
+    /// The top the follow put the screen at: a key that moved it stops it.
+    top: usize,
+    /// The file was rotated or rewritten: only R reads it again.
+    rotated: bool,
+}
+
+/// Opens `path` again to read it, refusing what is no longer a regular file:
+/// a FIFO put in its place would block the open, and so the screen, until
+/// someone wrote to it. On Unix the open does not wait (`O_NONBLOCK`, which
+/// changes nothing for a regular file), and the check is on what was opened.
+pub(crate) fn open_regular(path: &Path) -> io::Result<File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(nix::libc::O_NONBLOCK);
+    }
+    let file = options.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(io::Error::other("not a regular file"));
+    }
+    Ok(file)
+}
+
+/// The last [`FOLLOW_TAIL`] bytes of the first `size` of the file at `path`.
+fn read_tail(path: &Path, size: u64) -> Option<Vec<u8>> {
+    use std::io::{Seek, SeekFrom};
+    let mut file = open_regular(path).ok()?;
+    let from = size.saturating_sub(FOLLOW_TAIL);
+    file.seek(SeekFrom::Start(from)).ok()?;
+    let mut buf = Vec::new();
+    file.take(size - from).read_to_end(&mut buf).ok()?;
+    (buf.len() as u64 == size - from).then_some(buf)
 }
 
 /// The line filter in effect and the lines it kept, in order.
@@ -412,6 +501,14 @@ impl Viewer {
             partial,
             ..Self::from_file(path, size, raw, load)
         };
+        // An Office document or a binary bigger than the bytes read: from the
+        // file.
+        if v.no_source() && v.md.is_none() && v.cut && load.c_parsers {
+            v.note = None;
+            if v.render_markdown() {
+                v.mode = ViewMode::Rendered;
+            }
+        }
         v.load_table();
         v.settle_text();
         Ok(v)
@@ -449,9 +546,13 @@ impl Viewer {
         v.bidi.clone_from(&bidi);
         let window = TextWindow::new(&path, size, stamp, v.charset, lines, bidi);
         v.lines = Text::Window(Box::new(window));
-        // The colors and the rendered mode read the text from its start.
-        v.colors = None;
-        v.colors_on = false;
+        // The colors and the rendered mode read the text from its start, but
+        // those made line by line (patches, logs) hold anywhere.
+        if !v.colors.as_ref().is_some_and(Highlighter::is_per_line) {
+            v.colors = None;
+            v.colors_on = false;
+        }
+        v.patch = None;
         v.md = None;
         v.md_file = false;
         if v.mode == ViewMode::Rendered {
@@ -465,6 +566,265 @@ impl Viewer {
         v
     }
 
+    /// The colors of the text, by its name (`color_name`, or else `path`) or
+    /// its contents. A patch gets its own, and its index when it is read whole.
+    fn choose_colors(&mut self) {
+        let target = self.color_name.clone().unwrap_or_else(|| self.path.clone());
+        self.patch = None;
+        self.patch_list = None;
+        let special = target == Path::new(crate::highlight::GIT_STATUS)
+            || target == Path::new(crate::highlight::ANSI);
+        self.patch_file =
+            !special && (patch::is_patch_name(&target) || patch::looks_like_patch(&self.lines));
+        self.log_file = !special
+            && !self.patch_file
+            && (log::is_log_name(&target) || log::looks_like_log(&self.lines));
+        self.ansi_removed = 0;
+        if self.patch_file {
+            let index = (!self.windowed()).then(|| Arc::new(patch::index(&self.lines)));
+            self.colors = patch::colors(index.clone());
+            self.patch = index;
+        } else if self.log_file {
+            self.colors = self.log_colors();
+        } else {
+            self.colors = Highlighter::for_name(&target, &self.lines);
+        }
+    }
+
+    /// A log read whole loses its ANSI sequences (their text colors are kept)
+    /// and gets the level of each line; in a window, each line is colored by
+    /// its own level.
+    fn log_colors(&mut self) -> Option<Highlighter> {
+        if self.windowed() {
+            return log::colors(None, None);
+        }
+        let mut ansi = None;
+        let decoded = charset::decode(&self.data, self.charset);
+        if log::has_escapes(&decoded) {
+            let stripped = log::strip_ansi(&decoded);
+            let text = text_lines(&stripped.text, line_budget(self.load.limits.output));
+            self.lines = text.lines.into();
+            self.bidi = text.bidi;
+            self.lines_cut = text.cut;
+            self.ansi_removed = stripped.removed;
+            self.refilter();
+            ansi = stripped.colors.map(Arc::new);
+        }
+        let levels = Arc::new(log::levels(&self.lines));
+        log::colors(Some(levels), ansi)
+    }
+
+    /// The ANSI sequences taken out of a log that were not a text color.
+    pub fn ansi_removed(&self) -> usize {
+        self.ansi_removed
+    }
+
+    /// A log is being followed: new lines come in at the end.
+    pub fn following(&self) -> bool {
+        self.follow.on
+    }
+
+    /// The screen at the last lines, as End leaves it.
+    fn show_end(&mut self) {
+        let page = self.page.max(1);
+        if self.mode == ViewMode::Text && self.wrap {
+            self.top = self.text_rows().saturating_sub(1);
+            self.sub_top = 0;
+        } else {
+            self.top = self.line_count().saturating_sub(page);
+        }
+    }
+
+    /// The last line is on the screen, and all of them are known.
+    fn at_end(&self) -> bool {
+        if self.follow.on {
+            return self.top == self.follow.top;
+        }
+        self.mode == ViewMode::Text
+            && !self.counting_lines()
+            && self.top + self.page.max(1) >= self.text_rows()
+    }
+
+    /// Follows a log on disk while the screen is at its end: looks at the file
+    /// every [`FOLLOW_EVERY`]; if it only grew (its old last bytes are the
+    /// same), the new lines come in and the screen stays at the end. If it
+    /// shrank or changed, it was rotated or rewritten: the header says so, and
+    /// R reads it again. True if there is something new to show.
+    fn follow_tick(&mut self) -> bool {
+        let can = self.log_file
+            && self.on_disk
+            && self.mode == ViewMode::Text
+            && self.compression.is_none()
+            && self.behind.is_none()
+            && !self.follow.rotated
+            && (self.windowed() || !self.cut);
+        if !can || !self.at_end() {
+            let was = self.follow.on;
+            let rotated = self.follow.rotated;
+            self.follow = Follow {
+                rotated,
+                ..Follow::default()
+            };
+            return was;
+        }
+        // The lines a window is still counting: the screen goes with them.
+        if self.follow.on {
+            let before = self.top;
+            self.show_end();
+            self.follow.top = self.top;
+            if self.top != before || self.counting_lines() {
+                return true;
+            }
+        }
+        if self.follow.last.is_some_and(|t| t.elapsed() < FOLLOW_EVERY) {
+            return false;
+        }
+        self.follow.last = Some(std::time::Instant::now());
+        let known = self.lines.window().map_or(self.size, TextWindow::size);
+        let Some((size, tail)) = self.follow.tail.clone() else {
+            self.follow.tail = read_tail(&self.path, known).map(|t| (known, t));
+            self.follow.on = self.follow.tail.is_some();
+            self.follow.top = self.top;
+            return self.follow.on;
+        };
+        let Ok(now) = std::fs::metadata(&self.path).map(|m| m.len()) else {
+            return false;
+        };
+        if now == size {
+            return false;
+        }
+        let grew = now > size && read_tail(&self.path, size).as_deref() == Some(&tail[..]);
+        if !grew {
+            self.follow = Follow {
+                rotated: true,
+                ..Follow::default()
+            };
+            return true;
+        }
+        if let Some(w) = self.lines.window_mut() {
+            w.grow(now, records::file_stamp(&self.path));
+            self.size = now;
+            if self.filter.is_some() {
+                self.refilter();
+            }
+        } else {
+            let keep = self.follow.clone();
+            if self.reload().is_err() {
+                return false;
+            }
+            self.follow = keep;
+        }
+        self.follow.tail = read_tail(&self.path, now).map(|t| (now, t));
+        self.follow.on = true;
+        self.show_end();
+        self.follow.top = self.top;
+        true
+    }
+
+    /// The summary of a patch for the header: `12 files, +340 −98`.
+    pub fn patch_summary(&self) -> Option<String> {
+        self.patch.as_ref().map(|ix| ix.summary())
+    }
+
+    /// Where the top of the screen is in a patch: `3/12 src/a.rs @@ 2/5`.
+    pub fn patch_position(&self) -> Option<String> {
+        let ix = self.patch.as_ref()?;
+        let line = self.top_line();
+        let file = ix.file_at(line)?;
+        let name = patch::shown(&ix.files[file].name);
+        let mut s = format!("{}/{} {name}", file + 1, ix.files.len());
+        if let Some((hunk, hunks)) = ix.hunk_at(line) {
+            s.push_str(&format!(" @@ {hunk}/{hunks}"));
+        }
+        Some(s)
+    }
+
+    /// `]` `[` (file) and `}` `{` (hunk) in a patch.
+    fn patch_jump(&mut self, key: char) {
+        let Some(ix) = self.patch.clone() else {
+            self.note = Some("No file list in a patch this big".into());
+            return;
+        };
+        let forward = matches!(key, ']' | '}');
+        let line = self.top_line();
+        let target = if matches!(key, ']' | '[') {
+            patch::PatchIndex::next(ix.files.iter().map(|f| f.line), line, forward)
+        } else {
+            patch::PatchIndex::next(ix.hunks.iter().copied(), line, forward)
+        };
+        match target {
+            Some(t) => {
+                self.goto_line(t + 1);
+                self.note = self.patch_position();
+            }
+            None => {
+                let what = if matches!(key, ']' | '[') {
+                    "file"
+                } else {
+                    "hunk"
+                };
+                let way = if forward { "next" } else { "previous" };
+                self.note = Some(format!("No {way} {what}"));
+            }
+        }
+    }
+
+    /// Tab in a patch: the list of its files.
+    fn open_patch_list(&mut self) {
+        let Some(ix) = &self.patch else {
+            self.note = Some("No file list in a patch this big".into());
+            return;
+        };
+        if ix.files.is_empty() {
+            self.note = Some("This patch has no files".into());
+            return;
+        }
+        let current = ix.file_at(self.top_line()).unwrap_or(0);
+        self.patch_list = Some(table::SheetList::new(&ix.names(), current));
+    }
+
+    /// The names in the patch's list and the file at the top of the screen.
+    pub fn patch_list_names(&self) -> (Vec<String>, usize) {
+        match self.patch.as_ref().filter(|_| self.patch_list.is_some()) {
+            Some(ix) => (ix.names(), ix.file_at(self.top_line()).unwrap_or(0)),
+            None => (Vec::new(), 0),
+        }
+    }
+
+    /// A key in the patch's list of files, like one in the list of sheets.
+    fn patch_list_key(&mut self, key: KeyEvent) {
+        let (Some(list), Some(ix)) = (&mut self.patch_list, self.patch.clone()) else {
+            self.patch_list = None;
+            return;
+        };
+        let names = ix.names();
+        let last = list.shown.len().saturating_sub(1);
+        let page = self.page.max(1);
+        let plain = !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        match key.code {
+            KeyCode::Up => list.cursor = list.cursor.saturating_sub(1),
+            KeyCode::Down => list.cursor = (list.cursor + 1).min(last),
+            KeyCode::PageUp => list.cursor = list.cursor.saturating_sub(page),
+            KeyCode::PageDown => list.cursor = (list.cursor + page).min(last),
+            KeyCode::Home => list.cursor = 0,
+            KeyCode::End => list.cursor = last,
+            KeyCode::Backspace => list.pop(&names),
+            KeyCode::Char(c) if plain => list.push(c, &names),
+            KeyCode::Esc | KeyCode::Tab => self.patch_list = None,
+            KeyCode::Enter => {
+                let target = list.shown.get(list.cursor).map(|&f| ix.files[f].line);
+                self.patch_list = None;
+                if let Some(line) = target {
+                    self.goto_line(line + 1);
+                    self.note = self.patch_position();
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// The text is a window over a big file.
     pub fn windowed(&self) -> bool {
         self.lines.window().is_some()
@@ -475,9 +835,10 @@ impl Viewer {
         self.lines.window().is_some_and(TextWindow::counting)
     }
 
-    /// The file under the window is no longer the one that was opened.
+    /// The file under the window is no longer the one that was opened, or a
+    /// followed log was rotated.
     pub fn text_changed(&self) -> bool {
-        self.lines.window().is_some_and(TextWindow::changed)
+        self.lines.window().is_some_and(TextWindow::changed) || self.follow.rotated
     }
 
     /// Asks the window for what the screen shows and the lines around it.
@@ -507,7 +868,7 @@ impl Viewer {
                     .window_mut()
                     .is_some_and(|w| w.want_hex(start..end))
             }
-            ViewMode::Table | ViewMode::Rendered => false,
+            ViewMode::Table | ViewMode::Rendered | ViewMode::Tree => false,
         };
         if changed {
             self.take_bidi();
@@ -691,6 +1052,15 @@ impl Viewer {
         self.problem = new.problem;
         self.md = new.md;
         self.md_file = new.md_file;
+        self.notebook = new.notebook;
+        self.office = new.office;
+        self.exe = new.exe;
+        self.cert = new.cert;
+        self.cert_der = new.cert_der;
+        self.patch = new.patch;
+        self.patch_file = new.patch_file;
+        self.log_file = new.log_file;
+        self.ansi_removed = new.ansi_removed;
         if self.charset_manual {
             self.set_charset(charset);
         }
@@ -813,7 +1183,8 @@ impl Viewer {
     /// a big text. True if there is something new to show.
     pub fn poll_table(&mut self) -> bool {
         let text = self.poll_text();
-        self.poll_grid() || text
+        let follow = self.follow_tick();
+        self.poll_grid() || text || follow
     }
 
     fn poll_grid(&mut self) -> bool {
@@ -1006,7 +1377,7 @@ impl Viewer {
                 })
             }
             // The source's lines; the line filter is for the text mode.
-            ViewMode::Rendered => Ok(batch::Source::Text {
+            ViewMode::Rendered | ViewMode::Tree => Ok(batch::Source::Text {
                 text: charset::decode(&self.data, self.charset).into_owned(),
                 total: self.lines.len(),
                 kept: None,
@@ -1130,7 +1501,12 @@ impl Viewer {
         let limit = load.limits.output;
         let mut v = Self::build(path.clone(), size, data, found.charset, found.binary, limit);
         let shown_name = name.as_deref().unwrap_or(&path);
-        v.md_file = !failed && !found.binary && markdown::is_markdown(shown_name);
+        v.notebook = jupyter::is_notebook(shown_name);
+        v.office = (!failed).then(|| office::kind(shown_name)).flatten();
+        v.exe = !failed && found.binary && binaries::is_binary(&v.data);
+        v.cert = !failed && !v.exe && certs::detect(shown_name, &v.data);
+        v.cert_der = v.cert && found.binary;
+        v.md_file = !failed && !found.binary && (markdown::is_markdown(shown_name) || v.notebook);
         if let Some(name) = &name {
             v = v.colored_as(name);
         }
@@ -1149,13 +1525,300 @@ impl Viewer {
         if v.render_markdown() {
             v.mode = ViewMode::Rendered;
         }
+        v.tree_format = (!failed && !found.binary)
+            .then(|| tree::format_of(shown_name))
+            .flatten();
+        if v.build_tree() {
+            v.mode = ViewMode::Tree;
+        }
         v
+    }
+
+    /// Reads the text as a tree, if it is JSON, YAML or TOML and all of it is
+    /// here. Anything else leaves the text, and the note says why.
+    fn build_tree(&mut self) -> bool {
+        self.tree = None;
+        self.tree_cursor = 0;
+        let Some(format) = self.tree_format else {
+            return false;
+        };
+        if self.cut || self.windowed() {
+            self.note
+                .get_or_insert_with(|| "Too large for the tree: showing the text".to_string());
+            return false;
+        }
+        let text = charset::decode(&self.data, self.charset);
+        let time = self.load.limits.time;
+        match crate::panic_guard::catch(|| tree::parse(format, &text, time)) {
+            Some(Ok(t)) => self.tree = Some(t),
+            Some(Err(why)) => {
+                self.note
+                    .get_or_insert_with(|| format!("{why}: showing the text"));
+            }
+            None => {
+                self.note.get_or_insert_with(|| {
+                    "Could not read this as a tree: showing the text".into()
+                });
+            }
+        }
+        self.tree.is_some()
+    }
+
+    /// The path of the node under the cursor, for the footer.
+    pub fn tree_path(&self) -> Option<String> {
+        let t = self.tree.as_ref().filter(|_| self.mode == ViewMode::Tree)?;
+        let id = *t.rows().get(self.tree_cursor)?;
+        Some(tree::shown(&t.path(id)))
+    }
+
+    /// Keeps the cursor of the tree on a row, and that row on the screen.
+    fn tree_settle(&mut self) {
+        let Some(t) = &self.tree else { return };
+        let n = t.rows().len();
+        self.tree_cursor = self.tree_cursor.min(n.saturating_sub(1));
+        let page = self.page.max(1);
+        if self.tree_cursor < self.top {
+            self.top = self.tree_cursor;
+        } else if self.tree_cursor >= self.top + page {
+            self.top = self.tree_cursor + 1 - page;
+        }
+        self.top = self.top.min(n.saturating_sub(1));
+    }
+
+    /// Puts the cursor on node `id`, opening what is above it.
+    fn tree_show(&mut self, id: u32) {
+        let Some(t) = &mut self.tree else { return };
+        t.reveal(id);
+        if let Some(row) = t.row_of(id) {
+            self.tree_cursor = row;
+            // Centered, like a search match in the text.
+            let page = self.page.max(1);
+            if row < self.top || row >= self.top + page {
+                self.top = row.saturating_sub(page / 2);
+            }
+        }
+        self.tree_settle();
+    }
+
+    /// A key of the tree's own; `None` for the keys it leaves to the viewer.
+    fn tree_key(&mut self, key: KeyEvent) -> Option<Action> {
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let alt = key.modifiers.contains(KeyModifiers::ALT);
+        if ctrl || alt {
+            return None;
+        }
+        let page = self.page.max(1);
+        let t = self.tree.as_mut()?;
+        let n = t.rows().len();
+        let id = t.rows().get(self.tree_cursor).copied();
+        match key.code {
+            KeyCode::Up => self.tree_cursor = self.tree_cursor.saturating_sub(1),
+            KeyCode::Down => self.tree_cursor = (self.tree_cursor + 1).min(n.saturating_sub(1)),
+            KeyCode::PageUp => {
+                self.tree_cursor = self.tree_cursor.saturating_sub(page);
+                self.top = self.top.saturating_sub(page);
+            }
+            KeyCode::PageDown => {
+                self.tree_cursor = (self.tree_cursor + page).min(n.saturating_sub(1));
+                self.top = (self.top + page).min(n.saturating_sub(1));
+            }
+            KeyCode::Home => {
+                self.tree_cursor = 0;
+                self.top = 0;
+            }
+            KeyCode::End => {
+                self.tree_cursor = n.saturating_sub(1);
+                self.top = n.saturating_sub(page);
+            }
+            KeyCode::Right => {
+                let id = id?;
+                if !t.set_open(id, true) && t.has_children(id) {
+                    self.tree_cursor += 1;
+                }
+            }
+            KeyCode::Left => {
+                let id = id?;
+                if !t.set_open(id, false)
+                    && let Some(p) = t.parent(id)
+                    && let Some(row) = t.row_of(p)
+                {
+                    self.tree_cursor = row;
+                }
+            }
+            KeyCode::Enter => {
+                let id = id?;
+                let open = t.is_open(id);
+                t.set_open(id, !open);
+            }
+            KeyCode::Char('*') => t.open_all(id?),
+            KeyCode::Char('k' | 'K') => {
+                let path = t.path(id?);
+                self.note = Some(copied(&path, "the path of the node"));
+            }
+            _ => return None,
+        }
+        self.tree_settle();
+        Some(Action::None)
+    }
+
+    /// From the tree to the text, at the line of the node under the cursor.
+    fn tree_to_text(&mut self) {
+        let line = self
+            .tree
+            .as_ref()
+            .and_then(|t| {
+                t.rows()
+                    .get(self.tree_cursor)
+                    .map(|&id| t.node(id).line as usize)
+            })
+            .unwrap_or(0);
+        self.mode = ViewMode::Text;
+        self.top = self.row_of_line(line);
+        self.sub_top = 0;
+        self.left = 0;
+    }
+
+    /// From the text to the tree, at the node of the line on top.
+    fn text_to_tree(&mut self) {
+        let line = self.top_line();
+        self.mode = ViewMode::Tree;
+        self.left = 0;
+        let id = self.tree.as_ref().and_then(|t| t.node_at_line(line));
+        if let Some(id) = id {
+            self.tree_show(id);
+        }
+    }
+
+    /// The tree's rows on screen: indentation, fold mark, key and value, in
+    /// the colors of their kinds, with the cursor's row reversed.
+    fn tree_rows(&mut self, height: usize) -> Vec<StyledRow> {
+        self.tree_settle();
+        let Some(t) = &self.tree else {
+            return Vec::new();
+        };
+        let colors = self.colors_on || crate::highlight::enabled();
+        let tone = |rgb| colors.then(|| crate::highlight::tone(rgb));
+        let key_color = tone((114, 159, 207));
+        let string_color = tone((78, 154, 6));
+        let number_color = tone((6, 152, 154));
+        let word_color = tone((173, 127, 168));
+        let mark_color = tone((196, 160, 0));
+        let dup_color = Some(crate::config::theme().error);
+        let width = self.content_width();
+        let left = self.left;
+        let numbers = self.line_numbers;
+        t.rows()
+            .iter()
+            .enumerate()
+            .skip(self.top)
+            .take(height)
+            .map(|(row, &id)| {
+                let node = t.node(id);
+                let mut pieces: Vec<(String, Option<Color>)> = Vec::new();
+                pieces.push(("  ".repeat(t.depth(id)), None));
+                let fold = if !t.has_children(id) {
+                    "  "
+                } else if t.is_open(id) {
+                    "▾ "
+                } else {
+                    "▸ "
+                };
+                pieces.push((fold.to_string(), None));
+                if let Some(k) = &node.key {
+                    pieces.push((tree::shown(k), key_color));
+                    pieces.push((": ".to_string(), None));
+                }
+                if let Some(m) = &node.mark {
+                    pieces.push((format!("{} ", tree::shown(m)), mark_color));
+                }
+                let value_color = match node.value {
+                    tree::Value::Str(_) => string_color,
+                    tree::Value::Raw(_) => number_color,
+                    tree::Value::Bool(_) | tree::Value::Null | tree::Value::Alias(_) => word_color,
+                    _ => None,
+                };
+                pieces.push((t.value_text(id), value_color));
+                if node.dup {
+                    pieces.push(("  (dup key)".to_string(), dup_color));
+                }
+                // Only what fits, from the column panned to.
+                let mut segments: Vec<Segment> = Vec::new();
+                let mut skip = left;
+                let mut room = width;
+                let cursor = row == self.tree_cursor;
+                let look = if cursor {
+                    Modifier::REVERSED
+                } else {
+                    Modifier::empty()
+                };
+                for (text, color) in pieces {
+                    if room == 0 {
+                        break;
+                    }
+                    let chars: String = text.chars().skip(skip).take(room).collect();
+                    skip = skip.saturating_sub(text.chars().count());
+                    room -= chars.chars().count();
+                    if !chars.is_empty() {
+                        segments.push((chars, color, false, look));
+                    }
+                }
+                StyledRow {
+                    line_num: numbers.then_some(node.line as usize + 1),
+                    segments,
+                }
+            })
+            .collect()
+    }
+
+    /// Searches the tree's keys and values, open or not, from the cursor (or
+    /// from an edge), and opens the way to what it finds.
+    fn find_tree(&mut self, pattern: &Pattern, forward: bool, from: Option<u32>) -> bool {
+        let Some(t) = &self.tree else { return false };
+        let found = t.find(from, forward, |s| pattern.find_in_line(s, 0).is_some());
+        match found {
+            Some(id) => {
+                self.tree_show(id);
+                self.hit = Some(Hit {
+                    mode: ViewMode::Tree,
+                    line: id as usize,
+                    start: 0,
+                    end: 0,
+                });
+                true
+            }
+            None => false,
+        }
     }
 
     /// Reads the text as a document, if it is Markdown and within the limits.
     /// Anything else leaves the source, and the note says why.
     fn render_markdown(&mut self) -> bool {
         self.md = None;
+        if let Some(kind) = self.office {
+            return self.render_office(kind);
+        }
+        if self.exe {
+            return self.render_binary();
+        }
+        if self.cert {
+            let (time, budget, width) = (
+                self.load.limits.time,
+                self.load.limits.output.saturating_mul(16).max(16 << 20),
+                self.content_width(),
+            );
+            let (path, data) = (&self.path, &self.data);
+            match crate::panic_guard::catch(|| certs::render(path, data, time, budget, width)) {
+                Some(Ok(doc)) => self.md = Some(doc),
+                Some(Err(why)) => {
+                    self.note.get_or_insert(why);
+                }
+                None => {
+                    self.note
+                        .get_or_insert_with(|| "Could not read this certificate or key".into());
+                }
+            }
+            return self.md.is_some();
+        }
         if !self.md_file {
             return false;
         }
@@ -1172,16 +1835,123 @@ impl Viewer {
         let limits = self.load.limits;
         let budget = limits.output.min(markdown::MAX_INPUT).saturating_mul(16);
         let width = self.content_width();
-        let doc = crate::panic_guard::catch(|| {
-            let mut doc = markdown::parse(&text, limits.time, budget);
-            doc.layout(width);
-            doc
-        });
+        let doc = if self.notebook {
+            match crate::panic_guard::catch(|| jupyter::render(&text, limits.time, budget, width)) {
+                Some(Ok(doc)) => Some(doc),
+                Some(Err(why)) => {
+                    self.note.get_or_insert(why);
+                    None
+                }
+                None => None,
+            }
+        } else {
+            crate::panic_guard::catch(|| {
+                let mut doc = markdown::parse(&text, limits.time, budget);
+                doc.layout(width);
+                doc
+            })
+        };
         self.md = doc.filter(|d| !d.is_empty_cut());
         if self.md.is_none() && self.note.is_none() {
             self.note = Some("Could not render this file: showing the source".into());
         }
         self.md.is_some()
+    }
+
+    /// An Office document as a document: from the bytes read when they are
+    /// all of it, else (with V) from the file. Anything else leaves the
+    /// bytes, and the note says why.
+    fn render_office(&mut self, kind: office::Kind) -> bool {
+        // Autoview reads little and must be quick: a small part and a small
+        // whole, from what it read.
+        let autoview = !self.load.c_parsers;
+        let (part, total) = if autoview {
+            (4 << 20, 4 << 20)
+        } else {
+            (64 << 20, 256 << 20)
+        };
+        let limits = office::Limits {
+            part,
+            total,
+            time: self.load.limits.time,
+            budget: self.load.limits.output.saturating_mul(16).max(16 << 20),
+        };
+        let width = self.content_width();
+        let result = if !self.cut {
+            let data = &self.data;
+            crate::panic_guard::catch(|| {
+                office::render(std::io::Cursor::new(data.as_slice()), kind, limits, width)
+            })
+        } else if self.on_disk && !autoview && self.compression.is_none() {
+            let path = self.path.clone();
+            crate::panic_guard::catch(|| {
+                let file = File::open(&path).map_err(|e| format!("Cannot read the file: {e}"))?;
+                office::render(std::io::BufReader::new(file), kind, limits, width)
+            })
+        } else {
+            if self.note.is_none() {
+                self.note = Some("Too big to read here: V shows it as a document".into());
+            }
+            return false;
+        };
+        match result {
+            Some(Ok(doc)) => self.md = Some(doc),
+            Some(Err(why)) => {
+                self.note.get_or_insert(why);
+            }
+            None => {
+                self.note.get_or_insert_with(|| {
+                    "Could not read this document: showing the bytes".into()
+                });
+            }
+        }
+        self.md.is_some()
+    }
+
+    /// An executable as a report: from the bytes read when they are all of
+    /// it; else, with V, from the file, read only where the report needs it
+    /// (256 MiB at most in all); in Autoview, from its start, and the report
+    /// says it may miss things.
+    fn render_binary(&mut self) -> bool {
+        /// What a report may read of a file, in all.
+        const MAX_BINARY: u64 = 256 << 20;
+        let autoview = !self.load.c_parsers;
+        if self.cut && !autoview && !self.on_disk {
+            // Read from the file once it is known to be on disk (`open`).
+            return false;
+        }
+        let (time, budget, width) = (
+            self.load.limits.time,
+            self.load.limits.output.saturating_mul(16).max(16 << 20),
+            self.content_width(),
+        );
+        let from_file = self.cut && !autoview && self.compression.is_none();
+        let (data, cut, path) = (&self.data, self.cut, &self.path);
+        let result = crate::panic_guard::catch(|| {
+            if from_file {
+                binaries::render_file(path, MAX_BINARY, time, budget, width)
+            } else {
+                binaries::render(data, cut, time, budget, width)
+            }
+        });
+        match result {
+            Some(Ok(doc)) => self.md = Some(doc),
+            Some(Err(why)) => {
+                self.note
+                    .get_or_insert_with(|| format!("{why}: showing the bytes"));
+            }
+            None => {
+                self.note
+                    .get_or_insert_with(|| "Could not read this binary: showing the bytes".into());
+            }
+        }
+        self.md.is_some()
+    }
+
+    /// A document with no text of its own (Office, an executable): `T` has no
+    /// source to show, and `H` goes to the bytes.
+    fn no_source(&self) -> bool {
+        self.office.is_some() || self.exe || self.cert_der
     }
 
     pub fn limit(&self) -> u64 {
@@ -1211,6 +1981,7 @@ impl Viewer {
         }
         self.mode = match old.mode {
             ViewMode::Rendered if self.md.is_none() => ViewMode::Text,
+            ViewMode::Tree if self.tree.is_none() => ViewMode::Text,
             // Not read yet, or not a table any more: the mode the file opened in.
             ViewMode::Table if self.table.is_none() => self.mode,
             mode => mode,
@@ -1237,6 +2008,7 @@ impl Viewer {
         });
         self.refilter();
         self.top = old.top.min(self.line_count().saturating_sub(1));
+        self.tree_cursor = old.tree_cursor;
         // A window knows only its first lines yet: there when it is counted.
         if self.windowed() && self.mode == ViewMode::Text && old.mode == ViewMode::Text {
             self.wish = Some(old_line);
@@ -1352,6 +2124,13 @@ impl Viewer {
             } else {
                 format!("Line {line} is filtered out: showing line {shown}")
             });
+        } else if self.mode == ViewMode::Tree {
+            let max_line = self.lines.len().max(1);
+            let line = target_1_indexed.clamp(1, max_line);
+            if let Some(id) = self.tree.as_ref().and_then(|t| t.node_at_line(line - 1)) {
+                self.tree_show(id);
+            }
+            self.note = Some(format!("Line {line} of {max_line}"));
         } else if self.mode == ViewMode::Rendered {
             let max_line = self.lines.len().max(1);
             let line = target_1_indexed.clamp(1, max_line);
@@ -1367,7 +2146,12 @@ impl Viewer {
     }
 
     pub fn gutter_width(&self) -> usize {
-        if self.line_numbers && matches!(self.mode, ViewMode::Text | ViewMode::Rendered) {
+        if self.line_numbers
+            && matches!(
+                self.mode,
+                ViewMode::Text | ViewMode::Rendered | ViewMode::Tree
+            )
+        {
             self.lines.len().to_string().len().max(1) + 3 // e.g. " 42 │ "
         } else {
             0
@@ -1414,13 +2198,16 @@ impl Viewer {
         let data_len = data.len() as u64;
         let text = text_lines(&charset::decode(&data, charset), line_budget(limit));
         let (lines, bidi) = (Text::from(text.lines), text.bidi);
-        let colors = (!binary)
-            .then(|| text_colors(&path, None, &lines))
-            .flatten();
-        Viewer {
+        let mut v = Viewer {
             color_name: None,
-            colors_on: colors.is_some(),
-            colors,
+            colors_on: false,
+            colors: None,
+            patch: None,
+            patch_file: false,
+            patch_list: None,
+            log_file: false,
+            ansi_removed: 0,
+            follow: Follow::default(),
             path,
             size,
             mode,
@@ -1454,11 +2241,24 @@ impl Viewer {
             filter: None,
             md: None,
             md_file: false,
+            notebook: false,
+            office: None,
+            exe: false,
+            cert: false,
+            cert_der: false,
+            tree_format: None,
+            tree: None,
+            tree_cursor: 0,
             partial: false,
             seeking: None,
             awaited: None,
             wish: None,
+        };
+        if !binary {
+            v.choose_colors();
+            v.colors_on = v.colors.is_some();
         }
+        v
     }
 
     pub fn charset(&self) -> Charset {
@@ -1525,9 +2325,13 @@ impl Viewer {
         self.lines_cut = text.cut;
         self.refilter();
         let had_colors = self.colors.is_some();
-        self.colors = readable
-            .then(|| text_colors(&self.path, self.color_name.as_deref(), &self.lines))
-            .flatten();
+        if readable {
+            self.choose_colors();
+        } else {
+            self.colors = None;
+            self.patch = None;
+            self.patch_file = false;
+        }
         self.colors_on = self.colors.is_some() && (self.colors_on || !had_colors);
         self.hit = None;
         if !self.render_markdown() && self.mode == ViewMode::Rendered {
@@ -1545,9 +2349,9 @@ impl Viewer {
     /// `highlight::GIT_STATUS`).
     pub fn colored_as(mut self, name: &Path) -> Self {
         if self.mode == ViewMode::Text {
-            self.colors = Highlighter::for_name(name, &self.lines);
-            self.colors_on = self.colors.is_some();
             self.color_name = Some(name.to_path_buf());
+            self.choose_colors();
+            self.colors_on = self.colors.is_some();
         }
         self
     }
@@ -1565,7 +2369,7 @@ impl Viewer {
 
     /// The file has a rendered mode.
     pub fn can_render(&self) -> bool {
-        self.md.is_some()
+        self.md.is_some() || self.tree.is_some()
     }
 
     /// Not all of the document is rendered.
@@ -1628,6 +2432,7 @@ impl Viewer {
                 .map(|t| t.visible_row_count())
                 .unwrap_or(0),
             ViewMode::Rendered => self.md.as_ref().map_or(0, markdown::Doc::row_count),
+            ViewMode::Tree => self.tree.as_ref().map_or(0, |t| t.rows().len()),
         }
     }
 
@@ -1827,7 +2632,7 @@ impl Viewer {
                     })
                     .collect()
             }
-            ViewMode::Table | ViewMode::Rendered => Vec::new(),
+            ViewMode::Table | ViewMode::Rendered | ViewMode::Tree => Vec::new(),
         }
     }
 
@@ -1942,6 +2747,7 @@ impl Viewer {
             }
             ViewMode::Table => Vec::new(),
             ViewMode::Rendered => self.rendered_rows(height),
+            ViewMode::Tree => self.tree_rows(height),
         }
     }
 
@@ -2204,6 +3010,15 @@ impl Viewer {
             self.sheet_list_key(key);
             return Action::None;
         }
+        if self.patch_list.is_some() {
+            self.patch_list_key(key);
+            return Action::None;
+        }
+        if self.mode == ViewMode::Tree
+            && let Some(action) = self.tree_key(key)
+        {
+            return action;
+        }
         // Route movement keys to table when in Table mode; with Alt, Home and
         // End are the first and last tagged file.
         let edge = matches!(key.code, KeyCode::Home | KeyCode::End);
@@ -2330,6 +3145,14 @@ impl Viewer {
                         ViewMode::Table => ViewMode::Text,
                         _ => ViewMode::Table,
                     };
+                } else if self.tree.is_some() {
+                    match self.mode {
+                        ViewMode::Tree => self.tree_to_text(),
+                        ViewMode::Text => self.text_to_tree(),
+                        _ => self.mode = ViewMode::Tree,
+                    }
+                } else if self.md.is_some() && self.no_source() {
+                    self.note = Some("This document has no text source: H shows its bytes".into());
                 } else if self.md.is_some() {
                     match self.mode {
                         ViewMode::Rendered => self.rendered_to_text(),
@@ -2350,6 +3173,10 @@ impl Viewer {
                     self.rendered_to_text();
                     Action::FilterLines
                 }
+                ViewMode::Tree => {
+                    self.tree_to_text();
+                    Action::FilterLines
+                }
                 ViewMode::Table => Action::FilterSql,
                 ViewMode::Hex => {
                     self.note = Some("The line filter works in text mode (H)".into());
@@ -2368,6 +3195,16 @@ impl Viewer {
             }
             KeyCode::Tab if self.mode == ViewMode::Table => {
                 self.open_sheet_list();
+                Action::None
+            }
+            KeyCode::Char(c @ (']' | '[' | '}' | '{'))
+                if self.mode == ViewMode::Text && self.patch_file =>
+            {
+                self.patch_jump(c);
+                Action::None
+            }
+            KeyCode::Tab if self.mode == ViewMode::Text && self.patch_file => {
+                self.open_patch_list();
                 Action::None
             }
             KeyCode::Char(']') => {
@@ -2464,6 +3301,13 @@ impl Viewer {
 
     /// To the source, at the line the document was showing.
     fn rendered_to_text(&mut self) {
+        // An Office document or a binary has no text of its own: its bytes.
+        if self.no_source() {
+            self.mode = ViewMode::Hex;
+            self.top = 0;
+            self.left = 0;
+            return;
+        }
         let line = self.rendered_line();
         self.mode = ViewMode::Text;
         self.top = self.row_of_line(line);
@@ -2483,9 +3327,11 @@ impl Viewer {
     fn toggle_mode(&mut self) {
         match self.mode {
             ViewMode::Rendered => return self.rendered_to_text(),
+            ViewMode::Tree => return self.tree_to_text(),
             ViewMode::Text | ViewMode::Hex | ViewMode::Table => {}
         }
         self.mode = match self.mode {
+            ViewMode::Hex if self.tree.is_some() => ViewMode::Tree,
             ViewMode::Hex if self.md.is_some() => ViewMode::Rendered,
             ViewMode::Text => ViewMode::Hex,
             ViewMode::Hex => {
@@ -2495,7 +3341,7 @@ impl Viewer {
                     ViewMode::Text
                 }
             }
-            ViewMode::Table | ViewMode::Rendered => ViewMode::Text,
+            ViewMode::Table | ViewMode::Rendered | ViewMode::Tree => ViewMode::Text,
         };
         self.top = 0;
         self.sub_top = 0;
@@ -2505,6 +3351,16 @@ impl Viewer {
     /// New search, from the start/end of the file or the current page.
     pub fn search(&mut self, pattern: &Pattern, forward: bool, from: SearchFrom) -> bool {
         self.forward = forward;
+        if self.mode == ViewMode::Tree {
+            let at = match from {
+                SearchFrom::Edge => None,
+                SearchFrom::Page => self
+                    .tree
+                    .as_ref()
+                    .and_then(|t| t.rows().get(self.tree_cursor).copied()),
+            };
+            return self.find_tree(pattern, forward, at);
+        }
         let pos = match (from, forward) {
             (SearchFrom::Edge, true) => (0, 0),
             (SearchFrom::Edge, false) => (usize::MAX, usize::MAX),
@@ -2529,6 +3385,16 @@ impl Viewer {
     /// Next match after the last one found (or the page).
     pub fn search_next(&mut self, pattern: &Pattern, forward: bool) -> bool {
         self.forward = forward;
+        if self.mode == ViewMode::Tree {
+            let at = match self.hit.filter(|h| h.mode == ViewMode::Tree) {
+                Some(h) => Some(h.line as u32),
+                None => self
+                    .tree
+                    .as_ref()
+                    .and_then(|t| t.rows().get(self.tree_cursor).copied()),
+            };
+            return self.find_tree(pattern, forward, at);
+        }
         let row = |h: Hit| match h.mode {
             ViewMode::Text => self.row_of_line(h.line),
             _ => h.line,
@@ -2568,7 +3434,7 @@ impl Viewer {
                     end: e,
                 })
             }
-            ViewMode::Table => None,
+            ViewMode::Table | ViewMode::Tree => None,
             ViewMode::Rendered => self.find_rendered(pattern, forward, line, col),
         };
         match hit {
@@ -2978,14 +3844,6 @@ fn whole_utf8(data: &[u8]) -> &[u8] {
         break;
     }
     data
-}
-
-/// The syntax colors of a text: by the name they follow, else by `path`.
-fn text_colors(path: &Path, name: Option<&Path>, lines: &Text) -> Option<Highlighter> {
-    match name {
-        Some(n) => Highlighter::for_name(n, lines),
-        None => Highlighter::for_file(path, lines.first().unwrap_or("")),
-    }
 }
 
 /// The memory the lines of a text may take: twice the read limit. Ordinary
@@ -3959,6 +4817,19 @@ mod tests {
         let v = from_gz("a.txt.gz", gz(b"one\n"), load);
         assert_eq!(v.mode, ViewMode::Hex);
         assert_eq!(v.compression, None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_fifo_in_place_of_the_file_is_refused_without_waiting() {
+        let tmp = crate::testing::tempdir();
+        let fifo = tmp.path().join("app.log");
+        nix::unistd::mkfifo(&fifo, nix::sys::stat::Mode::S_IRWXU).unwrap();
+        assert!(open_regular(&fifo).is_err());
+        assert_eq!(read_tail(&fifo, 10), None);
+        let file = tmp.path().join("a.txt");
+        std::fs::write(&file, "0123456789").unwrap();
+        assert_eq!(read_tail(&file, 10).as_deref(), Some(&b"0123456789"[..]));
     }
 
     #[test]
@@ -5825,5 +6696,295 @@ mod tests {
         let t = v.table.as_ref().unwrap();
         assert!(t.window.is_none());
         assert!(!v.partial());
+    }
+
+    const PATCH: &str = "\
+diff --git a/a.rs b/a.rs
+--- a/a.rs
++++ b/a.rs
+@@ -1,2 +1,2 @@
+-old
++new
+ same
+@@ -9 +9 @@
+-x
++y
+diff --git a/run.sh b/run.sh
+old mode 100644
+new mode 100755
+";
+
+    #[test]
+    fn a_patch_has_its_colors_summary_and_keys() {
+        let mut v = Viewer::from_bytes("f.patch".into(), PATCH.len() as u64, PATCH.into());
+        v.page = 3;
+        assert_eq!(v.language(), Some("Patch"));
+        assert_eq!(
+            v.patch_summary().as_deref(),
+            Some("2 files, +2 −2, 1 to check")
+        );
+        assert_eq!(v.patch_position().as_deref(), Some("1/2 a.rs"));
+        press(&mut v, KeyCode::Char('}'));
+        assert_eq!(v.top_line(), 3);
+        assert_eq!(v.note.as_deref(), Some("1/2 a.rs @@ 1/2"));
+        press(&mut v, KeyCode::Char('}'));
+        assert_eq!(v.top_line(), 7);
+        press(&mut v, KeyCode::Char('{'));
+        assert_eq!(v.top_line(), 3);
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.top_line(), 10);
+        assert_eq!(v.note.as_deref(), Some("2/2 run.sh"));
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.note.as_deref(), Some("No next file"));
+        press(&mut v, KeyCode::Char('['));
+        assert_eq!(v.top_line(), 0);
+        // The colors: added, removed, hunk, and the mode that makes it executable.
+        let colors = |v: &mut Viewer, line: usize| {
+            v.top = line;
+            v.styled(1)[0].segments[0].1
+        };
+        let (added, removed) = (colors(&mut v, 4), colors(&mut v, 5));
+        assert!(added.is_some() && removed.is_some() && added != removed);
+        assert_ne!(colors(&mut v, 12), colors(&mut v, 11), "100755 is marked");
+    }
+
+    #[test]
+    fn tab_lists_the_files_of_a_patch() {
+        let mut v = Viewer::from_bytes("f.diff".into(), PATCH.len() as u64, PATCH.into());
+        v.page = 3;
+        press(&mut v, KeyCode::Tab);
+        assert_eq!(
+            v.patch_list_names().0,
+            ["+2 −2  a.rs", "+0 −0  run.sh  ⚠ check"]
+        );
+        press(&mut v, KeyCode::Char('r'));
+        press(&mut v, KeyCode::Char('u'));
+        assert_eq!(v.patch_list.as_ref().unwrap().shown, [1]);
+        press(&mut v, KeyCode::Enter);
+        assert!(v.patch_list.is_none());
+        assert_eq!(v.top_line(), 10);
+        // A patch by its contents, with no name to say so.
+        let v = viewer(PATCH.as_bytes());
+        assert_eq!(v.language(), Some("Patch"));
+        // Not a patch: the keys stay the table's, and do nothing here.
+        let mut v = viewer(b"a\nb\n");
+        press(&mut v, KeyCode::Tab);
+        assert!(v.patch_list.is_none());
+    }
+
+    #[test]
+    fn a_log_has_level_colors_and_loses_its_escapes() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("app.log");
+        std::fs::write(
+            &path,
+            "INFO start\n\x1b[31mERROR\x1b[0m bad\x1b]52;c;eA==\x07\nWARN slow\n",
+        )
+        .unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.language(), Some("Log"));
+        assert_eq!(v.ansi_removed(), 1, "the OSC 52");
+        assert_eq!(&v.lines[1], "ERROR bad");
+        assert!(v.data.contains(&0x1b), "the hex still has the bytes");
+        v.page = 5;
+        let rows = v.styled(3);
+        let color = |r: usize| rows[r].segments[0].1;
+        assert!(color(1).is_some() && color(2).is_some() && color(1) != color(2));
+        // Not a log: the colors are the language's.
+        let plain = viewer(b"fn main() {}\n");
+        assert_ne!(plain.language(), Some("Log"));
+    }
+
+    #[test]
+    fn a_log_at_its_end_is_followed_as_it_grows() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("app.log");
+        std::fs::write(&path, "a\nb\nc\n").unwrap();
+        let load = LoadOptions {
+            in_background: true,
+            ..LOAD
+        };
+        let mut v = Viewer::open(path.clone(), load).unwrap();
+        v.page = 2;
+        assert!(!v.poll_table() || !v.following(), "not at the end yet");
+        press(&mut v, KeyCode::End);
+        v.poll_table();
+        assert!(v.following());
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap();
+        f.write_all(b"d\ne\n").unwrap();
+        drop(f);
+        assert!(v.poll_table());
+        assert_eq!(v.line_count(), 5);
+        assert_eq!(v.top, 3, "still at the end");
+        assert!(v.following());
+        // Moving up stops it.
+        press(&mut v, KeyCode::Up);
+        v.poll_table();
+        assert!(!v.following());
+        press(&mut v, KeyCode::End);
+        v.poll_table();
+        assert!(v.following());
+        // Rotated: the header says so, and R reads it again.
+        std::fs::write(&path, "new\n").unwrap();
+        assert!(v.poll_table());
+        assert!(!v.following());
+        assert!(v.text_changed());
+        press(&mut v, KeyCode::Char('r'));
+        assert_eq!(v.line_count(), 1);
+        assert!(!v.text_changed());
+    }
+
+    #[test]
+    fn an_office_document_opens_as_a_document() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("a.docx");
+        std::fs::write(
+            &path,
+            office::test_docs::docx("<w:p><w:r><w:t>Hello **world**</w:t></w:r></w:p>"),
+        )
+        .unwrap();
+        let mut v = Viewer::open(path.clone(), LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        let doc = v.md.as_ref().unwrap();
+        assert!((0..doc.line_count()).any(|i| doc.line(i) == "Hello **world**"));
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Rendered);
+        assert_eq!(
+            v.note.as_deref(),
+            Some("This document has no text source: H shows its bytes")
+        );
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Hex);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // In Autoview too, being small.
+        let v = Viewer::open(path, LoadOptions::autoview()).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // Not a package: the bytes, and the note says why.
+        let bad = tmp.path().join("b.docx");
+        std::fs::write(&bad, b"PK\x03\x04 broken").unwrap();
+        let v = Viewer::open(bad, LOAD).unwrap();
+        assert_ne!(v.mode, ViewMode::Rendered);
+        assert!(v.note.as_deref().unwrap().contains("showing the bytes"));
+    }
+
+    #[test]
+    fn a_notebook_opens_rendered_or_as_its_source() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("n.ipynb");
+        std::fs::write(
+            &path,
+            r#"{"nbformat": 4, "cells": [{"cell_type": "code", "source": "x = 1", "outputs": []}]}"#,
+        )
+        .unwrap();
+        let v = Viewer::open(path.clone(), LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        std::fs::write(&path, "{ not json").unwrap();
+        let v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Text);
+        assert!(v.note.as_deref().unwrap().contains("showing the source"));
+    }
+
+    #[test]
+    fn json_opens_as_a_tree_that_folds() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("a.json");
+        std::fs::write(&path, r#"{"a": {"b": [1, 2]}, "c": "x", "a": 3}"#).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 10;
+        v.width = 60;
+        assert_eq!(v.mode, ViewMode::Tree);
+        assert_eq!(v.tree.as_ref().unwrap().dups, 1);
+        let text = |v: &mut Viewer| -> Vec<String> {
+            v.styled(10)
+                .into_iter()
+                .map(|r| r.segments.iter().map(|s| s.0.as_str()).collect())
+                .collect()
+        };
+        assert_eq!(text(&mut v)[1], "  ▾ a: {");
+        press(&mut v, KeyCode::Down);
+        assert_eq!(v.tree_path().as_deref(), Some(".a"));
+        press(&mut v, KeyCode::Left);
+        assert_eq!(text(&mut v)[1], "  ▸ a: {1 key}");
+        press(&mut v, KeyCode::Right);
+        press(&mut v, KeyCode::Right);
+        assert_eq!(v.tree_path().as_deref(), Some(".a.b"));
+        press(&mut v, KeyCode::Enter);
+        assert_eq!(text(&mut v)[2], "    ▸ b: [2 items]");
+        // A search opens the way to what it finds.
+        let p = Pattern::new(&crate::search::SearchSpec::new("2")).unwrap();
+        assert!(v.search(&p, true, SearchFrom::Edge));
+        assert_eq!(v.tree_path().as_deref(), Some(".a.b[1]"));
+        // T: the text at the node's line, and back.
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Text);
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Tree);
+        // H: tree, text, hex, tree.
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Text);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Hex);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Tree);
+        // Esc still closes.
+        assert_eq!(press(&mut v, KeyCode::Esc), Action::Close);
+    }
+
+    #[test]
+    fn what_is_not_valid_stays_text() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("bad.json");
+        std::fs::write(&path, "{\"a\": ").unwrap();
+        let v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Text);
+        assert!(v.note.as_deref().unwrap().starts_with("Not valid JSON"));
+        let path = tmp.path().join("c.yaml");
+        std::fs::write(&path, "a: &x [1]\nb: *x\n").unwrap();
+        let v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Tree);
+        let path = tmp.path().join("Cargo.toml");
+        std::fs::write(&path, "[package]\nname = \"x\"\n").unwrap();
+        assert_eq!(Viewer::open(path, LOAD).unwrap().mode, ViewMode::Tree);
+    }
+
+    #[test]
+    fn an_executable_opens_as_a_report() {
+        let me = std::env::current_exe().unwrap();
+        let mut v = Viewer::open(me, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered, "{:?}", v.note);
+        let doc = v.md.as_ref().unwrap();
+        assert!((0..doc.line_count()).any(|i| doc.line(i).starts_with("Entry point")));
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(
+            v.note.as_deref(),
+            Some("This document has no text source: H shows its bytes")
+        );
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Hex);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // A few bytes that only start like one stay in hex.
+        assert_eq!(viewer(b"\x7fELF\0\0").mode, ViewMode::Hex);
+    }
+
+    #[test]
+    fn a_certificate_opens_as_a_report_and_a_key_hides_its_text() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("server.pem");
+        std::fs::write(&path, include_str!("../tests/data/cert.pem")).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Text, "a PEM has its text");
+        // A private key, in Autoview: the report, not the text.
+        let key = tmp.path().join("id_rsa");
+        std::fs::write(&key, include_str!("../tests/data/key.pem")).unwrap();
+        let v = Viewer::open(key, LoadOptions::autoview()).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
     }
 }

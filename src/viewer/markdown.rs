@@ -262,10 +262,34 @@ struct Builder {
 
 /// Reads `text`, within `time` and about `budget` bytes of memory.
 pub fn parse(text: &str, time: Duration, budget: usize) -> Doc {
+    from_events(
+        text,
+        Parser::new_ext(text, OPTIONS).into_offset_iter(),
+        time,
+        budget,
+    )
+}
+
+/// The Markdown parser's events for `text`, with where each starts in it, for
+/// a document made of several pieces of Markdown (the cells of a notebook).
+pub fn events(text: &str) -> impl Iterator<Item = (Event<'_>, Range<usize>)> {
+    Parser::new_ext(text, OPTIONS).into_offset_iter()
+}
+
+/// A document made of events instead of Markdown text: a notebook, an Office
+/// document, a report on a binary. The text in the events is never read as
+/// Markdown, so nothing in it is interpreted; `source` is the text the ranges
+/// point into (what `T` shows, and `g` and `#` count lines of). The same
+/// limits as [`parse`]: `time` and the memory `budget`.
+pub fn from_events<'a>(
+    source: &str,
+    events: impl IntoIterator<Item = (Event<'a>, Range<usize>)>,
+    time: Duration,
+    budget: usize,
+) -> Doc {
     let start = Instant::now();
-    let mut b = Builder::new(text, budget);
-    let events = Parser::new_ext(text, OPTIONS).into_offset_iter();
-    for (n, (event, range)) in events.enumerate() {
+    let mut b = Builder::new(source, budget);
+    for (n, (event, range)) in events.into_iter().enumerate() {
         if (n & 0x3ff == 0 && start.elapsed() >= time) || b.used > budget {
             b.doc.cut = true;
             break;
@@ -1014,6 +1038,11 @@ impl Doc {
     }
 
     /// Not all of the document is on the screen.
+    /// The document was made of fewer events than its file had.
+    pub fn mark_cut(&mut self) {
+        self.cut = true;
+    }
+
     pub fn cut(&self) -> bool {
         self.cut || self.rows_cut
     }
