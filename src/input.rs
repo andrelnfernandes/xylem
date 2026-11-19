@@ -246,6 +246,10 @@ impl LineInput {
         self.list.as_ref()
     }
 
+    pub fn list_mut(&mut self) -> Option<&mut HistoryList> {
+        self.list.as_mut()
+    }
+
     pub fn list_open(&self) -> bool {
         self.list.is_some()
     }

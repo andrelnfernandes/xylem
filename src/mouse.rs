@@ -51,6 +51,21 @@ pub const KEY_MARK: Modifier = Modifier::RAPID_BLINK;
 /// Lines a turn of the wheel moves.
 pub const WHEEL_LINES: usize = 3;
 
+/// The longest time between the two clicks of a double click.
+pub const DOUBLE_CLICK: std::time::Duration = std::time::Duration::from_millis(400);
+
+/// The item of a list `len` rows long (of `cols` items each) that row `y` of
+/// a scroll bar `track` rows high stands for: the same share of the list.
+pub fn bar_item(y: u16, track: u16, len: usize, cols: usize) -> usize {
+    let last = len.saturating_sub(1);
+    let row = if track <= 1 {
+        0
+    } else {
+        usize::from(y.min(track - 1)) * last / usize::from(track - 1)
+    };
+    row * cols.max(1)
+}
+
 /// Whose list a part of the screen is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Owner {
@@ -96,14 +111,60 @@ pub enum Spot {
     /// Text that scrolls with the wheel (viewer, help): the wheel stands
     /// for ↑ and ↓.
     Scroll,
+    /// The mark before a folder of the tree (`+`, `?`, `─`): row `row` of
+    /// the list.
+    Marker { list: List, row: usize },
+    /// The scroll bar on the right border of a list: `len` rows (of `cols`
+    /// items each, in the column modes), `page` on screen, the thumb from
+    /// row `thumb.0` of the bar, `thumb.1` rows long.
+    Scrollbar {
+        list: List,
+        len: usize,
+        page: usize,
+        cols: usize,
+        thumb: (u16, u16),
+    },
+    /// One item a row of a list of a screen of its own.
+    Item {
+        list: Own,
+        offset: usize,
+        len: usize,
+    },
+    /// A cell of the viewer's table: its row in what is shown, its column.
+    Cell { row: usize, col: usize },
+    /// The text of a prompt, from column `start` on: a click puts its cursor
+    /// there.
+    Prompt { start: u16 },
+}
+
+/// The lists that are not a tree or files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Own {
+    /// The options of a page of F12.
+    Settings,
+    /// The themes of F12 (F4).
+    Theme,
+    Bookmarks,
+    /// The history of a prompt, open as a list (↑).
+    History,
+    /// The results of the search box (P).
+    SearchResults,
+    /// The Usage view of a window (index into `App::panes`).
+    Usage(usize),
+    Duplicates(usize),
 }
 
 /// What a click hit: the spot and the item under it, if it is a list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Hit {
     pub spot: Spot,
-    /// The item of a `Rows` or `Grid` under the pointer.
+    /// The item of a `Rows`, `Grid` or `Item` under the pointer.
     pub item: Option<usize>,
+    /// The part of the screen of the spot.
+    pub area: Rect,
+    /// Where the pointer was.
+    pub x: u16,
+    pub y: u16,
 }
 
 /// The spots of the last frame drawn; the last one added is on top.
@@ -124,7 +185,7 @@ impl HitMap {
         let pos = Position::new(x, y);
         let (area, spot) = self.spots.iter().rev().find(|(a, _)| a.contains(pos))?;
         let item = match *spot {
-            Spot::Rows { offset, len, .. } => {
+            Spot::Rows { offset, len, .. } | Spot::Item { offset, len, .. } => {
                 Some(offset + usize::from(y - area.y)).filter(|&i| i < len)
             }
             Spot::Grid {
@@ -140,7 +201,13 @@ impl HitMap {
             }
             _ => None,
         };
-        Some(Hit { spot: *spot, item })
+        Some(Hit {
+            spot: *spot,
+            item,
+            area: *area,
+            x,
+            y,
+        })
     }
 
     /// The footer's lines, as drawn from row `area.y` on: each entry that

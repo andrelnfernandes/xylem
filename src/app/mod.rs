@@ -292,6 +292,10 @@ pub struct App {
     pub editor_pty: Option<EditorPty>,
     /// What each part of the last frame drawn is, for the mouse.
     pub hits: crate::mouse::HitMap,
+    /// The last click, for a double click.
+    pub(crate) last_click: Option<mouse::LastClick>,
+    /// What the left button is dragging.
+    pub(crate) drag: Option<mouse::Drag>,
 }
 
 /// The active window.
@@ -387,6 +391,8 @@ impl App {
             terminal_remote: None,
             editor_pty: None,
             hits: crate::mouse::HitMap::default(),
+            last_click: None,
+            drag: None,
         }
     }
 
