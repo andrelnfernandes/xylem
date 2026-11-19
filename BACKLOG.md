@@ -103,7 +103,12 @@ as a link is what `cp -a` and `rsync -l` do).
 - **From ZTreeWin, next:** JFC (compare the contents of two files), and saving
   and loading the log (Zlist), so that the tree of a disk or a Drive opens at once.
 - Postponed by choice: macros, chown, Graft. macOS: to look at again when there
-  is a machine to test on.
+  is a machine to test on. It builds (#123, checked in CI) and watches the
+  directories with kqueue, which reports files created, deleted or renamed in a
+  directory but not a change in the contents of a file already there: a file that
+  grows keeps its old size on screen until the directory is read again. FSEvents
+  would report it, but gives the paths resolved (`/private/tmp` for `/tmp`), which
+  `watch.rs` would have to map back.
 - Left out by decision: Xylem in its own window, external converters, HTML in the
   viewer, a treemap, and what of ZTreeWin serves parity more than use
   (Wash, Volume, Hide, video commands).
