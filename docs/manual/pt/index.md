@@ -36,7 +36,7 @@ revisadas por falantes nativos. Correções:
 - [Instalar e os primeiros cinco minutos](start.md)
 - [A tela](screen.md): a árvore, a janela de arquivos, as estatísticas, o rodapé
 - [Os menus, Ctrl e Alt](menus.md): uma letra sozinha, com Ctrl, com Alt, e F9
-- [The mouse](mouse.md) (in English for now): turning it on in F12, the wheel, clicks and the footer
+- [O mouse](mouse.md): ligá-lo no F12, a roda, os cliques e o rodapé
 - [Vocabulário](glossary.md): log, branch, tag, filespec
 
 ## Comandos

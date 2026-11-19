@@ -77,7 +77,7 @@ Un `.json` (aussi `.geojson`, `.har`, `.webmanifest`, et `.jsonc` et `.json5`, a
 | ← | replie le nœud, ou va à celui du dessus |
 | `Enter` | déplie ou replie le nœud |
 | `*` | déplie tout sous le nœud |
-| `k` | copie le chemin du nœud : `.servers[2].name` en JSON, `servers.2.name` en YAML et TOML |
+| `k` | copie le chemin du nœud : `.servers[2].name` en JSON, `servers.2.name` en YAML et TOML. Une clé avec une fin de ligne, un caractère de contrôle ou de direction du texte est mise entre guillemets, ces caractères échappés (`\n`, `\u202e`), pour que coller le chemin dans un shell n'en exécute jamais une ligne |
 
 Le pied de page montre le chemin du nœud sous le curseur. Une recherche (`F`, `B`, `/`) regarde les clés et les valeurs, y compris dans les nœuds repliés, et ouvre le chemin jusqu'à ce qu'elle trouve. `T` montre le texte à la ligne du nœud, et revient ; `H` passe par l'arbre, le texte et l'hexadécimal. `&`, `g`, `#` et Ctrl+B agissent sur les lignes du texte.
 
@@ -87,7 +87,7 @@ Le pied de page montre le chemin du nœud sous le curseur. Une recherche (`F`, `
 - Une clé qui apparaît deux fois dans un même objet est montrée deux fois, marquée `dup key`, et l'en-tête les compte. Les programmes ne s'accordent pas sur celle des deux qui l'emporte, ce qui peut cacher une valeur lors d'une relecture.
 - Une ancre YAML apparaît comme `&a1` et un alias comme `*a1` : un alias n'est jamais développé, donc un fichier fait pour se multiplier (un « billion laughs ») ne coûte pas plus que son texte. Une étiquette (`!Ref`) apparaît avant sa valeur. Plusieurs documents sont placés sous une racine, comme `document 1`, `document 2`...
 
-Un fichier invalide, ou imbriqué sur plus de 512 niveaux, s'ouvre comme texte, et l'avis dit pourquoi et à quelle ligne. L'arbre est construit à partir du fichier entier : un fichier au-delà de la limite de lecture s'ouvre comme texte.
+Un fichier invalide, ou imbriqué sur plus de 512 niveaux, s'ouvre comme texte, et l'avis dit pourquoi et à quelle ligne. L'arbre est construit à partir du fichier entier : un fichier au-delà de la limite de lecture s'ouvre comme texte. L'arbre s'arrête aussi à 2 000 000 nœuds (environ 170 Mio de mémoire) ou quand sa construction prend trop de temps ; il ne contient alors que le début du fichier, et l'en-tête affiche `(tree of the start only)`. `T` montre toujours tout le texte.
 
 ## Notebooks Jupyter
 
@@ -161,7 +161,7 @@ Un `.patch` ou un `.diff`, ou tout texte qui commence comme l'un d'eux (`diff --
 Certains changements font plus que modifier des lignes, et passent facilement inaperçus à une lecture rapide. Ils sont montrés en rouge, et l'en-tête les compte comme `to check` :
 
 - un fichier qui devient exécutable (`100755`), un lien symbolique (`120000`) ou un sous-module (`160000`) ;
-- un chemin absolu, qui remonte avec `..`, qui entre dans `.git` (un hook est du code que Git exécute), ou qui contient des caractères de contrôle.
+- un chemin absolu, qui remonte avec `..`, qui entre dans `.git` (un hook est du code que Git exécute), ou qui contient des caractères de contrôle, de direction du texte ou invisibles (un nom comme `invoice‮fdp.exe` cache sa vraie extension).
 
 L'en-tête compte aussi :
 

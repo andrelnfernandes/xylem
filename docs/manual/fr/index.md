@@ -36,7 +36,7 @@ Les versions de ce manuel en espagnol, français, allemand et chinois n'ont pas
 - [Installer et les cinq premières minutes](start.md)
 - [L'écran](screen.md) : l'arborescence, la fenêtre de fichiers, les statistiques, le menu
 - [Les menus, Ctrl et Alt](menus.md) : une lettre seule, avec Ctrl, avec Alt, et F9
-- [The mouse](mouse.md) (in English for now): turning it on in F12, the wheel, clicks and the footer
+- [La souris](mouse.md) : l'activer dans F12, la molette, les clics et le bas de l'écran
 - [Vocabulaire](glossary.md) : log, branch, tag, filespec
 
 ## Commandes

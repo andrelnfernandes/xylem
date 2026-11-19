@@ -56,11 +56,28 @@ quart de la hauteur de l'écran.
   [La boîte de recherche](sql.md#la-boîte-de-recherche-p)
 - Les tableaux CSV, TSV, JSON Lines, DBF et SQLite n'ont plus de limite de
   lignes dans la visionneuse. Les feuilles de calcul conservent la limite de
-  50 000 lignes. [La visionneuse](viewer.md)
+  50 000 lignes. [Tableaux](tables.md)
+- Dans un tableau, Enter montre l'enregistrement en fiche, et `c` le copie ;
+  `c` copie aussi la structure affichée par `i`. [Tableaux](tables.md)
+- Un texte de plus de 16 Mio est lu à travers une fenêtre, sans limite de
+  taille. [Gros fichiers](viewer.md#gros-fichiers)
+- Nouvelles visionneuses : JSON, YAML et TOML en arbre repliable ; journaux
+  aux couleurs de leurs niveaux, et suivi ; patchs avec un index des fichiers
+  et des hunks et ce qu'il faut vérifier ; notebooks Jupyter ; documents
+  Office, avec leurs macros, modèles distants et texte masqué ; exécutables
+  (ELF, PE, Mach-O) et certificats et clés sous forme de rapports.
+  [La visionneuse](viewer.md)
+- Il se compile sur macOS (pas encore testé sur un Mac).
 - Alt+L fait du répertoire sous le curseur la racine de l'arborescence.
 - Dans Treespec, Ctrl+← retire le dernier dossier du chemin et Ctrl+→ le
   restaure.
 - `clock_seconds` affiche les secondes sur l'horloge de l'en-tête.
+- La souris, désactivée par défaut (F12, page 2, R) : la molette, les clics et
+  doubles clics sur l'arborescence, les listes et les touches du bas de
+  l'écran, le marquage avec le bouton du milieu, un menu sur le bouton droit
+  (aussi la touche Menu et Shift+F10), et la souris transmise aux programmes du
+  terminal intégré et de l'éditeur dans le cadre.
+  [La souris](mouse.md)
 - Ce manuel : les pages sur l'écran, les menus, les commandes de chaque menu, le
   vocabulaire et les recettes pas à pas.
 

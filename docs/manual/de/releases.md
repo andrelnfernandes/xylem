@@ -55,11 +55,27 @@ belegt ein Viertel der Bildschirmhöhe.
   [Das Suchfeld](sql.md#das-suchfeld-p)
 - CSV-, TSV-, JSON-Lines-, DBF- und SQLite-Tabellen haben im Betrachter kein
   Zeilenlimit mehr. Tabellenkalkulationen behalten das Limit von 50.000 Zeilen.
-  [Der Betrachter](viewer.md)
+  [Tabellen](tables.md)
+- In einer Tabelle zeigt Enter den Datensatz als Formular, und `c` kopiert ihn;
+  `c` kopiert auch die mit `i` gezeigte Struktur. [Tabellen](tables.md)
+- Ein Text über 16 MiB wird durch ein Fenster gelesen, ohne Größenlimit.
+  [Große Dateien](viewer.md#große-dateien)
+- Neue Betrachter: JSON, YAML und TOML als faltbarer Baum; Logs in den Farben
+  ihrer Stufen, und Mitverfolgen; Patches mit einem Index der Dateien und Hunks
+  und dem, was zu prüfen ist; Jupyter-Notebooks; Office-Dokumente, mit ihren
+  Makros, entfernten Vorlagen und verborgenem Text; ausführbare Dateien (ELF,
+  PE, Mach-O) sowie Zertifikate und Schlüssel als Berichte. [Der Betrachter](viewer.md)
+- Es lässt sich auf macOS bauen (noch nicht auf einem Mac getestet).
 - Alt+L macht das Verzeichnis unter dem Cursor zur Wurzel des Baums.
 - In Treespec entfernt Ctrl+← den letzten Ordner aus dem Pfad und Ctrl+→ stellt
   ihn wieder her.
 - `clock_seconds` blendet Sekunden in der Uhr der Kopfzeile ein.
+- Die Maus, standardmäßig aus (F12, Seite 2, R): das Mausrad, Klicks und
+  Doppelklicks auf den Baum, die Listen und die Tasten der Fußzeile, Markieren
+  mit der mittleren Taste, ein Menü auf der rechten Taste (auch die Menü-Taste
+  und Shift+F10), und die Maus an die Programme des integrierten Terminals und
+  des Editors im Rahmen weitergereicht.
+  [Die Maus](mouse.md)
 - Dieses Handbuch: Seiten zu Bildschirm, Menüs, Befehlen jedes Menüs,
   Vokabular und Schritt-für-Schritt-Anleitungen.
 

@@ -55,10 +55,26 @@ parte de la altura de la pantalla.
   [La caja de búsqueda](sql.md#la-caja-de-búsqueda-p)
 - Las tablas CSV, TSV, JSON Lines, DBF y SQLite no tienen límite de filas en el
   visor. Las hojas de cálculo mantienen el límite de 50.000 filas.
-  [El visor](viewer.md)
+  [Tablas](tables.md)
+- En una tabla, Enter muestra el registro como ficha, y `c` lo copia; `c`
+  también copia la estructura mostrada por `i`. [Tablas](tables.md)
+- Un texto de más de 16 MiB se lee a través de una ventana, sin límite de
+  tamaño. [Archivos grandes](viewer.md#archivos-grandes)
+- Visores nuevos: JSON, YAML y TOML como un árbol que se pliega; logs con los
+  colores de sus niveles, y seguimiento; parches con un índice de archivos y
+  hunks y lo que hay que revisar; notebooks de Jupyter; documentos de Office,
+  con sus macros, plantillas remotas y texto oculto; ejecutables (ELF, PE,
+  Mach-O) y certificados y claves como informes. [El visor](viewer.md)
+- Se compila en macOS (todavía sin probar en un Mac).
 - Alt+L convierte el directorio bajo el cursor en la raíz del árbol.
 - En Treespec, Ctrl+← quita la última carpeta de la ruta y Ctrl+→ la restablece.
 - `clock_seconds` muestra los segundos en el reloj del encabezado.
+- El ratón, apagado por defecto (F12, página 2, R): la rueda, los clics y
+  dobles clics en el árbol, las listas y las teclas del pie, marcar con el
+  botón central, un menú en el botón derecho (también la tecla Menú y
+  Shift+F10), y el ratón pasado a los programas de la terminal integrada y del
+  editor en el marco.
+  [El ratón](mouse.md)
 - Este manual: las páginas sobre la pantalla, los menús, los comandos de cada
   menú, el vocabulario y las recetas paso a paso.
 

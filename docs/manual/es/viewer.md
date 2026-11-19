@@ -76,7 +76,7 @@ Un `.json` (también `.geojson`, `.har`, `.webmanifest`, y `.jsonc` y `.json5`, 
 | ← | cierra el nodo, o va al de arriba |
 | `Enter` | abre o cierra el nodo |
 | `*` | abre todo lo que hay bajo el nodo |
-| `k` | copia la ruta del nodo: `.servers[2].name` en JSON, `servers.2.name` en YAML y TOML |
+| `k` | copia la ruta del nodo: `.servers[2].name` en JSON, `servers.2.name` en YAML y TOML. Una clave con un fin de línea, un carácter de control o de dirección del texto va entre comillas, con esos caracteres escapados (`\n`, `\u202e`), para que pegar la ruta en una shell nunca ejecute una línea de ella |
 
 El pie muestra la ruta del nodo bajo el cursor. La búsqueda (`F`, `B`, `/`) mira claves y valores, también dentro de nodos cerrados, y abre el camino hasta lo que encuentra. `T` muestra el texto en la línea del nodo, y vuelve; `H` pasa por árbol, texto y hexadecimal. `&`, `g`, `#` y Ctrl+B actúan sobre las líneas del texto.
 
@@ -86,7 +86,7 @@ El pie muestra la ruta del nodo bajo el cursor. La búsqueda (`F`, `B`, `/`) mir
 - Una clave que aparece dos veces en un mismo objeto se muestra dos veces, marcada `dup key`, y la cabecera las cuenta. Los programas no se ponen de acuerdo sobre cuál de las dos vale, lo que puede ocultar un valor en una revisión.
 - Un ancla de YAML se muestra como `&a1` y un alias como `*a1`: el alias nunca se expande, así que un archivo hecho para multiplicarse (un "billion laughs") no cuesta más que su texto. Una etiqueta (`!Ref`) aparece antes del valor. Varios documentos quedan bajo una raíz, como `document 1`, `document 2`...
 
-Un archivo no válido, o anidado a más de 512 niveles, se abre como texto, y el aviso dice por qué y en qué línea. El árbol se arma con el archivo entero: uno por encima del límite de lectura se abre como texto.
+Un archivo no válido, o anidado a más de 512 niveles, se abre como texto, y el aviso dice por qué y en qué línea. El árbol se arma con el archivo entero: uno por encima del límite de lectura se abre como texto. El árbol también se detiene en 2.000.000 nodos (unos 170 MiB de memoria) o cuando construirlo tarda demasiado; entonces contiene solo el comienzo del archivo, y la cabecera dice `(tree of the start only)`. `T` sigue mostrando todo el texto.
 
 ## Notebooks de Jupyter
 
@@ -160,7 +160,7 @@ Un `.patch` o `.diff`, o cualquier texto que empiece como uno (`diff --git`, o `
 Algunos cambios hacen más que cambiar líneas, y es fácil pasarlos por alto en una lectura rápida. Se muestran en rojo, y la cabecera los cuenta como `to check`:
 
 - un archivo que pasa a ser ejecutable (`100755`), un enlace simbólico (`120000`) o un submódulo (`160000`);
-- una ruta absoluta, que sube con `..`, que entra en `.git` (un hook es código que Git ejecuta), o con caracteres de control.
+- una ruta absoluta, que sube con `..`, que entra en `.git` (un hook es código que Git ejecuta), o con caracteres de control, de dirección del texto o invisibles (un nombre como `invoice‮fdp.exe` oculta su extensión real).
 
 La cabecera también cuenta:
 

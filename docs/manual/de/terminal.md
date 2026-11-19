@@ -26,7 +26,8 @@ zeigt ein Beispiel.
   (`wc -l 'a.txt' 'b c.txt'`). Aus dem Baum oder dem Dateifenster heraus öffnet
   es das Terminal und fügt sie dort ein.
 - **Shift+PgUp/PgDn** scrollen durch die bereits aus dem Bild gelaufene Ausgabe
-  zurück.
+  zurück; mit eingeschalteter [Maus](mouse.md) auch das Mausrad, es sei denn,
+  das Programm hat die Maus für sich angefordert.
 - Beim Verlassen des Terminals werden die geöffneten Verzeichnisse neu
   eingelesen.
 - **Das Beenden von Xylem beendet auch die Shell** und alles, was darin läuft.
