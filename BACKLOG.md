@@ -105,8 +105,13 @@ as a link is what `cp -a` and `rsync -l` do).
 - Postponed by choice: macros, chown, Graft. macOS: to look at again when there
   is a machine to test on.
 - Left out by decision: Xylem in its own window, external converters, HTML in the
-  viewer, a treemap, the mouse, and what of ZTreeWin serves parity more than use
+  viewer, a treemap, and what of ZTreeWin serves parity more than use
   (Wash, Volume, Hide, video commands).
+- **The mouse** ([docs/plans/mouse.md](docs/plans/mouse.md)): approved by the
+  author on 2026-11-18, after being left out before. Off by default, turned on in
+  F12; the wheel, clicks on the tree, the lists and the footer, double click, tagging
+  with the middle button, a right-click menu, and the mouse passed to the programs of
+  the built-in terminal. Four stages in the `mouse` branch, one PR at the end.
 - **New file viewers** ([docs/plans/viewers.md](docs/plans/viewers.md)):
   six subprojects, security first. Done: subproject 1 (encodings, compressed
   files, the size limit; PRs #44 to #49), and the table mode with SQLite and the
