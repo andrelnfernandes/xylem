@@ -874,7 +874,9 @@ mod tests {
 
     #[test]
     fn a_chain_is_checked_by_its_names() {
-        let chain = include_str!("../../tests/data/chain.pem");
+        // As checked out: with CRLF on Windows.
+        let chain = include_str!("../../tests/data/chain.pem").replace("\r\n", "\n");
+        let chain = chain.as_str();
         let r = report("chain.pem", chain.as_bytes());
         assert!(r.contains("2 certificates"));
         assert!(r.contains("In order: each is issued by the next"), "{r}");
