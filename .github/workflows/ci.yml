@@ -41,6 +41,19 @@ jobs:
           name: xy-windows-x86_64
           path: target/release/xy.exe
 
+  macos:
+    # macOS is not supported yet (BACKLOG), but it must keep building: a
+    # change in the features of a dependency once broke it unnoticed (#123).
+    # A check only, with no tests and no clippy.
+    if: github.event_name != 'schedule'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check
+        run: cargo check --all-targets --locked
+
   packages:
     # The .deb and the .rpm, built as the release builds them (x86_64 only),
     # so that a mistake in their metadata shows up here and not on the tag.
