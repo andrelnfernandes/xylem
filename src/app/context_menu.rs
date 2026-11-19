@@ -311,6 +311,13 @@ impl App {
                 lines.push(key("Source", "T", KeyCode::Char('t')));
                 lines.push(key("Colors", "C", KeyCode::Char('c')));
             }
+            viewer::ViewMode::Tree => {
+                lines.push(MenuLine::Separator);
+                lines.push(key("Open or close", "Enter", KeyCode::Enter));
+                lines.push(key("Open everything under it", "*", KeyCode::Char('*')));
+                lines.push(key("Copy the path of the node", "K", KeyCode::Char('k')));
+                lines.push(key("Text at this node", "T", KeyCode::Char('t')));
+            }
         }
         lines.push(MenuLine::Separator);
         if v.on_disk {
