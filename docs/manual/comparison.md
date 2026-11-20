@@ -99,7 +99,9 @@ end.
   (Ctrl+V), F5/F6 (hide subdirectory levels),
   tag by attribute (Alt+T/U),
   Treespec in edit mode (F5, wildcards) and special folders (F6), type-ahead
-  search with prompt (`|`) and active mode, drive switching (`<` and `>`).
+  search in active mode (without a prompt), drive switching (`<` and `>`).
+  The type-ahead search with a prompt (`|`) exists, with fuzzy matching and
+  in the file window too: [Fuzzy find](fuzzy.md).
 - **Files:** Open in a new terminal window (Alt+O), Batch of the current file (Alt+B),
   JFC (J, compare the contents of two files), sHortcut (H), Print (P),
   owner/group (chown), Megaview (Ctrl+F7 in the file window), merge tagged files between

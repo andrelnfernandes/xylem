@@ -1805,6 +1805,11 @@ fn help_in_a_prompt_returns_to_it_as_it_was() {
     assert_eq!(help_topic_after(&mut app, alt_h), "sql");
     press(&mut app, KeyCode::Esc);
 
+    press(&mut app, KeyCode::Char('|'));
+    assert!(app.is_fuzzy());
+    assert_eq!(help_topic_after(&mut app, alt_h), "fuzzy");
+    press(&mut app, KeyCode::Esc);
+
     // A question too: after the help, it still takes its answer.
     press(&mut app, KeyCode::Char('d'));
     assert_eq!(help_topic_after(&mut app, alt_h), "delete");

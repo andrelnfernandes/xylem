@@ -1,6 +1,6 @@
 # Finding files: SQL and the search box
 
-The [filespec](filespec.md) picks files by name, date and size. Xylem also finds them by a condition written in SQL, on what it knows of each file and on its contents (**W**), and by the words in them (**P**).
+The [filespec](filespec.md) picks files by name, date and size. Xylem also finds them by a condition written in SQL, on what it knows of each file and on its contents (**W**), and by the words in them (**P**). To go to one file or folder by pieces of its name, see [Fuzzy find](fuzzy.md); for every way of finding things, [Finding files and folders](finding.md).
 
 ## A SQL condition (W)
 
