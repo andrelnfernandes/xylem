@@ -12,6 +12,7 @@ mod decompress;
 mod duplicates;
 mod editors;
 mod filetype;
+mod fuzzy;
 mod git;
 mod help;
 mod highlight;

@@ -9,6 +9,13 @@ files you don't trust without running anything in them. Built the XTree way:
 your disk as one tree, files from many folders gathered in one list, and one
 key to act on them all.
 
+> **Before 1.0.** Xylem has not reached version 1.0 yet. Until it does,
+> commands may move between menus, keys may change, and options may be
+> renamed. The aim is to keep the old commands familiar while adding new
+> features, and that sometimes means changing a shortcut. The
+> [release notes](docs/manual/releases.md) list what changed in each
+> version, with the keys that moved.
+
 ![Xylem in use: the built-in terminal with the tree following a cd, tagging files in a Branch and typing them into a command with Alt+O](docs/screenshots/demo-intro.gif)
 
 ## Why Xylem?

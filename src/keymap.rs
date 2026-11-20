@@ -298,6 +298,11 @@ const COMMANDS: &[(&str, Command, &str)] = &[
         "go to a directory by typing its path (Tab, / complete)",
     ),
     (
+        "fuzzy_find",
+        Command::FuzzyFind,
+        "find a folder (or a file of the list) by pieces of its name",
+    ),
+    (
         "usage",
         Command::Usage,
         "disk usage of the branch: folders and files by the space they take",
@@ -519,6 +524,7 @@ const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     // Not in ZTreeWin (there "/" is the same as "?"), but "/" is how
     // searching starts in less, vim and most Linux tools.
     ("/", Any, "treespec"),
+    ("|", Any, "fuzzy_find"),
     ("ctrl+v", Files, "view_tagged"),
     ("alt+c", Tree, "compare_branch"),
     ("a", Files, "attributes"),

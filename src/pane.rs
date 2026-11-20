@@ -127,6 +127,9 @@ pub struct Pane {
     pub tags_only: bool,
     /// Files listed in the file window, already filtered.
     pub files: Vec<FileRef>,
+    /// Goes up each time `files` is rebuilt: a `FileRef` kept from before
+    /// may point elsewhere after it.
+    pub files_built: u64,
     pub file_state: ListState,
     pub filespec: Filespec,
     /// W: a condition the files of the list must also meet.
@@ -265,6 +268,7 @@ impl Pane {
             view: FileView::Dir,
             tags_only: false,
             files: Vec::new(),
+            files_built: 0,
             file_state: ListState::default().with_selected(Some(0)),
             filespec: Filespec::default(),
             query: None,
@@ -1021,6 +1025,25 @@ impl Pane {
         stats
     }
 
+    /// The files of `dir` the list would show (hidden files, the Filespec,
+    /// `W`), Tags-Only aside: what tagging a folder tags.
+    pub fn dir_files(&self, dir: NodeId) -> Vec<FileRef> {
+        let place = self.query_place(dir);
+        let now = SystemTime::now();
+        self.tree
+            .node(dir)
+            .files
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| {
+                (self.tree.show_hidden || !f.is_hidden())
+                    && self.filespec.matches_entry(f)
+                    && self.query_takes(f, &place, now)
+            })
+            .map(|(idx, _)| FileRef { dir, idx })
+            .collect()
+    }
+
     /// Rebuilds the file window list according to the view and the filespec.
     pub fn refresh_files(&mut self) {
         let dirs = match self.view {
@@ -1054,6 +1077,7 @@ impl Pane {
             sort.key_for(self.file(f), rank)
         });
         self.files = files.into_iter().map(|(f, _)| f).collect();
+        self.files_built += 1;
 
         let last = self.files.len().saturating_sub(1);
         let sel = self.file_state.selected().unwrap_or(0).min(last);

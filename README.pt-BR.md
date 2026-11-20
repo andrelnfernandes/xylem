@@ -9,6 +9,13 @@ arquivos em que você não confia sem executar nada deles. Feito do jeito do XTr
 o disco como uma só árvore, arquivos de muitas pastas reunidos numa lista, e uma
 tecla para agir sobre todos.
 
+> **Antes da 1.0.** O Xylem ainda não chegou à versão 1.0. Até lá, comandos
+> podem mudar de menu, teclas podem mudar e opções podem ganhar outro nome.
+> A ideia é manter a familiaridade dos comandos antigos enquanto chegam
+> recursos novos, e às vezes isso pede mudar um atalho. As
+> [notas da versão](docs/manual/releases.md) dizem o que mudou em cada
+> versão, com as teclas que mudaram de lugar.
+
 ![O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arquivos marcados num Branch e digitados num comando com Alt+O](docs/screenshots/demo-intro.gif)
 
 ## Por que o Xylem?

@@ -67,6 +67,8 @@ pub enum Command {
     ViewTagged,
     /// `\`: navigates by typing the path.
     Treespec,
+    /// `|`: finds a folder (or a file of the list) by pieces of its name.
+    FuzzyFind,
     /// Alt+K: size or number of files per directory in the tree.
     Kbyte,
     /// Alt+U: where the space of the branch goes.

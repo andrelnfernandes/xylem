@@ -13,6 +13,13 @@ of each version are on
   viewer as a document: the menus, then each entry numbered (`§12`), with
   its links and its see-also pointing to those numbers. Tab chooses a link,
   Enter or a click follows it, Backspace goes back. [The viewer](viewer.md)
+- Fuzzy find (`|`): type pieces of a name (`cfgxy` finds `config/xylem`)
+  and the cursor goes to the best folder, in the tree, or file of the list,
+  in the file window. The results show as you type, the best first, even in
+  a tree of millions of folders. Ctrl+T tags the chosen result and Alt+T the
+  list. [Fuzzy find](fuzzy.md)
+- [Finding files and folders](finding.md): a page that says which search
+  answers which question.
 
 ## 0.8.0
 

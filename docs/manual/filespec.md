@@ -21,7 +21,7 @@ followed by `<b`, which is the range between the two
 
 `*` (or an empty prompt) shows everything. **↑** lists earlier filespecs ([history](execute.md#history)).
 
-To pick files by a SQL condition (**W**) or by the words in them (**P**), see [Finding files](sql.md).
+To pick files by a SQL condition (**W**) or by the words in them (**P**), see [Finding files](sql.md). For every way of finding files and folders, see [Finding files and folders](finding.md).
 
 See also: [the file window](files.md), [tags](tagging.md) (Ctrl+T in the tree
 tags what matches the filespec).
