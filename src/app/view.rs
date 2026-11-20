@@ -142,7 +142,20 @@ impl App {
         }
         v.wrap = self.options.viewer_wrap;
         v.line_numbers = self.options.viewer_line_numbers;
+        v.reader_options = self.reader_options();
         Ok(v)
+    }
+
+    /// The settings of the reader of books, from F12.
+    pub(crate) fn reader_options(&self) -> crate::viewer::reader::ReaderOptions {
+        let o = &self.options;
+        crate::viewer::reader::ReaderOptions {
+            width: o.reader_width,
+            blocks: o.reader_paragraphs == crate::config::Paragraphs::Block,
+            justify: o.reader_justify,
+            wpm: o.reading_wpm,
+            nerd: o.icons == crate::config::IconStyle::NerdFonts,
+        }
     }
 
     /// Reads a file's contents for the search: from disk, or from inside the
@@ -298,6 +311,10 @@ impl App {
             ViewerAction::GotoLine => {
                 let Some(v) = &self.viewer else { return };
                 let label = match v.mode {
+                    ViewMode::Rendered if v.is_book() => {
+                        let total = v.total_lines().max(1);
+                        format!("GOTO line (1-{total}), or a part of the book (40%): ")
+                    }
                     ViewMode::Text | ViewMode::Rendered | ViewMode::Tree => {
                         let total = v.total_lines().max(1);
                         format!("GOTO line (1-{total}): ")

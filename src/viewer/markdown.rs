@@ -165,7 +165,9 @@ struct Table {
 }
 
 enum Item {
-    Blank(Rc<str>),
+    /// A blank row; `true` when it only parts two paragraphs (a book's
+    /// layout leaves it out).
+    Blank(Rc<str>, bool),
     Rule(Rc<str>, usize),
     Label(Rc<str>, Rc<str>, usize),
     Text {
@@ -176,8 +178,36 @@ enum Item {
         words: bool,
         underline: Option<char>,
         source: usize,
+        /// What the text is, for a book's layout.
+        role: Role,
     },
     Table(Table),
+}
+
+/// What a line of text is, for a book's layout (see [`BookStyle`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Role {
+    Plain,
+    /// The first line of a paragraph, and those after a line break in it.
+    ParaFirst,
+    ParaRest,
+    Heading(HeadingLevel),
+}
+
+/// How a document is laid out as a book: what [`Doc::set_book`] takes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BookStyle {
+    /// Cells before the first row of a paragraph that follows another.
+    pub indent: usize,
+    /// Paragraphs parted by a blank row, with no indent (else touching,
+    /// indented).
+    pub blocks: bool,
+    /// Rows of a paragraph stretched to the width, but its last.
+    pub justify: bool,
+    /// Under a chapter's heading (`H1`, `H2`).
+    pub ornament: String,
+    /// In place of a rule: a break between scenes.
+    pub scene: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -215,6 +245,8 @@ pub struct Doc {
     cut: bool,
     budget: usize,
     width: usize,
+    /// Laid out as a book (see [`Doc::set_book`]).
+    book: Option<BookStyle>,
     rows: Vec<Row>,
     /// The first row of each logical line.
     line_row: Vec<usize>,
@@ -263,6 +295,11 @@ struct Builder {
     row_source: usize,
     in_cell: bool,
     need_blank: bool,
+    /// In a paragraph, and whether its first line is still to come.
+    para: bool,
+    para_first: bool,
+    /// The block before was a paragraph.
+    last_para: bool,
     bold: usize,
     italic: usize,
     strike: usize,
@@ -366,6 +403,7 @@ impl Builder {
                 cut: false,
                 budget,
                 width: 0,
+                book: None,
                 rows: Vec::new(),
                 line_row: Vec::new(),
                 rows_cut: false,
@@ -380,6 +418,9 @@ impl Builder {
             row_source: 0,
             in_cell: false,
             need_blank: false,
+            para: false,
+            para_first: false,
+            last_para: false,
             bold: 0,
             italic: 0,
             strike: 0,
@@ -501,6 +542,17 @@ impl Builder {
         if let Some(level) = self.heading.filter(|l| *l > HeadingLevel::H2) {
             first = Rc::from(format!("{first}{} ", "#".repeat(level as usize)));
         }
+        let role = match self.heading {
+            Some(level) => Role::Heading(level),
+            None if self.para && !self.in_list() => {
+                if std::mem::take(&mut self.para_first) {
+                    Role::ParaFirst
+                } else {
+                    Role::ParaRest
+                }
+            }
+            None => Role::Plain,
+        };
         let id = self.add_line(line);
         self.doc.items.push(Item::Text {
             line: id,
@@ -509,17 +561,26 @@ impl Builder {
             words: true,
             underline,
             source,
+            role,
         });
     }
 
     /// A new block: closes the text before it, with a blank row if due.
     fn begin_block(&mut self) {
+        self.begin(false);
+    }
+
+    /// A new block, a paragraph or not: the blank row before a paragraph
+    /// that follows another is one a book leaves out.
+    fn begin(&mut self, paragraph: bool) {
         self.flush(None);
         if self.need_blank && !self.doc.items.is_empty() {
             let prefix = self.prefix_rest();
-            self.doc.items.push(Item::Blank(prefix));
+            let soft = paragraph && self.last_para;
+            self.doc.items.push(Item::Blank(prefix, soft));
         }
         self.need_blank = false;
+        self.last_para = false;
     }
 
     fn open_at(&mut self, offset: usize) {
@@ -619,6 +680,7 @@ impl Builder {
             words: false,
             underline: None,
             source: raw.source,
+            role: Role::Plain,
         });
         raw
     }
@@ -659,7 +721,9 @@ impl Builder {
     fn start(&mut self, tag: Tag, offset: usize) {
         match tag {
             Tag::Paragraph => {
-                self.begin_block();
+                self.begin(true);
+                self.para = true;
+                self.para_first = true;
                 self.open_at(offset);
             }
             Tag::Heading { level, id, .. } => {
@@ -763,7 +827,9 @@ impl Builder {
         match tag {
             TagEnd::Paragraph => {
                 self.flush(None);
+                self.para = false;
                 self.need_blank = true;
+                self.last_para = !self.in_list();
             }
             TagEnd::Heading(level) => {
                 let underline = match level {
@@ -1018,6 +1084,70 @@ impl Rows<'_> {
     }
 }
 
+/// `text` in the middle of `room` cells.
+fn centered(text: &str, room: usize, kind: Kind, pieces: &mut Vec<Piece>) {
+    pieces.push(Piece::Pad(room.saturating_sub(cells(text)) / 2));
+    pieces.push(Piece::Deco(Rc::from(text), kind));
+}
+
+/// As [`wrap`], with the first row `indent` cells narrower.
+fn wrap_indented(text: &str, room: usize, indent: usize, words: bool) -> Vec<Cut> {
+    if indent == 0 {
+        return wrap(text, room, words);
+    }
+    let first = wrap(text, room.saturating_sub(indent), words);
+    if first.len() < 2 {
+        return first;
+    }
+    let (sc, sb) = (first[1].chars.start, first[1].bytes.start);
+    let mut out = vec![first[0].clone()];
+    out.extend(wrap(&text[sb..], room, words).into_iter().map(|c| Cut {
+        chars: c.chars.start + sc..c.chars.end + sc,
+        bytes: c.bytes.start + sb..c.bytes.end + sb,
+    }));
+    out
+}
+
+/// A row of a paragraph stretched to `room` cells: the spaces in it widened,
+/// evenly, the first ones by a cell more. A row too short to stretch without
+/// gaps wider than three cells stays as it is.
+fn justified(line: usize, text: &str, cut: Cut, room: usize, pieces: &mut Vec<Piece>) {
+    let row = &text[cut.bytes.clone()];
+    let extra = room.saturating_sub(cells(row));
+    // Where each word after a space starts: character and byte of the row.
+    let starts: Vec<(usize, usize)> = row
+        .char_indices()
+        .enumerate()
+        .filter(|&(_, (_, c))| c == ' ')
+        .map(|(i, (b, _))| (i + 1, b + 1))
+        .filter(|&(_, b)| b < row.len())
+        .collect();
+    if extra == 0 || starts.is_empty() || extra > starts.len() * 2 {
+        pieces.push(Piece::Text {
+            line,
+            chars: cut.chars,
+            bytes: cut.bytes,
+        });
+        return;
+    }
+    let (each, more) = (extra / starts.len(), extra % starts.len());
+    let (mut c0, mut b0) = (0, 0);
+    for (k, &(c, b)) in starts.iter().enumerate() {
+        pieces.push(Piece::Text {
+            line,
+            chars: cut.chars.start + c0..cut.chars.start + c,
+            bytes: cut.bytes.start + b0..cut.bytes.start + b,
+        });
+        pieces.push(Piece::Pad(each + usize::from(k < more)));
+        (c0, b0) = (c, b);
+    }
+    pieces.push(Piece::Text {
+        line,
+        chars: cut.chars.start + c0..cut.chars.end,
+        bytes: cut.bytes.start + b0..cut.bytes.end,
+    });
+}
+
 fn deco(text: &Rc<str>, kind: Kind, pieces: &mut Vec<Piece>) {
     if !text.is_empty() {
         pieces.push(Piece::Deco(text.clone(), kind));
@@ -1038,13 +1168,17 @@ impl Doc {
             used: 0,
             source: 0,
         };
+        let book = self.book.as_ref();
+        // The last text laid out was a paragraph's: the next one is indented.
+        let mut after_para = false;
         for item in &self.items {
             if out.used > self.budget {
                 self.rows_cut = true;
                 break;
             }
             match item {
-                Item::Blank(prefix) => {
+                Item::Blank(_, true) if book.is_some_and(|b| !b.blocks) => {}
+                Item::Blank(prefix, _) => {
                     let mut pieces = Vec::new();
                     deco(prefix, Kind::Marker, &mut pieces);
                     out.push(pieces, None);
@@ -1052,9 +1186,17 @@ impl Doc {
                 Item::Rule(prefix, source) => {
                     let mut pieces = Vec::new();
                     deco(prefix, Kind::Marker, &mut pieces);
-                    let n = width.saturating_sub(cells(prefix)).max(MIN_TEXT);
-                    pieces.push(Piece::Deco(Rc::from("─".repeat(n)), Kind::Marker));
+                    let room = width.saturating_sub(cells(prefix)).max(MIN_TEXT);
+                    match book {
+                        Some(b) => {
+                            centered(&b.scene, room, Kind::Marker, &mut pieces);
+                        }
+                        None => {
+                            pieces.push(Piece::Deco(Rc::from("─".repeat(room)), Kind::Marker));
+                        }
+                    }
                     out.push(pieces, Some(*source));
+                    after_para = false;
                 }
                 Item::Label(prefix, label, source) => {
                     let mut pieces = Vec::new();
@@ -1073,37 +1215,98 @@ impl Doc {
                     words,
                     underline,
                     source,
+                    role,
                 } => {
                     let text = &self.lines[*line];
+                    if let (Some(b), Role::Heading(level)) = (book, role) {
+                        // A book's heading: centered, with no `#`, and an
+                        // ornament under a chapter's.
+                        let room = width.saturating_sub(cells(rest)).max(MIN_TEXT);
+                        let chapter = *level <= HeadingLevel::H2;
+                        if chapter {
+                            out.push(Vec::new(), None);
+                        }
+                        for cut in wrap(text, room, *words) {
+                            let w = cells(&text[cut.bytes.clone()]);
+                            let mut pieces = Vec::with_capacity(3);
+                            deco(rest, Kind::Marker, &mut pieces);
+                            pieces.push(Piece::Pad(room.saturating_sub(w) / 2));
+                            pieces.push(Piece::Text {
+                                line: *line,
+                                chars: cut.chars,
+                                bytes: cut.bytes,
+                            });
+                            out.push(pieces, Some(*source));
+                        }
+                        if chapter && !b.ornament.is_empty() {
+                            let mut pieces = Vec::with_capacity(3);
+                            deco(rest, Kind::Marker, &mut pieces);
+                            centered(&b.ornament, room, Kind::Heading, &mut pieces);
+                            out.push(pieces, Some(*source));
+                        }
+                        after_para = false;
+                        continue;
+                    }
                     let prefix_width = cells(first).max(cells(rest));
                     let room = width.saturating_sub(prefix_width).max(MIN_TEXT);
+                    let para = matches!(role, Role::ParaFirst | Role::ParaRest);
+                    let indent = match book {
+                        Some(b) if !b.blocks && after_para && *role == Role::ParaFirst => {
+                            b.indent.min(room / 4)
+                        }
+                        _ => 0,
+                    };
+                    let justify = para && book.is_some_and(|b| b.justify);
+                    let cuts = wrap_indented(text, room, indent, *words);
+                    let last = cuts.len().saturating_sub(1);
                     let mut widest = 0;
-                    for (k, cut) in wrap(text, room, *words).into_iter().enumerate() {
+                    for (k, cut) in cuts.into_iter().enumerate() {
                         widest = widest.max(cells(&text[cut.bytes.clone()]));
                         let mut pieces = Vec::with_capacity(2);
                         deco(if k == 0 { first } else { rest }, Kind::Marker, &mut pieces);
-                        pieces.push(Piece::Text {
-                            line: *line,
-                            chars: cut.chars,
-                            bytes: cut.bytes,
-                        });
+                        let room = if k == 0 && indent > 0 {
+                            pieces.push(Piece::Pad(indent));
+                            room - indent
+                        } else {
+                            room
+                        };
+                        if justify && k < last {
+                            justified(*line, text, cut, room, &mut pieces);
+                        } else {
+                            pieces.push(Piece::Text {
+                                line: *line,
+                                chars: cut.chars,
+                                bytes: cut.bytes,
+                            });
+                        }
                         out.push(pieces, Some(*source));
                     }
-                    if let Some(c) = underline {
+                    if let Some(c) = underline.filter(|_| book.is_none()) {
                         let mut pieces = Vec::with_capacity(2);
                         deco(rest, Kind::Marker, &mut pieces);
                         let bar = c.to_string().repeat(widest.max(1));
                         pieces.push(Piece::Deco(Rc::from(bar), Kind::Heading));
                         out.push(pieces, Some(*source));
                     }
+                    after_para = para;
                 }
                 Item::Table(t) => {
                     if !lay_out_table(t, &self.lines, width, self.budget, &mut out) {
                         self.rows_cut = true;
                         break;
                     }
+                    after_para = false;
                 }
             }
+        }
+    }
+
+    /// Lays the document out as a book, or (`None`) as it was; the next
+    /// [`layout`](Self::layout) does it.
+    pub fn set_book(&mut self, style: Option<BookStyle>) {
+        if self.book != style {
+            self.book = style;
+            self.width = 0;
         }
     }
 
@@ -1473,6 +1676,73 @@ mod tests {
             .flat_map(|r| d.row_segments(r, 0, false, None, None))
             .find(|s| s.0.contains(needle))
             .unwrap_or_else(|| panic!("no {needle}"))
+    }
+
+    fn book(justify: bool, blocks: bool) -> BookStyle {
+        BookStyle {
+            indent: 3,
+            blocks,
+            justify,
+            ornament: "~".into(),
+            scene: "* * *".into(),
+        }
+    }
+
+    fn as_book(md: &str, width: usize, style: BookStyle) -> Vec<String> {
+        let mut d = parse(md, TIME, 1 << 30);
+        d.set_book(Some(style));
+        d.layout(width);
+        all(&mut d)
+    }
+
+    #[test]
+    fn a_book_indents_its_paragraphs_and_centers_its_chapters() {
+        let md = "# Two\n\nFirst paragraph here.\n\nSecond one goes on.\n\n---\n\nAfter the break.\n\n### Part\n\n- a list\n";
+        assert_eq!(
+            as_book(md, 20, book(false, false)),
+            [
+                "",
+                "        Two",
+                "         ~",
+                "",
+                "First paragraph",
+                "here.",
+                "   Second one goes",
+                "on.",
+                "",
+                "       * * *",
+                "",
+                "After the break.",
+                "",
+                "        Part",
+                "",
+                "• a list",
+            ]
+        );
+        // In blocks: a blank row between paragraphs, and no indent.
+        let rows = as_book(md, 20, book(false, true));
+        let at = rows.iter().position(|r| r == "here.").unwrap();
+        assert_eq!(&rows[at..at + 3], ["here.", "", "Second one goes on."]);
+        // As it was without the style.
+        let mut d = parse(md, TIME, 1 << 30);
+        d.set_book(Some(book(false, false)));
+        d.set_book(None);
+        d.layout(20);
+        assert_eq!(all(&mut d)[0], "Two");
+    }
+
+    #[test]
+    fn a_justified_paragraph_fills_its_rows_but_the_last() {
+        let md = "One two three four five six seven.\n";
+        let rows = as_book(md, 16, book(true, false));
+        assert_eq!(rows, ["One   two  three", "four   five  six", "seven."]);
+        // The text and the places in it are where they were.
+        let mut d = parse(md, TIME, 1 << 30);
+        d.set_book(Some(book(true, false)));
+        d.layout(16);
+        assert_eq!(d.row_of(0, 8), 0, "three");
+        assert_eq!(d.column_of(0, 0, 8), 11, "three, after the widened spaces");
+        assert_eq!(d.row_of(0, 19), 1, "five");
     }
 
     #[test]

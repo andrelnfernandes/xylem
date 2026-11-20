@@ -71,6 +71,16 @@ legacy_charset = "auto"
 # Largest part of a file the viewer reads (V): "auto" (1/32 of the RAM, from
 # 16 to 256 MiB), "16", "64", "256" or "1024" (MiB). Remote files: at most 16.
 viewer_max_size = "auto"
+# Ebooks (EPUB) in the viewer, read as a book: the width of the text column
+# in cells (0: the whole window), centered.
+reader_width = 70
+# Paragraphs of a book: "book" (touching, the first row indented) or "block"
+# (a blank row between them).
+reader_paragraphs = "book"
+# Stretch the rows of a paragraph to the width of the column.
+reader_justify = false
+# Words per minute, for the time left in a chapter and in the book.
+reading_wpm = 250
 # Icons and glyphs in file lists and the directory tree: "none" (classic
 # plain text) or "nerd-fonts" (requires a Nerd Font terminal font from
 # https://www.nerdfonts.com, e.g. FiraCode or JetBrainsMono Nerd Font).
@@ -254,6 +264,14 @@ pub struct Options {
     pub legacy_charset: LegacyCharset,
     /// Largest part of a file the viewer reads.
     pub viewer_max_size: ViewerMaxSize,
+    /// Ebooks: the width of the text column, in cells (0: the whole window).
+    pub reader_width: u16,
+    /// Ebooks: paragraphs indented and touching, or parted by a blank row.
+    pub reader_paragraphs: Paragraphs,
+    /// Ebooks: the rows of a paragraph stretched to the column.
+    pub reader_justify: bool,
+    /// Ebooks: words per minute, for the time left.
+    pub reading_wpm: u16,
     /// Icons and glyphs (Nerd Fonts).
     pub icons: IconStyle,
     /// File names colored by type.
@@ -320,6 +338,10 @@ impl Default for Options {
             viewer_decompress: true,
             legacy_charset: LegacyCharset::Auto,
             viewer_max_size: ViewerMaxSize::Auto,
+            reader_width: 70,
+            reader_paragraphs: Paragraphs::Book,
+            reader_justify: false,
+            reading_wpm: 250,
             icons: IconStyle::None,
             type_colors: true,
             borders: Borders::Theme,
@@ -383,6 +405,10 @@ impl Options {
             ("viewer_decompress", Value::from(self.viewer_decompress)),
             ("legacy_charset", s(self.legacy_charset.as_str())),
             ("viewer_max_size", s(self.viewer_max_size.as_str())),
+            ("reader_width", Value::from(i64::from(self.reader_width))),
+            ("reader_paragraphs", s(self.reader_paragraphs.as_str())),
+            ("reader_justify", Value::from(self.reader_justify)),
+            ("reading_wpm", Value::from(i64::from(self.reading_wpm))),
             ("icons", s(self.icons.as_str())),
             ("type_colors", Value::from(self.type_colors)),
             ("borders", s(self.borders.as_str())),
@@ -635,6 +661,27 @@ impl Choice for CopyPaths {
             CopyPaths::Tree => "tree",
             CopyPaths::Current => "current",
             CopyPaths::Relative => "relative",
+        }
+    }
+}
+
+/// How the paragraphs of a book are set.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Paragraphs {
+    /// Touching, the first row of each indented, as printed books are.
+    #[default]
+    Book,
+    /// Parted by a blank row, with no indent.
+    Block,
+}
+
+impl Choice for Paragraphs {
+    const ALL: &'static [Self] = &[Paragraphs::Book, Paragraphs::Block];
+    fn as_str(self) -> &'static str {
+        match self {
+            Paragraphs::Book => "book",
+            Paragraphs::Block => "block",
         }
     }
 }
