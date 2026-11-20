@@ -170,8 +170,20 @@ do Xylem.
 
 - Os campos desconhecidos (4 bytes do cabeçalho, 20 e os `8 ×` contagem dos
   menus, 2 por linha das entradas curtas): ignorados.
-- A hipótese da contagem do menu e o `^A` repetido, a confirmar nos guias
-  reais.
+- O `^A` repetido voltando ao normal, a confirmar vendo um guia que use cores.
+
+**Conferido em 2026-11-20, com os 42 guias da coleção pública** (etapa 1):
+todos abrem sem nenhum problema apontado, e nenhum dos cerca de 30 mil links
+(opções de menu, linhas de entradas curtas e "see also") aponta para fora de
+uma entrada. Isso confirma a contagem do menu "menos um" e o pulo de 26 +
+tamanho bytes também nos menus. O maior guia (6,2 MB, 9.352 entradas) abre em
+0,56 s no build de release, com 167 MB de memória; um guia típico, em menos de
+0,1 s.
+
+**Feito na etapa 1**: o guia inteiro vira um documento só, com as entradas
+numeradas (`§12`) e cada link dizendo para onde leva (`→ §12`); a busca do
+viewer serve de navegação. A navegação por links (Enter segue, Backspace
+volta), como no F1, fica para uma decisão do autor (ver "Como aparece").
 
 Guias reais para conferir: a coleção pública de Dave Pearson
 (<https://github.com/davep/norton-guides>, com guias de domínio público, de
