@@ -8,7 +8,7 @@ généralement la fenêtre et n'atteint jamais Xylem) ouvre quatre pages :
 | Page | Options |
 |---|---|
 | 1. Programmes et formats | éditeur, ouvrir l'éditeur dans le cadre de Xylem, thème Xylem dans l'éditeur, éditer les fichiers binaires avec E, éditeur binaire, langue de l'aide, programme d'ouverture, format de date, format de nombres, commandes Git, dossiers Git de confiance |
-| 2. Affichage et tri | fichiers cachés, ordre et sens de tri initiaux, action d'Enter dans la fenêtre de fichiers, mode d'affichage initial, coloration syntaxique, retour à la ligne, numéros de ligne, fichiers compressés, encodage des vieux textes, limite de taille de ce que lit la visionneuse, icônes et glyphes (Nerd Fonts), noms de fichiers colorés par type, bordures des fenêtres, couleurs du terminal intégré, secondes dans l'horloge |
+| 2. Affichage et tri | fichiers cachés, ordre et sens de tri initiaux, action d'Enter dans la fenêtre de fichiers, mode d'affichage initial, coloration syntaxique, retour à la ligne, numéros de ligne, fichiers compressés, encodage des vieux textes, limite de taille de ce que lit la visionneuse, icônes et glyphes (Nerd Fonts), noms de fichiers colorés par type, bordures des fenêtres, couleurs du terminal intégré, secondes dans l'horloge, [la souris](mouse.md) |
 | 3. Confirmations et historique | confirmer avant de quitter, supprimer vers la corbeille, confirmation de Prune, entrées avec `@` non enregistrées, historique propre au terminal intégré |
 | 4. Copie, comparaison et rafraîchissement | ignorer 2 s, ignorer 1 h, rafraîchissement automatique, point de départ des chemins Alt+C/Alt+M, fichiers et dossiers laissés hors de l'index |
 
@@ -38,7 +38,7 @@ partir d'un fichier commenté contenant toutes les valeurs par défaut :
 mkdir -p ~/.config/xylem && xy --default-config > ~/.config/xylem/config.toml
 ```
 
-- `theme` : `classic` (bleu XTree), `dark`, `light`, `mono` (les couleurs du
+- `theme` : `classic` (blanc et jaune sur bleu), `dark`, `light`, `mono` (les couleurs du
   terminal), `norton`, `solarized`, `gruvbox`, `nord`, `slate` (dans le style de
   Windows Terminal), `graphite` (macOS en mode sombre), `daylight` (macOS en
   mode clair) ou `vivid` (couleurs vives, pour les présentations et captures

@@ -74,7 +74,7 @@ A `.json` (also `.geojson`, `.har`, `.webmanifest`, and `.jsonc` and `.json5` wi
 | ← | close the node, or go to the one above it |
 | `Enter` | open or close the node |
 | `*` | open everything under the node |
-| `k` | copy the path of the node: `.servers[2].name` in JSON, `servers.2.name` in YAML and TOML |
+| `k` | copy the path of the node: `.servers[2].name` in JSON, `servers.2.name` in YAML and TOML. A key with a line end, a control or a text direction character is put between quotes with those escaped (`\n`, `\u202e`), so pasting the path in a shell never runs a line of it |
 
 The footer shows the path of the node under the cursor. A search (`F`, `B`, `/`) looks at keys and values, also inside closed nodes, and opens the way to what it finds. `T` shows the text at the node's line, and comes back; `H` goes through tree, text and hex. `&`, `g`, `#` and Ctrl+B work on the lines of the text.
 
@@ -84,7 +84,7 @@ The footer shows the path of the node under the cursor. A search (`F`, `B`, `/`)
 - A key that appears twice in one object is shown twice, marked `dup key`, and the header counts them. Programs disagree on which of the two wins, which can hide a value from a review.
 - A YAML anchor shows as `&a1` and an alias as `*a1`: an alias is never expanded, so a file built to multiply itself (a "billion laughs") costs no more than its text. A tag (`!Ref`) shows before its value. Several documents are shown under one root, as `document 1`, `document 2`...
 
-A file that is not valid, or nested deeper than 512 levels, opens as text, and the note says why and on which line. The tree is built from the whole file: one over the read limit opens as text.
+A file that is not valid, or nested deeper than 512 levels, opens as text, and the note says why and on which line. The tree is built from the whole file: one over the read limit opens as text. The tree also stops at 2,000,000 nodes (about 170 MiB of memory) or when building it takes too long; it then holds only the start of the file, and the header says `(tree of the start only)`. `T` still shows all the text.
 
 ## Jupyter notebooks
 
@@ -158,7 +158,7 @@ A `.patch` or `.diff`, or any text that starts like one (`diff --git`, or `---`,
 Some changes do more than change lines, and are easy to miss in a quick read. They are shown in red, and the header counts them as `to check`:
 
 - a file that becomes executable (`100755`), a symbolic link (`120000`) or a submodule (`160000`);
-- a path that is absolute, climbs out with `..`, goes into `.git` (a hook is code that Git runs), or has control characters.
+- a path that is absolute, climbs out with `..`, goes into `.git` (a hook is code that Git runs), or has control, text direction or invisible characters (a name such as `invoice‮fdp.exe` hides its real extension).
 
 The header also counts:
 

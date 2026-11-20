@@ -8,7 +8,7 @@ Fenster und erreicht Xylem nicht) öffnet vier Seiten:
 | Seite | Optionen |
 |---|---|
 | 1. Programme und Formate | Editor, Editor im Xylem-Rahmen öffnen, Xylem-Thema im Editor, Binärdateien mit E bearbeiten, Binäreditor, Hilfesprache, Programm zum Öffnen (Opener), Datumsformat, Zahlenformat, Git-Befehle, vertrauenswürdige Git-Ordner |
-| 2. Anzeige und Sortierung | versteckte Dateien, anfängliches Sortierkriterium und Richtung, Verhalten von Enter im Dateifenster, anfänglicher Anzeigemodus, Syntaxfarben, Zeilenumbruch, Zeilennummern, komprimierte Dateien, die Kodierung alter Texte, das Größenlimit dessen, was der Betrachter liest, Icons und Symbole (Nerd Fonts), Dateinamen nach Typ gefärbt, Fensterrahmen, Farben des integrierten Terminals, Sekunden in der Uhr |
+| 2. Anzeige und Sortierung | versteckte Dateien, anfängliches Sortierkriterium und Richtung, Verhalten von Enter im Dateifenster, anfänglicher Anzeigemodus, Syntaxfarben, Zeilenumbruch, Zeilennummern, komprimierte Dateien, die Kodierung alter Texte, das Größenlimit dessen, was der Betrachter liest, Icons und Symbole (Nerd Fonts), Dateinamen nach Typ gefärbt, Fensterrahmen, Farben des integrierten Terminals, Sekunden in der Uhr, [die Maus](mouse.md) |
 | 3. Bestätigungen und Verlauf | beim Beenden nachfragen, in den Papierkorb löschen, Prune-Bestätigung, Einträge mit `@` nicht speichern, eigener Verlauf des integrierten Terminals |
 | 4. Kopieren, Vergleichen und Aktualisieren | 2 s ignorieren, 1 Std. ignorieren, automatische Aktualisierung, Startpunkt der Pfade bei Alt+C/Alt+M, vom Index ausgenommene Dateien und Ordner |
 
@@ -39,7 +39,7 @@ Standardwerten zu beginnen:
 mkdir -p ~/.config/xylem && xy --default-config > ~/.config/xylem/config.toml
 ```
 
-- `theme`: `classic` (XTree-Blau), `dark`, `light`, `mono` (die eigenen Farben
+- `theme`: `classic` (Weiß und Gelb auf Blau), `dark`, `light`, `mono` (die eigenen Farben
   des Terminals), `norton`, `solarized`, `gruvbox`, `nord`, `slate` (im Stil
   von Windows Terminal), `graphite` (macOS im Dunkelmodus), `daylight` (macOS
   im Hellmodus) oder `vivid` (kräftige Farben für Präsentationen und

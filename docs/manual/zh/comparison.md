@@ -1,26 +1,54 @@
-# 与 ZTreeWin 的比较
+# 比较
 
-## 首先，致谢
+## 致谢
 
 我从 1990 年代起就一直在用各种版本的 XTree，自 2013 年起拥有一份付费的 ZTreeWin 授权。在我看来，ZTreeWin 至今仍是最好的文本模式文件管理器：快速、可预期、完全由键盘操作，并围绕一种其他文件管理器都未能企及的工作方式而构建（载入目录树、在整个分支中标记文件、对已标记的文件执行操作）。Kim Henkel 数十年来一直让 XTree 的工作方式在 Windows 上延续下来，没有这份工作就不会有 Xylem。
 
 Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linux 上拥有同样的工作方式，而 ZTreeWin 无法在 Linux 上原生运行。由于 Rust 让跨平台编译变得容易，Xylem 也能在 Windows 上编译，但这并不是我的目标：在 Windows 上，ZTreeWin 完全值得购买：[ztree.com](https://www.ztree.com/)，以及其用户[论坛](https://groups.io/g/ZTreeWin)。
 
-本页基于 ZTreeWin v2.2 官方手册（2011 年的 [ztwhlp.pdf](https://www.zedtek.com/download/ztwhlp.pdf)，特别是其中的“Quick Command Table”以及关于配置的第 3.7 节）逐条比较两者。ZTreeWin 的后续版本可能在某些细节上有所变动；如果这里有内容已经过时，欢迎提交 issue。
+## 其他终端文件管理器
 
-## 相同的工作方式
+终端下有许多优秀的文件管理器，大多数尝试 Xylem 的人已经在用其中一款。下面尽我所能公平地说明它们的区别。内容于 2026 年 11 月对照各项目自己的文档核对；这些程序变化很快，如果这里有内容已经过时，欢迎提交 issue。
+
+| 程序 | 布局 | 特点 |
+|---|---|---|
+| ranger | 三栏（上级目录、当前目录、预览） | vi 按键、通过脚本预览、用 Python 扩展 |
+| lf | 三栏，与 ranger 相同 | 单个小巧的二进制文件、速度快、以 shell 命令作为扩展方式 |
+| yazi | 三栏 | 速度（一切皆异步）、图片预览、带包管理器的 Lua 插件、内置 SFTP |
+| superfile | 多个并排的面板 | 现代外观、图片预览、主题 |
+| nnn | 单个列表 | 小巧快速、跨目录选择、磁盘占用模式、大量插件 |
+| Midnight Commander (mc) | 双面板 | 经典之作：自带查看器和编辑器，SFTP 与归档文件作为文件夹打开，Find file 的结果显示在面板中 |
+| vifm | 双面板 | vim 的按键与命令、`:find` 的结果作为可操作的列表、树形视图 |
+| broot | 一棵适应屏幕大小的树 | 在整棵树中模糊搜索、大小统计、用于操作多个文件夹中文件的暂存区 |
+| far2l | 双面板 | Linux 版 Far Manager 及其插件：SFTP、SMB、NFS、WebDAV 和 S3（NetRocks）、十六进制编辑器、Python 脚本 |
+
+**Xylem 的不同之处。** 目录树被读入内存，一个按键即可把整个分支或全部已载入内容中的文件列在一个列表中（Branch、Showall），并可按名称、日期和大小（Filespec）或 SQL 条件（`W`）筛选，匹配的字节数与已标记的字节数随时统计。在这里标记所需的文件，然后一次性复制、移动、重命名或删除。上面的几款程序也能把多个文件夹中的文件放进一个列表（mc 的 panelize、vifm 的自定义视图、yazi 的搜索结果、broot 的暂存区），或跨文件夹保留选择（nnn、yazi）；而在 Xylem 中，这个列表就是日常的工作方式，而不是一次搜索的结果。除此之外，其他程序都没有在同一个程序中提供：
+
+- 电子表格、CSV、SQLite（支持 `JOIN`）和 Parquet 的表格视图与 SQL 过滤，并可把记录转成脚本、页面或数据库（Batch）。yazi 有一个基于 DuckDB 的插件，可显示 CSV 和 Parquet 文件的预览与摘要，但没有过滤、查询或导出；
+- 针对不可信文件的报告：Office 文档中的宏、远程模板和隐藏文本，可执行文件的保护措施与加壳迹象，补丁中需要检查的文件名，且不运行其中任何内容；
+- 重复的文件和文件夹，即使在 Google Drive 上也无需下载；
+- 内置终端，其目录树会跟随 shell 的 `cd`；
+- 来自外部的文件在任何地方都被视为潜在恶意，所读取的一切都有上限（[安全](security.md)）。
+
+**其他程序领先的地方。** 图片预览（yazi、superfile、ranger）。插件系统以及已经为其编写的插件（yazi、nnn、ranger、lf、far2l）：Xylem 没有插件，只有 eXecute 和 Batch。从一开始就采用 vi 按键（ranger、lf、yazi、vifm），而 Xylem 有自己的单字母命令。多年来被许多人使用，并有经过测试的 macOS 和 Windows 版本；而 Xylem 是新项目，未在 Mac 上测试，在 Windows 上仍属实验性质。
+
+## ZTreeWin
+
+本部分基于 ZTreeWin v2.2 官方手册（2011 年的 [ztwhlp.pdf](https://www.zedtek.com/download/ztwhlp.pdf)，特别是其中的“Quick Command Table”以及关于配置的第 3.7 节）逐条比较两者。ZTreeWin 的后续版本可能在某些细节上有所变动；如果这里有内容已经过时，欢迎提交 issue。
+
+### 相同的工作方式
 
 按需载入的目录树（`+`、`*`）、文件窗口、Filespec、Branch、Showall（也可只显示已标记文件，Ctrl+S）、标记（T、U、I、Ctrl+T/U）、包含 Ctrl（已标记）与 Alt（已标记且保留路径）版本的复制/移动/删除/重命名、新建目录、删除目录、Prune、权限属性、查看器、编辑、执行 (eXecute)、比较（目录与分支）、排序、Log、分屏窗口（F8 与 Tab）、重新载入（F3）、打开（`O`）、自动刷新、浏览与解压归档文件、提示行历史记录、书签、帮助（F1）以及配置界面。按键尽可能与 ZTreeWin 保持一致；例外情况见文末的“按键差异”。
 
-## Xylem 尚未具备的功能
+### Xylem 尚未具备的功能
 
 - **目录树：** Global（G，已标记文件用 Ctrl+G）、Graft (Alt+G)、Mirror (Alt+M)、部分释放（Ctrl+Backspace）、隐藏 (Alt+H)、清理空闲空间 Wash (Alt+W)、卷标 Volume (Ctrl+V)、F5/F6（隐藏子目录层级）、按属性标记（Alt+T/U）、编辑模式下的 Treespec（F5、通配符）与特殊文件夹（F6）、带提示符的先行输入搜索（`|`）与活动模式、盘符切换（`<` 与 `>`）。
 - **文件：** 在新终端窗口中打开 (Alt+O)、当前文件的批处理 (Alt+B)、JFC（J，比较两个文件的内容）、创建快捷方式 sHortcut (H)、打印 Print (P)、修改所有者/组 (chown)、Megaview（文件窗口中的 Ctrl+F7）、在两个窗口间合并已标记文件 (Ctrl+F6)、部分取消标记 Partial Untag (Ctrl+F8)、Showall 以外的 Tags-Only 模式（Ctrl+Enter 与 Ctrl+F4，目录树中的 Ctrl+B）。
-- **通用：** 宏 (F12)、应用程序菜单 (F9)、退出到临时 shell (Ctrl+Q)、保存与加载已载入目录列表（Zlist，Ctrl/Alt+Z）、按名称与属性着色（ZCOLORS.INI）、鼠标支持、ZTreeWin 命令行选项、视频模式命令（Alt+F6–F9）。
+- **通用：** 宏 (F12)、应用程序菜单 (F9)、退出到临时 shell (Ctrl+Q)、保存与加载已载入目录列表（Zlist，Ctrl/Alt+Z）、按名称与属性着色（ZCOLORS.INI）、ZTreeWin 命令行选项、视频模式命令（Alt+F6–F9）。
 
 其中一些可以用其他程序代替；参见下文的“Xylem 交给其他程序的部分”。
 
-## Xylem 更简单的地方
+### Xylem 更简单的地方
 
 | 功能 | 在 ZTreeWin 中 | 在 Xylem 中 |
 |---|---|---|
@@ -40,7 +68,7 @@ Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linu
 
 由于属于 Windows 特有概念而未移植的 ZTreeWin 配置项：RSH 属性、目录联接点 (junctions)、OEM/ANSI 编码、EBCDIC、窗口尺寸、快捷方式 (.lnk)。
 
-## Xylem 更进一步的地方
+### Xylem 更进一步的地方
 
 以下功能在 ZTreeWin v2.2 手册中没有对应：
 
@@ -63,7 +91,7 @@ Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linu
 - **恶意文件：** 归档文件、文件名和内容都被视为潜在恶意，读取和解压的一切都有限制（参见 README 中的安全声明）。
 - **六种语言的帮助**（F1，然后按 L），与本手册及 man 手册页内容相同。
 
-## Xylem 交给其他程序的部分
+### Xylem 交给其他程序的部分
 
 有些事情 Xylem 有意不自己做：专门的程序做得更好，Xylem 把它们集成进来。
 
@@ -77,7 +105,7 @@ Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linu
 - **打印**（ZTreeWin 中的 P）：用 eXecute 运行 `lp %t`。
 - **其他归档格式**（ZTreeWin 的 ZAAP）：使用您自己的归档工具，通过 eXecute 或在终端中运行。
 
-## 按键差异
+### 按键差异
 
 Xylem 的按键基本遵循 ZTreeWin 的设计。例外情况如下：
 
@@ -103,3 +131,7 @@ Xylem 的按键基本遵循 ZTreeWin 的设计。例外情况如下：
 | 复制路径到剪贴板 | Ctrl+Insert | Y 或 Ctrl+Insert（Ctrl+Y 复制已标记文件；支持 OSC 52 与系统剪贴板） |
 
 所有按键均可在 `config.toml` 的 `[keys]` 下重新绑定。
+
+## 名称
+
+Xylem 是一个独立项目，从零开始编写。它与 Zedtek, Inc.（ZTreeWin）、XTree 的所有者以及本页提到的其他程序的作者均无隶属、认可或其他关联，也不包含其中任何一方的代码。提及这些名称只是为了说明 Xylem 的灵感来源以及它与这些程序的比较。XTree、ZTree 和 ZTreeWin 是其各自所有者的商标。

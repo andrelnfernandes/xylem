@@ -7,7 +7,7 @@ de cada versão estão em `https://github.com/andrelnfernandes/xylem/releases`.
 ## 0.8.0
 
 **Mudança: algumas teclas Alt.** O Alt não repete mais o Ctrl. Ele passa a ser
-a outra versão de um comando, como no ZTreeWin.
+a outra versão de um comando.
 
 | Tecla | Até a 0.7 | A partir da 0.8 |
 |---|---|---|
@@ -54,10 +54,25 @@ altura da tela.
   [A caixa de busca](sql.md#a-caixa-de-busca-p)
 - Tabelas CSV, TSV, JSON Lines, DBF e SQLite não têm mais limite de linhas no
   visualizador. Planilhas mantêm o limite de 50.000 linhas.
-  [O visualizador](viewer.md)
+  [Tabelas](tables.md)
+- Numa tabela, Enter mostra o registro como ficha, e `c` o copia; `c` também
+  copia a estrutura mostrada por `i`. [Tabelas](tables.md)
+- Um texto acima de 16 MiB é lido por uma janela, sem limite de tamanho.
+  [Arquivos grandes](viewer.md#arquivos-grandes)
+- Visualizadores novos: JSON, YAML e TOML como uma árvore que se dobra; logs
+  com as cores dos seus níveis, e acompanhamento; patches com um índice de
+  arquivos e hunks e o que conferir; notebooks do Jupyter; documentos do
+  Office, com suas macros, modelos remotos e texto oculto; executáveis (ELF,
+  PE, Mach-O) e certificados e chaves como relatórios. [O visualizador](viewer.md)
+- Compila no macOS (ainda não testado num Mac).
 - Alt+L torna o diretório sob o cursor a raiz da árvore.
 - No Treespec, Ctrl+← remove a última pasta do caminho e Ctrl+→ a restaura.
 - `clock_seconds` exibe os segundos no relógio do cabeçalho.
+- O mouse, desligado por padrão (F12, página 2, R): a roda, cliques e duplos
+  cliques na árvore, nas listas e nas teclas do rodapé, marcar com o botão do
+  meio, um menu no botão direito (também a tecla Menu e Shift+F10), e o mouse
+  repassado aos programas do terminal integrado e do editor na moldura.
+  [O mouse](mouse.md)
 - Este manual: páginas sobre a tela, os menus, os comandos de cada menu, o
   vocabulário e as páginas de receitas.
 
