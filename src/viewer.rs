@@ -52,6 +52,8 @@ pub const MAX_BYTES: u64 = 16 * 1024 * 1024;
 pub const HEX_WIDTH: usize = 16;
 const TAB_WIDTH: usize = 8;
 const PAN_STEP: usize = 8;
+/// Links followed in a guide that Backspace can go back through.
+const MAX_JUMPS_BACK: usize = 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -355,6 +357,10 @@ pub struct Viewer {
     office: Option<office::Kind>,
     /// The file is a Norton Guide (see `ng`), shown as a document.
     guide: bool,
+    /// In a guide: the link chosen (an index into the document's jumps), and
+    /// where the view was before each link followed, to go back to.
+    jump: Option<usize>,
+    jumps_back: Vec<(usize, Option<usize>)>,
     /// The file is an executable, a library or an object (see `binaries`).
     exe: bool,
     /// The file is a certificate or a key (see `certs`); in DER, it has no
@@ -1071,6 +1077,8 @@ impl Viewer {
         self.notebook = new.notebook;
         self.office = new.office;
         self.guide = new.guide;
+        self.jump = None;
+        self.jumps_back.clear();
         self.exe = new.exe;
         self.cert = new.cert;
         self.cert_der = new.cert_der;
@@ -2316,6 +2324,8 @@ impl Viewer {
             notebook: false,
             office: None,
             guide: false,
+            jump: None,
+            jumps_back: Vec::new(),
             exe: false,
             cert: false,
             cert_der: false,
@@ -2834,6 +2844,11 @@ impl Viewer {
             .hit
             .filter(|h| h.mode == ViewMode::Rendered)
             .map(|h| (h.line, h.start, h.end));
+        let jump = self
+            .jump
+            .filter(|_| self.guide)
+            .and_then(|i| self.md.as_ref()?.jumps().get(i))
+            .map(|j| (j.line, j.start, j.end));
         let Some(md) = &mut self.md else {
             return Vec::new();
         };
@@ -2851,7 +2866,7 @@ impl Viewer {
         let rows = (top..end)
             .map(|row| StyledRow {
                 line_num: md.number_of(row).filter(|_| numbers),
-                segments: md.row_segments(row, left, colors, hit),
+                segments: md.row_segments(row, left, colors, hit, jump),
             })
             .collect();
         self.top = top;
@@ -3162,6 +3177,19 @@ impl Viewer {
                 self.open_record();
                 Action::None
             }
+            // In a guide Enter follows a link: it never closes the viewer.
+            KeyCode::Tab | KeyCode::BackTab if self.follows_links() => {
+                self.choose_jump(key.code == KeyCode::Tab);
+                Action::None
+            }
+            KeyCode::Enter if self.follows_links() => {
+                self.follow_jump();
+                Action::None
+            }
+            KeyCode::Backspace if self.follows_links() => {
+                self.jump_back();
+                Action::None
+            }
             KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'Q' | 'v' | 'V') => Action::Close,
             KeyCode::Home if alt => Action::First,
             KeyCode::End if alt => Action::Last,
@@ -3365,6 +3393,118 @@ impl Viewer {
             self.top = self.top.min(self.line_count().saturating_sub(page));
         }
         action
+    }
+
+    /// A guide on screen as a document: Tab, Enter and Backspace go through
+    /// its links.
+    pub fn follows_links(&self) -> bool {
+        self.guide && self.mode == ViewMode::Rendered && self.md.is_some()
+    }
+
+    /// The row of jump `i` of the document, if there is one.
+    fn jump_row(&self, i: usize) -> Option<usize> {
+        let md = self.md.as_ref()?;
+        let j = md.jumps().get(i)?;
+        Some(md.row_of(j.line, j.start))
+    }
+
+    fn jump_on_screen(&self, i: usize) -> bool {
+        self.jump_row(i)
+            .is_some_and(|r| r >= self.top && r < self.top + self.page.max(1))
+    }
+
+    /// Tab and Shift+Tab: the next or the previous link, from the chosen one
+    /// when it is on the screen, else from the screen.
+    fn choose_jump(&mut self, forward: bool) {
+        let Some(md) = &self.md else { return };
+        let n = md.jumps().len();
+        if n == 0 {
+            self.note = Some("No links in this guide".into());
+            return;
+        }
+        let (top, page) = (self.top, self.page.max(1));
+        let row = |j: &markdown::Jump| md.row_of(j.line, j.start);
+        let next = match self.jump.filter(|&i| self.jump_on_screen(i)) {
+            Some(i) if forward => (i + 1) % n,
+            Some(i) => (i + n - 1) % n,
+            None if forward => md.jumps().iter().position(|j| row(j) >= top).unwrap_or(0),
+            None => md
+                .jumps()
+                .iter()
+                .rposition(|j| row(j) < top + page)
+                .unwrap_or(n - 1),
+        };
+        self.jump = Some(next);
+        if !self.jump_on_screen(next) {
+            let r = self.jump_row(next).unwrap_or(0);
+            let last = md.row_count().saturating_sub(page);
+            self.top = r.saturating_sub(page / 3).min(last);
+        }
+    }
+
+    /// Enter: to the entry the chosen link leads to, with its first link
+    /// chosen. With none chosen on the screen, it chooses one first.
+    fn follow_jump(&mut self) {
+        let Some(i) = self.jump.filter(|&i| self.jump_on_screen(i)) else {
+            self.choose_jump(true);
+            return;
+        };
+        let Some(md) = &self.md else { return };
+        let Some(line) = md.jumps().get(i).and_then(|j| md.place(&j.to)) else {
+            return;
+        };
+        let page = self.page.max(1);
+        if self.jumps_back.len() >= MAX_JUMPS_BACK {
+            self.jumps_back.remove(0);
+        }
+        self.jumps_back.push((self.top, Some(i)));
+        self.top = md.row_of(line, 0).min(md.row_count().saturating_sub(page));
+        let first = md.jumps().partition_point(|j| j.line < line);
+        self.jump = Some(first).filter(|&k| self.jump_on_screen(k));
+    }
+
+    /// The links of a guide on the screen: their number, their row of the
+    /// screen, and the columns where their text starts and ends on it (from
+    /// the left edge of what is shown). A link broken over two rows takes
+    /// only its first.
+    pub fn jumps_on_screen(&self) -> Vec<(usize, usize, usize, usize)> {
+        let Some(md) = self.md.as_ref().filter(|_| self.follows_links()) else {
+            return Vec::new();
+        };
+        let (top, end) = (self.top, self.top + self.page.max(1));
+        let jumps = md.jumps();
+        let first = jumps.partition_point(|j| md.row_of(j.line, j.start) < top);
+        jumps[first..]
+            .iter()
+            .enumerate()
+            .map(|(k, j)| (first + k, j, md.row_of(j.line, j.start)))
+            .take_while(|&(_, _, row)| row < end)
+            .filter_map(|(i, j, row)| {
+                let from = md.column_of(row, j.line, j.start);
+                let to = md.column_of(row, j.line, j.end);
+                let (from, to) = (from.max(self.left), to.max(self.left));
+                (to > from).then(|| (i, row - top, from - self.left, to - self.left))
+            })
+            .collect()
+    }
+
+    /// A click on link `i` of a guide: follows it, as Enter does.
+    pub fn click_jump(&mut self, i: usize) {
+        if self.follows_links() && self.jump_on_screen(i) {
+            self.jump = Some(i);
+            self.follow_jump();
+        }
+    }
+
+    /// Backspace: to where the view was before the last link followed.
+    fn jump_back(&mut self) {
+        match self.jumps_back.pop() {
+            Some((top, jump)) => {
+                self.top = top;
+                self.jump = jump;
+            }
+            None => self.note = Some("Nothing to go back to".into()),
+        }
     }
 
     /// The arrows scroll sideways in text mode without wrap.
@@ -6942,6 +7082,40 @@ new mode 100755
         std::fs::write(&other, ng::test_guides::small()).unwrap();
         let v = Viewer::open(other, LOAD).unwrap();
         assert_ne!(v.mode, ViewMode::Rendered);
+    }
+
+    #[test]
+    fn links_of_a_guide_are_followed_and_back() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("small.ng");
+        std::fs::write(&path, ng::test_guides::small()).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 5;
+        assert!(v.follows_links());
+        // Enter with no link chosen chooses the next one, scrolling to it,
+        // and never closes the viewer.
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::None);
+        assert_eq!(v.jump, Some(0));
+        assert!(v.top > 0, "the menu is below the first rows");
+        assert_eq!(&*v.md.as_ref().unwrap().jumps()[0].to, "e1");
+        let menu_top = v.top;
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::None);
+        let md = v.md.as_ref().unwrap();
+        let e1 = md.row_of(md.place("e1").unwrap(), 0);
+        assert_eq!(v.top, e1.min(md.row_count() - 5));
+        assert_eq!(v.jump, Some(1), "the entry's first link");
+        // Shift+Tab, Tab, then Backspace: back to the menu, its link chosen.
+        press(&mut v, KeyCode::BackTab);
+        press(&mut v, KeyCode::Tab);
+        assert_eq!(v.jump, Some(1));
+        press(&mut v, KeyCode::Backspace);
+        assert_eq!((v.top, v.jump), (menu_top, Some(0)));
+        press(&mut v, KeyCode::Backspace);
+        assert_eq!(v.note.as_deref(), Some("Nothing to go back to"));
+        // Esc still closes; in hex, Enter does too.
+        press(&mut v, KeyCode::Char('h'));
+        assert!(!v.follows_links());
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::Close);
     }
 
     #[test]
