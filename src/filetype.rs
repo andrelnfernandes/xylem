@@ -155,6 +155,15 @@ fn signature(path: &Path, h: &[u8]) -> Option<String> {
             _ => "ZIP archive".into(),
         });
     }
+    // Two bytes match too much by chance: only with the name.
+    if ext(path) == "ng" {
+        if starts(b"NG") {
+            return fixed("Norton Guide");
+        }
+        if starts(b"EH") {
+            return fixed("Expert Help guide");
+        }
+    }
     if starts(b"RIFF") {
         return match h.get(8..12) {
             Some(b"WEBP") => fixed("WebP image"),
@@ -376,6 +385,9 @@ mod tests {
         png.extend(600u32.to_be_bytes());
         assert_eq!(of("pic", &png), "PNG image, 800 x 600");
         assert_eq!(of("doc.bin", b"%PDF-1.7\n..."), "PDF document, version 1.7");
+        assert_eq!(of("clipper.NG", b"NG\0\0rest"), "Norton Guide");
+        assert_eq!(of("help.ng", b"EH\0\0rest"), "Expert Help guide");
+        assert_ne!(of("notes.txt", b"NG is how it starts"), "Norton Guide");
         assert_eq!(
             of("a.docx", b"PK\x03\x04rest"),
             "Microsoft Office document (ZIP)"

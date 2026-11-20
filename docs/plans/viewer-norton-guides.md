@@ -170,8 +170,32 @@ do Xylem.
 
 - Os campos desconhecidos (4 bytes do cabeçalho, 20 e os `8 ×` contagem dos
   menus, 2 por linha das entradas curtas): ignorados.
-- A hipótese da contagem do menu e o `^A` repetido, a confirmar nos guias
-  reais.
+- O `^A` repetido voltando ao normal, a confirmar vendo um guia que use cores.
+
+**Conferido em 2026-11-20, com os 42 guias da coleção pública** (etapa 1):
+todos abrem sem nenhum problema apontado, e nenhum dos cerca de 30 mil links
+(opções de menu, linhas de entradas curtas e "see also") aponta para fora de
+uma entrada. Isso confirma a contagem do menu "menos um" e o pulo de 26 +
+tamanho bytes também nos menus. O maior guia (6,2 MB, 9.352 entradas) abre em
+0,56 s no build de release, com 167 MB de memória; um guia típico, em menos de
+0,1 s.
+
+**Feito na etapa 1**: o guia inteiro vira um documento só, com as entradas
+numeradas (`§12`) e cada link dizendo para onde leva (`→ §12`); a busca do
+viewer serve de navegação.
+
+**Feito na etapa 1b** (decisão do autor: navegar, sem digitar `§`): o guia
+continua um documento só, para que a busca cubra o guia inteiro, e os links
+passam a ser seguidos. Tab e Shift+Tab escolhem o link (a partir da tela,
+quando o escolhido saiu dela), Enter vai à entrada com o primeiro link dela
+escolhido, Backspace volta (até 1.000 passos); um clique segue o link, e o
+`Backspace` do rodapé, clicável, volta, porque o terminal não informa o botão
+"voltar" do mouse. No guia, Enter nunca fecha o viewer. Por dentro: o `Doc`
+ganhou saltos (`Jump`: linha, caracteres, destino) e lugares (títulos com id),
+só em documentos feitos por `from_events_linked`; um arquivo Markdown nunca
+os tem, e um link dele continua mostrando o endereço real. O link mantém a
+aparência do texto do guia e só o escolhido aparece em destaque. Um link
+quebrado em duas linhas da tela só é clicável na primeira.
 
 Guias reais para conferir: a coleção pública de Dave Pearson
 (<https://github.com/davep/norton-guides>, com guias de domínio público, de
@@ -195,10 +219,10 @@ guias montados pelo próprio teste.
   aberta. Uma busca no guia inteiro (todas as entradas longas) fica para a
   etapa 2, com progresso e Esc.
 
-A decidir na etapa 1: reaproveitar a navegação por links do F1
-(`src/help.rs`: Tab e Shift+Tab escolhem o link, Enter segue) ou dar ao viewer
-links internos próprios. O F1 já tem a pilha de voltar e o layout dos links; o
-viewer tem as buscas e os modos. A opção mais simples deve ganhar.
+Decidido na etapa 1: em vez da barra de menus e de uma entrada por vez, o
+guia é um documento só, com links internos próprios do viewer, com as teclas
+do F1 (Tab, Shift+Tab, Enter, Backspace). Assim a busca do viewer já cobre o
+guia inteiro, e a etapa 2 fica quase toda feita (ver "Feito na etapa 1b").
 
 ## Reconhecimento
 

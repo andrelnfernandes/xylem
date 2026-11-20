@@ -10,6 +10,7 @@ pub mod line_filter;
 pub mod lines;
 pub mod log;
 pub mod markdown;
+pub mod ng;
 pub mod office;
 mod parquet_pages;
 pub mod patch;
@@ -51,6 +52,8 @@ pub const MAX_BYTES: u64 = 16 * 1024 * 1024;
 pub const HEX_WIDTH: usize = 16;
 const TAB_WIDTH: usize = 8;
 const PAN_STEP: usize = 8;
+/// Links followed in a guide that Backspace can go back through.
+const MAX_JUMPS_BACK: usize = 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -352,6 +355,12 @@ pub struct Viewer {
     notebook: bool,
     /// The file is an Office document, shown as a document (see `office`).
     office: Option<office::Kind>,
+    /// The file is a Norton Guide (see `ng`), shown as a document.
+    guide: bool,
+    /// In a guide: the link chosen (an index into the document's jumps), and
+    /// where the view was before each link followed, to go back to.
+    jump: Option<usize>,
+    jumps_back: Vec<(usize, Option<usize>)>,
     /// The file is an executable, a library or an object (see `binaries`).
     exe: bool,
     /// The file is a certificate or a key (see `certs`); in DER, it has no
@@ -401,6 +410,19 @@ struct Follow {
 /// a FIFO put in its place would block the open, and so the screen, until
 /// someone wrote to it. On Unix the open does not wait (`O_NONBLOCK`, which
 /// changes nothing for a regular file), and the check is on what was opened.
+/// A whole regular file, refused when it is over `max` bytes.
+fn read_bounded(path: &Path, max: u64) -> Result<Vec<u8>, String> {
+    let file = open_regular(path).map_err(|e| format!("Cannot read the file: {e}"))?;
+    let mut data = Vec::new();
+    file.take(max + 1)
+        .read_to_end(&mut data)
+        .map_err(|e| format!("Cannot read the file: {e}"))?;
+    if data.len() as u64 > max {
+        return Err(format!("Over {} MiB: too big to read", max >> 20));
+    }
+    Ok(data)
+}
+
 pub(crate) fn open_regular(path: &Path) -> io::Result<File> {
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
@@ -1054,6 +1076,9 @@ impl Viewer {
         self.md_file = new.md_file;
         self.notebook = new.notebook;
         self.office = new.office;
+        self.guide = new.guide;
+        self.jump = None;
+        self.jumps_back.clear();
         self.exe = new.exe;
         self.cert = new.cert;
         self.cert_der = new.cert_der;
@@ -1503,7 +1528,8 @@ impl Viewer {
         let shown_name = name.as_deref().unwrap_or(&path);
         v.notebook = jupyter::is_notebook(shown_name);
         v.office = (!failed).then(|| office::kind(shown_name)).flatten();
-        v.exe = !failed && found.binary && binaries::is_binary(&v.data);
+        v.guide = !failed && ng::is_guide(shown_name, &v.data);
+        v.exe = !failed && !v.guide && found.binary && binaries::is_binary(&v.data);
         v.cert = !failed && !v.exe && certs::detect(shown_name, &v.data);
         v.cert_der = v.cert && found.binary;
         v.md_file = !failed && !found.binary && (markdown::is_markdown(shown_name) || v.notebook);
@@ -1797,6 +1823,9 @@ impl Viewer {
         if let Some(kind) = self.office {
             return self.render_office(kind);
         }
+        if self.guide {
+            return self.render_guide();
+        }
         if self.exe {
             return self.render_binary();
         }
@@ -1951,7 +1980,58 @@ impl Viewer {
     /// A document with no text of its own (Office, an executable): `T` has no
     /// source to show, and `H` goes to the bytes.
     fn no_source(&self) -> bool {
-        self.office.is_some() || self.exe || self.cert_der
+        self.office.is_some() || self.guide || self.exe || self.cert_der
+    }
+
+    /// A Norton Guide as a document: from the bytes read when they are all
+    /// of it, else (with V) from the file, up to `ng::MAX_SIZE`.
+    fn render_guide(&mut self) -> bool {
+        let autoview = !self.load.c_parsers;
+        let (time, budget, width) = (
+            self.load.limits.time,
+            self.load.limits.output.saturating_mul(16).max(16 << 20),
+            self.content_width(),
+        );
+        let name = self
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let read = if !self.cut {
+            Ok(None)
+        } else if self.on_disk && !autoview && self.compression.is_none() {
+            read_bounded(&self.path, ng::MAX_SIZE).map(Some)
+        } else {
+            if self.note.is_none() {
+                self.note = Some("Too big to read here: V shows it as a guide".into());
+            }
+            return false;
+        };
+        let data = match read {
+            Ok(Some(d)) => d,
+            Ok(None) => std::mem::take(&mut self.data),
+            Err(why) => {
+                self.note.get_or_insert(why);
+                return false;
+            }
+        };
+        let result = crate::panic_guard::catch(|| {
+            ng::parse(&data, time).map(|g| ng::render(&g, &name, time, budget, width))
+        });
+        if !self.cut {
+            self.data = data;
+        }
+        match result {
+            Some(Ok(doc)) => self.md = Some(doc),
+            Some(Err(why)) => {
+                self.note.get_or_insert(why);
+            }
+            None => {
+                self.note
+                    .get_or_insert_with(|| "Could not read this guide: showing the bytes".into());
+            }
+        }
+        self.md.is_some()
     }
 
     pub fn limit(&self) -> u64 {
@@ -2243,6 +2323,9 @@ impl Viewer {
             md_file: false,
             notebook: false,
             office: None,
+            guide: false,
+            jump: None,
+            jumps_back: Vec::new(),
             exe: false,
             cert: false,
             cert_der: false,
@@ -2761,6 +2844,11 @@ impl Viewer {
             .hit
             .filter(|h| h.mode == ViewMode::Rendered)
             .map(|h| (h.line, h.start, h.end));
+        let jump = self
+            .jump
+            .filter(|_| self.guide)
+            .and_then(|i| self.md.as_ref()?.jumps().get(i))
+            .map(|j| (j.line, j.start, j.end));
         let Some(md) = &mut self.md else {
             return Vec::new();
         };
@@ -2778,7 +2866,7 @@ impl Viewer {
         let rows = (top..end)
             .map(|row| StyledRow {
                 line_num: md.number_of(row).filter(|_| numbers),
-                segments: md.row_segments(row, left, colors, hit),
+                segments: md.row_segments(row, left, colors, hit, jump),
             })
             .collect();
         self.top = top;
@@ -3089,6 +3177,19 @@ impl Viewer {
                 self.open_record();
                 Action::None
             }
+            // In a guide Enter follows a link: it never closes the viewer.
+            KeyCode::Tab | KeyCode::BackTab if self.follows_links() => {
+                self.choose_jump(key.code == KeyCode::Tab);
+                Action::None
+            }
+            KeyCode::Enter if self.follows_links() => {
+                self.follow_jump();
+                Action::None
+            }
+            KeyCode::Backspace if self.follows_links() => {
+                self.jump_back();
+                Action::None
+            }
             KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'Q' | 'v' | 'V') => Action::Close,
             KeyCode::Home if alt => Action::First,
             KeyCode::End if alt => Action::Last,
@@ -3292,6 +3393,118 @@ impl Viewer {
             self.top = self.top.min(self.line_count().saturating_sub(page));
         }
         action
+    }
+
+    /// A guide on screen as a document: Tab, Enter and Backspace go through
+    /// its links.
+    pub fn follows_links(&self) -> bool {
+        self.guide && self.mode == ViewMode::Rendered && self.md.is_some()
+    }
+
+    /// The row of jump `i` of the document, if there is one.
+    fn jump_row(&self, i: usize) -> Option<usize> {
+        let md = self.md.as_ref()?;
+        let j = md.jumps().get(i)?;
+        Some(md.row_of(j.line, j.start))
+    }
+
+    fn jump_on_screen(&self, i: usize) -> bool {
+        self.jump_row(i)
+            .is_some_and(|r| r >= self.top && r < self.top + self.page.max(1))
+    }
+
+    /// Tab and Shift+Tab: the next or the previous link, from the chosen one
+    /// when it is on the screen, else from the screen.
+    fn choose_jump(&mut self, forward: bool) {
+        let Some(md) = &self.md else { return };
+        let n = md.jumps().len();
+        if n == 0 {
+            self.note = Some("No links in this guide".into());
+            return;
+        }
+        let (top, page) = (self.top, self.page.max(1));
+        let row = |j: &markdown::Jump| md.row_of(j.line, j.start);
+        let next = match self.jump.filter(|&i| self.jump_on_screen(i)) {
+            Some(i) if forward => (i + 1) % n,
+            Some(i) => (i + n - 1) % n,
+            None if forward => md.jumps().iter().position(|j| row(j) >= top).unwrap_or(0),
+            None => md
+                .jumps()
+                .iter()
+                .rposition(|j| row(j) < top + page)
+                .unwrap_or(n - 1),
+        };
+        self.jump = Some(next);
+        if !self.jump_on_screen(next) {
+            let r = self.jump_row(next).unwrap_or(0);
+            let last = md.row_count().saturating_sub(page);
+            self.top = r.saturating_sub(page / 3).min(last);
+        }
+    }
+
+    /// Enter: to the entry the chosen link leads to, with its first link
+    /// chosen. With none chosen on the screen, it chooses one first.
+    fn follow_jump(&mut self) {
+        let Some(i) = self.jump.filter(|&i| self.jump_on_screen(i)) else {
+            self.choose_jump(true);
+            return;
+        };
+        let Some(md) = &self.md else { return };
+        let Some(line) = md.jumps().get(i).and_then(|j| md.place(&j.to)) else {
+            return;
+        };
+        let page = self.page.max(1);
+        if self.jumps_back.len() >= MAX_JUMPS_BACK {
+            self.jumps_back.remove(0);
+        }
+        self.jumps_back.push((self.top, Some(i)));
+        self.top = md.row_of(line, 0).min(md.row_count().saturating_sub(page));
+        let first = md.jumps().partition_point(|j| j.line < line);
+        self.jump = Some(first).filter(|&k| self.jump_on_screen(k));
+    }
+
+    /// The links of a guide on the screen: their number, their row of the
+    /// screen, and the columns where their text starts and ends on it (from
+    /// the left edge of what is shown). A link broken over two rows takes
+    /// only its first.
+    pub fn jumps_on_screen(&self) -> Vec<(usize, usize, usize, usize)> {
+        let Some(md) = self.md.as_ref().filter(|_| self.follows_links()) else {
+            return Vec::new();
+        };
+        let (top, end) = (self.top, self.top + self.page.max(1));
+        let jumps = md.jumps();
+        let first = jumps.partition_point(|j| md.row_of(j.line, j.start) < top);
+        jumps[first..]
+            .iter()
+            .enumerate()
+            .map(|(k, j)| (first + k, j, md.row_of(j.line, j.start)))
+            .take_while(|&(_, _, row)| row < end)
+            .filter_map(|(i, j, row)| {
+                let from = md.column_of(row, j.line, j.start);
+                let to = md.column_of(row, j.line, j.end);
+                let (from, to) = (from.max(self.left), to.max(self.left));
+                (to > from).then(|| (i, row - top, from - self.left, to - self.left))
+            })
+            .collect()
+    }
+
+    /// A click on link `i` of a guide: follows it, as Enter does.
+    pub fn click_jump(&mut self, i: usize) {
+        if self.follows_links() && self.jump_on_screen(i) {
+            self.jump = Some(i);
+            self.follow_jump();
+        }
+    }
+
+    /// Backspace: to where the view was before the last link followed.
+    fn jump_back(&mut self) {
+        match self.jumps_back.pop() {
+            Some((top, jump)) => {
+                self.top = top;
+                self.jump = jump;
+            }
+            None => self.note = Some("Nothing to go back to".into()),
+        }
     }
 
     /// The arrows scroll sideways in text mode without wrap.
@@ -6836,6 +7049,73 @@ new mode 100755
         press(&mut v, KeyCode::Char('r'));
         assert_eq!(v.line_count(), 1);
         assert!(!v.text_changed());
+    }
+
+    #[test]
+    fn a_norton_guide_opens_as_a_document() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("small.ng");
+        std::fs::write(&path, ng::test_guides::small()).unwrap();
+        let mut v = Viewer::open(path.clone(), LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        let doc = v.md.as_ref().unwrap();
+        let lines: Vec<String> = (0..doc.line_count())
+            .map(|i| doc.line(i).to_string())
+            .collect();
+        assert!(lines.iter().any(|l| l == "Small guide"), "{lines:?}");
+        assert!(lines.iter().any(|l| l.contains("§2 One()")), "{lines:?}");
+        // No text source: H goes to the bytes and back.
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Hex);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // In Autoview too, being small.
+        let v = Viewer::open(path, LoadOptions::autoview()).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // The name alone is not enough: without the signature, the bytes.
+        let bad = tmp.path().join("b.ng");
+        std::fs::write(&bad, b"not a guide at all").unwrap();
+        let v = Viewer::open(bad, LOAD).unwrap();
+        assert_ne!(v.mode, ViewMode::Rendered);
+        // The signature alone is not enough either.
+        let other = tmp.path().join("small.bin");
+        std::fs::write(&other, ng::test_guides::small()).unwrap();
+        let v = Viewer::open(other, LOAD).unwrap();
+        assert_ne!(v.mode, ViewMode::Rendered);
+    }
+
+    #[test]
+    fn links_of_a_guide_are_followed_and_back() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("small.ng");
+        std::fs::write(&path, ng::test_guides::small()).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 5;
+        assert!(v.follows_links());
+        // Enter with no link chosen chooses the next one, scrolling to it,
+        // and never closes the viewer.
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::None);
+        assert_eq!(v.jump, Some(0));
+        assert!(v.top > 0, "the menu is below the first rows");
+        assert_eq!(&*v.md.as_ref().unwrap().jumps()[0].to, "e1");
+        let menu_top = v.top;
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::None);
+        let md = v.md.as_ref().unwrap();
+        let e1 = md.row_of(md.place("e1").unwrap(), 0);
+        assert_eq!(v.top, e1.min(md.row_count() - 5));
+        assert_eq!(v.jump, Some(1), "the entry's first link");
+        // Shift+Tab, Tab, then Backspace: back to the menu, its link chosen.
+        press(&mut v, KeyCode::BackTab);
+        press(&mut v, KeyCode::Tab);
+        assert_eq!(v.jump, Some(1));
+        press(&mut v, KeyCode::Backspace);
+        assert_eq!((v.top, v.jump), (menu_top, Some(0)));
+        press(&mut v, KeyCode::Backspace);
+        assert_eq!(v.note.as_deref(), Some("Nothing to go back to"));
+        // Esc still closes; in hex, Enter does too.
+        press(&mut v, KeyCode::Char('h'));
+        assert!(!v.follows_links());
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::Close);
     }
 
     #[test]

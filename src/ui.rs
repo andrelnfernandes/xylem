@@ -3989,6 +3989,13 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                         ("Space", "next hit"),
                         ("Esc", "close"),
                     ]
+                } else if v.follows_links() {
+                    vec![
+                        ("Tab", "link"),
+                        ("Enter", "follow"),
+                        ("Backspace", "back"),
+                        ("Esc", "close"),
+                    ]
                 } else if v.patch_summary().is_some() && v.mode == ViewMode::Text {
                     vec![
                         ("] [", "file"),
@@ -4739,6 +4746,14 @@ fn draw_viewer_body(frame: &mut Frame, v: &mut Viewer, title: String, area: Rect
             Line::from(spans)
         })
         .collect();
+    // The links of a guide, where they are on screen: a click follows one.
+    let gutter = if show_numbers { digits as u16 + 3 } else { 0 };
+    for (id, row, from, to) in v.jumps_on_screen() {
+        let x = inner.x.saturating_add(gutter).saturating_add(from as u16);
+        let width = (to - from) as u16;
+        let spot = Rect::new(x, inner.y + row as u16, width, 1);
+        hit(spot.intersection(inner), Spot::Link(id));
+    }
     frame.render_widget(Paragraph::new(lines).block(panel(title, true)), area);
 }
 
