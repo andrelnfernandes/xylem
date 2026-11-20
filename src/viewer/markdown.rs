@@ -201,6 +201,11 @@ struct Row {
 /// A parsed document, laid out for a width.
 pub struct Doc {
     lines: Vec<String>,
+    /// The links that lead to another place of the same document: only in a
+    /// document made with [`from_events_linked`], in the order of the text.
+    jumps: Vec<Jump>,
+    /// Where each place a jump can lead to starts: its name and logical line.
+    places: std::collections::HashMap<Box<str>, usize>,
     runs: Vec<Vec<(u32, Look)>>,
     items: Vec<Item>,
     blocks: Vec<CodeBlock>,
@@ -215,6 +220,16 @@ pub struct Doc {
     line_row: Vec<usize>,
     /// The budget stopped the layout.
     rows_cut: bool,
+}
+
+/// A link to a place of the same document: the characters `start..end` of
+/// logical line `line`, and the name of the place.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Jump {
+    pub line: usize,
+    pub start: usize,
+    pub end: usize,
+    pub to: Box<str>,
 }
 
 enum Container {
@@ -255,6 +270,13 @@ struct Builder {
     /// The links open: address, and where the text of each one starts.
     links: Vec<(String, usize)>,
     images: Vec<String>,
+    /// Links to `#place` become jumps (see [`from_events_linked`]).
+    linked: bool,
+    /// The jumps open: place and the character where the text starts.
+    open_jumps: Vec<(Box<str>, u32)>,
+    /// Jumps and a place name of the line in progress, until it has a number.
+    line_jumps: Vec<(Box<str>, u32, u32)>,
+    line_place: Option<Box<str>>,
     used: usize,
     /// The last prefix, to share it between the items that have the same one.
     last_prefix: Rc<str>,
@@ -287,8 +309,31 @@ pub fn from_events<'a>(
     time: Duration,
     budget: usize,
 ) -> Doc {
+    build(source, events, time, budget, false)
+}
+
+/// As [`from_events`], for a document that has places to go to: a heading
+/// with an id is a place, and a link to `#id` is a [`Jump`] there. Such a link
+/// keeps the look of its text and shows no address, so only a document Xylem
+/// writes itself (a Norton Guide) is made this way, never a Markdown file.
+pub fn from_events_linked<'a>(
+    events: impl IntoIterator<Item = (Event<'a>, Range<usize>)>,
+    time: Duration,
+    budget: usize,
+) -> Doc {
+    build("", events, time, budget, true)
+}
+
+fn build<'a>(
+    source: &str,
+    events: impl IntoIterator<Item = (Event<'a>, Range<usize>)>,
+    time: Duration,
+    budget: usize,
+    linked: bool,
+) -> Doc {
     let start = Instant::now();
     let mut b = Builder::new(source, budget);
+    b.linked = linked;
     for (n, (event, range)) in events.into_iter().enumerate() {
         if (n & 0x3ff == 0 && start.elapsed() >= time) || b.used > budget {
             b.doc.cut = true;
@@ -312,6 +357,8 @@ impl Builder {
         Builder {
             doc: Doc {
                 lines: Vec::new(),
+                jumps: Vec::new(),
+                places: std::collections::HashMap::new(),
                 runs: Vec::new(),
                 items: Vec::new(),
                 blocks: Vec::new(),
@@ -339,6 +386,10 @@ impl Builder {
             heading: None,
             links: Vec::new(),
             images: Vec::new(),
+            linked: false,
+            open_jumps: Vec::new(),
+            line_jumps: Vec::new(),
+            line_place: None,
             used: 0,
             last_prefix: Rc::from(""),
         }
@@ -414,7 +465,21 @@ impl Builder {
             LINE_COST + line.text.capacity() + line.runs.capacity() * size_of::<(u32, Look)>();
         self.doc.lines.push(line.text);
         self.doc.runs.push(line.runs);
-        self.doc.lines.len() - 1
+        let id = self.doc.lines.len() - 1;
+        for (to, start, end) in self.line_jumps.drain(..) {
+            self.used += LINE_COST + to.len();
+            self.doc.jumps.push(Jump {
+                line: id,
+                start: start as usize,
+                end: end as usize,
+                to,
+            });
+        }
+        if let Some(name) = self.line_place.take() {
+            self.used += LINE_COST + name.len();
+            self.doc.places.entry(name).or_insert(id);
+        }
+        id
     }
 
     /// Closes the inline text in progress, if any.
@@ -597,8 +662,11 @@ impl Builder {
                 self.begin_block();
                 self.open_at(offset);
             }
-            Tag::Heading { level, .. } => {
+            Tag::Heading { level, id, .. } => {
                 self.begin_block();
+                if self.linked {
+                    self.line_place = id.map(|i| Box::from(i.as_ref()));
+                }
                 self.heading = Some(level);
                 self.bold += 1;
                 self.open_at(offset);
@@ -668,6 +736,11 @@ impl Builder {
             Tag::Emphasis => self.italic += 1,
             Tag::Strong => self.bold += 1,
             Tag::Strikethrough => self.strike += 1,
+            Tag::Link { dest_url, .. } if self.linked && dest_url.starts_with('#') => {
+                self.open_at(offset);
+                let at = self.open.as_ref().map_or(0, |(l, _)| l.chars);
+                self.open_jumps.push((Box::from(&dest_url[1..]), at));
+            }
             Tag::Link { dest_url, .. } => {
                 self.open_at(offset);
                 let at = self.open.as_ref().map_or(0, |(l, _)| l.text.len());
@@ -749,6 +822,15 @@ impl Builder {
             TagEnd::Emphasis => self.italic = self.italic.saturating_sub(1),
             TagEnd::Strong => self.bold = self.bold.saturating_sub(1),
             TagEnd::Strikethrough => self.strike = self.strike.saturating_sub(1),
+            TagEnd::Link if !self.open_jumps.is_empty() => {
+                if let Some((to, start)) = self.open_jumps.pop() {
+                    let end = self.open.as_ref().map_or(start, |(l, _)| l.chars);
+                    // A jump with no text, or broken by a line's end, is none.
+                    if end > start {
+                        self.line_jumps.push((to, start, end));
+                    }
+                }
+            }
             TagEnd::Link => {
                 if let Some((url, at)) = self.links.pop() {
                     self.address(&url, at, offset);
@@ -1056,6 +1138,16 @@ impl Doc {
         self.lines.len()
     }
 
+    /// The links to places of the document, in the order of the text.
+    pub fn jumps(&self) -> &[Jump] {
+        &self.jumps
+    }
+
+    /// The logical line where place `name` starts.
+    pub fn place(&self, name: &str) -> Option<usize> {
+        self.places.get(name).copied()
+    }
+
     pub fn line(&self, i: usize) -> &str {
         &self.lines[i]
     }
@@ -1189,6 +1281,7 @@ impl Doc {
         left: usize,
         use_colors: bool,
         hit: Option<(usize, usize, usize)>,
+        jump: Option<(usize, usize, usize)>,
     ) -> Vec<Segment> {
         let mut out: Vec<Segment> = Vec::new();
         let Some(r) = self.rows.get(row) else {
@@ -1226,7 +1319,9 @@ impl Doc {
                             Some(c) if look.kind == Kind::Code => Some(*c),
                             _ => painted.0,
                         };
-                        let marked = hit.is_some_and(|(l, s, e)| l == *line && at >= s && at < e);
+                        let inside =
+                            |(l, s, e): (usize, usize, usize)| l == *line && at >= s && at < e;
+                        let marked = hit.is_some_and(inside) || jump.is_some_and(inside);
                         add(&mut out, c, color, marked, painted.1);
                     }
                 }
@@ -1358,7 +1453,7 @@ mod tests {
     }
 
     fn text_of(d: &mut Doc, row: usize) -> String {
-        d.row_segments(row, 0, false, None)
+        d.row_segments(row, 0, false, None, None)
             .iter()
             .map(|s| s.0.as_str())
             .collect()
@@ -1375,7 +1470,7 @@ mod tests {
     /// The modifiers and color of the piece holding `needle`.
     fn segment_of(d: &mut Doc, needle: &str) -> Segment {
         (0..d.row_count())
-            .flat_map(|r| d.row_segments(r, 0, false, None))
+            .flat_map(|r| d.row_segments(r, 0, false, None, None))
             .find(|s| s.0.contains(needle))
             .unwrap_or_else(|| panic!("no {needle}"))
     }
@@ -1443,9 +1538,9 @@ mod tests {
         assert_eq!(rows[2], "          let x = 1;");
         assert!(rows.iter().any(|r| r == "  indented"), "{rows:#?}");
         // Colored only when asked for, and more than one color for Rust.
-        let plain = d.row_segments(1, 0, false, None);
+        let plain = d.row_segments(1, 0, false, None, None);
         assert_eq!(plain.iter().filter(|s| s.0.trim() != "").count(), 1);
-        let colored = d.row_segments(1, 0, true, None);
+        let colored = d.row_segments(1, 0, true, None, None);
         assert!(colored.len() > plain.len(), "{colored:?}");
     }
 
@@ -1457,7 +1552,7 @@ mod tests {
         assert!(rows[0].starts_with("─ mermaid ─"), "{rows:#?}");
         assert_eq!(rows[1], "  graph TD; A-->B");
         assert_eq!(
-            d.row_segments(1, 0, true, None).len(),
+            d.row_segments(1, 0, true, None, None).len(),
             2,
             "no syntax colors"
         );
@@ -1493,7 +1588,7 @@ mod tests {
         let first = text_of(&mut d, 0);
         assert!(first.contains("col29"), "{first}");
         let panned: String = d
-            .row_segments(0, 150, false, None)
+            .row_segments(0, 150, false, None, None)
             .iter()
             .map(|s| s.0.as_str())
             .collect();
@@ -1501,6 +1596,19 @@ mod tests {
             panned.contains("col29") && !panned.contains("col0"),
             "{panned}"
         );
+    }
+
+    #[test]
+    fn a_markdown_file_has_no_jumps() {
+        // Only a document Xylem writes hides a link's address.
+        let d = parse(
+            "# Top {#top}\n\n[go](#top) and [x](#nowhere)\n",
+            TIME,
+            1 << 30,
+        );
+        assert!(d.jumps().is_empty());
+        assert_eq!(d.place("top"), None);
+        assert!(d.line(1).contains("<#top>"), "{}", d.line(1));
     }
 
     #[test]
@@ -1699,7 +1807,7 @@ mod tests {
             d.layout(80);
             d.layout(23);
             let rows = d.row_count();
-            let segments = d.row_segments(rows.saturating_sub(1), 0, true, None);
+            let segments = d.row_segments(rows.saturating_sub(1), 0, true, None, None);
             assert!(segments.len() <= 4 * MAX_COLUMNS, "{name}");
             // The time limit is for the machine under test, not a benchmark.
             assert!(start.elapsed() < Duration::from_secs(30), "{name}");

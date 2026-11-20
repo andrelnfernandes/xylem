@@ -5,6 +5,15 @@ someone who used the version before, and the keys that moved. The full notes
 of each version are on
 `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.9.0
+
+**New.**
+
+- Norton Guides (`.ng`), the help files of DOS and Clipper, open in the
+  viewer as a document: the menus, then each entry numbered (`§12`), with
+  its links and its see-also pointing to those numbers. Tab chooses a link,
+  Enter or a click follows it, Backspace goes back. [The viewer](viewer.md)
+
 ## 0.8.0
 
 **Changed: some Alt keys.** Alt no longer repeats Ctrl. It is the other

@@ -113,6 +113,22 @@ Before the text, a block says what the document has besides it, since much of it
 
 `H` shows the bytes, and comes back; `T` says the document has no text of its own. Every part of the file is decompressed only up to a limit (64 MiB each, 256 MiB in all; 4 MiB in Autoview), and the header says when the document was cut. An XML part with a DTD, or nested deeper than 256 levels, is refused. The old `.doc` and `.ppt` open in hex, as before.
 
+## Norton Guides
+
+A Norton Guide or an Expert Help guide (`.ng`), the hypertext help of DOS and Clipper, opens as a document. A file needs both the `.ng` name and the guide's signature; anything else opens as before.
+
+- **At the top:** the guide's title and credits, and what made it.
+- **The menus:** each with its items, and where each item leads.
+- **The entries:** all of them, in the order of the file, each under a number: `§12`. A list entry shows its lines; a text entry shows its text with the guide's layout, then its see-also links. Every link says where it goes (`→ §12`, `See also: Two() §3`), so a search for `§12` takes you there. A link that points nowhere says `(broken link)`.
+
+**Following links.** **Tab** and **Shift+Tab** choose the next or the previous link (from the screen, when the chosen one has scrolled off it); **Enter** goes to the entry it leads to, with that entry's first link chosen; **Backspace** goes back to where you were, through up to 1,000 links. With the mouse on, a click on a link follows it, and a click on `Backspace` in the footer goes back. In a guide Enter never closes the viewer: Esc does. Because the whole guide is one document, a search (`/`) still looks through all of it.
+
+Bold, underline and reverse come out in the theme's styles; a guide's DOS colors are not sent to the terminal. The guide's characters are code page 437, with the glyphs DOS drew for the bytes 1 to 31 (`☺ ♥ ► ▲`); nothing in a guide reaches the terminal as a control character.
+
+A guide is a web of offsets that could lie: each one is checked against the file, each count against its own record, and the spaces a line expands to have a limit. What is wrong with a guide is listed at the top, under "Problems in this guide", and the rest still shows. A guide is read whole, up to 64 MiB; `H` shows the bytes.
+
+The format is known thanks to Dave Pearson, who worked it out in the 1990s and has kept Norton Guides readable ever since: <https://www.davep.org/norton-guides/>. Xylem's reader is its own code, written from his description of the format; it includes no code from his readers.
+
 ## Executables
 
 An executable, a library or an object file opens as a report, whatever its name: ELF (Linux, BSD), PE (Windows `.exe`, `.dll`, `.sys`, also .NET) and Mach-O (macOS, also universal binaries with several architectures). It is told by its first bytes, never by its name. The report says:
