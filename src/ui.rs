@@ -173,6 +173,7 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
             Layout::horizontal([Constraint::Percentage(40), Constraint::Percentage(60)])
                 .areas(main);
         let active = app.active;
+        let (list, results) = fuzzy_split(app, list);
         draw_files(
             frame,
             &mut app.panes[active],
@@ -182,6 +183,7 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
             git,
             app.options.icons,
         );
+        draw_fuzzy(frame, app.prompt.as_mut(), &app.panes[app.active], results);
         if let Some(v) = &mut app.autoview {
             let name = v
                 .path
@@ -201,6 +203,9 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .areas(main);
         let active = app.active;
+        let mut halves = halves;
+        let (top, results) = fuzzy_split(app, halves[active]);
+        halves[active] = top;
         for (i, (pane, area)) in app.panes.iter_mut().zip(halves).enumerate() {
             let owner = Owner::Main(i);
             draw_pane(
@@ -214,9 +219,11 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
                 app.options.icons,
             );
         }
+        draw_fuzzy(frame, app.prompt.as_mut(), &app.panes[app.active], results);
     } else {
         let [left, stats] =
             Layout::horizontal([Constraint::Min(20), Constraint::Length(STATS_WIDTH)]).areas(main);
+        let (left, results) = fuzzy_split(app, left);
         // The pane first: the Usage view leaves its selected row for the panel.
         draw_pane(
             frame,
@@ -228,8 +235,208 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
             git,
             app.options.icons,
         );
+        draw_fuzzy(frame, app.prompt.as_mut(), &app.panes[app.active], results);
         draw_stats(frame, app, stats);
     }
+}
+
+/// Rows of results of the `|` prompt, at most.
+const FUZZY_ROWS: u16 = 12;
+
+/// With the `|` prompt open, the bottom of the active window holds its
+/// results, and the window gets what is left above them: the cursor that
+/// follows the chosen result stays in sight.
+fn fuzzy_split(app: &App, area: Rect) -> (Rect, Option<Rect>) {
+    if app.prompt.as_ref().and_then(app::Prompt::fuzzy).is_none() {
+        return (area, None);
+    }
+    let rows = (area.height / 2).min(FUZZY_ROWS + 2);
+    if rows < 3 {
+        return (area, None);
+    }
+    let [top, bottom] =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(rows)]).areas(area);
+    (top, Some(bottom))
+}
+
+/// The results of the `|` prompt, the best first, with the letters that
+/// matched marked.
+fn draw_fuzzy(
+    frame: &mut Frame,
+    prompt: Option<&mut app::Prompt>,
+    pane: &Pane,
+    area: Option<Rect>,
+) {
+    let Some(area) = area else { return };
+    let Some(fz) = prompt.and_then(app::Prompt::fuzzy_mut) else {
+        return;
+    };
+    let t = theme();
+    let what = match fz.source() {
+        crate::fuzzy::Source::Folders => " Fuzzy find: folders ",
+        crate::fuzzy::Source::Files { .. } => " Fuzzy find: files ",
+    };
+    let found = fz.found();
+    let count = if fz.query().is_empty() {
+        " type pieces of a name ".to_string()
+    } else if !fz.is_done() {
+        let (seen, total) = fz.progress();
+        format!(
+            " {} found · searching {}% ",
+            fmt_num(found as u64),
+            seen * 100 / total.max(1)
+        )
+    } else if found == 0 {
+        " nothing matches ".to_string()
+    } else if found > fz.results.len() {
+        format!(
+            " {} best of {} ",
+            fmt_num(fz.results.len() as u64),
+            fmt_num(found as u64)
+        )
+    } else {
+        format!(" {} ", fmt_num(found as u64))
+    };
+    let block = panel(what, true).title_top(Line::from(count).right_aligned());
+    let inner = block.inner(area);
+    frame.render_widget(Clear, area);
+    frame.render_widget(block, area);
+    // What the last Ctrl+T or Alt+T did, whole, under the results: it may
+    // name the option to turn on, which must not be cut.
+    let note: Vec<String> = fz
+        .note
+        .as_deref()
+        .map(|n| wrap(n, usize::from(inner.width).saturating_sub(2)))
+        .unwrap_or_default();
+    let note_rows = (note.len() as u16)
+        .min(3)
+        .min(inner.height.saturating_sub(1));
+    let [inner, note_area] =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(note_rows)]).areas(inner);
+    let note: Vec<Line> = note
+        .into_iter()
+        .take(usize::from(note_rows))
+        .map(|l| Line::styled(format!(" {l}"), Style::new().fg(t.message)))
+        .collect();
+    frame.render_widget(Paragraph::new(note), note_area);
+
+    fz.page = usize::from(inner.height);
+    fz.keep_visible();
+    hit(
+        inner,
+        Spot::Item {
+            list: mouse::Own::FuzzyResults,
+            offset: fz.scroll,
+            len: fz.results.len(),
+        },
+    );
+    // A space, then `*` before a tagged file, then the path.
+    let width = usize::from(inner.width).saturating_sub(3);
+    let (mut text, mut scratch) = (String::new(), Vec::new());
+    let mut lines = Vec::new();
+    for (i, r) in fz.results.iter().enumerate().skip(fz.scroll).take(fz.page) {
+        let selected = i == fz.selected;
+        let Some(name) =
+            crate::fuzzy::result_text(&pane.tree, &pane.files, fz.source(), r.id, &mut text)
+        else {
+            lines.push(Line::raw(""));
+            continue;
+        };
+        let positions = fz
+            .query()
+            .matches(&text, name, &mut scratch)
+            .map(|m| m.positions)
+            .unwrap_or_default();
+        let (base, mark) = if selected {
+            (
+                Style::new(),
+                Style::new().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            )
+        } else {
+            (
+                Style::new().fg(t.text),
+                Style::new().fg(t.key).add_modifier(Modifier::BOLD),
+            )
+        };
+        // A tagged file gets `*`; a folder, how many of its files are tagged.
+        let (star, tagged_files) = match fz.source() {
+            crate::fuzzy::Source::Files { .. } => {
+                let tagged = pane.files.get(r.id).is_some_and(|&f| pane.file(f).tagged);
+                (tagged, 0)
+            }
+            crate::fuzzy::Source::Folders => {
+                let n = pane
+                    .tree
+                    .node(r.id)
+                    .files
+                    .iter()
+                    .filter(|f| f.tagged)
+                    .count();
+                (false, n)
+            }
+        };
+        let tail = if tagged_files > 0 {
+            format!("  {}*", fmt_num(tagged_files as u64))
+        } else {
+            String::new()
+        };
+        let room = width.saturating_sub(tail.chars().count());
+        let tag_style = Style::new().fg(t.tagged);
+        let mut spans = vec![Span::raw(" ")];
+        spans.push(if star {
+            Span::styled("*", tag_style)
+        } else {
+            Span::raw(" ")
+        });
+        spans.extend(match_spans(&text, &positions, room, base, mark));
+        if !tail.is_empty() {
+            spans.push(Span::styled(tail, tag_style));
+        }
+        let line = Line::from(spans);
+        lines.push(if selected {
+            line.style(highlight(true))
+        } else {
+            line
+        });
+    }
+    frame.render_widget(Paragraph::new(lines), inner);
+}
+
+/// `text` in at most `width` characters, cut on the left (`…/xylem/docs`) so
+/// that the name stays, with the characters at `positions` (indexes of
+/// characters, sorted) in `mark`.
+fn match_spans(
+    text: &str,
+    positions: &[usize],
+    width: usize,
+    base: Style,
+    mark: Style,
+) -> Vec<Span<'static>> {
+    let len = text.chars().count();
+    let cut = if len > width {
+        len + 1 - width.max(1)
+    } else {
+        0
+    };
+    let mut spans = Vec::new();
+    if cut > 0 {
+        spans.push(Span::styled("…", base));
+    }
+    let mut run = String::new();
+    let mut marked = false;
+    for (i, c) in text.chars().enumerate().skip(cut) {
+        let here = positions.binary_search(&i).is_ok();
+        if here != marked && !run.is_empty() {
+            let style = if marked { mark } else { base };
+            spans.push(Span::styled(std::mem::take(&mut run), style));
+        }
+        marked = here;
+        run.push(c);
+    }
+    if !run.is_empty() {
+        spans.push(Span::styled(run, if marked { mark } else { base }));
+    }
+    spans
 }
 
 /// Width of the bars of the Usage view (less on a narrow screen).
@@ -2391,6 +2598,7 @@ fn idle_menu_spec(app: &App, focus: Focus, mode: MenuMode) -> MenuSpec {
             }
             keys.push(key("?", "stats", &["?"]));
             keys.push(key("\\", "treespec", &["\\"]));
+            keys.push(key("|", "fuzzy", &["|"]));
             keys.push(key("F3", "relog", &["f3"]));
             if tree {
                 keys.push(key("Enter", "files", &["enter"]));
@@ -2615,6 +2823,15 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
             ("Del", "forget"),
             ("Esc", "close"),
             ("type", "filter"),
+        ]
+    } else if prompt.fuzzy().is_some() {
+        vec![
+            ("↑↓ PgUp PgDn", "choose"),
+            ("Enter", "go"),
+            ("Esc", "back"),
+            ("Ctrl+T", "tag"),
+            ("Alt+T", "tag the list"),
+            ("Ctrl+U", "clear"),
         ]
     } else if prompt.is_bookmark_jump() {
         vec![
@@ -6744,5 +6961,38 @@ mod tests {
                 assert_eq!(row[0], want, "{topic}.md: the key of {}", row[1]);
             }
         }
+    }
+
+    #[test]
+    fn fuzzy_results_are_cut_on_the_left_with_their_marks_in_place() {
+        let (base, mark) = (Style::new(), Style::new().add_modifier(Modifier::BOLD));
+        let marked = |spans: &[Span]| -> String {
+            spans
+                .iter()
+                .map(|s| {
+                    if s.style == mark {
+                        s.content.to_uppercase()
+                    } else {
+                        s.content.to_string()
+                    }
+                })
+                .collect()
+        };
+        // It fits: the marks where the letters are.
+        let spans = match_spans("docs/plans", &[0, 5], 20, base, mark);
+        assert_eq!(marked(&spans), "Docs/Plans");
+        // It does not: cut on the left, the name kept, the marks moved along.
+        let spans = match_spans("docs/xylem/plans", &[0, 5, 11], 10, base, mark);
+        assert_eq!(marked(&spans), "…lem/Plans");
+        assert_eq!(
+            spans
+                .iter()
+                .map(|s| s.content.chars().count())
+                .sum::<usize>(),
+            10
+        );
+        // Marks on letters cut off are not drawn, nor do they shift the rest.
+        let spans = match_spans("abcdef", &[0, 1, 5], 4, base, mark);
+        assert_eq!(marked(&spans), "…deF");
     }
 }

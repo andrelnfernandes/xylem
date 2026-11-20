@@ -50,6 +50,7 @@ Xylem 将外部文件视为潜在恶意：绝不应因文件内容或文件名�
 
 ## 文件操作
 
+- [查找文件和文件夹](finding.md)：哪种搜索回答哪个问题
 - [标记与批量操作](tagging.md)
 - [复制与移动](copy-move.md)、[选择文件夹](picker.md)
 - [删除、回收站与 Prune](delete.md)
@@ -57,6 +58,7 @@ Xylem 将外部文件视为潜在恶意：绝不应因文件内容或文件名�
 - [权限与日期](attributes.md)
 - [Filespec：文件过滤器](filespec.md)
 - [Treespec 与 Log](treespec.md)
+- [模糊查找](fuzzy.md)：按名称片段查找文件夹或文件（`|`）
 - [比较](compare.md) 与 [排序](sort.md)
 - [编辑、执行与批处理](execute.md)
 - [归档文件](archives.md)：ZIP、7z 与 TAR

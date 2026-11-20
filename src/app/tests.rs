@@ -1805,6 +1805,11 @@ fn help_in_a_prompt_returns_to_it_as_it_was() {
     assert_eq!(help_topic_after(&mut app, alt_h), "sql");
     press(&mut app, KeyCode::Esc);
 
+    press(&mut app, KeyCode::Char('|'));
+    assert!(app.is_fuzzy());
+    assert_eq!(help_topic_after(&mut app, alt_h), "fuzzy");
+    press(&mut app, KeyCode::Esc);
+
     // A question too: after the help, it still takes its answer.
     press(&mut app, KeyCode::Char('d'));
     assert_eq!(help_topic_after(&mut app, alt_h), "delete");
@@ -5371,4 +5376,387 @@ fn the_search_box_keeps_the_loop_awake_until_it_has_searched() {
     let sb = app.search_box.as_ref().unwrap();
     assert_eq!(sb.results.len(), 1);
     assert_eq!(sb.results[0].name, "a.rs");
+}
+
+/// Runs the fuzzy search to its end.
+fn fuzzy_settle(app: &mut App) {
+    for _ in 0..1000 {
+        if !app.fuzzy_running() {
+            return;
+        }
+        app.tick(Duration::from_millis(50));
+    }
+    panic!("the fuzzy search does not end");
+}
+
+/// The results of the `|` prompt, as shown, with `/` for the separator.
+fn fuzzy_results(app: &App) -> Vec<String> {
+    let fz = app.prompt.as_ref().and_then(Prompt::fuzzy).unwrap();
+    let mut buf = String::new();
+    fz.results
+        .iter()
+        .map(|r| {
+            crate::fuzzy::result_text(&app.tree, &app.files, fz.source(), r.id, &mut buf).unwrap();
+            buf.replace(std::path::MAIN_SEPARATOR, "/")
+        })
+        .collect()
+}
+
+/// The sample, logged all the way down, with the tree in front.
+fn fuzzy_sample() -> (tempfile::TempDir, App) {
+    let (tmp, mut app) = sample();
+    app.apply(Command::Branch);
+    app.apply(Command::Branch);
+    app.focus = Focus::Tree;
+    (tmp, app)
+}
+
+fn selected_file(app: &App) -> String {
+    let f = app.files[app.file_state.selected().unwrap()];
+    app.file_path(f)
+        .strip_prefix(app.tree.path(ROOT))
+        .unwrap()
+        .to_string_lossy()
+        .replace(std::path::MAIN_SEPARATOR, "/")
+}
+
+#[test]
+fn fuzzy_in_the_tree_follows_the_best_folder_and_esc_goes_back() {
+    let (_tmp, mut app) = fuzzy_sample();
+    press(&mut app, KeyCode::Char('|'));
+    assert!(app.is_fuzzy());
+    assert!(fuzzy_results(&app).is_empty(), "nothing before typing");
+    type_text(&mut app, "dp");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), ["sub/deep"]);
+    assert_eq!(current_name(&app), "deep", "the cursor went to it");
+    press(&mut app, KeyCode::Esc);
+    assert!(app.prompt.is_none());
+    assert_eq!(app.current(), ROOT, "Esc goes back");
+}
+
+#[test]
+fn fuzzy_down_moves_the_cursor_and_enter_stays() {
+    let (_tmp, mut app) = fuzzy_sample();
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "s");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), ["sub", "sub/deep"]);
+    assert_eq!(current_name(&app), "sub");
+    press(&mut app, KeyCode::Down);
+    assert_eq!(current_name(&app), "deep");
+    press(&mut app, KeyCode::Down);
+    assert_eq!(current_name(&app), "deep", "stops at the last");
+    press(&mut app, KeyCode::Home);
+    assert_eq!(current_name(&app), "sub");
+    press(&mut app, KeyCode::End);
+    press(&mut app, KeyCode::Enter);
+    assert!(app.prompt.is_none());
+    assert_eq!(current_name(&app), "deep");
+}
+
+#[test]
+fn fuzzy_enter_with_nothing_found_stays_open() {
+    let (_tmp, mut app) = fuzzy_sample();
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "zzz");
+    fuzzy_settle(&mut app);
+    press(&mut app, KeyCode::Enter);
+    assert!(app.is_fuzzy());
+    assert_eq!(app.current(), ROOT);
+}
+
+#[test]
+fn fuzzy_in_the_directory_finds_its_files_by_name() {
+    let (_tmp, mut app) = sample();
+    app.apply(Command::SwitchWindow);
+    assert_eq!(app.focus, Focus::Files);
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "bt");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), ["b.txt"]);
+    assert_eq!(selected_file(&app), "b.txt");
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(selected_file(&app), "a.rs", "Esc goes back");
+}
+
+#[test]
+fn fuzzy_in_the_branch_finds_files_by_their_path() {
+    let (_tmp, mut app) = sample();
+    app.apply(Command::Branch);
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "dpa");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), ["sub/deep/a.rs"]);
+    assert_eq!(selected_file(&app), "sub/deep/a.rs");
+    press(&mut app, KeyCode::Enter);
+    assert!(app.prompt.is_none());
+    assert_eq!(selected_file(&app), "sub/deep/a.rs");
+}
+
+#[test]
+fn fuzzy_typing_more_finds_what_a_new_search_finds() {
+    let (_tmp, mut app) = fuzzy_sample();
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "s");
+    fuzzy_settle(&mut app);
+    type_text(&mut app, "d");
+    fuzzy_settle(&mut app);
+    let narrowed = fuzzy_results(&app);
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "sd");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), narrowed);
+    assert_eq!(narrowed, ["sub/deep"]);
+    // Keys before the search ends start it over each time: "s", whose
+    // search has not run, then "su".
+    press(&mut app, KeyCode::Backspace);
+    assert!(app.fuzzy_running());
+    type_text(&mut app, "u");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), ["sub", "sub/deep"]);
+}
+
+#[test]
+fn fuzzy_starts_over_when_the_tree_is_read_again() {
+    let (tmp, mut app) = fuzzy_sample();
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "fresh");
+    fuzzy_settle(&mut app);
+    assert!(fuzzy_results(&app).is_empty());
+    create_dir_all(tmp.path().join("freshly")).unwrap();
+    app.panes[0].tree.rescan(ROOT);
+    assert!(app.fuzzy_running(), "the tree changed");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), ["freshly"]);
+    assert_eq!(current_name(&app), "freshly");
+}
+
+#[test]
+fn fuzzy_does_not_find_a_released_folder() {
+    let (_tmp, mut app) = fuzzy_sample();
+    press(&mut app, KeyCode::Down); // sub
+    press(&mut app, KeyCode::Char('-'));
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "deep");
+    fuzzy_settle(&mut app);
+    assert!(fuzzy_results(&app).is_empty());
+}
+
+#[test]
+fn fuzzy_results_are_drawn_with_the_window_above_them() {
+    let (_tmp, mut app) = fuzzy_sample();
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "dp");
+    fuzzy_settle(&mut app);
+    let backend = ratatui::backend::TestBackend::new(100, 30);
+    let mut terminal = ratatui::Terminal::new(backend).unwrap();
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let screen: String = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|c| c.symbol())
+        .collect();
+    assert!(screen.contains("Fuzzy find: folders"));
+    assert!(screen.contains(&format!("sub{}deep", std::path::MAIN_SEPARATOR)));
+    assert!(screen.contains("FUZZY: dp"));
+    assert!(screen.contains(" 1 "), "the count");
+}
+
+#[cfg(unix)]
+#[test]
+fn fuzzy_marks_the_letters_after_a_direction_character_where_they_are() {
+    let tmp = crate::testing::tempdir();
+    create_dir_all(tmp.path().join("x\u{202E}dp")).unwrap();
+    let mut app = App::new(tmp.path().to_path_buf());
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "dp");
+    fuzzy_settle(&mut app);
+    let backend = ratatui::backend::TestBackend::new(100, 30);
+    let mut terminal = ratatui::Terminal::new(backend).unwrap();
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let buf = terminal.backend().buffer();
+    assert!(
+        buf.content()
+            .iter()
+            .all(|c| !c.symbol().contains('\u{202E}')),
+        "the direction character never reaches the screen"
+    );
+    // The row of the result: "x" (its cell marked as changed), then the two
+    // letters that matched, in bold.
+    let bold = |x, y| {
+        buf[(x, y)]
+            .style()
+            .add_modifier
+            .contains(ratatui::style::Modifier::BOLD | ratatui::style::Modifier::UNDERLINED)
+    };
+    let row = (0..30).find(|&y| {
+        (0..98).any(|x| {
+            buf[(x, y)].symbol() == "x"
+                && buf[(x + 1, y)].symbol() == "d"
+                && buf[(x + 2, y)].symbol() == "p"
+                && bold(x + 1, y)
+                && bold(x + 2, y)
+                && !bold(x, y)
+        })
+    });
+    assert!(row.is_some(), "the marks are on d and p");
+}
+
+fn fuzzy_note(app: &App) -> String {
+    let fz = app.prompt.as_ref().and_then(Prompt::fuzzy).unwrap();
+    fz.note.clone().unwrap_or_default()
+}
+
+fn tagged_names(app: &App) -> Vec<String> {
+    app.files
+        .iter()
+        .filter(|&&f| app.file(f).tagged)
+        .map(|&f| app.file(f).name.to_string_lossy().into_owned())
+        .collect()
+}
+
+#[test]
+fn fuzzy_ctrl_t_tags_the_chosen_file_and_again_untags_it() {
+    let (_tmp, mut app) = sample();
+    app.apply(Command::SwitchWindow);
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "rs");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), ["a.rs"]);
+    ctrl(&mut app, 't');
+    assert!(app.is_fuzzy(), "the prompt stays open");
+    assert_eq!(tagged_names(&app), ["a.rs"]);
+    assert!(
+        !app.fuzzy_running(),
+        "tagging does not start the search over"
+    );
+    ctrl(&mut app, 't');
+    assert!(tagged_names(&app).is_empty());
+}
+
+#[test]
+fn fuzzy_ctrl_t_on_a_folder_tags_its_files_and_moves_down() {
+    let (_tmp, mut app) = fuzzy_sample();
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "s");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), ["sub", "sub/deep"]);
+    ctrl(&mut app, 't');
+    assert_eq!(fuzzy_note(&app), "Tagged 1 file");
+    let sub = app.tree.node(ROOT).children[0];
+    assert!(app.tree.node(sub).files[0].tagged, "sub/c.rs");
+    assert!(
+        !app.fuzzy_running(),
+        "tagging does not start the search over"
+    );
+    assert_eq!(fuzzy_results(&app), ["sub", "sub/deep"]);
+    assert_eq!(current_name(&app), "deep", "the choice went down");
+    ctrl(&mut app, 't');
+    let deep = app.tree.node(sub).children[0];
+    assert!(app.tree.node(deep).files[0].tagged, "sub/deep/a.rs");
+    // Back on sub, whose files are all tagged: Ctrl+T untags them.
+    press(&mut app, KeyCode::Home);
+    ctrl(&mut app, 't');
+    assert_eq!(fuzzy_note(&app), "Untagged 1 file");
+    assert!(!app.tree.node(sub).files[0].tagged);
+}
+
+#[test]
+fn fuzzy_alt_t_tags_the_list_and_says_the_option_for_the_rest() {
+    let tmp = crate::testing::tempdir();
+    for i in 0..600 {
+        write(tmp.path().join(format!("f{i:03}.txt")), "").unwrap();
+    }
+    let mut app = App::new(tmp.path().to_path_buf());
+    app.apply(Command::SwitchWindow);
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "f");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app).len(), 500);
+    alt(&mut app, 't');
+    assert_eq!(tagged_names(&app).len(), 500, "only what the list shows");
+    let note = fuzzy_note(&app);
+    assert!(
+        note.starts_with("Tagged 500 files from the 500 results shown (600 matched)"),
+        "{note}"
+    );
+    assert!(
+        note.contains(crate::app::fuzzy_cmd::TAG_ALL_OPTION),
+        "{note}"
+    );
+    assert_eq!(
+        app.message.as_deref(),
+        Some(note.as_str()),
+        "it stays after the prompt"
+    );
+    // With the option on, every match, and it says how many were not shown.
+    app.options.fuzzy_tag_all = true;
+    alt(&mut app, 't');
+    assert_eq!(tagged_names(&app).len(), 600);
+    let note = fuzzy_note(&app);
+    assert_eq!(
+        note,
+        "Tagged 600 files from all 600 matches: 100 of them are not in the list"
+    );
+    assert!(!app.fuzzy_running());
+}
+
+#[test]
+fn fuzzy_alt_t_while_searching_says_so() {
+    let (_tmp, mut app) = sample();
+    app.apply(Command::SwitchWindow);
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "rs");
+    // No slice has run yet.
+    alt(&mut app, 't');
+    assert!(
+        fuzzy_note(&app).starts_with("Searching: "),
+        "{}",
+        fuzzy_note(&app)
+    );
+}
+
+#[test]
+fn fuzzy_alt_t_skips_folders_not_logged() {
+    let tmp = crate::testing::tempdir();
+    for d in ["one", "two"] {
+        create_dir_all(tmp.path().join(d)).unwrap();
+        write(tmp.path().join(d).join("f"), "").unwrap();
+    }
+    let mut app = App::new(tmp.path().to_path_buf());
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "o");
+    fuzzy_settle(&mut app);
+    assert_eq!(fuzzy_results(&app), ["one", "two"]);
+    // The cursor went to "one", which read it; "two" was never read.
+    alt(&mut app, 't');
+    assert_eq!(fuzzy_note(&app), "Tagged 1 file (1 folder not logged)");
+    press(&mut app, KeyCode::Down);
+    // Now it is read, and Ctrl+T has its file to tag.
+    ctrl(&mut app, 't');
+    assert_eq!(fuzzy_note(&app), "Tagged 1 file");
+}
+
+#[test]
+fn fuzzy_shows_tagged_files_and_how_many_a_folder_has() {
+    let (_tmp, mut app) = fuzzy_sample();
+    press(&mut app, KeyCode::Char('|'));
+    type_text(&mut app, "s");
+    fuzzy_settle(&mut app);
+    ctrl(&mut app, 't');
+    let backend = ratatui::backend::TestBackend::new(100, 30);
+    let mut terminal = ratatui::Terminal::new(backend).unwrap();
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let rows: Vec<String> = {
+        let buf = terminal.backend().buffer();
+        (0..30)
+            .map(|y| (0..100).map(|x| buf[(x, y)].symbol()).collect())
+            .collect()
+    };
+    assert!(rows.iter().any(|r| r.contains("  sub  1*")), "{rows:#?}");
+    assert!(rows.iter().any(|r| r.contains("Tagged 1 file")), "the note");
 }

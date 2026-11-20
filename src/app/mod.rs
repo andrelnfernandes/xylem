@@ -50,6 +50,8 @@ mod context_help;
 mod context_menu;
 pub use context_menu::{ContextMenu, MenuLine};
 mod duplicates_cmd;
+mod fuzzy_cmd;
+pub use fuzzy_cmd::Fuzzy;
 mod git_cmd;
 mod mouse;
 mod prompts;
@@ -526,6 +528,7 @@ impl App {
     /// There is ongoing work that does not depend on the user.
     pub fn busy(&self) -> bool {
         self.busy_without_box()
+            || self.fuzzy_running()
             || self
                 .search_box
                 .as_ref()
@@ -539,6 +542,15 @@ impl App {
 
     /// Advances the ongoing work by at most `budget`.
     pub fn tick(&mut self, budget: Duration) {
+        // The fuzzy find first, and without returning, as the search box: it
+        // takes most of the budget, and what goes on behind it goes on too.
+        if let Some(wait) = self.fuzzy_tick(budget * 4 / 5)
+            && !self.busy_without_box()
+            && self.search_box.is_none()
+        {
+            std::thread::sleep(wait.min(budget));
+            return;
+        }
         // The search box first, and without returning: a log or a copy going
         // on behind it goes on too.
         if let Some(sb) = &mut self.search_box {

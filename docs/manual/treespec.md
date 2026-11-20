@@ -18,6 +18,9 @@ first directory starting with what you have typed (case-insensitive):
 A path outside the tree becomes a Log when confirmed. In Branch and Showall,
 `\` goes straight to the directory of the selected file, with it highlighted.
 
+To find a folder by pieces of its name, at any level, without typing its
+path: [Fuzzy find](fuzzy.md) (`|`).
+
 ## Log (L)
 
 Opens another directory in the window, replacing the tree (a directory inside

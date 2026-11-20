@@ -185,6 +185,8 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("filespec", include_str!("../docs/manual/filespec.md")),
     ("sql", include_str!("../docs/manual/sql.md")),
     ("treespec", include_str!("../docs/manual/treespec.md")),
+    ("fuzzy", include_str!("../docs/manual/fuzzy.md")),
+    ("finding", include_str!("../docs/manual/finding.md")),
     ("compare", include_str!("../docs/manual/compare.md")),
     ("sort", include_str!("../docs/manual/sort.md")),
     ("execute", include_str!("../docs/manual/execute.md")),
@@ -359,12 +361,7 @@ fn blocks(md: &str) -> Vec<Block> {
             let mut rows = Vec::new();
             while i < lines.len() && lines[i].trim_start().starts_with('|') {
                 let row = lines[i].trim();
-                let cells: Vec<String> = row
-                    .trim_start_matches('|')
-                    .trim_end_matches('|')
-                    .split('|')
-                    .map(|c| c.trim().to_string())
-                    .collect();
+                let cells = table_cells(row);
                 let rule = cells
                     .iter()
                     .all(|c| !c.is_empty() && c.chars().all(|ch| ch == '-' || ch == ':'));
@@ -437,6 +434,28 @@ struct Span {
 
 /// Splits inline Markdown into spans; links to topics (`x.md`) are numbered
 /// from `links.len()` and their targets pushed to `links`.
+/// The cells of a table row. `\|` is a `|` inside a cell, as on GitHub.
+fn table_cells(row: &str) -> Vec<String> {
+    let row = row.strip_prefix('|').unwrap_or(row);
+    let row = match row.strip_suffix('|') {
+        Some(rest) if !rest.ends_with('\\') => rest,
+        _ => row,
+    };
+    let mut cells = vec![String::new()];
+    let mut chars = row.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' if chars.peek() == Some(&'|') => {
+                chars.next();
+                cells.last_mut().unwrap().push('|');
+            }
+            '|' => cells.push(String::new()),
+            c => cells.last_mut().unwrap().push(c),
+        }
+    }
+    cells.iter().map(|c| c.trim().to_string()).collect()
+}
+
 fn inline(text: &str, base: Kind, links: &mut Vec<String>) -> Vec<Span> {
     let mut out: Vec<Span> = Vec::new();
     let mut plain = String::new();
@@ -1252,6 +1271,13 @@ mod tests {
         assert!(!help.handle_key(key(KeyCode::Esc)));
         // An unknown topic opens the index.
         assert_eq!(Help::new("nope", String::new()).topic, "index");
+    }
+
+    #[test]
+    fn an_escaped_bar_stays_inside_its_cell() {
+        assert_eq!(table_cells("| `\\|` | fuzzy |"), ["`|`", "fuzzy"]);
+        assert_eq!(table_cells("|a|b|"), ["a", "b"]);
+        assert_eq!(table_cells("| a \\|"), ["a |"]);
     }
 
     #[test]
