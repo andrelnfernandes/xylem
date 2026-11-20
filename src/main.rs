@@ -12,6 +12,9 @@ mod decompress;
 mod duplicates;
 mod editors;
 mod filetype;
+// Used by the `|` prompt, which comes in the next stage (docs/plans/fuzzy-find.md).
+#[allow(dead_code)]
+mod fuzzy;
 mod git;
 mod help;
 mod highlight;
