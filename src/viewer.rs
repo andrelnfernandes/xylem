@@ -5,6 +5,7 @@ pub mod batch;
 pub mod binaries;
 pub mod certs;
 pub mod doc_events;
+pub mod epub;
 pub mod jupyter;
 pub mod line_filter;
 pub mod lines;
@@ -12,6 +13,7 @@ pub mod log;
 pub mod markdown;
 pub mod ng;
 pub mod office;
+mod package;
 mod parquet_pages;
 pub mod patch;
 pub mod records;
@@ -357,6 +359,10 @@ pub struct Viewer {
     office: Option<office::Kind>,
     /// The file is a Norton Guide (see `ng`), shown as a document.
     guide: bool,
+    /// The file is an EPUB (see `epub`), shown as a document; its chapters,
+    /// once read: the place each starts at and its title.
+    epub: bool,
+    chapters: Vec<(Box<str>, String)>,
     /// In a guide: the link chosen (an index into the document's jumps), and
     /// where the view was before each link followed, to go back to.
     jump: Option<usize>,
@@ -1077,6 +1083,8 @@ impl Viewer {
         self.notebook = new.notebook;
         self.office = new.office;
         self.guide = new.guide;
+        self.epub = new.epub;
+        self.chapters = new.chapters;
         self.jump = None;
         self.jumps_back.clear();
         self.exe = new.exe;
@@ -1529,7 +1537,8 @@ impl Viewer {
         v.notebook = jupyter::is_notebook(shown_name);
         v.office = (!failed).then(|| office::kind(shown_name)).flatten();
         v.guide = !failed && ng::is_guide(shown_name, &v.data);
-        v.exe = !failed && !v.guide && found.binary && binaries::is_binary(&v.data);
+        v.epub = !failed && epub::is_epub(shown_name);
+        v.exe = !failed && !v.guide && !v.epub && found.binary && binaries::is_binary(&v.data);
         v.cert = !failed && !v.exe && certs::detect(shown_name, &v.data);
         v.cert_der = v.cert && found.binary;
         v.md_file = !failed && !found.binary && (markdown::is_markdown(shown_name) || v.notebook);
@@ -1826,6 +1835,9 @@ impl Viewer {
         if self.guide {
             return self.render_guide();
         }
+        if self.epub {
+            return self.render_epub();
+        }
         if self.exe {
             return self.render_binary();
         }
@@ -1980,7 +1992,7 @@ impl Viewer {
     /// A document with no text of its own (Office, an executable): `T` has no
     /// source to show, and `H` goes to the bytes.
     fn no_source(&self) -> bool {
-        self.office.is_some() || self.guide || self.exe || self.cert_der
+        self.office.is_some() || self.guide || self.epub || self.exe || self.cert_der
     }
 
     /// A Norton Guide as a document: from the bytes read when they are all
@@ -2032,6 +2044,113 @@ impl Viewer {
             }
         }
         self.md.is_some()
+    }
+
+    /// An EPUB as a document: as an Office document, from the bytes read
+    /// when they are all of it, else (with V) from the file.
+    fn render_epub(&mut self) -> bool {
+        let autoview = !self.load.c_parsers;
+        let (part, total) = if autoview {
+            (4 << 20, 4 << 20)
+        } else {
+            (64 << 20, 256 << 20)
+        };
+        let limits = epub::Limits {
+            part,
+            total,
+            time: self.load.limits.time,
+            budget: self.load.limits.output.saturating_mul(16).max(16 << 20),
+        };
+        let width = self.content_width();
+        let result = if !self.cut {
+            let data = &self.data;
+            crate::panic_guard::catch(|| {
+                epub::render(std::io::Cursor::new(data.as_slice()), limits, width)
+            })
+        } else if self.on_disk && !autoview && self.compression.is_none() {
+            let path = self.path.clone();
+            crate::panic_guard::catch(|| {
+                let file = File::open(&path).map_err(|e| format!("Cannot read the file: {e}"))?;
+                epub::render(std::io::BufReader::new(file), limits, width)
+            })
+        } else {
+            if self.note.is_none() {
+                self.note = Some("Too big to read here: V shows it as a book".into());
+            }
+            return false;
+        };
+        match result {
+            Some(Ok(book)) => {
+                self.md = Some(book.doc);
+                self.chapters = book.chapters;
+            }
+            Some(Err(why)) => {
+                self.note.get_or_insert(why);
+            }
+            None => {
+                self.note
+                    .get_or_insert_with(|| "Could not read this book: showing the bytes".into());
+            }
+        }
+        self.md.is_some()
+    }
+
+    /// The rows where the chapters of a book start, in order.
+    fn chapter_rows(&self) -> Vec<usize> {
+        let Some(md) = &self.md else {
+            return Vec::new();
+        };
+        self.chapters
+            .iter()
+            .filter_map(|(place, _)| md.place(place))
+            .map(|line| md.row_of(line, 0))
+            .collect()
+    }
+
+    /// `]` and `[`: to the start of the next or the previous chapter.
+    fn chapter_step(&mut self, forward: bool) {
+        let rows = self.chapter_rows();
+        let top = self.top;
+        let to = if forward {
+            rows.iter().copied().find(|&r| r > top)
+        } else {
+            rows.iter().copied().rev().find(|&r| r < top)
+        };
+        match to {
+            Some(r) => {
+                let last = self
+                    .md
+                    .as_ref()
+                    .map_or(0, |m| m.row_count().saturating_sub(self.page.max(1)));
+                self.top = r.min(last);
+                self.jump = None;
+            }
+            None if forward => self.note = Some("This is the last chapter".into()),
+            None => self.note = Some("This is the first chapter".into()),
+        }
+    }
+
+    /// A book shown as a document, with chapters to go through.
+    pub fn is_book(&self) -> bool {
+        self.epub && self.mode == ViewMode::Rendered && !self.chapters.is_empty()
+    }
+
+    /// In a book, the chapter at the top of the screen: `chapter 7 of 31:
+    /// The Storm`; before the first, `None`.
+    pub fn chapter_position(&self) -> Option<String> {
+        if !self.epub || self.mode != ViewMode::Rendered {
+            return None;
+        }
+        let rows = self.chapter_rows();
+        let i = rows.iter().rposition(|&r| r <= self.top)?;
+        let title = self.chapters.get(i).map_or("", |(_, t)| t.as_str());
+        let title = TableGrid::sanitize_cell(title);
+        let title: String = title.chars().take(60).collect();
+        Some(format!(
+            "chapter {} of {}: {title}",
+            i + 1,
+            self.chapters.len()
+        ))
     }
 
     pub fn limit(&self) -> u64 {
@@ -2324,6 +2443,8 @@ impl Viewer {
             notebook: false,
             office: None,
             guide: false,
+            epub: false,
+            chapters: Vec::new(),
             jump: None,
             jumps_back: Vec::new(),
             exe: false,
@@ -2846,7 +2967,7 @@ impl Viewer {
             .map(|h| (h.line, h.start, h.end));
         let jump = self
             .jump
-            .filter(|_| self.guide)
+            .filter(|_| self.guide || self.epub)
             .and_then(|i| self.md.as_ref()?.jumps().get(i))
             .map(|j| (j.line, j.start, j.end));
         let Some(md) = &mut self.md else {
@@ -3308,6 +3429,12 @@ impl Viewer {
                 self.open_patch_list();
                 Action::None
             }
+            KeyCode::Char(c @ (']' | '['))
+                if self.epub && self.mode == ViewMode::Rendered && !self.chapters.is_empty() =>
+            {
+                self.chapter_step(c == ']');
+                Action::None
+            }
             KeyCode::Char(']') => {
                 self.switch_sheet(true);
                 Action::None
@@ -3398,7 +3525,7 @@ impl Viewer {
     /// A guide on screen as a document: Tab, Enter and Backspace go through
     /// its links.
     pub fn follows_links(&self) -> bool {
-        self.guide && self.mode == ViewMode::Rendered && self.md.is_some()
+        (self.guide || self.epub) && self.mode == ViewMode::Rendered && self.md.is_some()
     }
 
     /// The row of jump `i` of the document, if there is one.
@@ -3419,7 +3546,7 @@ impl Viewer {
         let Some(md) = &self.md else { return };
         let n = md.jumps().len();
         if n == 0 {
-            self.note = Some("No links in this guide".into());
+            self.note = Some("No links here".into());
             return;
         }
         let (top, page) = (self.top, self.page.max(1));
@@ -7082,6 +7209,55 @@ new mode 100755
         std::fs::write(&other, ng::test_guides::small()).unwrap();
         let v = Viewer::open(other, LOAD).unwrap();
         assert_ne!(v.mode, ViewMode::Rendered);
+    }
+
+    #[test]
+    fn an_epub_opens_as_a_book_with_chapters_and_links() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("book.epub");
+        std::fs::write(&path, epub::test_books::book3()).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 4;
+        assert_eq!(v.mode, ViewMode::Rendered);
+        assert!(v.follows_links());
+        assert_eq!(v.chapters.len(), 2);
+        assert_eq!(
+            v.chapter_position(),
+            None,
+            "the panel comes before the first"
+        );
+        // ] and [ go from chapter to chapter.
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 1 of 2: One"));
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 2 of 2: Two"));
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.note.as_deref(), Some("This is the last chapter"));
+        press(&mut v, KeyCode::Char('['));
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 1 of 2: One"));
+        // From the top, the first link is the contents' first entry: Enter
+        // goes to chapter one, Backspace back.
+        v.top = 0;
+        press(&mut v, KeyCode::Tab);
+        let contents = v.top;
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::None);
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 1 of 2: One"));
+        press(&mut v, KeyCode::Backspace);
+        assert_eq!(v.top, contents);
+        // H goes to the bytes: a book has no text of its own.
+        press(&mut v, KeyCode::Char('h'));
+        assert!(!v.follows_links());
+        assert_eq!(v.chapter_position(), None);
+        // A file named .epub that is not one shows its bytes, saying why.
+        let bad = tmp.path().join("bad.epub");
+        std::fs::write(&bad, b"not a zip at all").unwrap();
+        let v = Viewer::open(bad, LOAD).unwrap();
+        assert!(v.md.is_none());
+        assert!(
+            v.note.as_deref().unwrap_or("").contains("EPUB"),
+            "{:?}",
+            v.note
+        );
     }
 
     #[test]
