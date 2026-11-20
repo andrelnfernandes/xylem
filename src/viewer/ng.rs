@@ -1246,6 +1246,29 @@ mod tests {
                     broken += usize::from(l.to.is_some_and(|t| !offsets.contains(&t)));
                 }
             }
+            // Every link that leads to an entry is a jump that the viewer
+            // can follow, and each jump lands on its entry's heading.
+            let doc = render(&g, "x.ng", Duration::from_secs(60), usize::MAX, 100);
+            assert!(!doc.cut(), "{path:?} cut");
+            let valid = g
+                .menus
+                .iter()
+                .flat_map(|m| m.prompts.iter())
+                .chain(g.entries.iter().flat_map(|e| match &e.body {
+                    Body::Short(l) => l.iter(),
+                    Body::Long { see_also, .. } => see_also.iter(),
+                }))
+                .filter(|l| l.to.is_some_and(|t| offsets.contains(&t)))
+                .count();
+            assert!(
+                doc.jumps().len() >= valid,
+                "{path:?} jumps lost: {} of {valid}",
+                doc.jumps().len()
+            );
+            for j in doc.jumps() {
+                let line = doc.place(&j.to).expect("a jump to a place");
+                assert!(doc.line(line).starts_with('§'), "{path:?} {}", j.to);
+            }
             println!(
                 "{:<16} {:>2} menus {:>6} entries {:>6} links {:>4} broken {:?}",
                 path.file_name().unwrap().to_string_lossy(),
