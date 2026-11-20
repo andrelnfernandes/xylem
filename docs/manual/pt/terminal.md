@@ -22,7 +22,9 @@ um exemplo.
 - **Alt+O** digita os arquivos marcados no cursor, entre aspas e relativos ao
   diretório do shell (`wc -l 'a.txt' 'b c.txt'`). A partir da árvore ou da
   janela de arquivos, abre o terminal e os digita.
-- **Shift+PgUp/PgDn** rolam de volta pelo conteúdo que já saiu da tela.
+- **Shift+PgUp/PgDn** rolam de volta pelo conteúdo que já saiu da tela; com
+  [o mouse](mouse.md) ligado, a roda também, a menos que o programa tenha
+  pedido o mouse para si.
 - Ao sair do terminal, os diretórios abertos são relidos.
 - **Sair do Xylem encerra o shell** e o que estiver rodando nele. Se houver um
   programa em execução lá (por exemplo, `vim`), Q e Alt+Q perguntam antes,

@@ -180,7 +180,7 @@ version; the sync removes the note and the entry.
   with an English line, `configuration.md`, `releases.md` and `terminal.md` (the
   wheel over the terminal) do not mention it yet
   ([docs/plans/mouse.md](docs/plans/mouse.md)).
-- `viewer.md` ("Big files") and `ztreewin.md` (the Viewer row): big text files read
+- `viewer.md` ("Big files") and `comparison.md` (the Viewer row): big text files read
   as the screen moves ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)).
 
 ## Tests

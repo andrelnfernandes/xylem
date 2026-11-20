@@ -23,7 +23,9 @@ muestra un ejemplo.
 - **Alt+O** escribe los archivos marcados en el cursor, entrecomillados y
   relativos al directorio de la shell (`wc -l 'a.txt' 'b c.txt'`). Desde el
   árbol o la ventana de archivos, abre la terminal y los escribe.
-- **Shift+PgUp/PgDn** desplazan hacia atrás lo que salió de la pantalla.
+- **Shift+PgUp/PgDn** desplazan hacia atrás lo que salió de la pantalla; con
+  [el ratón](mouse.md) encendido, también la rueda, salvo que el programa haya
+  pedido el ratón para sí.
 - Al salir de la terminal, los directorios abiertos se vuelven a leer.
 - **Salir de Xylem termina la shell** y lo que se esté ejecutando en ella. Si
   hay un programa ejecutándose allí (por ejemplo, `vim`), Q y Alt+Q preguntan

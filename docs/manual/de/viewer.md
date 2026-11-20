@@ -76,7 +76,7 @@ Eine `.json` (auch `.geojson`, `.har`, `.webmanifest`, sowie `.jsonc` und `.json
 | ← | klappt den Knoten zu oder geht zum übergeordneten |
 | `Enter` | klappt den Knoten auf oder zu |
 | `*` | klappt alles unter dem Knoten auf |
-| `k` | kopiert den Pfad des Knotens: `.servers[2].name` in JSON, `servers.2.name` in YAML und TOML |
+| `k` | kopiert den Pfad des Knotens: `.servers[2].name` in JSON, `servers.2.name` in YAML und TOML. Ein Schlüssel mit einem Zeilenende, einem Steuerzeichen oder einem Zeichen der Textrichtung wird in Anführungszeichen gesetzt, mit diesen Zeichen maskiert (`\n`, `\u202e`), damit das Einfügen des Pfads in eine Shell nie eine Zeile davon ausführt |
 
 Die Fußzeile zeigt den Pfad des Knotens unter dem Cursor. Eine Suche (`F`, `B`, `/`) durchsucht Schlüssel und Werte, auch in zugeklappten Knoten, und öffnet den Weg zum Fund. `T` zeigt den Text in der Zeile des Knotens und kehrt zurück; `H` wechselt zwischen Baum, Text und Hex. `&`, `g`, `#` und Strg+B arbeiten mit den Zeilen des Textes.
 
@@ -86,7 +86,7 @@ Die Fußzeile zeigt den Pfad des Knotens unter dem Cursor. Eine Suche (`F`, `B`,
 - Ein Schlüssel, der in einem Objekt zweimal vorkommt, wird zweimal gezeigt, mit `dup key` markiert, und die Kopfzeile zählt sie. Programme sind sich uneinig, welcher der beiden gilt, was bei einer Prüfung einen Wert verstecken kann.
 - Ein YAML-Anker erscheint als `&a1` und ein Alias als `*a1`: Ein Alias wird nie aufgelöst, sodass eine Datei, die sich vervielfachen soll (ein „Billion Laughs“), nicht mehr kostet als ihr Text. Ein Tag (`!Ref`) steht vor seinem Wert. Mehrere Dokumente stehen unter einer Wurzel, als `document 1`, `document 2`...
 
-Eine ungültige Datei oder eine, die tiefer als 512 Ebenen verschachtelt ist, öffnet sich als Text, und der Hinweis sagt, warum und in welcher Zeile. Der Baum wird aus der ganzen Datei gebaut: Eine Datei über dem Leselimit öffnet sich als Text.
+Eine ungültige Datei oder eine, die tiefer als 512 Ebenen verschachtelt ist, öffnet sich als Text, und der Hinweis sagt, warum und in welcher Zeile. Der Baum wird aus der ganzen Datei gebaut: Eine Datei über dem Leselimit öffnet sich als Text. Der Baum hält außerdem bei 2.000.000 Knoten an (etwa 170 MiB Speicher) oder wenn sein Aufbau zu lange dauert; er enthält dann nur den Anfang der Datei, und die Kopfzeile zeigt `(tree of the start only)`. `T` zeigt weiterhin den ganzen Text.
 
 ## Jupyter-Notebooks
 
@@ -160,7 +160,7 @@ Eine `.patch` oder `.diff`, oder jeder Text, der wie eine beginnt (`diff --git`,
 Manche Änderungen tun mehr, als Zeilen zu ändern, und gehen beim schnellen Lesen leicht unter. Sie werden rot gezeigt, und die Kopfzeile zählt sie als `to check`:
 
 - eine Datei, die ausführbar wird (`100755`), ein symbolischer Link (`120000`) oder ein Submodul (`160000`);
-- ein Pfad, der absolut ist, mit `..` nach oben steigt, in `.git` geht (ein Hook ist Code, den Git ausführt) oder Steuerzeichen enthält.
+- ein Pfad, der absolut ist, mit `..` nach oben steigt, in `.git` geht (ein Hook ist Code, den Git ausführt) oder Steuerzeichen, Zeichen der Textrichtung oder unsichtbare Zeichen enthält (ein Name wie `invoice‮fdp.exe` versteckt seine wahre Endung).
 
 Die Kopfzeile zählt außerdem:
 

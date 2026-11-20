@@ -1,6 +1,6 @@
 # Xylem 手册
 
-Xylem 是一款继承了 XTree 与 ZTreeWin 屏幕布局与按键习惯的文本模式文件管理器：上方是目录树，下方是当前目录中的文件，右侧是统计信息。它会将目录载入（读取）到内存中，因此一个列表即可包含整个分支的文件，一条命令即可对其中标记的所有文件完成复制、移动、删除、比较或重命名。
+Xylem 是一款在终端中运行、以键盘操作的文件管理器：上方是目录树，下方是当前目录中的文件，右侧是统计信息。它会将目录载入（读取）到内存中，因此一个列表即可包含整个分支的文件，一条命令即可对其中标记的所有文件完成复制、移动、删除、比较或重命名。
 
 Xylem 将外部文件视为潜在恶意：绝不应因文件内容或文件名而导致崩溃、卡死、执行代码、越界写入或耗尽内存。[安全](security.md)列出了防护措施及未涵盖的范围。
 
@@ -24,7 +24,7 @@ Xylem 将外部文件视为潜在恶意：绝不应因文件内容或文件名�
 - [安装与最初五分钟](start.md)
 - [屏幕](screen.md)：目录树、文件窗口、统计信息与底部状态栏
 - [菜单、Ctrl 与 Alt](menus.md)：单独字母、配合 Ctrl、配合 Alt 与 F9
-- [The mouse](mouse.md) (in English for now): turning it on in F12, the wheel, clicks and the footer
+- [鼠标](mouse.md)：在 F12 中开启、滚轮、单击与底部状态栏
 - [术语](glossary.md)：Log、Branch、Tag、Filespec
 
 ## 命令
@@ -61,7 +61,7 @@ Xylem 将外部文件视为潜在恶意：绝不应因文件内容或文件名�
 - [编辑、执行与批处理](execute.md)
 - [归档文件](archives.md)：ZIP、7z 与 TAR
 
-## 超越 XTree
+## 更多工具
 
 - [内置终端](terminal.md)
 - [远程主机 (SSH)](remote.md)：作为目录树浏览另一台机器或容器
@@ -89,5 +89,5 @@ Xylem 将外部文件视为潜在恶意：绝不应因文件内容或文件名�
 - [安全](security.md)
 - [退出并切换 shell 目录](quit.md)
 - [Windows](windows.md)
-- [与 ZTreeWin 的比较](ztreewin.md)
+- [比较](comparison.md)：其他文件管理器，以及一份致谢
 - [版本说明](releases.md)

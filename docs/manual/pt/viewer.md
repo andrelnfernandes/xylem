@@ -75,7 +75,7 @@ Um `.json` (também `.geojson`, `.har`, `.webmanifest`, e `.jsonc` e `.json5`, c
 | ← | fecha o nó, ou vai ao de cima |
 | `Enter` | abre ou fecha o nó |
 | `*` | abre tudo abaixo do nó |
-| `k` | copia o caminho do nó: `.servers[2].name` em JSON, `servers.2.name` em YAML e TOML |
+| `k` | copia o caminho do nó: `.servers[2].name` em JSON, `servers.2.name` em YAML e TOML. Uma chave com fim de linha, caractere de controle ou de direção do texto vai entre aspas, com esses caracteres escapados (`\n`, `\u202e`), para que colar o caminho num shell nunca execute uma linha dele |
 
 O rodapé mostra o caminho do nó sob o cursor. A busca (`F`, `B`, `/`) olha chaves e valores, também dentro de nós fechados, e abre o caminho até o que achou. `T` mostra o texto na linha do nó, e volta; `H` passa por árvore, texto e hexadecimal. `&`, `g`, `#` e Ctrl+B agem sobre as linhas do texto.
 
@@ -85,7 +85,7 @@ O rodapé mostra o caminho do nó sob o cursor. A busca (`F`, `B`, `/`) olha cha
 - Uma chave que aparece duas vezes no mesmo objeto é mostrada duas vezes, marcada `dup key`, e o cabeçalho conta quantas são. Os programas discordam sobre qual das duas vale, o que pode esconder um valor numa revisão.
 - Uma âncora de YAML aparece como `&a1` e um alias como `*a1`: o alias nunca é expandido, então um arquivo feito para se multiplicar (um "billion laughs") não custa mais que o seu texto. Uma tag (`!Ref`) aparece antes do valor. Vários documentos ficam sob uma raiz, como `document 1`, `document 2`...
 
-Um arquivo inválido, ou aninhado mais fundo que 512 níveis, abre como texto, e o aviso diz por quê e em que linha. A árvore é montada com o arquivo inteiro: um acima do limite de leitura abre como texto.
+Um arquivo inválido, ou aninhado mais fundo que 512 níveis, abre como texto, e o aviso diz por quê e em que linha. A árvore é montada com o arquivo inteiro: um acima do limite de leitura abre como texto. A árvore também para em 2.000.000 de nós (cerca de 170 MiB de memória) ou quando montá-la demora demais; ela então tem só o começo do arquivo, e o cabeçalho diz `(tree of the start only)`. `T` continua mostrando o texto todo.
 
 ## Notebooks do Jupyter
 
@@ -159,7 +159,7 @@ Um `.patch` ou `.diff`, ou qualquer texto que comece como um (`diff --git`, ou `
 Algumas mudanças fazem mais que mudar linhas, e passam despercebidas numa leitura rápida. Elas aparecem em vermelho, e o cabeçalho as conta como `to check`:
 
 - um arquivo que passa a ser executável (`100755`), um link simbólico (`120000`) ou um submódulo (`160000`);
-- um caminho absoluto, que sobe com `..`, que entra em `.git` (um hook é código que o Git executa), ou com caracteres de controle.
+- um caminho absoluto, que sobe com `..`, que entra em `.git` (um hook é código que o Git executa), ou com caracteres de controle, de direção do texto ou invisíveis (um nome como `invoice‮fdp.exe` esconde sua extensão real).
 
 O cabeçalho também conta:
 

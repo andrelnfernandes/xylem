@@ -1,7 +1,7 @@
 # Manual de Xylem
 
-Xylem es un gestor de archivos en modo texto con la pantalla y las teclas de
-XTree y ZTreeWin: un árbol de directorios arriba, los archivos del directorio
+Xylem es un gestor de archivos para la terminal, manejado con el teclado: un
+árbol de directorios arriba, los archivos del directorio
 actual abajo y estadísticas a la derecha. Lee (registra) directorios en
 memoria, de modo que una sola lista puede reunir archivos de toda una rama y un
 único comando copia, mueve, elimina, compara o renombra todos los archivos
@@ -36,7 +36,7 @@ revisadas por hablantes nativos. Correcciones:
 - [Instalar y los primeros cinco minutos](start.md)
 - [La pantalla](screen.md): el árbol, la ventana de archivos, las estadísticas, el pie
 - [Los menús, Ctrl y Alt](menus.md): una letra sola, con Ctrl, con Alt, y F9
-- [The mouse](mouse.md) (in English for now): turning it on in F12, the wheel, clicks and the footer
+- [El ratón](mouse.md): encenderlo en F12, la rueda, los clics y el pie
 - [Vocabulario](glossary.md): log, branch, tag, filespec
 
 ## Comandos
@@ -73,7 +73,7 @@ revisadas por hablantes nativos. Correcciones:
 - [Editar, eJecutar y Batch](execute.md)
 - [Archivos comprimidos](archives.md): ZIP, 7z y TAR
 
-## Más allá de XTree
+## Más herramientas
 
 - [La terminal integrada](terminal.md)
 - [Máquinas remotas (SSH)](remote.md): otra máquina o un contenedor como árbol
@@ -101,5 +101,5 @@ revisadas por hablantes nativos. Correcciones:
 - [Seguridad](security.md)
 - [Salir y cambiar el directorio de la shell](quit.md)
 - [Windows](windows.md)
-- [Comparación con ZTreeWin](ztreewin.md)
+- [Comparaciones](comparison.md): otros gestores de archivos y un agradecimiento
 - [Notas de versión](releases.md)

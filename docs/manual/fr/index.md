@@ -1,7 +1,7 @@
 # Manuel de Xylem
 
-Xylem est un gestionnaire de fichiers en mode texte avec l'écran et les touches
-de XTree et ZTreeWin : une arborescence de répertoires en haut, les fichiers du
+Xylem est un gestionnaire de fichiers pour le terminal, piloté au clavier :
+une arborescence de répertoires en haut, les fichiers du
 répertoire courant en bas et des statistiques à droite. Il lit (charge) les
 répertoires en mémoire, ce qui permet à une seule liste de rassembler des
 fichiers de toute une branche et à une seule commande de copier, déplacer,
@@ -36,7 +36,7 @@ Les versions de ce manuel en espagnol, français, allemand et chinois n'ont pas
 - [Installer et les cinq premières minutes](start.md)
 - [L'écran](screen.md) : l'arborescence, la fenêtre de fichiers, les statistiques, le menu
 - [Les menus, Ctrl et Alt](menus.md) : une lettre seule, avec Ctrl, avec Alt, et F9
-- [The mouse](mouse.md) (in English for now): turning it on in F12, the wheel, clicks and the footer
+- [La souris](mouse.md) : l'activer dans F12, la molette, les clics et le bas de l'écran
 - [Vocabulaire](glossary.md) : log, branch, tag, filespec
 
 ## Commandes
@@ -73,7 +73,7 @@ Les versions de ce manuel en espagnol, français, allemand et chinois n'ont pas
 - [Éditer, eXécuter et Batch](execute.md)
 - [Archives](archives.md) : ZIP, 7z et TAR
 
-## Au-delà de XTree
+## Plus d'outils
 
 - [Le terminal intégré](terminal.md)
 - [Machines distantes (SSH)](remote.md) : une autre machine ou un conteneur comme arborescence
@@ -101,5 +101,5 @@ Les versions de ce manuel en espagnol, français, allemand et chinois n'ont pas
 - [Sécurité](security.md)
 - [Quitter et changer le répertoire du shell](quit.md)
 - [Windows](windows.md)
-- [Comparaison avec ZTreeWin](ztreewin.md)
+- [Comparaisons](comparison.md) : d'autres gestionnaires de fichiers, et un remerciement
 - [Notes de version](releases.md)

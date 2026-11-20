@@ -1,7 +1,7 @@
 # Xylem-Handbuch
 
-Xylem ist ein textbasierter Dateimanager mit dem Bildschirm und den Tasten von
-XTree und ZTreeWin: oben ein Verzeichnisbaum, darunter die Dateien des aktuellen
+Xylem ist ein Dateimanager für das Terminal, der mit der Tastatur bedient wird:
+oben ein Verzeichnisbaum, darunter die Dateien des aktuellen
 Verzeichnisses und rechts die Statistiken. Er liest Verzeichnisse in den
 Speicher ein, sodass eine einzige Liste Dateien eines ganzen Zweigs vereinen
 kann und ein einziger Befehl alle markierten Dateien kopiert, verschiebt, löscht,
@@ -37,7 +37,7 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 - [Installieren und die ersten fünf Minuten](start.md)
 - [Der Bildschirm](screen.md): Baum, Dateifenster, Statistiken, Menüleiste
 - [Die Menüs, Ctrl und Alt](menus.md): Buchstabe allein, mit Ctrl, mit Alt, und F9
-- [The mouse](mouse.md) (in English for now): turning it on in F12, the wheel, clicks and the footer
+- [Die Maus](mouse.md): Einschalten in F12, das Mausrad, Klicks und die Fußzeile
 - [Vokabular](glossary.md): Log, Branch, Tag, Filespec
 
 ## Befehle
@@ -74,7 +74,7 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 - [Bearbeiten, Ausführen und Batch](execute.md)
 - [Archive](archives.md): ZIP, 7z und TAR
 
-## Über XTree hinaus
+## Weitere Werkzeuge
 
 - [Das integrierte Terminal](terminal.md)
 - [Entfernte Rechner (SSH)](remote.md): ein entfernter Rechner oder Container als Baum
@@ -102,5 +102,5 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 - [Sicherheit](security.md)
 - [Beenden und Verzeichnis der Shell wechseln](quit.md)
 - [Windows](windows.md)
-- [Vergleich mit ZTreeWin](ztreewin.md)
+- [Vergleiche](comparison.md): andere Dateimanager und ein Dankeschön
 - [Versionshinweise](releases.md)

@@ -1,9 +1,8 @@
 # What Xylem is
 
-Xylem is a file manager that runs in a terminal. Its screen and keys follow
-XTreeGold and ZTreeWin: a directory tree at the top, the files of the
-directory under the cursor below it, statistics on the right, and a menu of
-one-letter commands in the footer. The command is `xy`.
+Xylem is a file manager that runs in a terminal, driven by the keyboard: a
+directory tree at the top, the files of the directory under the cursor below
+it, statistics on the right, and a menu of one-letter commands in the footer. The command is `xy`.
 
 ## Logging
 
@@ -35,8 +34,8 @@ not affected by any command.
 [The menus](menus.md) explains how the keys are organized, and
 [the commands](commands.md) lists all of them.
 
-[Comparison with ZTreeWin](ztreewin.md) lists the ZTreeWin commands Xylem
-does not have, and the keys that differ.
+[Comparisons](comparison.md) sets Xylem beside other file managers for the
+terminal.
 
 ## Files you do not trust
 

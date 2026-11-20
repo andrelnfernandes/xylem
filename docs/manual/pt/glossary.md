@@ -1,6 +1,6 @@
 # Vocabulário
 
-As palavras abaixo vêm do XTree e do ZTreeWin. Os menus e este manual as usam
+As palavras abaixo vêm dos gerenciadores de arquivos clássicos em árvore. Os menus e este manual as usam
 com estes significados.
 
 | Termo | Significado |

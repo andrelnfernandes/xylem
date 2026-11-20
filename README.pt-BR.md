@@ -4,10 +4,51 @@
 
 [Site](https://andrelnfernandes.github.io/xylem/pt/) · [Read in English](README.md)
 
-Veja o disco inteiro como uma só árvore, reúna arquivos de qualquer pasta e aja sobre
-todos de uma vez, em qualquer terminal, direto do teclado.
+Um gerenciador de arquivos para o terminal que lê os seus dados com SQL e abre os
+arquivos em que você não confia sem executar nada deles. Feito do jeito do XTree:
+o disco como uma só árvore, arquivos de muitas pastas reunidos numa lista, e uma
+tecla para agir sobre todos.
 
 ![O Xylem em uso: o terminal embutido com a árvore acompanhando um cd, arquivos marcados num Branch e digitados num comando com Alt+O](docs/screenshots/demo-intro.gif)
+
+## Por que o Xylem?
+
+| Você quer... | O jeito de sempre | No Xylem |
+|---|---|---|
+| olhar dentro de um CSV, uma planilha, um SQLite ou um Parquet | outro programa, ou um plugin de prévia | uma grade com filtro SQL, `JOIN` no SQLite, e os registros transformados em script, página ou banco de dados |
+| conferir um arquivo em que você não confia | abrir e torcer, ou várias ferramentas | um relatório do que ele esconde: as macros e os templates remotos de um arquivo do Office, as proteções que faltam e as seções empacotadas de um executável, os nomes enganosos de um patch; nada nele é executado |
+| agir sobre arquivos espalhados por muitas pastas | entrar em cada pasta, ou fazer uma busca e trabalhar no resultado | `B` lista todos os arquivos de um ramo numa lista só: filtre, marque, e copie, mova ou apague todos de uma vez |
+| liberar espaço no Google Drive | baixar os arquivos para compará-los | duplicados achados pelos hashes que o Drive já guarda, sem baixar nada |
+
+Como ele se compara com ranger, yazi, nnn, mc, broot e outros, inclusive onde eles
+estão à frente: [Comparações](docs/manual/pt/comparison.md) (por enquanto, a
+versão em inglês está mais completa: [Comparisons](docs/manual/comparison.md)).
+
+## Início rápido (30 segundos)
+
+```bash
+cargo install xylem-fm      # exige Rust e um compilador C
+xy
+```
+
+Sem Rust? A
+[release mais recente](https://github.com/andrelnfernandes/xylem/releases/latest)
+tem binários estáticos para Linux (x86_64 e ARM64), pacotes `.deb` e `.rpm`, e
+uma versão experimental para Windows. Os detalhes estão em [Instalação](#instalação).
+
+Cinco teclas para começar:
+
+| Tecla | O que faz |
+|---|---|
+| `B` | Branch: todos os arquivos do diretório sob o cursor e de tudo abaixo dele, numa lista só |
+| `F` | Filespec: deixa na lista só os arquivos que combinam, como `*.pdf` |
+| `T` | marca o arquivo sob o cursor (Ctrl+T marca todos os da lista) |
+| Ctrl+C | copia os arquivos marcados para uma pasta (Ctrl+D os apaga, depois de perguntar) |
+| F1 | ajuda sobre onde você está (Alt+H onde o terminal fica com o F1) |
+
+`Q` sai. O rodapé sempre mostra as teclas que funcionam onde você está.
+
+## O que ele faz
 
 - **Abra quase tudo ali mesmo:** SQLite com queries completas com `JOIN`, planilhas,
   CSV, Parquet, JSON, Markdown, logs e arquivos compactados.
@@ -22,19 +63,39 @@ todos de uma vez, em qualquer terminal, direto do teclado.
 - **Abra arquivos em que você não confia:** nada neles é executado, e tudo tem limite.
 - **Deixe do seu jeito:** doze temas, teclas configuráveis e ajuda em seis línguas.
 
-## Experimente
+Em mais detalhe:
 
-```bash
-cargo install xylem-fm
-xy
-```
-
-Isso exige Rust e um compilador C. Sem eles, o Linux (x86_64 e ARM64) tem binários
-estáticos, `.deb` e `.rpm` na página de
-[Releases](https://github.com/andrelnfernandes/xylem/releases), e há uma versão
-experimental para Windows. Os detalhes estão em [Instalação](#instalação).
+- **Uma árvore, muitos arquivos:** uma árvore de diretórios logada na memória, a janela de
+  arquivos embaixo, Branch e Showall para listar os arquivos de um ramo
+  inteiro ou de tudo o que foi logado, e tags sobre as quais agem as operações
+  em grupo.
+- **Operações com arquivos:** copiar e mover (com ou sem os caminhos, com
+  progresso e detalhes dos conflitos), apagar para a lixeira com Oops para
+  restaurar, Prune, renomear com máscaras, permissões e datas, Compare entre
+  duas janelas.
+- **Achar coisas:** Filespec por nome, data e tamanho, Treespec para digitar um
+  caminho, bookmarks, e Ctrl+S para buscar texto nos arquivos marcados.
+- **Olhar dentro:** um visualizador de texto e hex com busca, filtro de linhas
+  com expressões regulares e cores de sintaxe, Markdown renderizado, um modo tabela com filtro SQL
+  para planilhas, CSV, JSON Lines, DBF, SQLite e Parquet, Ctrl+B para transformar
+  esses registros ou linhas em um script, JSON, SQL ou o que for, Autoview ao lado da lista,
+  arquivos ZIP, 7z e TAR abertos como diretórios, e modos de exibição que
+  mostram o dono ou o que cada arquivo é.
+- **Duplicados:** Alt+D acha arquivos e pastas inteiras com o mesmo conteúdo,
+  sem baixar nada de uma pasta montada pelo rclone, e sempre deixa uma cópia.
+- **Para onde vai o espaço:** a visão Usage (Alt+U) lista as pastas e os
+  arquivos de um ramo pelo espaço que ocupam, do maior para o menor, até o
+  que enche o disco; o Alt+K Percent mostra a parte de cada pasta na própria
+  árvore.
+- **E mais:** um terminal embutido cuja árvore acompanha o shell,
+  máquinas remotas via SSH e containers via `docker exec` (copiar, mover,
+  renomear, apagar, permissões e datas lá, com o terminal de lá), Google Drive,
+  S3 e outros armazenamentos na nuvem via rclone, compartilhamentos de rede lidos
+  em segundo plano, favoritos com nome, um menu Git
+  opcional, a área de transferência, uma tela de configuração e temas.
 
 ## Telas
+
 
 A árvore de diretórios, a janela de arquivos e as estatísticas:
 
@@ -50,8 +111,8 @@ A árvore de diretórios, a janela de arquivos e as estatísticas:
 ![Janela dividida: fotos à esquerda, código-fonte à direita](docs/screenshots/split.png)
 
 **Menus no Ctrl e no Alt**: segurar Ctrl ou Alt mostra o que cada letra faz
-com ela, como no XTree (em terminais com o protocolo de teclado do kitty; nos
-outros, F9 troca os menus):
+com ela (em terminais com o protocolo de teclado do kitty; nos outros, F9 troca
+os menus):
 
 ![Segurando Ctrl e depois Alt, o menu de baixo muda; depois Ctrl+G mostra o menu do Git](docs/screenshots/demo-menus.gif)
 
@@ -92,37 +153,6 @@ apresentações:
 
 ![O tema gruvbox](docs/screenshots/theme-gruvbox.png)
 
-## O que ele faz
-
-- **Uma árvore, muitos arquivos:** uma árvore de diretórios logada na memória, a janela de
-  arquivos embaixo, Branch e Showall para listar os arquivos de um ramo
-  inteiro ou de tudo o que foi logado, tags sobre as quais agem as operações
-  em grupo, e as teclas do ZTreeWin.
-- **Operações com arquivos:** copiar e mover (com ou sem os caminhos, com
-  progresso e detalhes dos conflitos), apagar para a lixeira com Oops para
-  restaurar, Prune, renomear com máscaras, permissões e datas, Compare entre
-  duas janelas.
-- **Achar coisas:** Filespec por nome, data e tamanho, Treespec para digitar um
-  caminho, bookmarks, e Ctrl+S para buscar texto nos arquivos marcados.
-- **Olhar dentro:** um visualizador de texto e hex com busca, filtro de linhas
-  com expressões regulares e cores de sintaxe, Markdown renderizado, um modo tabela com filtro SQL
-  para planilhas, CSV, JSON Lines, DBF, SQLite e Parquet, Ctrl+B para transformar
-  esses registros ou linhas em um script, JSON, SQL ou o que for, Autoview ao lado da lista,
-  arquivos ZIP, 7z e TAR abertos como diretórios, e modos de exibição que
-  mostram o dono ou o que cada arquivo é.
-- **Duplicados:** Alt+D acha arquivos e pastas inteiras com o mesmo conteúdo,
-  sem baixar nada de uma pasta montada pelo rclone, e sempre deixa uma cópia.
-- **Para onde vai o espaço:** a visão Usage (Alt+U) lista as pastas e os
-  arquivos de um ramo pelo espaço que ocupam, do maior para o menor, até o
-  que enche o disco; o Alt+K Percent mostra a parte de cada pasta na própria
-  árvore.
-- **Além do XTree:** um terminal embutido cuja árvore acompanha o shell,
-  máquinas remotas via SSH e containers via `docker exec` (copiar, mover,
-  renomear, apagar, permissões e datas lá, com o terminal de lá), Google Drive,
-  S3 e outros armazenamentos na nuvem via rclone, compartilhamentos de rede lidos
-  em segundo plano, favoritos com nome, um menu Git
-  opcional, a área de transferência, uma tela de configuração e temas.
-
 ## Uso
 
 ```bash
@@ -146,8 +176,8 @@ ARM64 (estático, roda em qualquer distribuição) ou Windows x86_64. Extraia e
 coloque o `xy` (`xy.exe`) numa pasta do `PATH`, por exemplo:
 
 ```bash
-tar xzf xy-v0.7.0-x86_64-unknown-linux-musl.tar.gz
-install -m 755 xy-v0.7.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
+tar xzf xy-v0.8.0-x86_64-unknown-linux-musl.tar.gz
+install -m 755 xy-v0.8.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
 ```
 
 Cada arquivo tem um `.sha256` ao lado, para conferir com `sha256sum -c`.
@@ -227,8 +257,8 @@ GitHub, e a página de manual (`xy --man`). Por onde começar:
 - receitas com uma animação de cada passo, como
   [copiar arquivos com os caminhos](docs/manual/pt/howto-copy-with-paths.md) e
   [achar o que enche o disco](docs/manual/pt/howto-disk-space.md);
-- [notas de versão](docs/manual/pt/releases.md) e a
-  [comparação com o ZTreeWin](docs/manual/pt/ztreewin.md).
+- [notas de versão](docs/manual/pt/releases.md) e as
+  [comparações com outros gerenciadores](docs/manual/pt/comparison.md).
 
 A ajuda também existe em português, espanhol, francês, alemão e chinês. As
 traduções em espanhol, francês, alemão e chinês não foram revisadas por falantes
@@ -284,7 +314,7 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
 
 ### Feito
 
-- O núcleo do XTree (fases 0 a 4): a tela clássica, a árvore e a janela de
+- O núcleo (fases 0 a 4): a tela clássica, a árvore e a janela de
   arquivos, Filespec, Showall e Branch, marcações e operações em grupo, a
   janela dividida, Compare, arquivos compactados, Edit e eXecute,
   configuração, temas, teclas configuráveis, a ajuda e o histórico
@@ -310,10 +340,7 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
 
 - **Máquinas remotas (SSH):** Edit e Abrir (por uma cópia temporária que volta
   ao salvar), eXecute e Git via ssh, e atualização periódica.
-- **Visualizador:** um visualizador que lê em janelas, como o `less`, sem limite
-  de tamanho para arquivos não comprimidos, e logs (acompanhar, ir para o fim,
-  cores por nível).
-- **Do ZTreeWin:** comparar o conteúdo de dois arquivos (JFC), e salvar o log para
+- **Arquivos:** comparar o conteúdo de dois arquivos (JFC), e salvar o log para
   abrir a árvore de um disco na hora da próxima vez.
 - **Endurecimento:** as sobras da revisão de segurança, listadas no
   [BACKLOG.md](BACKLOG.md) (em inglês).
@@ -321,8 +348,8 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
 ### Para depois
 
 - Windows: compila e passa nos testes (veja
-  [Windows](docs/manual/pt/windows.md)), mas não é prioridade enquanto existir o
-  ZTreeWin. Talvez macOS.
+  [Windows](docs/manual/pt/windows.md)), mas não é prioridade. macOS: compila, e
+  o CI confere, mas ainda não foi testado num Mac.
 - Adiados por opção: macros, chown e Graft.
 
 A lista completa do que falta, com as notas de desenvolvimento, está em
@@ -372,20 +399,15 @@ A lista completa do que falta, com as notas de desenvolvimento, está em
 
 ## Sobre
 
-As teclas e o jeito de trabalhar do Xylem seguem o XTree e o ZTreeWin sempre que
-possível; as diferenças estão em [Comparação com o ZTreeWin](docs/manual/pt/ztreewin.md).
-
 Ele se chamava **xt** até a versão 0.1; na primeira execução, move a configuração, o
 histórico e os bookmarks do xt para as pastas novas. O nome: o xilema (*xylem*, em
 inglês) é o tecido que leva a água pela árvore.
 
 ## Aviso
 
-O Xylem é um projeto independente, escrito do zero. Não tem ligação com a
-Zedtek, Inc. (ZTreeWin) nem com os donos do XTree, nem é endossado por eles.
-Não contém código desses programas; os nomes deles aparecem só para descrever
-o que inspirou o Xylem e como ele se compara. XTree, ZTree e ZTreeWin são marcas
-de seus respectivos donos.
+O Xylem é um projeto independente, escrito do zero, sem código do XTree, do
+ZTreeWin ou dos outros programas com que é comparado, e sem ligação com eles. Os
+nomes pertencem aos seus donos; veja [Comparisons](docs/manual/comparison.md#names).
 
 ## Licença
 
