@@ -339,6 +339,101 @@ Marcar também muda a `version` da árvore, o que hoje faz a busca recomeçar.
 A etapa 3 precisa separar as duas coisas, para que marcar não recomece uma
 passada de 2.000.000 de pastas.
 
+## Etapa 3 em detalhe (proposta, 2026-11-20)
+
+**Decidido em 2026-11-20:** `Ctrl+T` marca ou desmarca só o resultado
+escolhido, como na caixa de busca (`P`).
+
+### As teclas no prompt
+
+- **Ctrl+T** marca o resultado escolhido, ou o desmarca se já estava marcado,
+  e a escolha desce para o próximo, como o `T` na lista de arquivos. O prompt
+  continua aberto.
+- **Alt+T** marca os resultados da lista, até os 500 que a busca guarda, e o
+  rodapé diz quantos foram marcados. Com a busca ainda andando, só marca o
+  que ela já achou e avisa: `searching: 1,203 tagged so far`.
+- **Decidido em 2026-11-20: marcar além dos 500 só com uma opção ligada.**
+  Quem marca milhares de arquivos sem vê-los e depois apaga os marcados tem
+  de saber que isso está acontecendo, e só pode acontecer se ligou o
+  comportamento no F12.
+  - **A opção**: `fuzzy_tag_all = false`, na página 3 do F12
+    ("Confirmations and history"): `Alt+T in the fuzzy find (|) tags every
+    match, not only the 500 shown`.
+  - **Desligada** (o padrão) e com mais de 500 que casaram, o rodapé avisa:
+    `Tagged the 500 shown of 1,805 matches. To tag every match, turn on F12,
+    page 3, "Alt+T tags every match"`.
+  - **Ligada**, o rodapé sempre diz quantos ficaram fora da lista:
+    `Tagged all 1,805 matches: 1,305 of them are not in the list`.
+  - **O help** explica o ponto no `configuration.md` (só em inglês, por
+    enquanto): o que a opção faz, o risco de marcar e depois copiar, mover ou
+    apagar o que não se viu, e que `Ctrl+V`, o Showall dos marcados
+    (`Ctrl+S` na árvore) e o rodapé mostram o que está marcado antes de
+    agir. A página do `|`, na etapa 4, aponta para essa explicação.
+- **Fora do prompt** nada muda: `T`, `Ctrl+T` e os outros fazem o de sempre,
+  e depois `Ctrl+C`, `Ctrl+M` e o Batch agem nos marcados.
+
+### O que é marcar cada resultado
+
+- **Um arquivo** (janela de arquivos): o próprio arquivo, como o `T`.
+- **Uma pasta** (árvore): os arquivos dela que a lista mostraria, ou seja, com
+  o Filespec, o `W` e os ocultos, como o `T` na árvore. Se a pasta ainda não
+  foi lida, não há arquivos para marcar, e o rodapé diz `not logged`.
+  `Ctrl+T` numa pasta com todos os arquivos já marcados desmarca todos.
+
+### Na lista de resultados
+
+- **Um arquivo marcado** tem `*` antes do caminho, na cor das marcações.
+- **Uma pasta** mostra quantos arquivos dela estão marcados, quando há algum
+  (`docs/plans  3*`).
+
+### Marcar sem recomeçar a busca
+
+- **A `Tree` ganha um segundo contador, `shape()`**, que sobe quando pastas
+  entram ou saem (leitura, releitura, liberação, leituras de uma montagem do
+  rclone), e não quando um arquivo é marcado. A busca de pastas passa a
+  observar `shape()` em vez de `version()`. Na janela de arquivos, a busca já
+  observa `files_built`, que marcar não muda.
+- **Tags-Only** é a exceção: com ele ligado, desmarcar tira o arquivo da lista
+  só quando a lista for refeita, como já acontece hoje. A busca não refaz a
+  lista.
+
+### Testes
+
+- **Ctrl+T** num arquivo e numa pasta, a escolha descendo, Ctrl+T de novo
+  desmarcando, e uma pasta não lida.
+- **Alt+T** com mais de 500 que casaram (todos marcados) e com a busca ainda
+  andando.
+- **Marcar não recomeça a busca**: na árvore, depois de `Ctrl+T`, a passada
+  continua terminada e os resultados continuam os mesmos.
+- **A tela**: o `*` e a contagem de marcados de uma pasta.
+
+### Feito na etapa 3 (2026-11-20)
+
+Como proposto acima, com estes detalhes:
+
+- **`Tree::shape()`** sobe onde a `version` sobe, menos em `file_mut`
+  (marcar). A busca de pastas observa `shape()`; um teste confere que, depois
+  de `Ctrl+T` numa pasta, a passada continua terminada e os resultados são os
+  mesmos.
+- **`Pane::dir_files(dir)`**: os arquivos de uma pasta com o filtro da lista
+  (ocultos, Filespec, `W`), sem o Tags-Only. É o que marcar uma pasta marca,
+  em `Ctrl+T` e em `Alt+T`, sem depender da pasta estar sob o cursor.
+- **Uma pasta escolhida já foi lida**: o cursor que vai até ela a lê (o
+  `touch` do `show_node`). Por isso `not logged` só aparece no `Alt+T`, para
+  as pastas da lista que o cursor não visitou: `Tagged 1 file (1 folder not
+  logged)`.
+- **O aviso** fica dentro da lista, embaixo, quebrado em até três linhas, e
+  não na borda: numa janela de 80 colunas a borda cortava justamente o nome
+  da opção. Também vai para a mensagem do rodapé, que continua depois que o
+  prompt fecha.
+- **A opção** `fuzzy_tag_all`: `F` na página 3 do F12, `Alt+T in the fuzzy
+  find tags every match, not only the 500 shown`; o aviso cita o mesmo nome
+  (`TAG_ALL_OPTION`). O `--default-config` traz a linha comentada, com o
+  risco.
+- **O help**: `configuration.md` ganhou a seção "Tagging every match of the
+  fuzzy find", ligada na tabela das páginas do F12.
+- **O rodapé do prompt** ganhou `Ctrl+T tag` e `Alt+T tag the list`.
+
 ## Fora deste plano
 
 - O "modo ativo" (letras que buscam sem prompt): no Xylem as letras são

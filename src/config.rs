@@ -103,6 +103,10 @@ confirm_quit = true
 # Send deleted files to the system trash / Recycle Bin instead of deleting
 # them permanently.
 delete_to_trash = false
+# Alt+T in the fuzzy find (|) tags every match, also those past the 500 the
+# list shows. Off, it tags only what the list shows. On, files you never saw
+# can end up tagged, and then copied, moved or deleted with the tagged ones.
+fuzzy_tag_all = false
 # To confirm a Prune (Alt+P), type: "prune" (the word PRUNE),
 # "name" (the directory name) or "y".
 prune_confirmation = "prune"
@@ -270,6 +274,8 @@ pub struct Options {
     pub confirm_quit: bool,
     /// Send deleted files to the system trash / Recycle Bin.
     pub delete_to_trash: bool,
+    /// Alt+T in the fuzzy find tags every match, not only the 500 shown.
+    pub fuzzy_tag_all: bool,
     /// What to type to confirm a Prune.
     pub prune_confirmation: PruneConfirm,
     /// Duplicates: files smaller than this are not listed.
@@ -325,6 +331,7 @@ impl Default for Options {
             sort_descending: false,
             confirm_quit: true,
             delete_to_trash: false,
+            fuzzy_tag_all: false,
             prune_confirmation: PruneConfirm::Prune,
             duplicates_min_size: 1024,
             duplicates_ignore: vec![".git".into(), "node_modules".into()],
@@ -387,6 +394,7 @@ impl Options {
             ("sort_descending", Value::from(self.sort_descending)),
             ("confirm_quit", Value::from(self.confirm_quit)),
             ("delete_to_trash", Value::from(self.delete_to_trash)),
+            ("fuzzy_tag_all", Value::from(self.fuzzy_tag_all)),
             ("prune_confirmation", s(self.prune_confirmation.as_str())),
             (
                 "duplicates_min_size",

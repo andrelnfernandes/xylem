@@ -468,6 +468,11 @@ impl Pass {
         self.matched.len()
     }
 
+    /// The ids of everything that matched so far, in the order of the source.
+    pub fn matched(&self) -> &[usize] {
+        &self.matched
+    }
+
     /// The best matches so far, the best first.
     pub fn best(&self) -> Vec<Rank> {
         self.top.best()

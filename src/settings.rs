@@ -38,6 +38,7 @@ pub enum Opt {
     EnterViews,
     ConfirmQuit,
     DeleteToTrash,
+    FuzzyTagAll,
     PruneConfirmation,
     HistorySkipAt,
     CompareIgnore2s,
@@ -162,6 +163,11 @@ pub const PAGES: &[Page] = &[
                 "Built-in terminal keeps a shell history of its own",
                 Opt::TerminalHistory,
             ),
+            (
+                'F',
+                "Alt+T in the fuzzy find tags every match, not only the 500 shown",
+                Opt::FuzzyTagAll,
+            ),
         ],
     ),
     (
@@ -280,6 +286,7 @@ impl Opt {
             .into(),
             Opt::ConfirmQuit => yes_no(o.confirm_quit),
             Opt::DeleteToTrash => yes_no(o.delete_to_trash),
+            Opt::FuzzyTagAll => yes_no(o.fuzzy_tag_all),
             Opt::PruneConfirmation => match o.prune_confirmation.as_str() {
                 "prune" => "PRUNE".into(),
                 "name" => "directory name".into(),
@@ -363,6 +370,7 @@ impl Opt {
             Opt::EnterViews => o.enter_views = !o.enter_views,
             Opt::ConfirmQuit => o.confirm_quit = !o.confirm_quit,
             Opt::DeleteToTrash => o.delete_to_trash = !o.delete_to_trash,
+            Opt::FuzzyTagAll => o.fuzzy_tag_all = !o.fuzzy_tag_all,
             Opt::PruneConfirmation => o.prune_confirmation = o.prune_confirmation.next(),
             Opt::HistorySkipAt => o.history_skip_at = !o.history_skip_at,
             Opt::TerminalHistory => o.terminal_history = !o.terminal_history,

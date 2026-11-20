@@ -301,6 +301,24 @@ fn draw_fuzzy(
     let inner = block.inner(area);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
+    // What the last Ctrl+T or Alt+T did, whole, under the results: it may
+    // name the option to turn on, which must not be cut.
+    let note: Vec<String> = fz
+        .note
+        .as_deref()
+        .map(|n| wrap(n, usize::from(inner.width).saturating_sub(2)))
+        .unwrap_or_default();
+    let note_rows = (note.len() as u16)
+        .min(3)
+        .min(inner.height.saturating_sub(1));
+    let [inner, note_area] =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(note_rows)]).areas(inner);
+    let note: Vec<Line> = note
+        .into_iter()
+        .take(usize::from(note_rows))
+        .map(|l| Line::styled(format!(" {l}"), Style::new().fg(t.message)))
+        .collect();
+    frame.render_widget(Paragraph::new(note), note_area);
 
     fz.page = usize::from(inner.height);
     fz.keep_visible();
@@ -312,7 +330,8 @@ fn draw_fuzzy(
             len: fz.results.len(),
         },
     );
-    let width = usize::from(inner.width).saturating_sub(2);
+    // A space, then `*` before a tagged file, then the path.
+    let width = usize::from(inner.width).saturating_sub(3);
     let (mut text, mut scratch) = (String::new(), Vec::new());
     let mut lines = Vec::new();
     for (i, r) in fz.results.iter().enumerate().skip(fz.scroll).take(fz.page) {
@@ -339,8 +358,40 @@ fn draw_fuzzy(
                 Style::new().fg(t.key).add_modifier(Modifier::BOLD),
             )
         };
+        // A tagged file gets `*`; a folder, how many of its files are tagged.
+        let (star, tagged_files) = match fz.source() {
+            crate::fuzzy::Source::Files { .. } => {
+                let tagged = pane.files.get(r.id).is_some_and(|&f| pane.file(f).tagged);
+                (tagged, 0)
+            }
+            crate::fuzzy::Source::Folders => {
+                let n = pane
+                    .tree
+                    .node(r.id)
+                    .files
+                    .iter()
+                    .filter(|f| f.tagged)
+                    .count();
+                (false, n)
+            }
+        };
+        let tail = if tagged_files > 0 {
+            format!("  {}*", fmt_num(tagged_files as u64))
+        } else {
+            String::new()
+        };
+        let room = width.saturating_sub(tail.chars().count());
+        let tag_style = Style::new().fg(t.tagged);
         let mut spans = vec![Span::raw(" ")];
-        spans.extend(match_spans(&text, &positions, width, base, mark));
+        spans.push(if star {
+            Span::styled("*", tag_style)
+        } else {
+            Span::raw(" ")
+        });
+        spans.extend(match_spans(&text, &positions, room, base, mark));
+        if !tail.is_empty() {
+            spans.push(Span::styled(tail, tag_style));
+        }
         let line = Line::from(spans);
         lines.push(if selected {
             line.style(highlight(true))
@@ -2778,6 +2829,8 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
             ("↑↓ PgUp PgDn", "choose"),
             ("Enter", "go"),
             ("Esc", "back"),
+            ("Ctrl+T", "tag"),
+            ("Alt+T", "tag the list"),
             ("Ctrl+U", "clear"),
         ]
     } else if prompt.is_bookmark_jump() {
