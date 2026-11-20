@@ -63,6 +63,7 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 
 ## Arbeiten mit Dateien
 
+- [Dateien und Ordner finden](finding.md): welche Suche welche Frage beantwortet
 - [Markierungen und Gruppenoperationen](tagging.md)
 - [Kopieren und Verschieben](copy-move.md), [Ordner auswählen](picker.md)
 - [Löschen, Papierkorb und Prune](delete.md)
@@ -70,6 +71,7 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 - [Berechtigungen und Datum](attributes.md)
 - [Filespec: der Dateifilter](filespec.md)
 - [Treespec und Log](treespec.md)
+- [Unscharfe Suche](fuzzy.md): ein Ordner oder eine Datei nach Teilen des Namens (`|`)
 - [Vergleichen](compare.md) und [Sortieren](sort.md)
 - [Bearbeiten, Ausführen und Batch](execute.md)
 - [Archive](archives.md): ZIP, 7z und TAR

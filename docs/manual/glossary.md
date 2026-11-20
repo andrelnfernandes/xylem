@@ -15,6 +15,7 @@ them with these meanings.
 | Tag | A mark on a file (`■`). The Ctrl commands act on the tagged files. Tags are kept in memory and are lost on Release or on quitting. [Tags](tagging.md) |
 | Filespec | The filter on which files a window shows, by name, date and size. Set with `F`. [Filespec](filespec.md) |
 | Treespec | A path typed to move the tree cursor. Opened with `\` or `/`. [Treespec](treespec.md) |
+| Fuzzy find | `\|`: pieces of a name, typed to move the cursor to the best folder or file. [Fuzzy find](fuzzy.md) |
 | Window | One tree with its file window. F8 opens a second one beside it. [Split screen](split.md) |
 | Root | The directory at the top of the tree. `L` changes it, and Alt+L makes the directory under the cursor the root. |
 | Matching | The logged files that pass the Filespec. |

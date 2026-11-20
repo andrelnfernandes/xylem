@@ -29,6 +29,7 @@ menus: after F9, only the next letter takes Ctrl or Alt.
 | ← | Tree | Closes the directory, or goes to its parent. |
 | `?` | both | Shows the statistics of the window, the disk, the machine and Xylem. [Information](info.md) |
 | `\` or `/` | both | Treespec: type a path and the tree cursor follows it. In a Branch or Showall, goes to the directory of the file under the cursor. [Treespec](treespec.md) |
+| `\|` | both | Fuzzy find: type pieces of a name, and the cursor goes to the best folder (in the tree) or file of the list (in the file window). [Fuzzy find](fuzzy.md) |
 | `'` | both | Jumps to a bookmark: press its key next. |
 
 ## Moving

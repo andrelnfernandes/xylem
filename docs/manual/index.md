@@ -60,6 +60,7 @@ native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`
 
 ## Working with files
 
+- [Finding files and folders](finding.md): which search answers which question
 - [Tags and group operations](tagging.md)
 - [Copy and Move](copy-move.md), [picking a folder](picker.md)
 - [Delete, trash and Prune](delete.md)
@@ -67,6 +68,7 @@ native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`
 - [Permissions and dates](attributes.md)
 - [Filespec: the file filter](filespec.md)
 - [Treespec and Log](treespec.md)
+- [Fuzzy find](fuzzy.md): a folder or a file by pieces of its name (`|`)
 - [Compare](compare.md) and [Sort](sort.md)
 - [Edit, eXecute and Batch](execute.md)
 - [Archives](archives.md): ZIP, 7z and TAR

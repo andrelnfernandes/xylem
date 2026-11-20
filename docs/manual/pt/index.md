@@ -62,6 +62,7 @@ revisadas por falantes nativos. Correções:
 
 ## Trabalhando com arquivos
 
+- [Encontrar arquivos e pastas](finding.md): qual busca responde a qual pergunta
 - [Marcações e operações em grupo](tagging.md)
 - [Copiar e Mover](copy-move.md), [escolher uma pasta](picker.md)
 - [Excluir, lixeira e Prune](delete.md)
@@ -69,6 +70,7 @@ revisadas por falantes nativos. Correções:
 - [Permissões e datas](attributes.md)
 - [Filespec: o filtro de arquivos](filespec.md)
 - [Treespec e Log](treespec.md)
+- [Busca aproximada](fuzzy.md): uma pasta ou um arquivo por pedaços do nome (`|`)
 - [Comparar](compare.md) e [Ordenar](sort.md)
 - [Edit, eXecute e Batch](execute.md)
 - [Arquivos compactados](archives.md): ZIP, 7z e TAR

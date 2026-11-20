@@ -434,6 +434,100 @@ Como proposto acima, com estes detalhes:
   fuzzy find", ligada na tabela das páginas do F12.
 - **O rodapé do prompt** ganhou `Ctrl+T tag` e `Alt+T tag the list`.
 
+## Etapa 4 em detalhe (proposta, 2026-11-20)
+
+O autor perguntou, antes da documentação, se o `|` não devia entrar no `W`
+(SQL) ou noutra busca: são muitas maneiras de achar arquivos, espalhadas.
+A etapa 4 começa por essa decisão, porque ela muda o que o manual diz.
+
+### As buscas que o Xylem tem, pelo que respondem
+
+| Pergunta | Tecla | O que faz com o resultado |
+|---|---|---|
+| Onde está *aquela* pasta? (pedaços do nome) | `\|` na árvore | leva o cursor até ela |
+| Onde está *aquele* arquivo da lista? | `\|` nos arquivos | leva o cursor até ele |
+| Vou até um caminho que sei | `/` `\` (Treespec) | leva o cursor, nível por nível; fora da árvore, Log |
+| Próximo nome que começa com esta letra | Shift+letra | leva o cursor |
+| Quais arquivos têm este nome, data, tamanho? | `F` (Filespec) | filtra a lista, e o filtro fica |
+| Quais arquivos cumprem esta condição? | `W` (SQL) | filtra a lista, e o filtro fica |
+| Quais arquivos têm estas palavras? | `P` | lista à parte, ordenada; Enter vai até um |
+| Quais dos marcados têm este texto? | `Ctrl+S` | desmarca os outros |
+
+São três famílias: **ir até um** (`|`, Treespec, Shift+letra), **filtrar a
+lista** (`F`, `W`) e **pelo conteúdo** (`P`, `Ctrl+S`, e `contains`/`words`
+dentro do `W`). O `P` já é uma frente do `W`: monta um `words(...)` e usa o
+mesmo motor.
+
+### As três saídas
+
+- **(A) O `|` fica como está, e o manual ganha uma página de entrada.**
+  "Finding files and folders": a tabela acima, em inglês, com uma linha por
+  pergunta e o link de cada busca. As páginas de cada uma passam a apontar
+  para ela. Nada muda no código.
+- **(B) O `|` e o `P` viram uma só caixa, com dois modos.** Os dois já têm a
+  mesma cara: caixa sobre a tela, lista ordenada, ↑↓, Enter vai até o
+  escolhido, Ctrl+T marca. Uma tecla (Tab ou F2) troca entre *nomes* e
+  *conteúdo*; `|` abre em nomes e `P` em conteúdo. Custa: juntar dois códigos
+  que hoje são separados (`fuzzy_cmd.rs` e `search_box.rs`), um modo de
+  pastas que o `P` não tem (na árvore), e refazer os testes de ambos. É uma
+  etapa de código, não de documentação.
+- **(C) O `|` entra no `W` como função**, `fuzzy('cfgxy')`. Fica fora: o `W`
+  filtra, sem ordem, e o que o `|` tem de útil é a ordem (o melhor primeiro)
+  e ir até um. Um filtro de pedaços de letras deixaria passar milhares de
+  nomes parecidos sem dizer qual é o certo. E o `W` não busca pastas.
+
+**Recomendação: (A) agora, e (B) como proposta para depois, se o uso pedir.**
+A sensação de "muitas buscas" vem mais de não haver um lugar que diga qual
+usar do que do número delas: cada família responde uma pergunta diferente, e
+juntar um filtro com um "ir até" perde o que cada um faz bem. Entre o `|` e
+o `P` a fronteira é mais fina, e (B) faz sentido, mas é melhor decidir depois
+de usar os dois.
+
+### O que a etapa 4 escreve (com A)
+
+- **`docs/manual/fuzzy.md`** (novo, em inglês): o que é; na árvore (pastas,
+  pelo caminho a partir da raiz, ocultas só se a árvore as mostra) e na
+  janela de arquivos (a lista atual, com Filespec e `W`; no Branch e no
+  Showall, pelo caminho); como casa (letras na ordem, espaços separam termos,
+  maiúscula diferencia, o que pontua mais); as teclas (↑↓, PgUp/PgDn,
+  Home/End, Enter, Esc, Ctrl+T, Alt+T, Ctrl+U, o mouse); os 500 melhores, a
+  contagem no alto, a busca que continua enquanto se digita; o `*` e a
+  contagem de marcados; e o link para "Tagging every match" em
+  `configuration.md`.
+- **`docs/manual/finding.md`** (novo): a página de entrada de (A).
+- **Links**: no índice (em "Commands", perto do Treespec), em `keys.md` /
+  `commands-keys.md` (a tecla `|`), no Treespec ("para achar uma pasta por
+  pedaços do nome, `|`"), em `sql.md` e `filespec.md` (para a página de
+  entrada).
+- **Ajuda de contexto**: `PromptKind::Fuzzy` passa a abrir `fuzzy` em vez de
+  `treespec` (`context_help.rs`), com o teste.
+- **Notas da versão**: em 0.9.0, **New**, uma entrada para o `|`.
+- **Comparações**: a linha da busca ao digitar com prompt (`|`) sai do que
+  falta e passa a dizer que o Xylem a tem, aproximada.
+- **Glossário**, se houver termo novo ("fuzzy find").
+- As traduções ficam para depois, como sempre.
+
+Antes do commit: `cargo fmt --check`, `cargo clippy --all-targets -- -D
+warnings` e `cargo test`, e os testes de links do manual, se houver.
+
+**Decidido em 2026-11-20: (A).** O `|` fica como está; (B) fica para depois,
+se o uso pedir.
+
+### Feito na etapa 4 (2026-11-20)
+
+- `fuzzy.md` e `finding.md`, nos `TOPICS` do help; o `Fuzzy` do F1 abre
+  `fuzzy`, com o teste.
+- **`\|` nas tabelas**: o help separava as células em todo `|`, e o GitHub
+  pede `\|` para um `|` dentro da célula. `table_cells` passou a aceitar o
+  escape, com teste.
+- **Os índices traduzidos** ganharam só as duas linhas de link (o teste
+  `index_links_to_every_topic` pede todos os tópicos em cada índice); as
+  páginas novas caem no inglês até a tradução.
+- Links no índice, em `commands-keys`, no Treespec, no Filespec, no SQL, no
+  glossário; a nota da 0.9.0; a linha das comparações.
+- Fora do plano, pedido no meio da etapa: o aviso "antes da 1.0" no README
+  (inglês e português).
+
 ## Fora deste plano
 
 - O "modo ativo" (letras que buscam sem prompt): no Xylem as letras são
