@@ -7,7 +7,7 @@ de cada versão estão em `https://github.com/andrelnfernandes/xylem/releases`.
 ## 0.8.0
 
 **Mudança: algumas teclas Alt.** O Alt não repete mais o Ctrl. Ele passa a ser
-a outra versão de um comando, como no ZTreeWin.
+a outra versão de um comando.
 
 | Tecla | Até a 0.7 | A partir da 0.8 |
 |---|---|---|

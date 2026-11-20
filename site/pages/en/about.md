@@ -4,7 +4,7 @@
 <p class="xylem-lead">Where it comes from</p>
 <p>Xylem's keys and way of working follow XTree and ZTreeWin whenever possible; the
 differences are in the
-<a href="ztreewin.md">comparison with ZTreeWin</a>.</p>
+<a href="comparison.md">comparison with ZTreeWin</a>.</p>
 <p>More about XTree: <a href="https://www.xtreefanpage.org/">The XTree Fan Page</a>, kept by
 its fans for over twenty years; and <a href="https://www.ztree.com/">ZTreeWin</a>, which
 carries it on in Windows.</p>

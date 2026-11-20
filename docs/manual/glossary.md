@@ -1,6 +1,6 @@
 # Vocabulary
 
-The words below come from XTree and ZTreeWin. The menus and this manual use
+The words below come from the classic tree file managers. The menus and this manual use
 them with these meanings.
 
 | Word | Meaning |

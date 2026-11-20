@@ -1,6 +1,6 @@
 # Vokabular
 
-Die folgenden Begriffe stammen aus XTree und ZTreeWin. Die Menüs und dieses
+Die folgenden Begriffe stammen von den klassischen Baum-Dateimanagern. Die Menüs und dieses
 Handbuch verwenden sie in diesen Bedeutungen.
 
 | Begriff | Bedeutung |

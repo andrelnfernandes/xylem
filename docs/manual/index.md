@@ -1,8 +1,8 @@
 # Xylem manual
 
-Xylem is a text-mode file manager with the screen and the keys of XTree and
-ZTreeWin: a directory tree on top, the files of the current directory below,
-and statistics on the right. It logs (reads) directories into memory, so one
+Xylem is a file manager for the terminal, driven by the keyboard: a directory
+tree on top, the files of the current directory below, and statistics on the
+right. It logs (reads) directories into memory, so one
 list can hold files from a whole branch, and one command copies, moves,
 deletes, compares or renames all the files tagged in it.
 
@@ -71,7 +71,7 @@ native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`
 - [Edit, eXecute and Batch](execute.md)
 - [Archives](archives.md): ZIP, 7z and TAR
 
-## Beyond XTree
+## More tools
 
 - [The built-in terminal](terminal.md)
 - [Remote machines (SSH)](remote.md): another machine or a container as a tree
@@ -99,5 +99,5 @@ native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`
 - [Security](security.md)
 - [Quitting and changing the shell's directory](quit.md)
 - [Windows](windows.md)
-- [Comparison with ZTreeWin](ztreewin.md)
+- [Comparisons](comparison.md): other file managers, and a thank-you
 - [Release notes](releases.md)

@@ -1,7 +1,7 @@
 # Was Xylem ist
 
-Xylem ist ein Dateimanager für das Terminal. Bildschirmaufbau und Tastenkürzel
-orientieren sich an XTreeGold und ZTreeWin: ein Verzeichnisbaum oben, die
+Xylem ist ein Dateimanager für das Terminal, der mit der Tastatur bedient
+wird: ein Verzeichnisbaum oben, die
 Dateien des Verzeichnisses unter dem Cursor darunter, Statistiken rechts und ein
 Menü mit Ein-Buchstaben-Befehlen in der Fußzeile. Der Befehl lautet `xy`.
 
@@ -37,8 +37,8 @@ werden von keinem Befehl berührt.
 [Die Menüs](menus.md) erklärt die Anordnung der Tasten und
 [die Befehle](commands.md) listet alle auf.
 
-[Vergleich mit ZTreeWin](ztreewin.md) listet die ZTreeWin-Befehle auf, die Xylem
-nicht besitzt, sowie abweichende Tastenkürzel.
+[Vergleiche](comparison.md) stellt Xylem anderen Dateimanagern für das
+Terminal gegenüber.
 
 ## Nicht vertrauenswürdige Dateien
 

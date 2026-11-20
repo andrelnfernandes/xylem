@@ -1,6 +1,7 @@
 # Vocabulaire
 
-Les termes ci-dessous proviennent de XTree et de ZTreeWin. Les menus et ce
+Les termes ci-dessous viennent des gestionnaires de fichiers en arborescence
+classiques. Les menus et ce
 manuel les emploient avec les significations suivantes.
 
 | Terme | Signification |

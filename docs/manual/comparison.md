@@ -1,6 +1,6 @@
-# Comparison with ZTreeWin
+# Comparisons
 
-## First, a thank-you
+## A thank-you
 
 I have used some flavor of XTree since the 1990s, and I have had a paid
 ZTreeWin license since 2013. To me, ZTreeWin is still the best text-mode file
@@ -17,13 +17,65 @@ mine: on Windows, ZTreeWin is well worth its license:
 [ztree.com](https://www.ztree.com/), and its users'
 [forum](https://groups.io/g/ZTreeWin).
 
-This page compares the two command by command, based on the official ZTreeWin
+## Other file managers for the terminal
+
+There are many good file managers for the terminal, and most people who try
+Xylem already use one. This is how they differ, as fairly as I can put it.
+Checked against each project's own documentation in November 2026; these
+programs change fast, so if something here is out of date, please open an
+issue.
+
+| Program | Layout | Known for |
+|---|---|---|
+| ranger | three columns (parent, current, preview) | vi keys, previews through scripts, Python to extend it |
+| lf | three columns, like ranger | one small binary, fast, shell commands as its extension |
+| yazi | three columns | speed (everything asynchronous), image previews, Lua plugins with a package manager, SFTP built in |
+| superfile | several panels side by side | a modern look, image previews, themes |
+| nnn | one list | tiny and fast, a selection across directories, a disk usage mode, many plugins |
+| Midnight Commander (mc) | two panels | the classic: its own viewer and editor, SFTP and archives as folders, the results of Find file in a panel |
+| vifm | two panels | vim keys and commands, the results of `:find` as a list to work on, a tree view |
+| broot | one tree that fits the screen | fuzzy search over the whole tree, sizes, a staging area to act on files from many folders |
+| far2l | two panels | Far Manager for Linux, with its plugins: SFTP, SMB, NFS, WebDAV and S3 (NetRocks), a hex editor, Python scripts |
+
+**What sets Xylem apart.** The tree is read into memory, and one key lists
+the files of a whole branch, or of everything read, in one list (Branch,
+Showall), narrowed by name, date and size (Filespec) or a SQL condition
+(`W`), with the bytes that match and those tagged counted as you go. Tag what
+you want there and copy, move, rename or delete it all at once. Several of
+the programs above can put files from many folders in one list too (mc's
+panelize, vifm's custom views, yazi's search results, broot's staging area),
+or keep a selection across folders (nnn, yazi); in Xylem that list is how you
+work all the time, not the result of a search. Besides that, nothing else
+here has in the same program:
+
+- tables with a SQL filter for spreadsheets, CSV, SQLite (with `JOIN`) and
+  Parquet, and their records turned into a script, a page or a database
+  (Batch). A yazi plugin built on DuckDB shows a preview and a summary of
+  CSV and Parquet files, with no filter, query or export;
+- reports on files you don't trust: the macros, remote templates and hidden
+  text of Office documents, the protections and signs of packing of
+  executables, the names to check in a patch, with nothing in them run;
+- duplicate files and folders, even on Google Drive without downloading them;
+- a built-in terminal whose tree follows the shell's `cd`;
+- files from outside treated as hostile everywhere, with a limit on
+  everything read ([Security](security.md)).
+
+**Where the others are ahead.** Image previews (yazi, superfile, ranger). A
+plugin system and the plugins already written for it (yazi, nnn, ranger, lf,
+far2l): Xylem has none, only eXecute and Batch. vi keys from the start
+(ranger, lf, yazi, vifm), where Xylem has its own one-letter commands. Years of
+use by many people, and macOS and Windows builds that are tested, where Xylem
+is new, untested on a Mac, and experimental on Windows.
+
+## ZTreeWin
+
+This part compares the two command by command, based on the official ZTreeWin
 v2.2 manual ([ztwhlp.pdf](https://www.zedtek.com/download/ztwhlp.pdf), from
 2011, in particular the "Quick Command Table" and section 3.7 on
 configuration). Newer versions of ZTreeWin may have changed details; if
 something here is out of date, please open an issue.
 
-## The same way of working
+### The same way of working
 
 Tree with on-demand log (`+`, `*`), file window, Filespec, Branch, Showall (also
 of the tagged files only, Ctrl+S), tags (T, U, I, Ctrl+T/U),
@@ -35,7 +87,7 @@ prompts, bookmarks, help (F1) and a configuration screen. The keys are
 ZTreeWin's whenever possible; the exceptions are under "Different keys", at the
 end.
 
-## What Xylem does not have yet
+### What Xylem does not have yet
 
 - **Tree:** Global (G, and Ctrl+G for the tagged files), Graft (Alt+G), Mirror (Alt+M),
   partial release (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
@@ -50,13 +102,13 @@ end.
   (Ctrl+Enter and Ctrl+F4, Ctrl+B in the tree).
 - **General:** macros (F12), applications menu (F9), Quit and shell (Ctrl+Q), saving and
   loading the log (Zlist, Ctrl/Alt+Z), colors by name and attribute
-  (ZCOLORS.INI), mouse, ZTreeWin command-line options, video
+  (ZCOLORS.INI), ZTreeWin command-line options, video
   commands (Alt+F6–F9).
 
 Some of these have a stand-in in another program; see "What Xylem leaves to
 other programs", below.
 
-## Where Xylem is simpler
+### Where Xylem is simpler
 
 | Feature | In ZTreeWin | In Xylem |
 |---|---|---|
@@ -78,7 +130,7 @@ ZTreeWin configuration options that were not brought over because they are
 Windows-specific: RSH attributes, junctions, OEM/ANSI, EBCDIC, window
 size, shortcuts (.lnk).
 
-## Where Xylem goes further
+### Where Xylem goes further
 
 Things the ZTreeWin v2.2 manual has no counterpart for:
 
@@ -131,7 +183,7 @@ Things the ZTreeWin v2.2 manual has no counterpart for:
 - **Help in six languages** (F1, then L), the same text as this manual and the
   man page.
 
-## What Xylem leaves to other programs
+### What Xylem leaves to other programs
 
 Some things Xylem does not do on its own on purpose: a dedicated program does
 them better, and Xylem brings it in.
@@ -156,7 +208,7 @@ them better, and Xylem brings it in.
 - **Other archive formats** (ZTreeWin's ZAAP): your archiver, with eXecute or
   in the terminal.
 
-## Different keys
+### Different keys
 
 The keys follow ZTreeWin's. The exceptions:
 
@@ -182,3 +234,12 @@ The keys follow ZTreeWin's. The exceptions:
 | Copy path to clipboard | Ctrl+Insert | Y or Ctrl+Insert (Ctrl+Y for tagged; works via OSC 52 and system clipboard) |
 
 All keys can be rebound under `[keys]` in `config.toml`.
+
+## Names
+
+Xylem is an independent project, written from scratch. It is not affiliated
+with, endorsed by or connected to Zedtek, Inc. (ZTreeWin), to the owners of
+XTree, or to the authors of the other programs named on this page, and it
+contains no code from any of them. Their names are mentioned only to describe
+what inspired Xylem and how it compares. XTree, ZTree and ZTreeWin are
+trademarks of their respective owners.

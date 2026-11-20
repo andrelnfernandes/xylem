@@ -31,7 +31,7 @@
 mkdir -p ~/.config/xylem && xy --default-config > ~/.config/xylem/config.toml
 ```
 
-- `theme`：`classic`（XTree 经典蓝）、`dark`、`light`、`mono`（使用终端自身的颜色）、`norton`、`solarized`、`gruvbox`、`nord`、`slate`（Windows Terminal 风格）、`graphite`（macOS 深色风格）、`daylight`（macOS 浅色风格）或 `vivid`（高对比度鲜艳色彩，适合演示与截图）。按 F4 可预览并选择所有主题。
+- `theme`：`classic`（蓝底白字与黄字）、`dark`、`light`、`mono`（使用终端自身的颜色）、`norton`、`solarized`、`gruvbox`、`nord`、`slate`（Windows Terminal 风格）、`graphite`（macOS 深色风格）、`daylight`（macOS 浅色风格）或 `vivid`（高对比度鲜艳色彩，适合演示与截图）。按 F4 可预览并选择所有主题。
 - `[options]`：配置界面中的各项开关与设置。
 - `[colors]`：在当前主题基础上单独覆盖个别颜色，可使用颜色名称（如 `"yellow"`）、十六进制 `"#rrggbb"` 或 0 到 255 的色表索引。
 - `[keys.any]`、`[keys.tree]`、`[keys.files]`：重新绑定两个窗口通用或单个窗口专用（优先级更高）的按键。例如 `"f3" = "view"`、`"ctrl+r" = "relog"`；设为 `"none"` 可禁用某个按键。帮助中的按键列表（按 **K**）会显示包含您自定义修改在内的当前生效按键。

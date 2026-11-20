@@ -4,10 +4,50 @@
 
 [Website](https://andrelnfernandes.github.io/xylem/) · [Leia em português](README.pt-BR.md)
 
-See your whole disk as one tree, gather files from any folder, and act on all of
-them at once, from any terminal, right from the keyboard.
+A file manager for the terminal that reads your data with SQL and opens the
+files you don't trust without running anything in them. Built the XTree way:
+your disk as one tree, files from many folders gathered in one list, and one
+key to act on them all.
 
 ![Xylem in use: the built-in terminal with the tree following a cd, tagging files in a Branch and typing them into a command with Alt+O](docs/screenshots/demo-intro.gif)
+
+## Why Xylem?
+
+| You want to... | The usual way | In Xylem |
+|---|---|---|
+| look inside a CSV, a spreadsheet, SQLite or Parquet | another program, or a preview plugin | a grid with a SQL filter, `JOIN` in SQLite, and the records turned into a script, a page or a database |
+| check a file you don't trust | open it and hope, or several tools | a report of what it hides: the macros and remote templates of an Office file, the missing protections and packed sections of an executable, the deceptive names in a patch; nothing in it runs |
+| act on files spread over many folders | go into each folder, or run a search and work on its results | `B` lists every file of a branch in one list: narrow it, tag, and copy, move or delete them all at once |
+| free space on Google Drive | download the files to compare them | duplicates found by the hashes Drive already keeps, with nothing downloaded |
+
+How it compares with ranger, yazi, nnn, mc, broot and others, including where
+they are ahead: [Comparisons](docs/manual/comparison.md).
+
+## Quick start (30 seconds)
+
+```bash
+cargo install xylem-fm      # needs Rust and a C compiler
+xy
+```
+
+No Rust? The
+[latest release](https://github.com/andrelnfernandes/xylem/releases/latest)
+has static binaries for Linux (x86_64 and ARM64), `.deb` and `.rpm` packages,
+and an experimental Windows build. [Installation](#installation) has the details.
+
+Five keys to start:
+
+| Key | What it does |
+|---|---|
+| `B` | Branch: every file of the directory under the cursor and all below it, in one list |
+| `F` | Filespec: keeps in the list only the files that match, such as `*.pdf` |
+| `T` | tags the file under the cursor (Ctrl+T tags every file in the list) |
+| Ctrl+C | copies the tagged files to one folder (Ctrl+D deletes them, after asking) |
+| F1 | help about where you are (Alt+H where the terminal keeps F1) |
+
+`Q` quits. The footer always shows the keys that work where you are.
+
+## What it does
 
 - **Open almost anything right there:** SQLite with full `JOIN` queries,
   spreadsheets, CSV, Parquet, JSON, Markdown, logs and archives.
@@ -22,19 +62,37 @@ them at once, from any terminal, right from the keyboard.
 - **Open files you don't trust:** nothing in them runs, and everything has a limit.
 - **Make it yours:** twelve themes, configurable keys, and help in six languages.
 
-## Try it
+In more detail:
 
-```bash
-cargo install xylem-fm
-xy
-```
-
-That needs Rust and a C compiler. Without them, Linux (x86_64 and ARM64) has static
-binaries, `.deb` and `.rpm` on the
-[Releases](https://github.com/andrelnfernandes/xylem/releases) page, and there is an
-experimental Windows build. [Installation](#installation) has the details.
+- **One tree, many files:** a directory tree logged into memory, the file window
+  below it, Branch and Showall to list the files of a whole branch or of
+  everything logged, and tags that group operations act on.
+- **File operations:** copy and move (with or without the paths, with progress
+  and conflict details), delete to the trash with Oops to restore, Prune,
+  rename with masks, permissions and dates, Compare between two windows.
+- **Finding things:** Filespec by name, date and size, Treespec to type a path,
+  bookmarks, and Ctrl+S to search the tagged files for text.
+- **Looking inside:** a text and hex viewer with search, a line filter with
+  regular expressions and syntax colors, Markdown shown rendered, a table mode with a SQL filter for
+  spreadsheets, CSV, JSON Lines, DBF, SQLite and Parquet, and Ctrl+B to turn
+  those records or lines into a script, JSON, SQL or anything else,
+  Autoview next to the list, ZIP, 7z and TAR archives opened as directories,
+  and display modes that show owners or what each file is.
+- **Duplicates:** Alt+D finds files and whole folders with the same contents,
+  without downloading anything from a folder mounted by rclone, and always
+  leaves one copy.
+- **Where the space goes:** the Usage view (Alt+U) lists a branch's folders
+  and files by the space they take, largest first, down to what fills the
+  disk; Alt+K Percent shows each folder's share right in the tree.
+- **And more:** a built-in terminal whose tree follows the shell, remote
+  machines over SSH and containers through `docker exec` (copy, move, rename,
+  delete, permissions and dates there, with their own terminal), Google Drive,
+  S3 and other cloud storage through rclone, network shares read in the
+  background, bookmarks with names, an optional Git menu, the clipboard, a
+  configuration screen and themes.
 
 ## Screenshots
+
 
 The directory tree, the file window and the statistics:
 
@@ -50,8 +108,8 @@ highlighted and counted on the right:
 ![Split window: photos on the left, source code on the right](docs/screenshots/split.png)
 
 **Menus on Ctrl and Alt**: holding Ctrl or Alt shows what each letter does
-with it, as in XTree (in terminals with the kitty keyboard protocol; elsewhere F9
-switches the menus):
+with it (in terminals with the kitty keyboard protocol; elsewhere F9 switches
+the menus):
 
 ![Holding Ctrl and then Alt changes the menu at the bottom; then Ctrl+G shows the Git menu](docs/screenshots/demo-menus.gif)
 
@@ -90,35 +148,6 @@ desktops: `slate` (in the style of Windows Terminal), `graphite` and `daylight`
 presentations:
 
 ![The gruvbox theme](docs/screenshots/theme-gruvbox.png)
-
-## What it does
-
-- **One tree, many files:** a directory tree logged into memory, the file window
-  below it, Branch and Showall to list the files of a whole branch or of
-  everything logged, tags that group operations act on, and ZTreeWin's keys.
-- **File operations:** copy and move (with or without the paths, with progress
-  and conflict details), delete to the trash with Oops to restore, Prune,
-  rename with masks, permissions and dates, Compare between two windows.
-- **Finding things:** Filespec by name, date and size, Treespec to type a path,
-  bookmarks, and Ctrl+S to search the tagged files for text.
-- **Looking inside:** a text and hex viewer with search, a line filter with
-  regular expressions and syntax colors, Markdown shown rendered, a table mode with a SQL filter for
-  spreadsheets, CSV, JSON Lines, DBF, SQLite and Parquet, and Ctrl+B to turn
-  those records or lines into a script, JSON, SQL or anything else,
-  Autoview next to the list, ZIP, 7z and TAR archives opened as directories,
-  and display modes that show owners or what each file is.
-- **Duplicates:** Alt+D finds files and whole folders with the same contents,
-  without downloading anything from a folder mounted by rclone, and always
-  leaves one copy.
-- **Where the space goes:** the Usage view (Alt+U) lists a branch's folders
-  and files by the space they take, largest first, down to what fills the
-  disk; Alt+K Percent shows each folder's share right in the tree.
-- **Beyond XTree:** a built-in terminal whose tree follows the shell, remote
-  machines over SSH and containers through `docker exec` (copy, move, rename,
-  delete, permissions and dates there, with their own terminal), Google Drive,
-  S3 and other cloud storage through rclone, network shares read in the
-  background, bookmarks with names, an optional Git menu, the clipboard, a
-  configuration screen and themes.
 
 ## Usage
 
@@ -223,8 +252,8 @@ and the man page (`xy --man`). Where to start:
 - how-to pages with an animation of each step, such as
   [copying files with their paths](docs/manual/howto-copy-with-paths.md) and
   [finding what fills the disk](docs/manual/howto-disk-space.md);
-- [release notes](docs/manual/releases.md) and the
-  [comparison with ZTreeWin](docs/manual/ztreewin.md).
+- [release notes](docs/manual/releases.md) and
+  [comparisons with other file managers](docs/manual/comparison.md).
 
 The help also comes in Portuguese, Spanish, French, German and Chinese. The
 Spanish, French, German and Chinese translations have not been reviewed by
@@ -277,7 +306,7 @@ Found a problem? Please report it privately [via GitHub Security Advisories](htt
 
 ### Done
 
-- The XTree core (phases 0 to 4): the classic screen, the tree and the file
+- The core (phases 0 to 4): the classic screen, the tree and the file
   window, Filespec, Showall and Branch, tags and group operations, the split
   window, Compare, archives, Edit and eXecute, configuration, themes,
   configurable keys, the help and persistent history.
@@ -302,9 +331,7 @@ Found a problem? Please report it privately [via GitHub Security Advisories](htt
 
 - **Remote machines (SSH):** Edit and Open (through a temporary copy that goes
   back when saved), eXecute and Git over ssh, and periodic refresh.
-- **Viewer:** a viewer that reads in windows, like `less`, with no size limit
-  for uncompressed files, and logs (follow, jump to the end, colors by level).
-- **From ZTreeWin:** comparing the contents of two files (JFC), and saving the
+- **Files:** comparing the contents of two files (JFC), and saving the
   log to open a disk's tree at once next time.
 - **Hardening:** the leftovers of the security pass, listed in
   [BACKLOG.md](BACKLOG.md).
@@ -312,8 +339,8 @@ Found a problem? Please report it privately [via GitHub Security Advisories](htt
 ### For later
 
 - Windows: it builds and passes the tests (see
-  [Windows](docs/manual/windows.md)), but it is not a priority while
-  ZTreeWin exists. Maybe macOS.
+  [Windows](docs/manual/windows.md)), but it is not a priority. macOS: it
+  builds, and CI checks it, but it has not been tested on a Mac.
 - Postponed by choice: macros, chown and Graft.
 
 The full list of what is left, including the developers' notes, is in
@@ -363,20 +390,15 @@ The full list of what is left, including the developers' notes, is in
 
 ## About
 
-Xylem's keys and way of working follow XTree and ZTreeWin whenever possible; the
-differences are in [Comparison with ZTreeWin](docs/manual/ztreewin.md).
-
 It was called **xt** until version 0.1; on its first run, it moves xt's
 configuration, history and bookmarks to its own folders. The name: the xylem is the
 tissue that carries water through a tree.
 
 ## Disclaimer
 
-Xylem is an independent project, written from scratch. It is not affiliated
-with, endorsed by or connected to Zedtek, Inc. (ZTreeWin) or to the owners of
-XTree. It contains no code from those programs; their names are mentioned only
-to describe what inspired Xylem and how it compares. XTree, ZTree and ZTreeWin
-are trademarks of their respective owners.
+Xylem is an independent project, written from scratch, with no code from and no
+connection to XTree, ZTreeWin or the other programs it is compared with. Their
+names belong to their owners; see [Comparisons](docs/manual/comparison.md#names).
 
 ## License
 

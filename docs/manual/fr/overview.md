@@ -1,7 +1,7 @@
 # Ce qu'est Xylem
 
-Xylem est un gestionnaire de fichiers pour le terminal. Son écran et ses touches
-s'inspirent de XTreeGold et ZTreeWin : une arborescence de répertoires en haut,
+Xylem est un gestionnaire de fichiers pour le terminal, piloté au clavier :
+une arborescence de répertoires en haut,
 les fichiers du répertoire sous le curseur en dessous, des statistiques à droite
 et un menu de commandes d'une lettre dans le pied de page. La commande est `xy`.
 
@@ -35,8 +35,8 @@ affectés par aucune commande.
 [Les menus](menus.md) explique l'organisation des touches et
 [les commandes](commands.md) les liste toutes.
 
-[Comparaison avec ZTreeWin](ztreewin.md) recense les commandes de ZTreeWin que
-Xylem ne possède pas et les touches qui diffèrent.
+[Comparaisons](comparison.md) situe Xylem par rapport à d'autres gestionnaires
+de fichiers pour le terminal.
 
 ## Fichiers non fiables
 
