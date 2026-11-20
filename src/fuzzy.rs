@@ -905,6 +905,9 @@ mod tests {
         assert!(pass.narrows_to(&Query::new("src")));
     }
 
+    /// A leading dot hides a folder only on Unix; on Windows it is the
+    /// hidden attribute, which a listing does not carry.
+    #[cfg(unix)]
     #[test]
     fn hidden_folders_are_found_only_when_the_tree_shows_them() {
         let mut tree = folders(&[".cache/lib", "src/lib"]);
