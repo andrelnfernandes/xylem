@@ -37,7 +37,7 @@ um arquivo comentado com todos os padrões:
 mkdir -p ~/.config/xylem && xy --default-config > ~/.config/xylem/config.toml
 ```
 
-- `theme`: `classic` (azul XTree), `dark`, `light`, `mono` (as cores do próprio
+- `theme`: `classic` (branco e amarelo sobre azul), `dark`, `light`, `mono` (as cores do próprio
   terminal), `norton`, `solarized`, `gruvbox`, `nord`, `slate` (no estilo do
   Windows Terminal), `graphite` (macOS no modo escuro), `daylight` (macOS no
   modo claro) ou `vivid` (cores fortes, para apresentações e capturas de tela).

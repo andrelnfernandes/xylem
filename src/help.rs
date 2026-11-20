@@ -242,7 +242,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("security", include_str!("../docs/manual/security.md")),
     ("quit", include_str!("../docs/manual/quit.md")),
     ("windows", include_str!("../docs/manual/windows.md")),
-    ("ztreewin", include_str!("../docs/manual/ztreewin.md")),
+    ("comparison", include_str!("../docs/manual/comparison.md")),
     ("releases", include_str!("../docs/manual/releases.md")),
     ("keys", include_str!("../docs/manual/keys.md")),
 ];

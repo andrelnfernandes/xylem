@@ -8,7 +8,7 @@ of each version are on
 ## 0.8.0
 
 **Changed: some Alt keys.** Alt no longer repeats Ctrl. It is the other
-version of a command, as in ZTreeWin.
+version of a command.
 
 | Key | Up to 0.7 | From 0.8 |
 |---|---|---|

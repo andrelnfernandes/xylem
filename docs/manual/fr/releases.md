@@ -8,7 +8,7 @@ modifiées. Les notes complètes de chaque version sont disponibles sur
 ## 0.8.0
 
 **Changement : certaines touches Alt.** Alt ne répète plus Ctrl. Il devient
-l'autre version d'une commande, comme dans ZTreeWin.
+l'autre version d'une commande.
 
 | Touche | Jusqu'à 0.7 | À partir de 0.8 |
 |---|---|---|

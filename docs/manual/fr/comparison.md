@@ -1,6 +1,6 @@
-# Comparaison avec ZTreeWin
+# Comparaisons
 
-## Avant tout, un remerciement
+## Un remerciement
 
 J'utilise une variante de XTree depuis les années 1990, et j'ai une licence
 payée de ZTreeWin depuis 2013. Pour moi, ZTreeWin reste le meilleur
@@ -18,13 +18,71 @@ n'est pas un objectif pour moi : sous Windows, ZTreeWin vaut largement sa
 licence : [ztree.com](https://www.ztree.com/), et le
 [forum](https://groups.io/g/ZTreeWin) de ses utilisateurs.
 
-Cette page compare les deux commande par commande, à partir du manuel officiel
+## Autres gestionnaires de fichiers pour le terminal
+
+Il existe beaucoup de bons gestionnaires de fichiers pour le terminal, et la
+plupart des personnes qui essaient Xylem en utilisent déjà un. Voici ce qui
+les distingue, aussi honnêtement que je peux le dire. Vérifié dans la
+documentation de chaque projet en novembre 2026 ; ces programmes évoluent
+vite, donc si quelque chose ici n'est plus à jour, ouvrez une issue.
+
+| Programme | Disposition | Connu pour |
+|---|---|---|
+| ranger | trois colonnes (parent, courant, aperçu) | touches vi, aperçus par des scripts, extensible en Python |
+| lf | trois colonnes, comme ranger | un seul petit binaire, rapide, des commandes shell comme extensions |
+| yazi | trois colonnes | la vitesse (tout est asynchrone), l'aperçu des images, des plugins Lua avec un gestionnaire de paquets, SFTP intégré |
+| superfile | plusieurs panneaux côte à côte | un look moderne, l'aperçu des images, des thèmes |
+| nnn | une liste | minuscule et rapide, une sélection entre répertoires, un mode d'occupation du disque, de nombreux plugins |
+| Midnight Commander (mc) | deux panneaux | le classique : son propre visualiseur et éditeur, SFTP et archives comme dossiers, les résultats de Find file dans un panneau |
+| vifm | deux panneaux | les touches et commandes de vim, les résultats de `:find` comme liste de travail, une vue en arborescence |
+| broot | une arborescence qui tient dans l'écran | recherche floue dans toute l'arborescence, tailles, une zone de préparation (staging) pour agir sur des fichiers de nombreux dossiers |
+| far2l | deux panneaux | Far Manager pour Linux, avec ses plugins : SFTP, SMB, NFS, WebDAV et S3 (NetRocks), un éditeur hexadécimal, des scripts Python |
+
+**Ce qui distingue Xylem.** L'arborescence est lue en mémoire, et une touche
+affiche dans une seule liste les fichiers de toute une branche, ou de tout ce
+qui a été lu (Branch, Showall), restreints par nom, date et taille (Filespec)
+ou par une condition SQL (`W`), avec les octets correspondants et ceux marqués
+comptés au fur et à mesure. Marquez-y ce que vous voulez et copiez, déplacez,
+renommez ou supprimez le tout en une fois. Plusieurs des programmes ci-dessus
+peuvent aussi rassembler dans une liste des fichiers de nombreux dossiers (le
+panelize de mc, les vues personnalisées de vifm, les résultats de recherche de
+yazi, la zone de préparation de broot), ou garder une sélection entre dossiers
+(nnn, yazi) ; dans Xylem, cette liste est la manière de travailler en
+permanence, et non le résultat d'une recherche. En plus de cela, aucun des
+autres ne réunit dans un même programme :
+
+- des tableaux avec filtre SQL pour les feuilles de calcul, CSV, SQLite (avec
+  `JOIN`) et Parquet, et leurs enregistrements transformés en script, en page
+  ou en base de données (Batch). Un plugin de yazi basé sur DuckDB affiche un
+  aperçu et un résumé des fichiers CSV et Parquet, sans filtre, requête ni
+  export ;
+- des rapports sur les fichiers auxquels vous ne faites pas confiance : les
+  macros, modèles distants et textes cachés des documents Office, les
+  protections et les signes d'un packer dans les exécutables, les noms à
+  vérifier dans un patch, sans rien exécuter de leur contenu ;
+- les fichiers et dossiers en double, même sur Google Drive sans les
+  télécharger ;
+- un terminal intégré dont l'arborescence suit le `cd` du shell ;
+- les fichiers venus de l'extérieur traités partout comme hostiles, avec une
+  limite sur tout ce qui est lu ([Sécurité](security.md)).
+
+**Là où les autres sont en avance.** L'aperçu des images (yazi, superfile,
+ranger). Un système de plugins et les plugins déjà écrits pour lui (yazi, nnn,
+ranger, lf, far2l) : Xylem n'en a pas, seulement eXecute et Batch. Les touches
+vi dès le départ (ranger, lf, yazi, vifm), là où Xylem a ses propres commandes
+d'une lettre. Des années d'usage par beaucoup de monde, et des versions macOS
+et Windows testées, là où Xylem est nouveau, non testé sur Mac et
+expérimental sous Windows.
+
+## ZTreeWin
+
+Cette partie compare les deux commande par commande, à partir du manuel officiel
 de ZTreeWin v2.2 ([ztwhlp.pdf](https://www.zedtek.com/download/ztwhlp.pdf), de
 2011, en particulier la « Quick Command Table » et la section 3.7 sur la
 configuration). Les versions plus récentes de ZTreeWin peuvent avoir modifié
 certains détails ; si quelque chose ici n'est plus à jour, ouvrez une issue.
 
-## La même manière de travailler
+### La même manière de travailler
 
 Arborescence avec lecture à la demande (`+`, `*`), fenêtre de fichiers,
 Filespec, Branch, Showall (aussi des seuls fichiers marqués, Ctrl+S), marquage
@@ -37,7 +95,7 @@ extraction d'archives, historique dans les invites, signets, aide (F1) et écran
 de configuration. Les touches sont celles de ZTreeWin chaque fois que possible ;
 les exceptions sont dans « Touches différentes », à la fin.
 
-## Ce que Xylem n'a pas encore
+### Ce que Xylem n'a pas encore
 
 - **Arborescence :** Global (G, et Ctrl+G pour les marqués), Graft (Alt+G), Mirror (Alt+M), libération partielle (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
   (Ctrl+V), F5/F6 (masquer des niveaux de sous-répertoires), marquer par
@@ -52,13 +110,13 @@ les exceptions sont dans « Touches différentes », à la fin.
   et Ctrl+F4, Ctrl+B dans l'arborescence).
 - **Général :** macros (F12), menu d'applications (F9), Quitter vers un shell
   (Ctrl+Q), enregistrement et chargement du log (Zlist, Ctrl/Alt+Z), couleurs
-  par nom et attribut (ZCOLORS.INI), souris, options de ligne de commande de
+  par nom et attribut (ZCOLORS.INI), options de ligne de commande de
   ZTreeWin, commandes vidéo (Alt+F6–F9).
 
 Pour certaines, un autre programme fait l'affaire en attendant ; voir « Ce que
 Xylem laisse à d'autres programmes », plus bas.
 
-## Là où Xylem est plus simple
+### Là où Xylem est plus simple
 
 | Fonction | Dans ZTreeWin | Dans Xylem |
 |---|---|---|
@@ -80,7 +138,7 @@ Options de configuration de ZTreeWin qui n'ont pas été reprises parce qu'elles
 sont propres à Windows : attributs RSH, jonctions, OEM/ANSI, EBCDIC, taille de
 fenêtre, raccourcis (.lnk).
 
-## Là où Xylem va plus loin
+### Là où Xylem va plus loin
 
 Ce qui n'a pas d'équivalent dans le manuel de ZTreeWin v2.2 :
 
@@ -136,7 +194,7 @@ Ce qui n'a pas d'équivalent dans le manuel de ZTreeWin v2.2 :
 - **Une aide en six langues** (F1, puis L), le même texte que ce manuel et la
   page de manuel.
 
-## Ce que Xylem laisse à d'autres programmes
+### Ce que Xylem laisse à d'autres programmes
 
 Certaines choses, Xylem ne les fait pas lui-même, exprès : un programme dédié
 les fait mieux, et Xylem l'intègre.
@@ -165,7 +223,7 @@ les fait mieux, et Xylem l'intègre.
 - **Autres formats d'archive** (le ZAAP de ZTreeWin) : votre archiveur, avec
   eXécuter ou dans le terminal.
 
-## Touches différentes
+### Touches différentes
 
 Les touches suivent celles de ZTreeWin. Les exceptions :
 
@@ -191,3 +249,12 @@ Les touches suivent celles de ZTreeWin. Les exceptions :
 | Copier le chemin dans le presse-papiers | Ctrl+Insert | Y ou Ctrl+Insert (Ctrl+Y pour les fichiers marqués ; fonctionne via OSC 52 et le presse-papiers système) |
 
 Toutes les touches peuvent être redéfinies sous `[keys]` dans `config.toml`.
+
+## Noms
+
+Xylem est un projet indépendant, écrit de zéro. Il n'est ni affilié, ni
+approuvé, ni lié à Zedtek, Inc. (ZTreeWin), aux propriétaires de XTree ou aux
+auteurs des autres programmes cités sur cette page, et il ne contient aucun
+code provenant d'eux. Leurs noms ne sont cités que pour décrire ce qui a
+inspiré Xylem et la façon dont il se compare. XTree, ZTree et ZTreeWin sont
+des marques de leurs propriétaires respectifs.

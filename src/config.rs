@@ -22,8 +22,8 @@ pub const DEFAULT_CONFIG: &str = r##"# Xylem configuration: ~/.config/xylem/conf
 # on Linux, %APPDATA%\xylem\config.toml on Windows. Everything is optional. The
 # configuration screen (F12 inside Xylem) changes these values and keeps the comments.
 
-# Theme: "classic" (XTree blue), "dark", "light", "mono" (the terminal's
-# own colors), "norton", "solarized", "gruvbox", "nord", "slate" (Windows
+# Theme: "classic" (white and yellow on blue), "dark", "light", "mono"
+# (the terminal's own colors), "norton", "solarized", "gruvbox", "nord", "slate" (Windows
 # Terminal style), "graphite" (macOS dark), "daylight" (macOS light) or
 # "vivid" (strong colors, for presentations and screenshots).
 theme = "classic"

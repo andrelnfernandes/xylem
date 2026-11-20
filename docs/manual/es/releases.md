@@ -8,7 +8,7 @@ completas de cada versión se encuentran en
 ## 0.8.0
 
 **Cambio: algunas teclas Alt.** Alt ya no repite Ctrl. Pasa a ser la otra
-versión de un comando, como en ZTreeWin.
+versión de un comando.
 
 | Tecla | Hasta 0.7 | Desde 0.8 |
 |---|---|---|

@@ -8,7 +8,7 @@ vollständigen Versionshinweise finden sich unter
 ## 0.8.0
 
 **Geändert: einige Alt-Tasten.** Alt wiederholt Ctrl nicht mehr. Es ist die
-andere Fassung eines Befehls, wie in ZTreeWin.
+andere Fassung eines Befehls.
 
 | Taste | Bis 0.7 | Ab 0.8 |
 |---|---|---|

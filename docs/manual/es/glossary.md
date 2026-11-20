@@ -1,6 +1,6 @@
 # Vocabulario
 
-Las palabras siguientes provienen de XTree y ZTreeWin. Los menús y este manual
+Las palabras siguientes provienen de los gestores de archivos en árbol clásicos. Los menús y este manual
 las emplean con estos significados.
 
 | Término | Significado |

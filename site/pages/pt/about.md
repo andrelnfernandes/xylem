@@ -4,7 +4,7 @@
 <p class="xylem-lead">De onde ele vem</p>
 <p>As teclas e o jeito de trabalhar do Xylem seguem o XTree e o ZTreeWin sempre que possível;
 as diferenças estão na
-<a href="ztreewin.md">comparação com o ZTreeWin</a>.</p>
+<a href="comparison.md">comparação com o ZTreeWin</a>.</p>
 <p>Mais sobre o XTree (em inglês): <a href="https://www.xtreefanpage.org/">The XTree Fan
 Page</a>, mantida pelos fãs há mais de vinte anos; e o
 <a href="https://www.ztree.com/">ZTreeWin</a>, que continua o XTree no Windows.</p>
