@@ -1025,6 +1025,25 @@ impl Pane {
         stats
     }
 
+    /// The files of `dir` the list would show (hidden files, the Filespec,
+    /// `W`), Tags-Only aside: what tagging a folder tags.
+    pub fn dir_files(&self, dir: NodeId) -> Vec<FileRef> {
+        let place = self.query_place(dir);
+        let now = SystemTime::now();
+        self.tree
+            .node(dir)
+            .files
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| {
+                (self.tree.show_hidden || !f.is_hidden())
+                    && self.filespec.matches_entry(f)
+                    && self.query_takes(f, &place, now)
+            })
+            .map(|(idx, _)| FileRef { dir, idx })
+            .collect()
+    }
+
     /// Rebuilds the file window list according to the view and the filespec.
     pub fn refresh_files(&mut self) {
         let dirs = match self.view {

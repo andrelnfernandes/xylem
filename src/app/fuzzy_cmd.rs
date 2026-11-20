@@ -23,7 +23,8 @@ pub(crate) enum FuzzyOrigin {
 /// What a search was started on: when it changes, the search starts over.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Stamp {
-    /// The tree's version and whether it shows hidden folders (the folders).
+    /// The tree's shape and whether it shows hidden folders (the folders).
+    /// Its shape, not its version: tagging changes the version.
     tree: Option<(u64, bool)>,
     /// How many times the list was rebuilt (the files).
     files: Option<u64>,
@@ -33,7 +34,7 @@ impl Stamp {
     fn of(pane: &Pane, source: Source) -> Stamp {
         match source {
             Source::Folders => Stamp {
-                tree: Some((pane.tree.version(), pane.tree.show_hidden)),
+                tree: Some((pane.tree.shape(), pane.tree.show_hidden)),
                 files: None,
             },
             Source::Files { .. } => Stamp {
@@ -59,6 +60,8 @@ pub struct Fuzzy {
     pub scroll: usize,
     /// Rows of the list on screen, for PgUp and PgDn.
     pub page: usize,
+    /// What the last Ctrl+T or Alt+T did, shown under the list.
+    pub note: Option<String>,
 }
 
 impl Fuzzy {
@@ -155,6 +158,7 @@ impl App {
             selected: 0,
             scroll: 0,
             page: 1,
+            note: None,
         };
         self.open_prompt(PromptKind::Fuzzy(Box::new(fuzzy)), "FUZZY: ".into(), "");
     }
@@ -206,6 +210,16 @@ impl App {
         if let Some(i) = to {
             fz.choose(i);
             self.fuzzy_follow();
+            return;
+        }
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let alt = key.modifiers.contains(KeyModifiers::ALT);
+        if matches!(key.code, KeyCode::Char('t' | 'T')) && (ctrl || alt) {
+            if ctrl {
+                self.fuzzy_tag_chosen();
+            } else {
+                self.fuzzy_tag_all();
+            }
             return;
         }
         match key.code {
@@ -272,6 +286,7 @@ impl App {
             fz.chosen = None;
             fz.selected = 0;
             fz.scroll = 0;
+            fz.note = None;
         }
         fz.take_results();
     }
@@ -346,6 +361,98 @@ impl App {
         }
     }
 
+    /// The files a result tags: the file itself, or the files of the folder
+    /// the list would show (as `T` in the tree). `None` for a folder not read
+    /// yet, which has no files to tag.
+    fn fuzzy_targets(&self, source: Source, id: usize) -> Option<Vec<FileRef>> {
+        match source {
+            Source::Files { .. } => self.files.get(id).map(|&f| vec![f]),
+            Source::Folders => {
+                if id >= self.tree.node_count() || !self.tree.node(id).scanned {
+                    return None;
+                }
+                Some(self.dir_files(id))
+            }
+        }
+    }
+
+    /// Ctrl+T: tags the chosen result, or untags it if it is all tagged, and
+    /// the choice goes down to the next one.
+    fn fuzzy_tag_chosen(&mut self) {
+        let Some(fz) = self.fuzzy() else { return };
+        let (source, Some(id)) = (fz.source(), fz.selected_id()) else {
+            return;
+        };
+        let (selected, last) = (fz.selected, fz.results.len().saturating_sub(1));
+        let note = match self.fuzzy_targets(source, id) {
+            None => Some("Not logged: no files to tag".to_string()),
+            Some(refs) if refs.is_empty() => Some("No files to tag".to_string()),
+            Some(refs) => {
+                let tag = !refs.iter().all(|&f| self.file(f).tagged);
+                self.set_tags(&refs, |_| tag);
+                match (source, tag) {
+                    (Source::Folders, true) => Some(format!("Tagged {}", count(refs.len()))),
+                    (Source::Folders, false) => Some(format!("Untagged {}", count(refs.len()))),
+                    (Source::Files { .. }, _) => None,
+                }
+            }
+        };
+        if let Some(fz) = self.fuzzy_mut() {
+            fz.note = note;
+            fz.choose((selected + 1).min(last));
+        }
+        self.fuzzy_follow();
+    }
+
+    /// Alt+T: tags the results of the list, or every match with
+    /// `fuzzy_tag_all` on. Either way it says how many, and, past the list,
+    /// how many were not in sight.
+    fn fuzzy_tag_all(&mut self) {
+        let Some(fz) = self.fuzzy() else { return };
+        let source = fz.source();
+        let every = self.options.fuzzy_tag_all;
+        let ids: Vec<usize> = if every {
+            fz.pass().matched().to_vec()
+        } else {
+            fz.results.iter().map(|r| r.id).collect()
+        };
+        let (found, shown, done) = (fz.found(), fz.results.len(), fz.is_done());
+        let mut refs = Vec::new();
+        let mut unlogged = 0;
+        for id in ids.iter().copied() {
+            match self.fuzzy_targets(source, id) {
+                Some(r) => refs.extend(r),
+                None => unlogged += 1,
+            }
+        }
+        self.set_tags(&refs, |_| true);
+        let files = count(refs.len());
+        let mut note = if !done {
+            format!("Searching: tagged {files} from what was found so far")
+        } else if every && found > shown {
+            format!(
+                "Tagged {files} from all {} matches: {} of them are not in the list",
+                group(found),
+                group(found - shown)
+            )
+        } else if found > shown {
+            format!(
+                "Tagged {files} from the {} results shown ({} matched). To tag every match, turn on \"{TAG_ALL_OPTION}\" (F12, page 3)",
+                group(shown),
+                group(found)
+            )
+        } else {
+            format!("Tagged {files}")
+        };
+        if unlogged > 0 {
+            note.push_str(&format!(" ({} not logged)", count_folders(unlogged)));
+        }
+        self.message = Some(note.clone());
+        if let Some(fz) = self.fuzzy_mut() {
+            fz.note = Some(note);
+        }
+    }
+
     /// A click on result `i` of the list; twice, Enter.
     pub(crate) fn click_fuzzy(&mut self, i: usize, double: bool) {
         if let Some(fz) = self.fuzzy_mut() {
@@ -355,5 +462,27 @@ impl App {
         if double {
             self.press(KeyCode::Enter);
         }
+    }
+}
+
+/// The option of F12 that lets Alt+T go past the list, as F12 names it.
+pub(crate) const TAG_ALL_OPTION: &str = "Alt+T in the fuzzy find tags every match";
+
+/// A number with the configured thousands separator.
+fn group(n: usize) -> String {
+    crate::config::group_digits(n as u64, crate::config::formats().number.separator())
+}
+
+fn count(files: usize) -> String {
+    match files {
+        1 => "1 file".to_string(),
+        n => format!("{} files", group(n)),
+    }
+}
+
+fn count_folders(n: usize) -> String {
+    match n {
+        1 => "1 folder".to_string(),
+        n => format!("{} folders", group(n)),
     }
 }

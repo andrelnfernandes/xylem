@@ -123,6 +123,9 @@ pub struct Tree {
     lister: Option<std::sync::Arc<dyn Lister>>,
     /// Goes up whenever what was read changes (to recompute only then).
     version: u64,
+    /// Goes up when folders come or go (a read, a release), not when a file
+    /// is tagged: what a search over the folders depends on.
+    shape: u64,
     /// Directories read in the background, on a cloud mount.
     reads: Option<Reads>,
     /// In tests, a folder of the disk behaves as a cloud mount.
@@ -290,6 +293,7 @@ impl Tree {
             show_hidden: true,
             lister: None,
             version: 0,
+            shape: 0,
             reads: None,
             always_slow: false,
         }
@@ -355,6 +359,7 @@ impl Tree {
         let any = !arrived.is_empty();
         for (id, result) in arrived {
             self.version += 1;
+            self.shape += 1;
             match result {
                 Ok((dirs, files)) => self.apply(id, dirs, files),
                 Err(e) => self.nodes[id].error = Some(e.to_string()),
@@ -458,6 +463,7 @@ impl Tree {
         }
         self.nodes[id].scanned = true;
         self.version += 1;
+        self.shape += 1;
 
         let path = self.path(id);
         let (dirs, files) = match self.read(&path) {
@@ -496,6 +502,7 @@ impl Tree {
             return;
         }
         self.version += 1;
+        self.shape += 1;
         let path = self.path(id);
         let (dirs, files) = match self.read(&path) {
             Ok(r) => r,
@@ -589,6 +596,7 @@ impl Tree {
             dirs.sort_by_key(|(name, _)| sort_key(name));
             files.sort_by_key(|f| sort_key(&f.name));
             self.version += 1;
+            self.shape += 1;
             self.apply(n, dirs, files);
             let node = &mut self.nodes[n];
             node.scanned = true;
@@ -646,6 +654,7 @@ impl Tree {
             return 0;
         }
         self.version += 1;
+        self.shape += 1;
         let mut lost = 0;
         // The nodes below are left loose in the arena, emptied.
         for n in self.subtree(id) {
@@ -705,6 +714,12 @@ impl Tree {
     /// file tagged.
     pub fn version(&self) -> u64 {
         self.version
+    }
+
+    /// Changes when folders come or go (a directory read or read again, a
+    /// branch released), and not when a file is tagged.
+    pub fn shape(&self) -> u64 {
+        self.shape
     }
 
     /// Device (file system) of a directory on the local disk; `None` for
