@@ -4206,6 +4206,14 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                         ("Space", "next hit"),
                         ("Esc", "close"),
                     ]
+                } else if v.follows_links() && v.is_book() {
+                    vec![
+                        ("] [", "chapter"),
+                        ("Tab", "link"),
+                        ("Enter", "follow"),
+                        ("Backspace", "back"),
+                        ("Esc", "close"),
+                    ]
                 } else if v.follows_links() {
                     vec![
                         ("Tab", "link"),
@@ -4261,6 +4269,9 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 }
                 if let Some(path) = v.tree_path() {
                     language = format!("{path}  ·  ");
+                }
+                if let Some(at) = v.chapter_position() {
+                    language.push_str(&format!("{at}  ·  "));
                 }
                 let wrap_badge = if v.wrap { "[Wrap] " } else { "" };
                 let num_badge = if v.line_numbers { "[#] " } else { "" };
