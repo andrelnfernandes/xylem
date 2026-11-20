@@ -433,6 +433,44 @@ alinhamentos do editor), hifenização, marcadores múltiplos e grifos (o `R`
 guarda uma posição só), leitura em voz alta. O layout de leitura em Markdown e
 texto puro é uma decisão depois de usar nos ebooks.
 
+### Feito na 1b (2026-11-20)
+
+- **`markdown::BookStyle`** e `Doc::set_book`: o mesmo documento, disposto
+  como livro. As linhas de texto ganharam um papel (parágrafo, primeira linha
+  de parágrafo, título) e as linhas em branco entre dois parágrafos ficaram
+  marcadas, para o livro tirá-las. Recuo de 3 células, títulos centralizados
+  sem `#`, um ornamento sob os de capítulo (`H1`, `H2`), a regra como quebra
+  de cena, e o justificado (os espaços alargados por igual, nunca a última
+  linha, nem uma linha curta demais para não abrir buracos de mais de três
+  células).
+- **As duas vistas** saem do mesmo `epub::render`: `Book` tem `report` e
+  `reading`. A de leitura começa por uma página de rosto (título, autores,
+  editora · ano, o aviso, quantos capítulos e palavras), não tem as notas
+  `aside`, e as chamadas de nota viram sobrescritos. Uma chamada é o link com
+  `epub:type="noteref"`, ou dentro de `sup`, ou com classe de nota, ou de
+  texto curto (`1`, `[12]`, `*`); o texto da nota é o do elemento com aquele
+  `id` (o parágrafo inteiro, quando o `id` está numa âncora dentro dele).
+  Parágrafos só com `* * *`, `***`, `#`, `⁂` viram quebra de cena.
+- **`src/viewer/reader.rs`**: as opções, os glifos (com e sem Nerd Fonts, do
+  mesmo tamanho, com teste), a barra, o tempo que falta e o progresso por
+  palavras.
+- **No viewer**: a coluna centralizada (a margem entra como espaço na
+  linha); Space vira página; Tab abre o sumário (a lista das planilhas, com
+  `▸` no atual e `✓` nos anteriores); Enter abre as notas chamadas na tela;
+  `g 40%`; Backspace volta; `I` troca de vista no mesmo capítulo; `Z` o
+  foco, e Esc sai do foco antes de fechar. O aviso do quadro também aparece
+  como nota ao abrir o livro.
+- **F12**: a página 5, "Reading (ebooks)", com A a D (largura, parágrafos,
+  justificado, velocidade); largura e velocidade andam por valores fixos
+  (0, 60, 66, 70, 80, 100; 150 a 500). E a G ficam para a 1c.
+- **Diferente do plano**: a página de rosto não tem moldura (os títulos
+  centralizados com o ornamento fizeram o papel dela), e não traz o sumário
+  curto, só quantos capítulos e palavras: o sumário é o Tab. A posição conta
+  como capítulo atual aquele cujo título está até duas linhas abaixo do topo
+  (a linha em branco e o título).
+- Conferido no tmux: rosto, capítulo, recuos, quebra de cena, notas, sumário,
+  rodapé, foco, `I`, e com Nerd Fonts, justificado e 60 colunas.
+
 ### 1c. Lembrar onde parou (`R`)
 
 Como no plano, com `R` no lugar de `P`. A posição é o número do capítulo e a

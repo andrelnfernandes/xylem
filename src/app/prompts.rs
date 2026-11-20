@@ -772,6 +772,11 @@ impl App {
                                 _ => v.note = Some(format!("Invalid row number: {text}")),
                             }
                         }
+                    } else if v.is_book() && clean.ends_with('%') {
+                        match clean.trim_end_matches('%').trim().parse::<f64>() {
+                            Ok(p) if (0.0..=100.0).contains(&p) => v.goto_percent(p),
+                            _ => v.note = Some(format!("Not a part of the book: {text}")),
+                        }
                     } else if matches!(v.mode, ViewMode::Text | ViewMode::Rendered) {
                         match clean.parse::<usize>() {
                             Ok(line) if line > 0 => v.goto_line(line),

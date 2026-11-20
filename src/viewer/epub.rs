@@ -31,6 +31,14 @@ const MAX_LISTED: usize = 1_000;
 const MAX_FRAMES: usize = 2 * MAX_DEPTH;
 /// Most bytes of one piece of text kept (a title, a cell, a code block).
 const MAX_TEXT: usize = 64 * 1024;
+/// Most bytes kept of the text of a note, of the notes in all, and how many
+/// elements with an id are kept.
+const MAX_NOTE: usize = 4096;
+const MAX_CAPTURED: usize = 8 << 20;
+const MAX_TEXTS: usize = 50_000;
+
+/// Events of a document, with where each stands in the source.
+type Events = Vec<(Event<'static>, std::ops::Range<usize>)>;
 
 /// Where a link leads: a part of the package and a fragment in it.
 type Target = (String, Option<String>);
@@ -42,11 +50,39 @@ pub fn is_epub(path: &std::path::Path) -> bool {
         .is_some_and(|e| e.eq_ignore_ascii_case("epub"))
 }
 
-/// A book read: the document, and its chapters in order (the place each
-/// starts at, see [`Doc::place`], and its title).
+/// A book read, in its two views: the report on the file and the book to
+/// read; and what the reader needs besides them.
 pub struct Book {
-    pub doc: Doc,
-    pub chapters: Vec<(Box<str>, String)>,
+    /// What the file is and carries, the contents as links, then the text.
+    pub report: Doc,
+    /// The title page, then the text, with the footnotes apart and their
+    /// calls as superscripts.
+    pub reading: Doc,
+    pub chapters: Vec<Chapter>,
+    /// The contents, each entry with the place it leads to.
+    pub toc: Vec<TocEntry>,
+    /// The text of each note, by the place its call leads to (`n12`).
+    pub notes: HashMap<Box<str>, String>,
+    /// What the report warns about, in a line, when there is anything.
+    pub warning: Option<String>,
+}
+
+/// A chapter: the place it starts at (see [`Doc::place`]), in both views;
+/// its title; and how many words it has.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Chapter {
+    pub place: Box<str>,
+    pub title: String,
+    pub words: usize,
+}
+
+/// An entry of the contents: its level (1 at the top), title, and the place
+/// it leads to.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TocEntry {
+    pub level: usize,
+    pub title: String,
+    pub place: Option<Box<str>>,
 }
 
 /// The book in the package `reader`, laid out for `width`, or why it is not
@@ -123,8 +159,12 @@ pub fn render<R: Read + Seek>(reader: R, limits: Limits, width: usize) -> Result
                 }
             }
         }
-        w.end_chapter(&title);
-        book_chapters.push((place, title));
+        let words = w.end_chapter(&title);
+        book_chapters.push(Chapter {
+            place,
+            title,
+            words,
+        });
     }
     late |= pkg.late();
     found.merge(&w.found);
@@ -140,10 +180,10 @@ pub fn render<R: Read + Seek>(reader: R, limits: Limits, width: usize) -> Result
     head.heading(2, "Contents");
     if toc.is_empty() {
         head.start_list(false);
-        for (place, title) in &book_chapters {
+        for c in &book_chapters {
             head.start(Tag::Item);
-            start_link(&mut head, place);
-            head.text(title);
+            start_link(&mut head, &c.place);
+            head.text(&c.title);
             head.end(TagEnd::Link);
             head.end(TagEnd::Item);
         }
@@ -153,18 +193,136 @@ pub fn render<R: Read + Seek>(reader: R, limits: Limits, width: usize) -> Result
     }
     head.rule();
 
-    let mut events = head.events;
-    events.append(&mut w.d.events);
-    let events = w.resolve_links(events);
-    let mut doc = markdown::from_events_linked(events, limits.time, limits.budget);
-    if pkg.cut || late || w.d.cut {
-        doc.mark_cut();
+    let cut = pkg.cut || late || w.d.cut;
+    let chapter_events = std::mem::take(&mut w.d.events);
+
+    // The book to read: the title page, then the text without the
+    // footnotes, which are shown on demand.
+    let mut reading_events = title_page(&opf, &found, &book_chapters, cut).events;
+    let mut skip = w.notes_at.iter().peekable();
+    for (i, ev) in chapter_events.iter().enumerate() {
+        while skip.peek().is_some_and(|r| r.end <= i) {
+            skip.next();
+        }
+        if skip.peek().is_some_and(|r| r.contains(&i)) {
+            continue;
+        }
+        reading_events.push(ev.clone());
     }
-    doc.layout(width);
+    let (reading_events, notes) = w.resolve_links(reading_events, true);
+
+    let mut events = head.events;
+    events.extend(chapter_events);
+    let (events, _) = w.resolve_links(events, false);
+
+    let mut report = markdown::from_events_linked(events, limits.time, limits.budget);
+    let mut reading = markdown::from_events_linked(reading_events, limits.time, limits.budget);
+    if cut {
+        report.mark_cut();
+        reading.mark_cut();
+    }
+    report.layout(width);
+    reading.layout(width);
+    let toc = toc
+        .iter()
+        .map(|e| TocEntry {
+            level: e.level,
+            title: e.title.clone(),
+            place: e
+                .target
+                .as_ref()
+                .and_then(|(p, f)| w.place_for(p, f.as_deref())),
+        })
+        .collect();
     Ok(Book {
-        doc,
+        report,
+        reading,
         chapters: book_chapters,
+        toc,
+        notes,
+        warning: warning(&found),
     })
+}
+
+/// The first page of the book to read: its title, who wrote it, who
+/// published it and when; what the report warns about, if anything; and
+/// how long the book is.
+fn title_page(opf: &Opf, found: &Findings, chapters: &[Chapter], cut: bool) -> DocEvents {
+    let mut d = DocEvents::new(1_000);
+    let meta = |label: &str| {
+        opf.meta
+            .iter()
+            .find(|(l, _)| l == label)
+            .map(|(_, v)| v.as_str())
+    };
+    d.heading(1, meta("Title").unwrap_or("(no title)"));
+    if let Some(who) = meta("Author").or(meta("Authors")) {
+        d.heading(3, who);
+    }
+    let year = meta("Date").map(|d| d.chars().take(4).collect::<String>());
+    let imprint: Vec<&str> = [meta("Publisher"), year.as_deref()]
+        .into_iter()
+        .flatten()
+        .collect();
+    if !imprint.is_empty() {
+        d.heading(4, &imprint.join(" · "));
+    }
+    if let Some(w) = warning(found) {
+        d.start(Tag::Paragraph);
+        d.styled(&format!("⚠ {w} (I shows the report)"), Look::Strong);
+        d.end(TagEnd::Paragraph);
+    }
+    let words: usize = chapters.iter().map(|c| c.words).sum();
+    let n = chapters.len();
+    d.paragraph(&format!(
+        "{n} {}, {} words.{}",
+        if n == 1 { "chapter" } else { "chapters" },
+        group(words),
+        if cut {
+            " Only the start was read: it is over the limits."
+        } else {
+            ""
+        }
+    ));
+    d.rule();
+    d
+}
+
+/// What the report warns about, in a line: `3 scripts, 2 addresses outside`.
+fn warning(found: &Findings) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(system) = &found.drm {
+        parts.push(format!("DRM ({system})"));
+    }
+    if found.scripts_found() {
+        parts.push("scripts".to_string());
+    }
+    match found.fetches.len() {
+        0 if !found.remote.is_empty() => parts.push("things fetched from outside".into()),
+        0 => {}
+        1 => parts.push("1 address fetched from outside".into()),
+        n => parts.push(format!("{n} addresses fetched from outside")),
+    }
+    if found.forms + found.frames + found.objects > 0 {
+        parts.push("forms or frames".into());
+    }
+    if !found.outside.is_empty() {
+        parts.push("paths outside the book".into());
+    }
+    (!parts.is_empty()).then(|| format!("This book has {}", parts.join(", ")))
+}
+
+/// `1234567` as `1,234,567`.
+fn group(n: usize) -> String {
+    let s = n.to_string();
+    let mut out = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// The name of a part without its folder and extension: a chapter's title
@@ -1002,7 +1160,9 @@ enum Frame {
     List(bool),
     /// `li`; `true` if a list had to be opened for it.
     Item(bool),
-    Quote,
+    /// `blockquote`; `true` for a footnote (`aside`), which a reader shows
+    /// apart.
+    Quote(bool),
     /// A look that starts and ends with the text: emphasis, bold, a link.
     Inline(Tag<'static>),
     /// A link outside: its address goes after its text.
@@ -1072,6 +1232,24 @@ struct Writer {
     places: HashMap<(String, String), Box<str>>,
     chapter_places: HashMap<String, Box<str>>,
     next_place: usize,
+    /// Words of the chapter being read.
+    words: usize,
+    /// Where the paragraph being written starts, and the first of its text:
+    /// enough to tell a break between scenes (`* * *`).
+    para_at: usize,
+    para_text: String,
+    /// The events of the footnotes (`aside`), which a reader shows apart;
+    /// and where those still open start.
+    notes_at: Vec<std::ops::Range<usize>>,
+    open_notes: Vec<usize>,
+    /// The text of the elements with an id, by part and id, for the notes;
+    /// those being read, with the open element they end with.
+    texts: HashMap<(String, String), String>,
+    capturing: Vec<((String, String), usize, String)>,
+    captured: usize,
+    /// The links that call a note, by key; the text of the links open.
+    note_keys: HashSet<usize>,
+    link_texts: Vec<String>,
 }
 
 impl Writer {
@@ -1099,6 +1277,61 @@ impl Writer {
             places: HashMap::new(),
             chapter_places: HashMap::new(),
             next_place: 0,
+            words: 0,
+            para_at: 0,
+            para_text: String::new(),
+            notes_at: Vec::new(),
+            open_notes: Vec::new(),
+            texts: HashMap::new(),
+            capturing: Vec::new(),
+            captured: 0,
+            note_keys: HashSet::new(),
+            link_texts: Vec::new(),
+        }
+    }
+
+    /// Starts keeping the text of an element with an id (a note, maybe):
+    /// until the element ends, or, for an anchor in a paragraph
+    /// (`<p><a id="n1">1</a> The note</p>`), the paragraph.
+    fn capture(&mut self, name: &str, id: &str) {
+        if self.texts.len() + self.capturing.len() >= MAX_TEXTS || self.captured >= MAX_CAPTURED {
+            return;
+        }
+        let block = matches!(
+            name,
+            "p" | "div" | "aside" | "li" | "dd" | "dt" | "section" | "blockquote" | "td" | "footer"
+        );
+        let until = if block {
+            self.open.len()
+        } else {
+            self.open
+                .iter()
+                .rposition(|o| {
+                    matches!(
+                        o.frame,
+                        Frame::Block | Frame::Item(_) | Frame::Quote(_) | Frame::Heading(..)
+                    )
+                })
+                .unwrap_or(self.open.len())
+        };
+        let key = (self.part.clone(), id.to_string());
+        self.capturing.push((key, until, String::new()));
+    }
+
+    /// The texts kept of the elements that end with the open one at `depth`.
+    fn end_captures(&mut self, depth: usize) {
+        let mut i = 0;
+        while i < self.capturing.len() {
+            if self.capturing[i].1 >= depth {
+                let (key, _, text) = self.capturing.remove(i);
+                let text = collapse(&text).trim().to_string();
+                if !text.is_empty() {
+                    self.captured += text.len();
+                    self.texts.entry(key).or_insert(text);
+                }
+            } else {
+                i += 1;
+            }
         }
     }
 
@@ -1124,6 +1357,7 @@ impl Writer {
         self.seen_text = false;
         self.start = self.d.events.len();
         self.scripts = 0;
+        self.words = 0;
     }
 
     /// A line in place of what could not be shown.
@@ -1137,10 +1371,12 @@ impl Writer {
 
     /// Closes what the chapter left open, and gives it its heading if it
     /// did not start with one.
-    fn end_chapter(&mut self, title: &str) {
+    fn end_chapter(&mut self, title: &str) -> usize {
         while !self.open.is_empty() {
             self.pop();
         }
+        self.end_captures(0);
+        self.link_texts.clear();
         while !self.tables.is_empty() {
             self.end_table();
         }
@@ -1163,10 +1399,16 @@ impl Writer {
             head.text(title);
             head.end_heading(1);
             let start = self.start.min(self.d.events.len());
+            let added = head.events.len();
             let tail = self.d.events.split_off(start);
             self.d.events.extend(head.events);
             self.d.events.extend(tail);
+            for r in self.notes_at.iter_mut().filter(|r| r.start >= start) {
+                *r = r.start + added..r.end + added;
+            }
         }
+        self.open_notes.clear();
+        self.words
     }
 
     /// Reads one chapter; `Ok(true)` if the time limit stopped it.
@@ -1271,6 +1513,9 @@ impl Writer {
             self.skip += 1;
             return;
         }
+        if let Some(id) = attr(a, "id") {
+            self.capture(&name, id);
+        }
         let frame = match name.as_str() {
             "head" | "script" | "style" | "title" | "template" | "svg" | "math" => {
                 if matches!(name.as_str(), "svg" | "math") {
@@ -1306,7 +1551,7 @@ impl Writer {
                 self.close_block();
                 let listed = self.open.iter().rev().find_map(|o| match o.frame {
                     Frame::List(_) => Some(true),
-                    Frame::Item(_) | Frame::Quote | Frame::Table => Some(false),
+                    Frame::Item(_) | Frame::Quote(_) | Frame::Table => Some(false),
                     _ => None,
                 });
                 let implicit = listed != Some(true);
@@ -1318,14 +1563,14 @@ impl Writer {
                 }
                 Frame::Item(implicit)
             }
-            "blockquote" => self.quote(),
+            "blockquote" => self.quote(false),
             "aside"
                 if attr(a, "type").is_some_and(|t| {
                     t.split_whitespace()
                         .any(|t| matches!(t, "footnote" | "endnote" | "note" | "rearnote"))
                 }) =>
             {
-                self.quote()
+                self.quote(true)
             }
             "pre" => {
                 self.close_block();
@@ -1372,6 +1617,17 @@ impl Writer {
                     match inside(&base(&self.part), h) {
                         Some((part, frag)) => {
                             let key = self.key(&part, frag.as_deref());
+                            let call = attr(a, "type")
+                                .is_some_and(|t| t.split_whitespace().any(|t| t == "noteref"))
+                                || self.open.iter().any(|o| o.name == "sup")
+                                || attr(a, "class").is_some_and(|c| {
+                                    let c = c.to_ascii_lowercase();
+                                    c.contains("noteref") || c.contains("footnote")
+                                });
+                            if call && let Some(n) = key_number(&key) {
+                                self.note_keys.insert(n);
+                            }
+                            self.link_texts.push(String::new());
                             Frame::Inline(Tag::Link {
                                 link_type: LinkType::Inline,
                                 dest_url: format!("#{key}").into(),
@@ -1404,18 +1660,21 @@ impl Writer {
                 true
             }
             Frame::Inline(_) => false,
-            Frame::List(_) | Frame::Item(_) | Frame::Quote => !self.in_table(),
+            Frame::List(_) | Frame::Item(_) | Frame::Quote(_) => !self.in_table(),
             _ => true,
         };
         self.push_open(name, frame, wrote);
     }
 
-    fn quote(&mut self) -> Frame {
+    fn quote(&mut self, note: bool) -> Frame {
         self.close_block();
         if !self.in_table() {
+            if note {
+                self.open_notes.push(self.d.events.len());
+            }
             self.d.start(Tag::BlockQuote(None));
         }
-        Frame::Quote
+        Frame::Quote(note && !self.in_table())
     }
 
     fn push_open(&mut self, name: String, frame: Frame, wrote: bool) {
@@ -1471,6 +1730,7 @@ impl Writer {
     /// Closes the open element at the top.
     fn pop(&mut self) {
         let Some(o) = self.open.pop() else { return };
+        self.end_captures(self.open.len());
         match o.frame {
             Frame::Skip => self.skip = self.skip.saturating_sub(1),
             Frame::Block => self.close_block(),
@@ -1490,15 +1750,26 @@ impl Writer {
                     }
                 }
             }
-            Frame::Quote => {
+            Frame::Quote(note) => {
                 self.close_block();
                 if o.wrote {
                     self.d.end(TagEnd::BlockQuote(None));
+                }
+                if note && let Some(at) = self.open_notes.pop() {
+                    self.notes_at.push(at..self.d.events.len());
                 }
             }
             Frame::Inline(tag) => {
                 if o.wrote && self.block.is_some() && !self.in_table() {
                     self.d.end(tag.to_end());
+                }
+                if let Tag::Link { dest_url, .. } = &tag {
+                    let text = self.link_texts.pop().unwrap_or_default();
+                    if looks_like_a_call(&text)
+                        && let Some(n) = key_number(dest_url)
+                    {
+                        self.note_keys.insert(n);
+                    }
                 }
             }
             Frame::External(url) => {
@@ -1628,6 +1899,17 @@ impl Writer {
             }
             return;
         }
+        self.words += t.split_whitespace().count();
+        for (_, _, kept) in &mut self.capturing {
+            if kept.len() < MAX_NOTE {
+                kept.push_str(t);
+            }
+        }
+        if let Some(link) = self.link_texts.last_mut()
+            && link.len() < 16
+        {
+            link.push_str(t);
+        }
         if self.in_table() {
             self.cell_text(t);
             return;
@@ -1651,6 +1933,9 @@ impl Writer {
         let body = body.trim_end_matches(' ');
         self.flush_space();
         self.d.text(body);
+        if self.para_text.len() < 16 {
+            self.para_text.push_str(body);
+        }
         self.space = trailing;
         self.fresh = false;
         self.seen_text = true;
@@ -1683,7 +1968,7 @@ impl Writer {
                     kind = Block::Bare;
                     break;
                 }
-                Frame::Block | Frame::Quote | Frame::List(_) => break,
+                Frame::Block | Frame::Quote(_) | Frame::List(_) => break,
                 _ => {}
             }
         }
@@ -1697,6 +1982,10 @@ impl Writer {
             if id.as_ref() == Some(&self.place) {
                 self.placed = true;
             }
+        }
+        if kind == Block::Paragraph {
+            self.para_at = self.d.events.len();
+            self.para_text.clear();
         }
         match kind {
             Block::Paragraph => self.d.start(Tag::Paragraph),
@@ -1744,7 +2033,15 @@ impl Writer {
             self.d.end(end);
         }
         match kind {
-            Block::Paragraph => self.d.end(TagEnd::Paragraph),
+            Block::Paragraph => {
+                self.d.end(TagEnd::Paragraph);
+                // A paragraph of `* * *` alone is a break between scenes.
+                if is_scene(&self.para_text) && self.para_at <= self.d.events.len() {
+                    self.d.events.truncate(self.para_at);
+                    self.d.rule();
+                }
+                self.para_text.clear();
+            }
             Block::Heading(level) => self.d.end(TagEnd::Heading(level)),
             Block::Bare => {}
         }
@@ -1752,23 +2049,26 @@ impl Writer {
         self.fresh = false;
     }
 
-    /// The links of `events` led to their places: a link to a heading with
-    /// that id, else to the start of its chapter; one to a part that is not
-    /// a chapter becomes its text.
-    fn resolve_links(
-        &self,
-        events: Vec<(Event<'static>, std::ops::Range<usize>)>,
-    ) -> Vec<(Event<'static>, std::ops::Range<usize>)> {
-        let place_of = |key: &str| -> Option<Box<str>> {
-            let n: usize = key.strip_prefix('k')?.parse().ok()?;
-            let (part, frag) = self.keys.get(n)?;
-            frag.as_ref()
-                .and_then(|f| self.places.get(&(part.clone(), f.clone())))
-                .or_else(|| self.chapter_places.get(part))
-                .cloned()
-        };
+    /// The place a link to `part#frag` leads to: the heading with that id,
+    /// else the start of its chapter; `None` for a part that is not one.
+    fn place_for(&self, part: &str, frag: Option<&str>) -> Option<Box<str>> {
+        frag.and_then(|f| self.places.get(&(part.to_string(), f.to_string())))
+            .or_else(|| self.chapter_places.get(part))
+            .cloned()
+    }
+
+    /// The links of `events` led to their places (see [`place_for`]); one to
+    /// a part that is not a chapter becomes its text. For the book to read
+    /// (`reading`), a link that calls a note whose text is known leads to
+    /// the note instead (`#n12`), its text set as a superscript; the texts of
+    /// those notes come back by that place.
+    ///
+    /// [`place_for`]: Self::place_for
+    fn resolve_links(&self, events: Events, reading: bool) -> (Events, HashMap<Box<str>, String>) {
+        let mut notes = HashMap::new();
         let mut out = Vec::with_capacity(events.len());
-        let mut kept: Vec<bool> = Vec::new();
+        // For each link open: whether it was kept, and whether it calls a note.
+        let mut open: Vec<(bool, bool)> = Vec::new();
         for (ev, range) in events {
             match ev {
                 Event::Start(Tag::Link {
@@ -1778,14 +2078,27 @@ impl Writer {
                     id,
                 }) => {
                     let to = dest_url.strip_prefix('#').unwrap_or("");
-                    let place = if to.starts_with('k') {
-                        place_of(to)
-                    } else {
-                        Some(to.into())
+                    let (place, note) = match key_number(to) {
+                        Some(n) => {
+                            let (part, frag) = self.keys.get(n).cloned().unwrap_or_default();
+                            let text = frag
+                                .as_ref()
+                                .filter(|_| reading && self.note_keys.contains(&n))
+                                .and_then(|f| self.texts.get(&(part.clone(), f.clone())));
+                            match text {
+                                Some(text) => {
+                                    let place: Box<str> = format!("n{n}").into();
+                                    notes.insert(place.clone(), text.clone());
+                                    (Some(place), true)
+                                }
+                                None => (self.place_for(&part, frag.as_deref()), false),
+                            }
+                        }
+                        None => (Some(to.into()), false),
                     };
                     match place {
                         Some(p) => {
-                            kept.push(true);
+                            open.push((true, note));
                             out.push((
                                 Event::Start(Tag::Link {
                                     link_type,
@@ -1796,18 +2109,70 @@ impl Writer {
                                 range,
                             ));
                         }
-                        None => kept.push(false),
+                        None => open.push((false, false)),
                     }
                 }
                 Event::End(TagEnd::Link) => {
-                    if kept.pop().unwrap_or(true) {
+                    if open.pop().is_none_or(|(kept, _)| kept) {
                         out.push((Event::End(TagEnd::Link), range));
                     }
+                }
+                Event::Text(t) if open.last().is_some_and(|&(_, note)| note) => {
+                    out.push((Event::Text(superscript(&t).into()), range));
                 }
                 ev => out.push((ev, range)),
             }
         }
-        out
+        (out, notes)
+    }
+}
+
+/// The number of a link key (`k12`, `#k12`).
+fn key_number(key: &str) -> Option<usize> {
+    key.trim_start_matches('#').strip_prefix('k')?.parse().ok()
+}
+
+/// The text of a link that calls a note: `1`, `[12]`, `*`, `†`, `a`.
+fn looks_like_a_call(text: &str) -> bool {
+    let t = text
+        .trim()
+        .trim_start_matches(['[', '('])
+        .trim_end_matches([']', ')']);
+    let n = t.chars().count();
+    (1..=3).contains(&n)
+        && (t.chars().all(|c| c.is_ascii_digit())
+            || t.chars().all(|c| matches!(c, '*' | '†' | '‡' | '§'))
+            || (n == 1 && t.chars().all(|c| c.is_ascii_lowercase())))
+}
+
+/// A paragraph that is only a break between scenes: `* * *`, `***`, `#`,
+/// `⁂`, `~`.
+fn is_scene(text: &str) -> bool {
+    let t = text.trim();
+    !t.is_empty()
+        && t.chars().count() <= 15
+        && t.chars().all(|c| {
+            c.is_whitespace()
+                || matches!(
+                    c,
+                    '*' | '#' | '~' | '⁂' | '•' | '·' | '◇' | '◆' | '❖' | '✻' | '✱' | '❦'
+                )
+        })
+}
+
+/// A note's call as it is set in a book: `1` as `¹`, `[12]` as `¹²`.
+fn superscript(text: &str) -> String {
+    const DIGITS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+    let t = text
+        .trim()
+        .trim_start_matches(['[', '('])
+        .trim_end_matches([']', ')']);
+    if t.chars().all(|c| c.is_ascii_digit()) {
+        t.chars()
+            .map(|c| DIGITS[(c as u8 - b'0') as usize])
+            .collect()
+    } else {
+        t.to_string()
     }
 }
 
@@ -1933,13 +2298,13 @@ mod tests {
     }
 
     fn text(bytes: Vec<u8>) -> String {
-        lines(&read(bytes).doc).join("\n")
+        lines(&read(bytes).report).join("\n")
     }
 
     #[test]
     fn an_epub_3_reads_as_a_document_with_its_contents() {
         let book = read(book3());
-        let all = lines(&book.doc);
+        let all = lines(&book.report);
         let text = all.join("\n");
         for want in [
             "Title: The Test Book",
@@ -1969,14 +2334,14 @@ mod tests {
         assert!(!text.contains("margin"), "the style is not text");
         // Each chapter once, in the spine's order; the second starts at a
         // heading made from the contents, since it has none of its own first.
-        assert_eq!(
-            book.chapters,
-            [
-                ("c1".into(), "One".to_string()),
-                ("c2".into(), "Two".to_string())
-            ]
-        );
-        let doc = &book.doc;
+        let names: Vec<(&str, &str)> = book
+            .chapters
+            .iter()
+            .map(|c| (&*c.place, c.title.as_str()))
+            .collect();
+        assert_eq!(names, [("c1", "One"), ("c2", "Two")]);
+        assert!(book.chapters[0].words > book.chapters[1].words);
+        let doc = &book.report;
         let c1 = doc.place("c1").unwrap();
         let c2 = doc.place("c2").unwrap();
         assert_eq!(doc.line(c1), "Chapter One");
@@ -1999,6 +2364,111 @@ mod tests {
             .find(|j| doc.line(j.line).contains("a jump"))
             .unwrap();
         assert_eq!(jump.to, later.to);
+    }
+
+    #[test]
+    fn the_book_to_read_has_a_title_page_and_its_notes_apart() {
+        let manifest = r#"<item id="c1" href="one.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="notes.xhtml" media-type="application/xhtml+xml"/>"#;
+        let spine = r#"<itemref idref="c1"/><itemref idref="c2"/>"#;
+        let one = page(
+            r##"<h1>Start</h1><p>A call<a epub:type="noteref" href="#fn1">1</a> and one
+to the end<sup><a href="notes.xhtml#e2">[2]</a></sup>, and <a href="notes.xhtml">a link</a>.</p>
+<p>* * *</p><p>After the break.</p>
+<aside epub:type="footnote" id="fn1"><p>The aside note.</p></aside>"##,
+        );
+        let notes =
+            page(r#"<h1>Notes</h1><p id="e2"><a href="one.xhtml">2</a>. The end note.</p>"#);
+        let book = read(zip(&[
+            ("mimetype", "application/epub+zip"),
+            ("META-INF/container.xml", CONTAINER),
+            ("OEBPS/content.opf", &opf("3.0", manifest, spine)),
+            ("OEBPS/one.xhtml", &one),
+            ("OEBPS/notes.xhtml", &notes),
+        ]));
+        let reading = lines(&book.reading);
+        let text = reading.join("\n");
+        // The title page: title, authors, then how long the book is.
+        assert_eq!(reading[0], "The Test Book");
+        assert_eq!(reading[1], "Ann Author; Bo Writer");
+        assert!(text.contains("2 chapters,"), "{text}");
+        assert!(book.warning.is_none());
+        // The calls as superscripts; the aside is not in the text.
+        assert!(
+            text.contains("A call¹ and one to the end², and a link."),
+            "{text}"
+        );
+        assert!(!text.contains("The aside note."), "{text}");
+        assert!(text.contains("After the break."));
+        assert!(!text.contains("* * *"), "the break is a rule");
+        // The notes by the place their calls lead to.
+        let doc = &book.reading;
+        let calls: Vec<String> = doc
+            .jumps()
+            .iter()
+            .filter_map(|j| book.notes.get(&j.to).cloned())
+            .collect();
+        assert_eq!(calls, ["The aside note.", "2. The end note."]);
+        // A link that is not a note still leads to its chapter, in both.
+        let link = doc
+            .jumps()
+            .iter()
+            .find(|j| !book.notes.contains_key(&j.to))
+            .unwrap();
+        assert_eq!(&*link.to, "c2");
+        // The report keeps the aside and the calls as they were.
+        let report = lines(&book.report).join("\n");
+        assert!(report.contains("The aside note."));
+        assert!(report.contains("A call1 and one to the end[2]"), "{report}");
+        // The contents lead to the chapters.
+        assert!(book.toc.is_empty(), "no nav, no ncx");
+        assert_eq!(doc.line(doc.place("c2").unwrap()), "Notes");
+    }
+
+    #[test]
+    fn a_book_with_scripts_says_so_on_its_title_page() {
+        let manifest = r#"<item id="c1" href="one.xhtml" media-type="application/xhtml+xml"/>"#;
+        let one = page(r#"<p onload="x()">Text <img src="https://t.example/p.gif"/></p>"#);
+        let book = read(zip(&[
+            ("mimetype", "application/epub+zip"),
+            ("META-INF/container.xml", CONTAINER),
+            (
+                "OEBPS/content.opf",
+                &opf("3.0", manifest, r#"<itemref idref="c1"/>"#),
+            ),
+            ("OEBPS/one.xhtml", &one),
+        ]));
+        assert_eq!(
+            book.warning.as_deref(),
+            Some("This book has scripts, 1 address fetched from outside")
+        );
+        let text = lines(&book.reading).join("\n");
+        assert!(
+            text.contains(
+                "⚠ This book has scripts, 1 address fetched from outside (I shows the report)"
+            ),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn calls_breaks_and_superscripts() {
+        for call in ["1", "12", "[3]", "(4)", "*", "†", "a"] {
+            assert!(looks_like_a_call(call), "{call}");
+        }
+        for not in ["", "1234", "see", "Chapter 2", "ab"] {
+            assert!(!looks_like_a_call(not), "{not}");
+        }
+        for scene in ["* * *", "***", "#", "⁂", " ~ ~ "] {
+            assert!(is_scene(scene), "{scene}");
+        }
+        for not in ["", "a * b", "- - -", "1."] {
+            assert!(!is_scene(not), "{not}");
+        }
+        assert_eq!(superscript("[12]"), "¹²");
+        assert_eq!(superscript("*"), "*");
+        assert_eq!(group(1_234_567), "1,234,567");
+        assert_eq!(group(999), "999");
     }
 
     #[test]
@@ -2026,7 +2496,7 @@ mod tests {
             ("OEBPS/toc.ncx", ncx),
             ("OEBPS/one.xhtml", &one),
         ]));
-        let doc = &book.doc;
+        let doc = &book.report;
         let all = lines(doc);
         assert!(all.iter().any(|l| l == "In été"), "{all:?}");
         assert_eq!(doc.line(doc.place("c1").unwrap()), "The First");
@@ -2172,8 +2642,8 @@ mod tests {
             ..LIMITS
         };
         let book = render(Cursor::new(bytes), limits, 100).unwrap();
-        assert!(book.doc.cut());
-        let text = lines(&book.doc).join("\n");
+        assert!(book.report.cut() && book.reading.cut());
+        let text = lines(&book.report).join("\n");
         assert!(
             text.contains("Only the start of the book was read"),
             "{text}"
