@@ -584,9 +584,29 @@ fn styled_line(d: &mut DocEvents, l: &Line) {
     }
 }
 
+/// Opens a link to entry number `n` (see [`place`]).
+fn start_jump(d: &mut DocEvents, n: usize) {
+    d.start(pulldown_cmark::Tag::Link {
+        link_type: pulldown_cmark::LinkType::Inline,
+        dest_url: format!("#{}", place(n)).into(),
+        title: "".into(),
+        id: "".into(),
+    });
+}
+
+fn end_jump(d: &mut DocEvents) {
+    d.end(pulldown_cmark::TagEnd::Link);
+}
+
+/// The name of entry number `n` as a place of the document.
+pub fn place(n: usize) -> String {
+    format!("e{n}")
+}
+
 /// The guide as a document: what it is, its menus, then every entry in file
-/// order, numbered (`§12`) so that a link says where it goes and a search
-/// for the number finds it.
+/// order, numbered (`§12`) so that a link says where it goes. Each link is a
+/// jump to its entry (see [`markdown::from_events_linked`]): the viewer
+/// follows it.
 pub fn render(guide: &Guide, name: &str, time: Duration, budget: usize, width: usize) -> Doc {
     let mut d = DocEvents::new(MAX_EVENTS);
     let number: HashMap<u32, usize> = guide
@@ -628,6 +648,22 @@ pub fn render(guide: &Guide, name: &str, time: Duration, budget: usize, width: u
             None => String::new(),
         }
     };
+    // A line that leads somewhere, with where it leads: the whole is the
+    // jump, so that even an empty line can be chosen.
+    let linked = |d: &mut DocEvents, text: &Line, to: Option<u32>, sep: &str| {
+        let n = to.and_then(|o| number.get(&o)).copied();
+        if let Some(n) = n {
+            start_jump(d, n);
+        }
+        styled_line(d, text);
+        let t = target(to);
+        if !t.is_empty() {
+            d.styled(&format!("{sep}{t}"), Look::Emphasis);
+        }
+        if n.is_some() {
+            end_jump(d);
+        }
+    };
 
     let title = if guide.title.trim().is_empty() {
         name
@@ -661,8 +697,7 @@ pub fn render(guide: &Guide, name: &str, time: Duration, budget: usize, width: u
         d.start_list(false);
         for p in &m.prompts {
             d.start(pulldown_cmark::Tag::Item);
-            styled_line(&mut d, &p.text);
-            d.styled(&format!("  → {}", target(p.to)), Look::Emphasis);
+            linked(&mut d, &p.text, p.to, "  → ");
             d.end(pulldown_cmark::TagEnd::Item);
         }
         d.end_list(false);
@@ -674,7 +709,16 @@ pub fn render(guide: &Guide, name: &str, time: Duration, budget: usize, width: u
             Some(t) => format!("§{n} {t}"),
             None => format!("§{n}"),
         };
-        d.heading(2, &heading);
+        d.start(pulldown_cmark::Tag::Heading {
+            level: pulldown_cmark::HeadingLevel::H2,
+            id: Some(place(n).into()),
+            classes: Vec::new(),
+            attrs: Vec::new(),
+        });
+        d.text(&heading);
+        d.end(pulldown_cmark::TagEnd::Heading(
+            pulldown_cmark::HeadingLevel::H2,
+        ));
         match &e.body {
             Body::Short(links) => {
                 d.start(pulldown_cmark::Tag::Paragraph);
@@ -682,11 +726,7 @@ pub fn render(guide: &Guide, name: &str, time: Duration, budget: usize, width: u
                     if k > 0 {
                         d.push(pulldown_cmark::Event::HardBreak);
                     }
-                    styled_line(&mut d, &l.text);
-                    let t = target(l.to);
-                    if !t.is_empty() {
-                        d.styled(&format!("  → {t}"), Look::Emphasis);
-                    }
+                    linked(&mut d, &l.text, l.to, "  → ");
                 }
                 d.end(pulldown_cmark::TagEnd::Paragraph);
             }
@@ -710,27 +750,28 @@ pub fn render(guide: &Guide, name: &str, time: Duration, budget: usize, width: u
                         if k > 0 {
                             d.text(" · ");
                         }
-                        styled_line(&mut d, &l.text);
-                        d.styled(&format!(" {}", target(l.to)), Look::Emphasis);
+                        linked(&mut d, &l.text, l.to, " ");
                     }
                     d.end(pulldown_cmark::TagEnd::Paragraph);
                 }
             }
         }
         let up = e.parent.filter(|p| number.contains_key(p));
-        if up.is_some() || e.previous.is_some() || e.next.is_some() {
-            let mut parts = Vec::new();
-            if e.previous.is_some() {
-                parts.push(format!("previous {}", target(e.previous)));
-            }
-            if up.is_some() {
-                parts.push(format!("up {}", target(up)));
-            }
-            if e.next.is_some() {
-                parts.push(format!("next {}", target(e.next)));
-            }
+        let ways = [("previous", e.previous), ("up", up), ("next", e.next)];
+        if ways.iter().any(|w| w.1.is_some()) {
             d.start(pulldown_cmark::Tag::Paragraph);
-            d.styled(&parts.join(" · "), Look::Emphasis);
+            let mut first = true;
+            for (word, to) in ways.iter().filter(|w| w.1.is_some()) {
+                if !first {
+                    d.styled(" · ", Look::Emphasis);
+                }
+                first = false;
+                let word = vec![Span {
+                    text: (*word).into(),
+                    ..Span::default()
+                }];
+                linked(&mut d, &word, *to, " ");
+            }
             d.end(pulldown_cmark::TagEnd::Paragraph);
         }
     }
@@ -738,7 +779,7 @@ pub fn render(guide: &Guide, name: &str, time: Duration, budget: usize, width: u
         d.paragraph("Not all of the guide was read: see the problems at the top.");
     }
     let was_cut = d.cut;
-    let mut doc = markdown::from_events("", d.events, time, budget);
+    let mut doc = markdown::from_events_linked(d.events, time, budget);
     if was_cut || guide.cut {
         doc.mark_cut();
     }
@@ -931,6 +972,50 @@ mod tests {
         assert!(t.contains("Contents: 1 menu, 3 entries"), "{t}");
         assert!(t.contains("Two ► arrow"), "{t}");
         assert!(t.contains("See also: Two() §3"), "{t}");
+    }
+
+    #[test]
+    fn every_link_is_a_jump_to_its_entry() {
+        let g = parse(&small(), TIME).unwrap();
+        let doc = render(&g, "x.ng", TIME, 1 << 24, 100);
+        let jumps: Vec<(String, &str)> = doc
+            .jumps()
+            .iter()
+            .map(|j| {
+                let text: String = doc
+                    .line(j.line)
+                    .chars()
+                    .skip(j.start)
+                    .take(j.end - j.start)
+                    .collect();
+                (text, &*j.to)
+            })
+            .collect();
+        // The menu, the two lines of the short entry, the see-also, and the
+        // "up" of the two long entries.
+        assert_eq!(
+            jumps,
+            [
+                ("Functions  → §1".to_string(), "e1"),
+                ("One()  → §2".to_string(), "e2"),
+                ("Two()  → §3".to_string(), "e3"),
+                ("Two() §3".to_string(), "e3"),
+                ("up §1".to_string(), "e1"),
+                ("up §1".to_string(), "e1"),
+            ]
+        );
+        for n in 1..=3 {
+            let line = doc.place(&place(n)).expect("each entry is a place");
+            assert!(doc.line(line).starts_with(&format!("§{n}")), "{n}");
+        }
+        // A link to nowhere is no jump.
+        let mut g = g;
+        if let Body::Short(links) = &mut g.entries[0].body {
+            links[0].to = Some(12345);
+        }
+        let doc = render(&g, "x.ng", TIME, 1 << 24, 100);
+        assert_eq!(doc.jumps().len(), 5);
+        assert!(doc.jumps().iter().all(|j| doc.place(&j.to).is_some()));
     }
 
     #[test]

@@ -11,7 +11,8 @@ of each version are on
 
 - Norton Guides (`.ng`), the help files of DOS and Clipper, open in the
   viewer as a document: the menus, then each entry numbered (`§12`), with
-  its links and its see-also pointing to those numbers. [The viewer](viewer.md)
+  its links and its see-also pointing to those numbers. Tab chooses a link,
+  Enter or a click follows it, Backspace goes back. [The viewer](viewer.md)
 
 ## 0.8.0
 

@@ -163,6 +163,12 @@ impl App {
             Spot::Link(id) => {
                 if let Some(help) = &mut self.help {
                     help.follow(id);
+                } else if let Some(v) = &mut self.viewer
+                    && !double
+                {
+                    // The second click of a double one would follow the
+                    // link that the first one brought under the pointer.
+                    v.click_jump(id);
                 }
             }
             Spot::Scroll => {}
@@ -978,6 +984,34 @@ mod tests {
             .expect("a link on screen");
         click(&mut app, spot);
         assert_ne!(app.help.as_ref().unwrap().topic, topic);
+    }
+
+    #[test]
+    fn a_click_follows_a_link_of_a_guide_and_the_footer_goes_back() {
+        let (tmp, mut app) = sample();
+        write(
+            tmp.path().join("a.ng"),
+            crate::viewer::ng::test_guides::small(),
+        )
+        .unwrap();
+        app.apply(Command::Relog);
+        app.focus = Focus::Files;
+        app.file_state.select(Some(0));
+        app.apply(Command::View);
+        let screen = draw(&mut app);
+        let v = app.viewer.as_ref().expect("viewing");
+        assert!(v.path.ends_with("a.ng"), "{:?}", v.path);
+        let y = screen
+            .iter()
+            .position(|l| l.contains("Functions"))
+            .expect("the menu on screen");
+        let before = v.top;
+        click(&mut app, find(&screen, "Functions", y));
+        let v = app.viewer.as_ref().unwrap();
+        assert_ne!(v.top, before, "to the entry");
+        let screen = draw(&mut app);
+        click(&mut app, find(&screen, "Backspace", H as usize - 2));
+        assert_eq!(app.viewer.as_ref().unwrap().top, before);
     }
 
     #[test]
