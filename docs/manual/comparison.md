@@ -17,6 +17,11 @@ mine: on Windows, ZTreeWin is well worth its license:
 [ztree.com](https://www.ztree.com/), and its users'
 [forum](https://groups.io/g/ZTreeWin).
 
+The viewer reads Norton Guides, the help files of DOS and Clipper, thanks to
+Dave Pearson, who worked out their format in the 1990s and has kept them
+readable ever since:
+[davep.org/norton-guides](https://www.davep.org/norton-guides/).
+
 ## Other file managers for the terminal
 
 There are many good file managers for the terminal, and most people who try

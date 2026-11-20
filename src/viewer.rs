@@ -10,6 +10,7 @@ pub mod line_filter;
 pub mod lines;
 pub mod log;
 pub mod markdown;
+pub mod ng;
 pub mod office;
 mod parquet_pages;
 pub mod patch;
@@ -352,6 +353,8 @@ pub struct Viewer {
     notebook: bool,
     /// The file is an Office document, shown as a document (see `office`).
     office: Option<office::Kind>,
+    /// The file is a Norton Guide (see `ng`), shown as a document.
+    guide: bool,
     /// The file is an executable, a library or an object (see `binaries`).
     exe: bool,
     /// The file is a certificate or a key (see `certs`); in DER, it has no
@@ -401,6 +404,19 @@ struct Follow {
 /// a FIFO put in its place would block the open, and so the screen, until
 /// someone wrote to it. On Unix the open does not wait (`O_NONBLOCK`, which
 /// changes nothing for a regular file), and the check is on what was opened.
+/// A whole regular file, refused when it is over `max` bytes.
+fn read_bounded(path: &Path, max: u64) -> Result<Vec<u8>, String> {
+    let file = open_regular(path).map_err(|e| format!("Cannot read the file: {e}"))?;
+    let mut data = Vec::new();
+    file.take(max + 1)
+        .read_to_end(&mut data)
+        .map_err(|e| format!("Cannot read the file: {e}"))?;
+    if data.len() as u64 > max {
+        return Err(format!("Over {} MiB: too big to read", max >> 20));
+    }
+    Ok(data)
+}
+
 pub(crate) fn open_regular(path: &Path) -> io::Result<File> {
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
@@ -1054,6 +1070,7 @@ impl Viewer {
         self.md_file = new.md_file;
         self.notebook = new.notebook;
         self.office = new.office;
+        self.guide = new.guide;
         self.exe = new.exe;
         self.cert = new.cert;
         self.cert_der = new.cert_der;
@@ -1503,7 +1520,8 @@ impl Viewer {
         let shown_name = name.as_deref().unwrap_or(&path);
         v.notebook = jupyter::is_notebook(shown_name);
         v.office = (!failed).then(|| office::kind(shown_name)).flatten();
-        v.exe = !failed && found.binary && binaries::is_binary(&v.data);
+        v.guide = !failed && ng::is_guide(shown_name, &v.data);
+        v.exe = !failed && !v.guide && found.binary && binaries::is_binary(&v.data);
         v.cert = !failed && !v.exe && certs::detect(shown_name, &v.data);
         v.cert_der = v.cert && found.binary;
         v.md_file = !failed && !found.binary && (markdown::is_markdown(shown_name) || v.notebook);
@@ -1797,6 +1815,9 @@ impl Viewer {
         if let Some(kind) = self.office {
             return self.render_office(kind);
         }
+        if self.guide {
+            return self.render_guide();
+        }
         if self.exe {
             return self.render_binary();
         }
@@ -1951,7 +1972,58 @@ impl Viewer {
     /// A document with no text of its own (Office, an executable): `T` has no
     /// source to show, and `H` goes to the bytes.
     fn no_source(&self) -> bool {
-        self.office.is_some() || self.exe || self.cert_der
+        self.office.is_some() || self.guide || self.exe || self.cert_der
+    }
+
+    /// A Norton Guide as a document: from the bytes read when they are all
+    /// of it, else (with V) from the file, up to `ng::MAX_SIZE`.
+    fn render_guide(&mut self) -> bool {
+        let autoview = !self.load.c_parsers;
+        let (time, budget, width) = (
+            self.load.limits.time,
+            self.load.limits.output.saturating_mul(16).max(16 << 20),
+            self.content_width(),
+        );
+        let name = self
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let read = if !self.cut {
+            Ok(None)
+        } else if self.on_disk && !autoview && self.compression.is_none() {
+            read_bounded(&self.path, ng::MAX_SIZE).map(Some)
+        } else {
+            if self.note.is_none() {
+                self.note = Some("Too big to read here: V shows it as a guide".into());
+            }
+            return false;
+        };
+        let data = match read {
+            Ok(Some(d)) => d,
+            Ok(None) => std::mem::take(&mut self.data),
+            Err(why) => {
+                self.note.get_or_insert(why);
+                return false;
+            }
+        };
+        let result = crate::panic_guard::catch(|| {
+            ng::parse(&data, time).map(|g| ng::render(&g, &name, time, budget, width))
+        });
+        if !self.cut {
+            self.data = data;
+        }
+        match result {
+            Some(Ok(doc)) => self.md = Some(doc),
+            Some(Err(why)) => {
+                self.note.get_or_insert(why);
+            }
+            None => {
+                self.note
+                    .get_or_insert_with(|| "Could not read this guide: showing the bytes".into());
+            }
+        }
+        self.md.is_some()
     }
 
     pub fn limit(&self) -> u64 {
@@ -2243,6 +2315,7 @@ impl Viewer {
             md_file: false,
             notebook: false,
             office: None,
+            guide: false,
             exe: false,
             cert: false,
             cert_der: false,
@@ -6836,6 +6909,39 @@ new mode 100755
         press(&mut v, KeyCode::Char('r'));
         assert_eq!(v.line_count(), 1);
         assert!(!v.text_changed());
+    }
+
+    #[test]
+    fn a_norton_guide_opens_as_a_document() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("small.ng");
+        std::fs::write(&path, ng::test_guides::small()).unwrap();
+        let mut v = Viewer::open(path.clone(), LOAD).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        let doc = v.md.as_ref().unwrap();
+        let lines: Vec<String> = (0..doc.line_count())
+            .map(|i| doc.line(i).to_string())
+            .collect();
+        assert!(lines.iter().any(|l| l == "Small guide"), "{lines:?}");
+        assert!(lines.iter().any(|l| l.contains("§2 One()")), "{lines:?}");
+        // No text source: H goes to the bytes and back.
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Hex);
+        press(&mut v, KeyCode::Char('h'));
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // In Autoview too, being small.
+        let v = Viewer::open(path, LoadOptions::autoview()).unwrap();
+        assert_eq!(v.mode, ViewMode::Rendered);
+        // The name alone is not enough: without the signature, the bytes.
+        let bad = tmp.path().join("b.ng");
+        std::fs::write(&bad, b"not a guide at all").unwrap();
+        let v = Viewer::open(bad, LOAD).unwrap();
+        assert_ne!(v.mode, ViewMode::Rendered);
+        // The signature alone is not enough either.
+        let other = tmp.path().join("small.bin");
+        std::fs::write(&other, ng::test_guides::small()).unwrap();
+        let v = Viewer::open(other, LOAD).unwrap();
+        assert_ne!(v.mode, ViewMode::Rendered);
     }
 
     #[test]
