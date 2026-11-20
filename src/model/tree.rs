@@ -696,6 +696,11 @@ impl Tree {
         }
     }
 
+    /// How many nodes there are, counting the ones a release left loose.
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+
     /// Changes whenever something read changes: a directory read again, a
     /// file tagged.
     pub fn version(&self) -> u64 {

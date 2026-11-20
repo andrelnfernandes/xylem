@@ -13,7 +13,12 @@
 //! ones on screen. Nothing here reads a disk: only names already in memory.
 
 use std::cmp::{Ordering, Reverse};
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
+use std::path::MAIN_SEPARATOR;
+use std::time::{Duration, Instant};
+
+use crate::model::tree::{NodeId, ROOT, Tree};
+use crate::pane::FileRef;
 
 /// The longest query, in characters: what is typed past it is ignored.
 pub const MAX_QUERY: usize = 256;
@@ -263,6 +268,9 @@ pub struct Rank {
     pub score: i32,
     pub len: usize,
     pub order: usize,
+    /// What matched (a folder's id, or an index into the file list): not part
+    /// of the ranking, where `order` already tells any two apart.
+    pub id: usize,
 }
 
 impl Ord for Rank {
@@ -304,15 +312,339 @@ impl Top {
         }
     }
 
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.heap.len()
     }
 
+    #[cfg(test)]
     /// The ranks kept, the best first.
     pub fn into_sorted(self) -> Vec<Rank> {
         let mut v: Vec<Rank> = self.heap.into_iter().map(|r| r.0).collect();
         v.sort_unstable_by(|a, b| b.cmp(a));
         v
+    }
+
+    /// The ranks kept so far, the best first, leaving them here.
+    pub fn best(&self) -> Vec<Rank> {
+        let mut v: Vec<Rank> = self.heap.iter().map(|r| r.0).collect();
+        v.sort_unstable_by(|a, b| b.cmp(a));
+        v
+    }
+}
+
+/// The results a pass keeps, at most.
+pub const KEEP: usize = 500;
+
+/// How many items a pass looks at between two looks at the clock.
+const CLOCK_EVERY: usize = 64;
+
+/// What a pass looks through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Source {
+    /// The folders of the tree below the root, by their path from it.
+    Folders,
+    /// The files of the window's list: by name alone (`None`), or by the
+    /// path from the folder `base` (a Branch, or the root for the Showall).
+    Files { base: Option<NodeId> },
+}
+
+/// Where a pass is.
+enum Cursor {
+    /// Walking the tree: each folder with the length of the path before its
+    /// name, in `buf`, which is cut back to it.
+    Walk {
+        stack: Vec<(NodeId, usize)>,
+        buf: String,
+    },
+    /// Items `next..` of the file list.
+    Range { next: usize },
+    /// Only these items (what an earlier pass matched), in their order.
+    Kept { ids: Vec<usize>, next: usize },
+}
+
+/// One search over a source, done a slice at a time ([`Pass::step`]), so that
+/// the screen and the keys go on between slices. It keeps the best
+/// [`KEEP`] and the ids of everything that matched, for a narrower query to
+/// look only among them ([`Pass::into_narrowed`]).
+pub struct Pass {
+    query: Query,
+    source: Source,
+    cursor: Cursor,
+    top: Top,
+    matched: Vec<usize>,
+    seen: usize,
+    total: usize,
+    done: bool,
+    /// Hidden folders are walked (the tree shows them).
+    hidden: bool,
+    /// The path of each folder whose files were seen, ending in a separator.
+    dirs: HashMap<NodeId, String>,
+    text: String,
+    scratch: Vec<char>,
+}
+
+impl Pass {
+    /// A pass over the whole source. An empty query finds nothing.
+    pub fn new(query: Query, source: Source, tree: &Tree, files: &[FileRef]) -> Pass {
+        let hidden = tree.show_hidden;
+        let (cursor, total) = match source {
+            Source::Folders => {
+                let stack = tree
+                    .node(ROOT)
+                    .children
+                    .iter()
+                    .rev()
+                    .filter(|&&c| hidden || !tree.node(c).hidden)
+                    .map(|&c| (c, 0))
+                    .collect();
+                let buf = String::new();
+                (
+                    Cursor::Walk { stack, buf },
+                    tree.node_count().saturating_sub(1),
+                )
+            }
+            Source::Files { .. } => (Cursor::Range { next: 0 }, files.len()),
+        };
+        Pass::with(query, source, cursor, total, hidden)
+    }
+
+    /// `query` keeps only what this pass kept, and this pass is over: the
+    /// next one can look only among its matches ([`Pass::into_narrowed`]).
+    pub fn narrows_to(&self, query: &Query) -> bool {
+        self.done && !self.query.is_empty() && query.narrows(&self.query)
+    }
+
+    /// A pass over what `before` matched, for a query it narrows to (see
+    /// [`Pass::narrows_to`]).
+    pub fn into_narrowed(before: Pass, query: Query) -> Pass {
+        debug_assert!(before.narrows_to(&query));
+        let total = before.matched.len();
+        let cursor = Cursor::Kept {
+            ids: before.matched,
+            next: 0,
+        };
+        Pass::with(query, before.source, cursor, total, before.hidden)
+    }
+
+    fn with(query: Query, source: Source, cursor: Cursor, total: usize, hidden: bool) -> Pass {
+        let done = query.is_empty();
+        Pass {
+            query,
+            source,
+            cursor,
+            top: Top::new(KEEP),
+            matched: Vec::new(),
+            seen: 0,
+            total,
+            done,
+            hidden,
+            dirs: HashMap::new(),
+            text: String::new(),
+            scratch: Vec::new(),
+        }
+    }
+
+    pub fn query(&self) -> &Query {
+        &self.query
+    }
+
+    pub fn source(&self) -> Source {
+        self.source
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.done
+    }
+
+    /// How many items were looked at, and about how many there are (the
+    /// tree's count includes folders released from it, so it is a ceiling).
+    pub fn progress(&self) -> (usize, usize) {
+        (self.seen, self.total.max(self.seen))
+    }
+
+    /// How many items matched so far: more than [`Pass::best`] keeps.
+    pub fn found(&self) -> usize {
+        self.matched.len()
+    }
+
+    /// The best matches so far, the best first.
+    pub fn best(&self) -> Vec<Rank> {
+        self.top.best()
+    }
+
+    /// Goes on for about `budget`, or to the end.
+    pub fn step(&mut self, tree: &Tree, files: &[FileRef], budget: Duration) {
+        let start = Instant::now();
+        let mut count = 0;
+        while !self.done {
+            count += 1;
+            if count % CLOCK_EVERY == 0 && start.elapsed() >= budget {
+                return;
+            }
+            let (id, order, name) = match &mut self.cursor {
+                Cursor::Walk { stack, buf } => {
+                    let Some((id, at)) = stack.pop() else {
+                        self.done = true;
+                        break;
+                    };
+                    buf.truncate(at);
+                    if at > 0 {
+                        buf.push(MAIN_SEPARATOR);
+                    }
+                    let name = buf.len();
+                    buf.push_str(&tree.node(id).name.to_string_lossy());
+                    let here = buf.len();
+                    let hidden = self.hidden;
+                    stack.extend(
+                        tree.node(id)
+                            .children
+                            .iter()
+                            .rev()
+                            .filter(|&&c| hidden || !tree.node(c).hidden)
+                            .map(|&c| (c, here)),
+                    );
+                    (id, self.seen, name)
+                }
+                Cursor::Range { next } => {
+                    let i = *next;
+                    let Some(&f) = files.get(i) else {
+                        self.done = true;
+                        break;
+                    };
+                    *next += 1;
+                    let Some(name) =
+                        file_text(tree, f, self.source, &mut self.dirs, &mut self.text)
+                    else {
+                        self.seen += 1;
+                        continue;
+                    };
+                    (i, i, name)
+                }
+                Cursor::Kept { ids, next } => {
+                    let order = *next;
+                    let Some(&id) = ids.get(order) else {
+                        self.done = true;
+                        break;
+                    };
+                    *next += 1;
+                    let name = match self.source {
+                        Source::Folders => Some(folder_text(tree, id, &mut self.text)),
+                        Source::Files { .. } => match files.get(id) {
+                            Some(&f) => {
+                                file_text(tree, f, self.source, &mut self.dirs, &mut self.text)
+                            }
+                            None => None,
+                        },
+                    };
+                    let Some(name) = name else {
+                        self.seen += 1;
+                        continue;
+                    };
+                    (id, order, name)
+                }
+            };
+            self.seen += 1;
+            let text = match &self.cursor {
+                Cursor::Walk { buf, .. } => buf.as_str(),
+                _ => self.text.as_str(),
+            };
+            if let Some(m) = self.query.matches(text, name, &mut self.scratch) {
+                self.matched.push(id);
+                self.top.push(Rank {
+                    score: m.score,
+                    len: self.scratch.len(),
+                    order,
+                    id,
+                });
+            }
+        }
+    }
+}
+
+/// The text a folder is searched and shown by: its path from the root, the
+/// root left out. Returns where its name starts.
+pub fn folder_text(tree: &Tree, id: NodeId, buf: &mut String) -> usize {
+    let mut names = Vec::new();
+    let mut cur = Some(id);
+    while let Some(n) = cur {
+        let node = tree.node(n);
+        if node.parent.is_none() {
+            break;
+        }
+        names.push(&node.name);
+        cur = node.parent;
+    }
+    buf.clear();
+    let mut name = 0;
+    for (i, n) in names.iter().rev().enumerate() {
+        if i > 0 {
+            buf.push(MAIN_SEPARATOR);
+        }
+        name = buf.len();
+        buf.push_str(&n.to_string_lossy());
+    }
+    name
+}
+
+/// The path of folder `dir` from `base`, ending in a separator (empty for
+/// `base` itself).
+fn dir_prefix(tree: &Tree, dir: NodeId, base: NodeId) -> String {
+    let mut names = Vec::new();
+    let mut cur = Some(dir);
+    while let Some(n) = cur {
+        let node = tree.node(n);
+        if n == base || node.parent.is_none() {
+            break;
+        }
+        names.push(&node.name);
+        cur = node.parent;
+    }
+    let mut s = String::new();
+    for n in names.iter().rev() {
+        s.push_str(&n.to_string_lossy());
+        s.push(MAIN_SEPARATOR);
+    }
+    s
+}
+
+/// The text a file of the list is searched and shown by, in `buf`, with
+/// where its name starts; `None` if `f` is no longer in the tree.
+fn file_text(
+    tree: &Tree,
+    f: FileRef,
+    source: Source,
+    dirs: &mut HashMap<NodeId, String>,
+    buf: &mut String,
+) -> Option<usize> {
+    let entry = tree.node(f.dir).files.get(f.idx)?;
+    buf.clear();
+    if let Source::Files { base: Some(base) } = source {
+        let prefix = dirs
+            .entry(f.dir)
+            .or_insert_with(|| dir_prefix(tree, f.dir, base));
+        buf.push_str(prefix);
+    }
+    let name = buf.len();
+    buf.push_str(&entry.name.to_string_lossy());
+    Some(name)
+}
+
+/// The text of a result (`id` from its [`Rank`]), to show it, with where its
+/// name starts; `None` if it is no longer there.
+pub fn result_text(
+    tree: &Tree,
+    files: &[FileRef],
+    source: Source,
+    id: usize,
+    buf: &mut String,
+) -> Option<usize> {
+    match source {
+        Source::Folders => (id < tree.node_count()).then(|| folder_text(tree, id, buf)),
+        Source::Files { .. } => {
+            let f = *files.get(id)?;
+            file_text(tree, f, source, &mut HashMap::new(), buf)
+        }
     }
 }
 
@@ -347,6 +679,7 @@ mod tests {
                     score: found.score,
                     len: t.chars().count(),
                     order,
+                    id: order,
                 });
             }
         }
@@ -466,6 +799,7 @@ mod tests {
                 score,
                 len: 1,
                 order,
+                id: order,
             });
         }
         assert_eq!(top.len(), 3);
@@ -475,6 +809,103 @@ mod tests {
             .map(|r| (r.score, r.order))
             .collect();
         assert_eq!(kept, [(9, 2), (9, 5), (7, 3)]);
+    }
+
+    /// A virtual tree of these folders.
+    fn folders(dirs: &[&str]) -> Tree {
+        let listing = dirs
+            .iter()
+            .map(|d| (std::path::PathBuf::from(d), None))
+            .collect();
+        Tree::from_listing(std::path::PathBuf::from("/root"), listing)
+    }
+
+    /// The folders a whole pass finds, the best first.
+    fn found(tree: &Tree, query: &str) -> Vec<String> {
+        let mut pass = Pass::new(Query::new(query), Source::Folders, tree, &[]);
+        pass.step(tree, &[], Duration::MAX);
+        assert!(pass.is_done());
+        texts(tree, &pass)
+    }
+
+    fn texts(tree: &Tree, pass: &Pass) -> Vec<String> {
+        let mut buf = String::new();
+        pass.best()
+            .iter()
+            .map(|r| {
+                result_text(tree, &[], Source::Folders, r.id, &mut buf).unwrap();
+                buf.replace(MAIN_SEPARATOR, "/")
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_pass_finds_folders_by_their_path_from_the_root() {
+        let tree = folders(&["docs/plans", "src/model", "src/view", "README"]);
+        assert_eq!(found(&tree, "dp"), ["docs/plans"]);
+        assert_eq!(found(&tree, "src"), ["src", "src/view", "src/model"]);
+        // The name counts more than the folders above it.
+        assert_eq!(found(&tree, "s")[0], "src");
+        assert!(found(&tree, "").is_empty(), "an empty query finds nothing");
+        assert!(found(&tree, "zz").is_empty());
+    }
+
+    #[test]
+    fn a_pass_in_slices_finds_what_a_whole_pass_finds() {
+        let all: Vec<String> = paths(3000).into_iter().map(|(p, _)| p).collect();
+        let dirs: Vec<&str> = all.iter().map(String::as_str).collect();
+        let tree = folders(&dirs);
+        for query in ["cfgxy", "src view", "d"] {
+            let mut whole = Pass::new(Query::new(query), Source::Folders, &tree, &[]);
+            whole.step(&tree, &[], Duration::MAX);
+            let mut sliced = Pass::new(Query::new(query), Source::Folders, &tree, &[]);
+            let mut slices = 0;
+            while !sliced.is_done() {
+                // No time at all: a slice is the items between two looks
+                // at the clock.
+                sliced.step(&tree, &[], Duration::ZERO);
+                slices += 1;
+            }
+            assert!(slices > 10, "{query}: {slices} slices");
+            assert_eq!(sliced.best(), whole.best(), "{query}");
+            assert_eq!(sliced.found(), whole.found(), "{query}");
+            let (seen, total) = sliced.progress();
+            assert_eq!(seen, tree.node_count() - 1);
+            assert_eq!(total, seen);
+        }
+    }
+
+    #[test]
+    fn a_narrower_query_finds_among_the_matches_what_a_new_pass_finds() {
+        let all: Vec<String> = paths(3000).into_iter().map(|(p, _)| p).collect();
+        let dirs: Vec<&str> = all.iter().map(String::as_str).collect();
+        let tree = folders(&dirs);
+        for (before, after) in [("s", "sr"), ("do", "doc"), ("x", "x d"), ("im", "imaG")] {
+            let mut first = Pass::new(Query::new(before), Source::Folders, &tree, &[]);
+            first.step(&tree, &[], Duration::MAX);
+            let query = Query::new(after);
+            assert!(first.narrows_to(&query), "{before} → {after}");
+            let looked = first.found();
+            let mut narrow = Pass::into_narrowed(first, query);
+            narrow.step(&tree, &[], Duration::MAX);
+            assert_eq!(narrow.progress().0, looked, "only the earlier matches");
+            assert_eq!(texts(&tree, &narrow), found(&tree, after), "{after}");
+        }
+        // Not when the text changed before its end, or the pass is not over.
+        let mut pass = Pass::new(Query::new("sr"), Source::Folders, &tree, &[]);
+        assert!(!pass.narrows_to(&Query::new("src")), "not over");
+        pass.step(&tree, &[], Duration::MAX);
+        assert!(!pass.narrows_to(&Query::new("s")));
+        assert!(!pass.narrows_to(&Query::new("xsr")));
+        assert!(pass.narrows_to(&Query::new("src")));
+    }
+
+    #[test]
+    fn hidden_folders_are_found_only_when_the_tree_shows_them() {
+        let mut tree = folders(&[".cache/lib", "src/lib"]);
+        assert_eq!(found(&tree, "lib"), ["src/lib", ".cache/lib"]);
+        tree.show_hidden = false;
+        assert_eq!(found(&tree, "lib"), ["src/lib"], "nor what is inside them");
     }
 
     /// Paths like those of a big tree: `n` of them, deterministic.
@@ -551,6 +982,7 @@ mod tests {
                         score: x.score,
                         len: p.len(),
                         order,
+                        id: order,
                     });
                 }
             }
@@ -559,6 +991,162 @@ mod tests {
                 "{n:>9} names  {query:<14} {found:>8} matches  {:>7.1} ms  best: {}",
                 start.elapsed().as_secs_f64() * 1000.0,
                 best.first().map_or("", |r| all[r.order].0.as_str())
+            );
+        }
+    }
+
+    /// The cost of getting each folder's path out of the tree, three ways:
+    /// `XY_FUZZY_N=2000000 cargo test fuzzy::tests::tree_paths_timing -- --ignored --nocapture`
+    /// (with optimizations for real numbers).
+    #[test]
+    #[ignore]
+    fn tree_paths_timing() {
+        use crate::model::tree::{NodeId, ROOT, Tree};
+        use std::path::PathBuf;
+        use std::time::Instant;
+
+        let n: usize = std::env::var("XY_FUZZY_N")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(100_000);
+        // Folders only: each synthetic path becomes a chain of folders.
+        let listing = paths(n)
+            .into_iter()
+            .map(|(p, _)| (PathBuf::from(p.replace("file_", "d")), None))
+            .collect();
+        let start = Instant::now();
+        let tree = Tree::from_listing(PathBuf::from("/root"), listing);
+        let built = start.elapsed();
+
+        // Every folder below the root, in tree order.
+        let mut ids: Vec<NodeId> = Vec::new();
+        let mut stack: Vec<NodeId> = tree.node(ROOT).children.iter().rev().copied().collect();
+        while let Some(id) = stack.pop() {
+            ids.push(id);
+            stack.extend(tree.node(id).children.iter().rev());
+        }
+        let ms = |t: std::time::Duration| t.as_secs_f64() * 1000.0;
+        println!(
+            "{:>9} folders (tree built in {:.0} ms)",
+            ids.len(),
+            ms(built)
+        );
+
+        let root_len = tree.path(ROOT).as_os_str().len() + 1;
+        let search =
+            |q: &Query, text: &str, name: usize, scratch: &mut Vec<char>, top: &mut Top, order| {
+                if let Some(x) = q.matches(text, name, scratch) {
+                    top.push(Rank {
+                        score: x.score,
+                        len: text.len(),
+                        order,
+                        id: order,
+                    });
+                }
+            };
+
+        for query in ["cfgxy", "rdme", "zzzz"] {
+            let q = Query::new(query);
+            let mut scratch = Vec::new();
+
+            // (a) Tree::path for each folder, made text.
+            let start = Instant::now();
+            let mut top = Top::new(500);
+            for (order, &id) in ids.iter().enumerate() {
+                let full = tree.path(id);
+                let text = full.to_string_lossy();
+                let text = text.get(root_len..).unwrap_or("");
+                let name = text.rfind('/').map_or(0, |k| k + 1);
+                search(&q, text, name, &mut scratch, &mut top, order);
+            }
+            let a = start.elapsed();
+
+            // (b) One walk, the prefix kept in a buffer.
+            let start = Instant::now();
+            let mut top = Top::new(500);
+            let mut buf = String::new();
+            let mut order = 0;
+            // (folder, length of the buffer before its name)
+            let mut stack: Vec<(NodeId, usize)> = tree
+                .node(ROOT)
+                .children
+                .iter()
+                .rev()
+                .map(|&c| (c, 0))
+                .collect();
+            while let Some((id, at)) = stack.pop() {
+                buf.truncate(at);
+                if at > 0 {
+                    buf.push('/');
+                }
+                let name = buf.len();
+                buf.push_str(&tree.node(id).name.to_string_lossy());
+                search(&q, &buf, name, &mut scratch, &mut top, order);
+                order += 1;
+                let here = buf.len();
+                stack.extend(tree.node(id).children.iter().rev().map(|&c| (c, here)));
+            }
+            let b = start.elapsed();
+
+            // (c) The paths made once and kept; then only the search.
+            let start = Instant::now();
+            let kept: Vec<(String, usize)> = ids
+                .iter()
+                .map(|&id| {
+                    let full = tree.path(id);
+                    let text = full
+                        .to_string_lossy()
+                        .get(root_len..)
+                        .unwrap_or("")
+                        .to_string();
+                    let name = text.rfind('/').map_or(0, |k| k + 1);
+                    (text, name)
+                })
+                .collect();
+            let made = start.elapsed();
+            let bytes: usize = kept.iter().map(|(s, _)| s.capacity()).sum::<usize>()
+                + kept.capacity() * std::mem::size_of::<(String, usize)>();
+            let start = Instant::now();
+            let mut top = Top::new(500);
+            for (order, (text, name)) in kept.iter().enumerate() {
+                search(&q, text, *name, &mut scratch, &mut top, order);
+            }
+            let c = start.elapsed();
+
+            println!(
+                "  {query:<6} (a) path() {:>7.1} ms   (b) walk {:>7.1} ms   (c) make {:>7.1} ms + search {:>7.1} ms, {:>5.0} MB kept",
+                ms(a),
+                ms(b),
+                ms(made),
+                ms(c),
+                bytes as f64 / 1e6
+            );
+        }
+
+        // The pass itself, in the slices of the `|` prompt (40 ms): how much
+        // the first slice sees, and the whole pass.
+        for query in ["cfgxy", "rdme", "f", "f d"] {
+            let start = Instant::now();
+            let mut pass = Pass::new(Query::new(query), Source::Folders, &tree, &[]);
+            pass.step(&tree, &[], std::time::Duration::from_millis(40));
+            let first = start.elapsed();
+            let (seen, _) = pass.progress();
+            let mut slices = 1;
+            while !pass.is_done() {
+                pass.step(&tree, &[], std::time::Duration::from_millis(40));
+                slices += 1;
+            }
+            let whole = start.elapsed();
+            // Typing one more letter: only among the matches.
+            let found = pass.found();
+            let mut narrow = Pass::into_narrowed(pass, Query::new(&format!("{query}x")));
+            let start = Instant::now();
+            narrow.step(&tree, &[], std::time::Duration::MAX);
+            println!(
+                "  pass {query:<6} first slice {:>5.1} ms ({seen:>7} folders)   whole {:>6.1} ms in {slices:>2} slices, {found:>7} found   +x {:>6.1} ms",
+                ms(first),
+                ms(whole),
+                ms(start.elapsed())
             );
         }
     }

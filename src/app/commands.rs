@@ -232,6 +232,10 @@ impl App {
             self.pick_bookmark();
             return;
         }
+        if self.is_fuzzy() {
+            self.fuzzy_key(key);
+            return;
+        }
         if let Some(Prompt {
             kind: PromptKind::Treespec { origin },
             ..
@@ -559,6 +563,7 @@ impl App {
             }
             Command::ViewTagged => self.view_tagged(),
             Command::Treespec => self.start_treespec(),
+            Command::FuzzyFind => self.start_fuzzy(),
             Command::FileDisplay => self.cycle_display(),
             Command::NewDate { tagged } => self.prompt_new_date(tagged),
             Command::CreateArchive { tagged } => self.prompt_create_archive(tagged),

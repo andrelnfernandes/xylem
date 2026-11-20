@@ -61,7 +61,7 @@ impl App {
                 PromptKind::Filespec => "filespec",
                 PromptKind::Where { .. } => "sql",
                 PromptKind::ExportDuplicates => "duplicates",
-                PromptKind::Log | PromptKind::Treespec { .. } => "treespec",
+                PromptKind::Log | PromptKind::Treespec { .. } | PromptKind::Fuzzy(_) => "treespec",
                 PromptKind::Execute | PromptKind::BatchFile | PromptKind::BatchMask { .. } => {
                     "execute"
                 }
