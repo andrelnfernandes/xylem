@@ -127,6 +127,9 @@ pub struct Pane {
     pub tags_only: bool,
     /// Files listed in the file window, already filtered.
     pub files: Vec<FileRef>,
+    /// Goes up each time `files` is rebuilt: a `FileRef` kept from before
+    /// may point elsewhere after it.
+    pub files_built: u64,
     pub file_state: ListState,
     pub filespec: Filespec,
     /// W: a condition the files of the list must also meet.
@@ -265,6 +268,7 @@ impl Pane {
             view: FileView::Dir,
             tags_only: false,
             files: Vec::new(),
+            files_built: 0,
             file_state: ListState::default().with_selected(Some(0)),
             filespec: Filespec::default(),
             query: None,
@@ -1054,6 +1058,7 @@ impl Pane {
             sort.key_for(self.file(f), rank)
         });
         self.files = files.into_iter().map(|(f, _)| f).collect();
+        self.files_built += 1;
 
         let last = self.files.len().saturating_sub(1);
         let sel = self.file_state.selected().unwrap_or(0).min(last);

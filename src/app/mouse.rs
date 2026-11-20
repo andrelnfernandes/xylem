@@ -139,7 +139,7 @@ impl App {
             || self.content_job.as_ref().is_some_and(|(_, _, go)| *go)
     }
 
-    fn press(&mut self, code: KeyCode) {
+    pub(crate) fn press(&mut self, code: KeyCode) {
         self.handle_key(KeyEvent::new(code, KeyModifiers::NONE));
     }
 
@@ -617,6 +617,7 @@ impl App {
                 list.cursor = i;
                 self.press(KeyCode::Enter);
             }
+            Own::FuzzyResults => self.click_fuzzy(i, double),
             Own::SearchResults => {
                 if let Some(sb) = &mut self.search_box {
                     sb.selected = i;

@@ -52,6 +52,8 @@ pub(crate) enum PromptKind {
     Treespec {
         origin: NodeId,
     },
+    /// `|`: the fuzzy find, with its search going on.
+    Fuzzy(Box<Fuzzy>),
     /// New date: date and time for these paths.
     NewDate(Vec<PathBuf>),
     /// Batch: first the file to create, then the line mask.
@@ -123,7 +125,8 @@ impl PromptKind {
             | PromptKind::BookmarkJump
             | PromptKind::BookmarkSet
             | PromptKind::BookmarkName(_)
-            | PromptKind::Askpass { .. } => {
+            | PromptKind::Askpass { .. }
+            | PromptKind::Fuzzy(_) => {
                 return None;
             }
         })
@@ -238,6 +241,20 @@ impl Prompt {
 
     pub fn is_treespec(&self) -> bool {
         matches!(self.kind, PromptKind::Treespec { .. })
+    }
+
+    pub fn fuzzy(&self) -> Option<&Fuzzy> {
+        match &self.kind {
+            PromptKind::Fuzzy(f) => Some(f),
+            _ => None,
+        }
+    }
+
+    pub fn fuzzy_mut(&mut self) -> Option<&mut Fuzzy> {
+        match &mut self.kind {
+            PromptKind::Fuzzy(f) => Some(f),
+            _ => None,
+        }
     }
 
     pub fn is_rename_tagged(&self) -> bool {
@@ -729,6 +746,8 @@ impl App {
                 }
                 None => self.log(&text),
             },
+            // Its own keys close it (`fuzzy_key`): nothing is left to do.
+            PromptKind::Fuzzy(_) => Ok(()),
             PromptKind::SearchTagged { mut spec } => {
                 spec.text = text;
                 self.start_search(spec)

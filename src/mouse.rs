@@ -154,6 +154,8 @@ pub enum Own {
     History,
     /// The results of the search box (P).
     SearchResults,
+    /// The results of the fuzzy find (`|`).
+    FuzzyResults,
     /// The Usage view of a window (index into `App::panes`).
     Usage(usize),
     Duplicates(usize),
