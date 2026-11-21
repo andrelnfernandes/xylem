@@ -9,7 +9,7 @@ Spreadsheets, CSV, DBF, SQLite and Parquet open as a table (see [Tables](tables.
 | ↑ ↓ PgUp PgDn Home End | scroll |
 | ← → | scroll sideways |
 | `H` | next mode: text and hex; in a Markdown file, rendered, text and hex |
-| `O` | next encoding (UTF-8, CP850, 1252, CP437, UTF-16) |
+| `O` | next encoding (UTF-8, CP850, 1252, CP437, 1251, KOI8-R, UTF-16) |
 | `C` | syntax colors on or off |
 | `W` | soft wrap on or off |
 | `#` or `L` | line numbers on or off (in text mode) |
@@ -192,7 +192,7 @@ Some invisible characters change the direction of the text and can make code loo
 
 Xylem finds the encoding by itself, in this order: a decompressed file first, then a BOM (UTF-8, UTF-16 LE or BE), then UTF-16 without a BOM, then UTF-8. A file that is none of these is old text: Xylem guesses CP850 (DOS, Western Europe) or Windows-1252 by counting accented letters. Windows `.reg` exports are UTF-16 and open as plain text.
 
-**O** shows the file in the next encoding: UTF-8, CP850, Windows-1252, CP437, UTF-16 LE, UTF-16 BE, and back to UTF-8. The footer says which one, and the header shows its name when it is not UTF-8. If you pick UTF-16 on a file that opened in hex, it switches to text. Your choice stays after you edit the file and come back.
+**O** shows the file in the next encoding: UTF-8, CP850, Windows-1252, CP437, Windows-1251, KOI8-R, UTF-16 LE, UTF-16 BE, and back to UTF-8. The footer says which one, and the header shows its name when it is not UTF-8. If you pick UTF-16 on a file that opened in hex, it switches to text. Your choice stays after you edit the file and come back.
 
 To always use one encoding for old text files instead of the guess, set `legacy_charset` to `cp850`, `cp1252` or `cp437` (**K** on page 2 of the [configuration](configuration.md)). The default is `auto`.
 

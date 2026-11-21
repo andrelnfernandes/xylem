@@ -294,7 +294,7 @@ fn uptime(d: std::time::Duration) -> String {
 }
 
 /// Sizes in binary units: "512 bytes", "45.2 MiB", "15.5 GiB".
-fn human(n: u64) -> String {
+pub(crate) fn human(n: u64) -> String {
     const UNITS: [&str; 5] = ["KiB", "MiB", "GiB", "TiB", "PiB"];
     if n < 1024 {
         return format!("{n} bytes");

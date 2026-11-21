@@ -846,6 +846,9 @@ impl Builder {
                 self.flush(None);
                 self.leave();
                 self.need_blank = true;
+                // The paragraph after a quote is not one more of the quote's:
+                // a book keeps the blank row between them.
+                self.last_para = false;
             }
             TagEnd::CodeBlock | TagEnd::HtmlBlock | TagEnd::MetadataBlock(_) => self.end_raw(),
             TagEnd::List(_) => {
@@ -1177,11 +1180,16 @@ impl Doc {
                 break;
             }
             match item {
-                Item::Blank(_, true) if book.is_some_and(|b| !b.blocks) => {}
+                // In a book, paragraphs touch; in a quote (a poem, an
+                // epigraph) they keep their blank rows: stanzas apart.
+                Item::Blank(prefix, true)
+                    if book.is_some_and(|b| !b.blocks) && prefix.is_empty() => {}
                 Item::Blank(prefix, _) => {
                     let mut pieces = Vec::new();
                     deco(prefix, Kind::Marker, &mut pieces);
                     out.push(pieces, None);
+                    // After a blank row, a paragraph is not indented.
+                    after_para = false;
                 }
                 Item::Rule(prefix, source) => {
                     let mut pieces = Vec::new();
@@ -1251,7 +1259,12 @@ impl Doc {
                     let room = width.saturating_sub(prefix_width).max(MIN_TEXT);
                     let para = matches!(role, Role::ParaFirst | Role::ParaRest);
                     let indent = match book {
-                        Some(b) if !b.blocks && after_para && *role == Role::ParaFirst => {
+                        Some(b)
+                            if !b.blocks
+                                && after_para
+                                && *role == Role::ParaFirst
+                                && prefix_width == 0 =>
+                        {
                             b.indent.min(room / 4)
                         }
                         _ => 0,
@@ -1693,6 +1706,18 @@ mod tests {
         d.set_book(Some(style));
         d.layout(width);
         all(&mut d)
+    }
+
+    #[test]
+    fn a_quote_in_a_book_keeps_its_blank_rows_and_no_indent() {
+        let md = "Before.\n\n> First verse\n> second verse\n>\n> Next stanza\n\nAfter.\n";
+        let rows = as_book(md, 30, book(false, false));
+        let at = rows.iter().position(|r| r.contains("First verse")).unwrap();
+        assert_eq!(rows[at], "│ First verse second verse");
+        assert_eq!(rows[at + 1].trim_end(), "│");
+        assert_eq!(rows[at + 2], "│ Next stanza");
+        // After the blank row that ends the quote, no indent either.
+        assert_eq!(rows.last().map(String::as_str), Some("After."));
     }
 
     #[test]

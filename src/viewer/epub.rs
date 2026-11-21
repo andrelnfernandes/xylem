@@ -20,6 +20,8 @@ use super::markdown::{self, Doc};
 pub use super::package::Limits;
 use super::package::{Ev, MAX_DEPTH, Package, Xml, attr, resolve};
 
+pub mod fb2;
+
 /// Most events of the document.
 const MAX_EVENTS: usize = 4_000_000;
 /// Chapters read, at most, and entries of the contents.
@@ -198,7 +200,54 @@ pub fn render_with<R: Read + Seek>(
     late |= pkg.late();
     found.merge(&w.found);
     css_findings(&mut pkg, &opf, &mut found);
+    let cut = pkg.cut || late || w.d.cut;
+    Ok(assemble(
+        Front {
+            opf,
+            found,
+            encrypted: encrypted.len(),
+            toc,
+            w,
+            chapters: book_chapters,
+            cut,
+        },
+        limits,
+        width,
+        reading,
+    ))
+}
 
+/// What a book's own format gave, for [`assemble`]: what the book says of
+/// itself and carries, its contents, and its chapters written.
+struct Front {
+    opf: Opf,
+    found: Findings,
+    /// Parts encrypted (DRM).
+    encrypted: usize,
+    toc: Vec<Entry>,
+    w: Writer,
+    chapters: Vec<Chapter>,
+    /// Only the start was read.
+    cut: bool,
+}
+
+/// The two views of a book read: the report (the panel, the contents, the
+/// text) and the book to read (the title page, the text without its notes).
+fn assemble(
+    front: Front,
+    limits: Limits,
+    width: usize,
+    reading: &dyn Fn(Option<&str>) -> crate::reading::Summary,
+) -> Book {
+    let Front {
+        opf,
+        found,
+        encrypted,
+        toc,
+        mut w,
+        chapters: book_chapters,
+        cut,
+    } = front;
     let identifier = opf
         .meta
         .iter()
@@ -208,9 +257,9 @@ pub fn render_with<R: Read + Seek>(
 
     // What it says of itself, then the contents, then the text.
     let mut head = DocEvents::new(200_000);
-    panel(&mut head, &opf, &found, encrypted.len());
+    panel(&mut head, &opf, &found, encrypted);
     your_reading(&mut head, &summary);
-    if pkg.cut || late || w.d.cut {
+    if cut {
         head.paragraph("Only the start of the book was read: it is over the limits.");
     }
     head.rule();
@@ -230,7 +279,6 @@ pub fn render_with<R: Read + Seek>(
     }
     head.rule();
 
-    let cut = pkg.cut || late || w.d.cut;
     let chapter_events = std::mem::take(&mut w.d.events);
 
     // The book to read: the title page, then the text without the
@@ -271,7 +319,7 @@ pub fn render_with<R: Read + Seek>(
                 .and_then(|(p, f)| w.place_for(p, f.as_deref())),
         })
         .collect();
-    Ok(Book {
+    Book {
         report,
         reading,
         chapters: book_chapters,
@@ -282,7 +330,7 @@ pub fn render_with<R: Read + Seek>(
         title: meta_of(&opf, &["Title"]),
         author: meta_of(&opf, &["Author", "Authors"]),
         identifier,
-    })
+    }
 }
 
 /// The first of the metadata under one of `labels`.
@@ -738,6 +786,13 @@ struct Findings {
     fonts: usize,
     /// The DRM system when chapters are encrypted.
     drm: Option<String>,
+    /// Files embedded in a FictionBook (`binary`), never decoded: how many,
+    /// their bytes, and their types.
+    binaries: usize,
+    binary_bytes: u64,
+    binary_types: Vec<String>,
+    /// An encoding the book declares and this viewer does not know.
+    encoding: Option<String>,
 }
 
 impl Findings {
@@ -1229,6 +1284,24 @@ fn panel(d: &mut DocEvents, opf: &Opf, found: &Findings, encrypted: usize) {
     if found.images > 0 {
         d.field("Images", &format!("{} (not shown)", found.images));
     }
+    if found.binaries > 0 {
+        d.field(
+            "Embedded files",
+            &format!(
+                "{} ({}), {} (not decoded)",
+                found.binaries,
+                found.binary_types.join(", "),
+                crate::info::human(found.binary_bytes)
+            ),
+        );
+    }
+    if let Some(e) = &found.encoding {
+        quiet = false;
+        strong(
+            d,
+            &format!("Declares the encoding {e}, which this viewer does not know: read as UTF-8"),
+        );
+    }
     if quiet {
         d.paragraph("No scripts, nothing fetched from outside.");
     }
@@ -1523,36 +1596,42 @@ impl Writer {
                 break;
             }
             match ev {
-                Ev::Start(n, a) => {
-                    let name = n.to_ascii_lowercase();
-                    self.attributes(&name, &a);
-                    if self.open.len() >= MAX_FRAMES {
-                        self.deeper += 1;
-                        continue;
-                    }
-                    self.start_element(name, &a);
-                }
-                Ev::Empty(n, a) => {
-                    let name = n.to_ascii_lowercase();
-                    self.attributes(&name, &a);
-                    self.empty_element(&name, &a);
-                }
-                Ev::End(n) => {
-                    let name = n.to_ascii_lowercase();
-                    if self.deeper > 0 {
-                        self.deeper -= 1;
-                        continue;
-                    }
-                    if let Some(i) = self.open.iter().rposition(|o| o.name == name) {
-                        while self.open.len() > i {
-                            self.pop();
-                        }
-                    }
-                }
+                Ev::Start(n, a) => self.open_element(n.to_ascii_lowercase(), &a),
+                Ev::Empty(n, a) => self.void_element(&n.to_ascii_lowercase(), &a),
+                Ev::End(n) => self.close_element(&n.to_ascii_lowercase()),
                 Ev::Text(t) => self.text(&t),
             }
         }
         Ok(xml.late)
+    }
+
+    /// An element of XHTML opens: `<p>`.
+    fn open_element(&mut self, name: String, a: &[(String, String)]) {
+        self.attributes(&name, a);
+        if self.open.len() >= MAX_FRAMES {
+            self.deeper += 1;
+            return;
+        }
+        self.start_element(name, a);
+    }
+
+    /// An element with nothing in it: `<br/>`.
+    fn void_element(&mut self, name: &str, a: &[(String, String)]) {
+        self.attributes(name, a);
+        self.empty_element(name, a);
+    }
+
+    /// An element closes, and what was left open in it.
+    fn close_element(&mut self, name: &str) {
+        if self.deeper > 0 {
+            self.deeper -= 1;
+            return;
+        }
+        if let Some(i) = self.open.iter().rposition(|o| o.name == name) {
+            while self.open.len() > i {
+                self.pop();
+            }
+        }
     }
 
     /// What the attributes of any element carry: scripts, things fetched
@@ -2024,10 +2103,11 @@ impl Writer {
         }
         let trailing = body.ends_with(' ');
         let body = body.trim_end_matches(' ');
+        let spaced = self.space && !self.fresh;
         self.flush_space();
         self.d.text(body);
         if self.in_title && self.title.len() < 200 {
-            if !self.title.is_empty() && text.starts_with(' ') {
+            if !self.title.is_empty() && spaced {
                 self.title.push(' ');
             }
             self.title.push_str(body);
