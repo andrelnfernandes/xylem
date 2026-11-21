@@ -3,7 +3,7 @@
 ## The configuration screen (F12)
 
 **F12** (or Alt+F10; on GNOME, Alt+F10 usually maximizes the
-window and never reaches Xylem) opens four pages:
+window and never reaches Xylem) opens five pages:
 
 | Page | Options |
 |---|---|
@@ -11,6 +11,7 @@ window and never reaches Xylem) opens four pages:
 | 2. Display and sorting | hidden files, initial sort order and direction, what Enter does in the file window, initial display mode, syntax colors, soft wrap, line numbers, compressed files, the charset of old text files, the size limit of what the viewer reads, icons and glyphs (Nerd Fonts), file names colored by type, window borders, colors of the built-in terminal, seconds in the clock, [the mouse](mouse.md) |
 | 3. Confirmations and history | confirm on quit, delete to trash, Prune confirmation, entries with `@` not saved, the built-in terminal's own history, [Alt+T in the fuzzy find tags every match](#tagging-every-match-of-the-fuzzy-find) |
 | 4. Copy, compare and refresh | ignore 2 s, ignore 1 h, automatic refresh, where Alt+C/Alt+M paths start, files and folders left out of the index |
+| 5. Reading (ebooks) | the width of the text column, paragraphs as in a book or in blocks, justified text, the reading speed for the time left, [the time spent reading](#reading-time), the minutes without a key before its clock stops, the titles kept for a list of the books |
 
 The viewer's size limit (**L** on page 2) costs memory and time: with `1024` MiB, opening an ordinary text file that big takes roughly 2.5 GiB of RAM and about 5 s, and files of very short lines cost more per byte (see [the viewer](viewer.md)).
 
@@ -22,7 +23,7 @@ If the columns drift out of line with icons on, the terminal is probably drawing
 
 File names colored by type (**N** on page 2) give archives, images, audio and video, documents, code and data each a color of the theme, by the name only (nothing is read). Off, the list has the classic look. Window borders (**O**) are rounded in the nord, gruvbox, slate, graphite, daylight and vivid themes and straight in the others; `plain` or `rounded` keeps them one way in every theme. The start screen (**P**) shows the name in block letters for two seconds when Xylem opens; any key closes it (that key does nothing else), and the start folder is read meanwhile. It is not shown when connecting to a remote machine or container from the command line, nor in a terminal smaller than 58 by 13.
 
-The option's letter (or Enter) changes the value, PgUp/PgDn or 1–4 switch
+The option's letter (or Enter) changes the value, PgUp/PgDn or 1–5 switch
 pages, **F4** picks the theme from a list (with an instant preview), **F3**
 saves and applies, **Esc** cancels (it asks if there are changes).
 
@@ -49,6 +50,41 @@ you check what is tagged before acting on it:
 - **Ctrl+S** in the tree lists the tagged files of the whole tree (a Showall
   of the tagged ones);
 - **Ctrl+V** in the file window views them one after the other.
+
+### Reading time
+
+The viewer reads EPUB and FB2 [ebooks](viewer.md#ebooks). Page 5 sets how
+the text is laid out, and whether Xylem keeps the time you spend reading.
+
+**Keep the time spent reading** (**E**, `reading_stats = true` in the file)
+is off by default. On, Xylem keeps, for each book remembered with `R` in the
+viewer:
+
+- the time read, and the sessions: a pause of more than 30 minutes starts a
+  new one;
+- the farthest point reached, the first and the last day read, and whether
+  the book was finished;
+- the reading speed, in words per minute. Only pages read forward count,
+  and only when at least 5 seconds were spent on them, so jumps, going back
+  and skimming do not. After 10 minutes measured, the footer counts the time
+  left with that book's speed instead of the one on this page (**D**).
+
+The clock runs only while you read: from one key to the next, if no more
+than **F** minutes (3 by default) passed between them. A longer pause stops
+it, and that pause does not count. Autoview (F7) and the report (`I`) never
+count.
+
+All of it stays on your computer, in `~/.local/state/xylem/reading.toml`
+(or `$XDG_STATE_HOME/xylem/`), readable only by you. A book is kept as a
+hash of what it says it is and its size, and numbers: not its name, not
+where it is, not its title. With **G** on (`reading_titles = true`), the
+title and the author are kept too, and the report of any book then lists
+all the books read, under "Your books".
+
+Turning **G** off and saving (F3) deletes the titles kept at once. Turning
+**E** off and saving asks whether to delete the time read of all the books;
+without that, it stays in the file and is not shown. Either way the places
+remembered with `R` stay; `R` on a book forgets it.
 
 ## The configuration file
 

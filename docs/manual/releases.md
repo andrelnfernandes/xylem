@@ -20,6 +20,27 @@ of each version are on
   list. [Fuzzy find](fuzzy.md)
 - [Finding files and folders](finding.md): a page that says which search
   answers which question.
+- Ebooks: EPUB and FictionBook (`.fb2`, `.fb2.zip`) open as a book to
+  read, in a column with the paragraphs of a printed book: a title page,
+  Space for the next page, `]` `[` for chapters, Tab for the contents, Enter
+  for the notes called on the page, `g 40%` for a part of the book, and how
+  long is left of the chapter and of the book. `I` shows the report on the
+  file: what the book says of itself, and whether it carries scripts, things
+  fetched from outside or DRM. [The viewer](viewer.md#ebooks)
+- `R` in a book remembers where you stopped, and the book opens there next
+  time. If you turn it on (page 5 of F12), Xylem also keeps the time you
+  spent reading each book remembered, your sessions and your reading speed,
+  only on your computer. [Reading time](configuration.md#reading-time)
+- F1 opens the help at the section of what you are doing: in the Batch of
+  the viewer (Ctrl+B), at "Batch in the viewer", not at the top of the page.
+  Links to a section of a page of the help now lead to it.
+
+**Changed.**
+
+- `O` in the viewer goes through two more encodings, Windows-1251 and
+  KOI8-R (Cyrillic), before UTF-16.
+- The Type display (`W`) says `EPUB ebook (ZIP)`, `FB2 ebook` and
+  `FB2 ebook (ZIP)`.
 
 ## 0.8.0
 

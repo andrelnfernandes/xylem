@@ -113,6 +113,47 @@ Before the text, a block says what the document has besides it, since much of it
 
 `H` shows the bytes, and comes back; `T` says the document has no text of its own. Every part of the file is decompressed only up to a limit (64 MiB each, 256 MiB in all; 4 MiB in Autoview), and the header says when the document was cut. An XML part with a DTD, or nested deeper than 256 levels, is refused. The old `.doc` and `.ppt` open in hex, as before.
 
+## Ebooks
+
+EPUB (`.epub`, versions 2 and 3) and FictionBook (`.fb2`, and `.fb2.zip` with one book alone inside) open as a book to read. Images are not shown: each one is a line, as `[image: cover.jpg]`.
+
+**The book.** It opens at a title page: the title, the author, who published it and when, how many chapters and words it has, and what the report warns about, if anything. The text is a column in the middle of the window (70 cells by default), with paragraphs indented as in a printed book and each chapter's title centered under an ornament. A break between scenes (`* * *`) is drawn as one. The footer says the chapter you are in, how far you are in the book, and the time left in the chapter and in the book.
+
+| Key | What it does |
+|---|---|
+| Space, PgDn | the next page (PgUp the one before) |
+| `]` `[` | the next or the previous chapter |
+| Tab | the contents: ↑↓ choose, letters narrow the list, Enter goes, Esc closes; Backspace then goes back to where you were |
+| Enter | the notes called on the page, in a box: ↑↓ scroll it, any other key closes it |
+| `g` | go to a line, or to a part of the book: `40%` |
+| `R` | remember where the book stopped; `R` again forgets the book |
+| `I` | the report on the file, and back to the book |
+| `Z` | the text alone, without the frame and the footer; Esc comes back |
+| `/` `\` | search forward or back; `+` and `-` go to the next or the previous match (Space turns the page here) |
+| `H` | the bytes, and back |
+| Esc | close |
+
+The notes of a book (an EPUB `aside` of type footnote, the `notes` body of an FB2) are not in the text: each call is a superscript (`¹`), and Enter shows the notes called on the page. In the report they are where the book has them.
+
+**Remembering where you stopped.** `R` remembers the book: when you close it, Xylem keeps the chapter and the line you were at, and the next time the book opens there, saying `Back at chapter 7 (R forgets this book)`. The footer of a remembered book starts with `[R]`. The book is known by what it says it is (its identifier) and its size, not by its name, so a book moved or renamed is still known, and another file with the same name is another book. `R` again forgets the book and deletes what was kept of it. A book you never pressed `R` on leaves nothing behind.
+
+**The time spent reading** is kept for the books remembered with `R`, if you turn it on (**E** on page 5 of the [configuration](configuration.md#reading-time)). The title page and the report then say how long you have read the book, in how many sessions, how far you got and since when; the report lists the sessions. The footer shows the time of this session.
+
+**The report** (`I`) is what the file is before the text: what the book says of itself (title, authors, publisher, language, date, identifier, subjects, series, the program that made it), and what it carries besides its text, since a book from anywhere is a file from anywhere:
+
+- scripts: `<script>` elements, `onload` and the other event attributes, `javascript:` links, and the parts an EPUB says are scripted. They are never run; a reader that runs scripts would;
+- what a reader would fetch from outside when the book opens: images, style sheets, fonts and frames with an address on the internet, listed. Fetching them tells whoever is there that the book was opened, and from where. Nothing is fetched here;
+- forms, frames and embedded objects, counted, and the number of links to outside;
+- DRM: an EPUB whose chapters are encrypted says by what (Adobe ADEPT, Readium LCP, Apple FairPlay) and cannot be read. Obfuscated fonts, common in books sold without DRM, are only counted;
+- in an EPUB, the parts the package lists but the file does not have, those it has but does not list, and addresses that climb out of the package;
+- in an FB2, the files embedded in it (their number, types and size), never decoded, and an encoding it declares that Xylem does not know.
+
+Then come the contents, as links (Tab and Enter follow them), and the whole text, with the notes where the book has them.
+
+**Settings** (page 5 of the [configuration](configuration.md)): the width of the column (or the whole window), paragraphs indented and touching or apart with a blank row, justified text, and the reading speed the time left is counted with. With Nerd Fonts on (**M** on page 2), the ornaments are leaves, the progress bar is drawn with the font's own glyphs, and the footer and the contents get icons.
+
+**What is read.** An FB2 is read in the encoding it declares (UTF-8, UTF-16, Windows-1251, KOI8-R and the others of `O`), and `T` shows its XML. An EPUB is a ZIP: every part is decompressed only up to a limit (64 MiB each, 256 MiB in all; 4 MiB in Autoview, which says `V shows it as a book` when a book is bigger), and an FB2 is read up to 64 MiB, and the report says when only the start of the book was read. No DTD is ever read or fetched, an XML with entities of its own is refused, the text never goes in as Markdown, and the addresses in a book are taken only as names of its own parts, never as paths on the disk. MOBI and AZW3 (Kindle), PDF and comic books (CBZ, CBR) are not read here: `O` in the file window opens them in another program.
+
 ## Norton Guides
 
 A Norton Guide or an Expert Help guide (`.ng`), the hypertext help of DOS and Clipper, opens as a document. A file needs both the `.ng` name and the guide's signature; anything else opens as before.

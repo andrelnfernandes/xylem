@@ -145,15 +145,30 @@ fn signature(path: &Path, h: &[u8]) -> Option<String> {
             .collect();
         return Some(format!("PDF document, version {version}"));
     }
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    if starts(b"PK\x03\x04") && name.ends_with(".fb2.zip") {
+        return fixed("FB2 ebook (ZIP)");
+    }
     if starts(b"PK\x03\x04") || starts(b"PK\x05\x06") {
         return Some(match ext(path).as_str() {
             "docx" | "xlsx" | "pptx" => "Microsoft Office document (ZIP)".into(),
             "odt" | "ods" | "odp" | "odg" => "OpenDocument (ZIP)".into(),
             "jar" | "war" => "Java archive (ZIP)".into(),
             "apk" => "Android package (ZIP)".into(),
-            "epub" => "EPUB e-book (ZIP)".into(),
+            "epub" => "EPUB ebook (ZIP)".into(),
             _ => "ZIP archive".into(),
         });
+    }
+    // An XML file: a FictionBook only with its name and its root.
+    if ext(path) == "fb2" {
+        let text = String::from_utf8_lossy(h);
+        let text = text.trim_start_matches('\u{FEFF}').trim_start();
+        if text.contains("<FictionBook") || text.starts_with("<?xml") {
+            return fixed("FB2 ebook");
+        }
     }
     // Two bytes match too much by chance: only with the name.
     if ext(path) == "ng" {
@@ -336,7 +351,7 @@ pub fn category(name: &std::ffi::OsStr) -> Option<Category> {
         | "midi" | "mp4" | "mkv" | "avi" | "mov" | "webm" | "wmv" | "flv" | "m4v" | "mpg"
         | "mpeg" | "3gp" => Category::Media,
         "pdf" | "doc" | "docx" | "odt" | "rtf" | "txt" | "md" | "markdown" | "rst" | "tex"
-        | "epub" | "ppt" | "pptx" | "odp" | "log" => Category::Document,
+        | "epub" | "fb2" | "ppt" | "pptx" | "odp" | "log" => Category::Document,
         "rs" | "c" | "h" | "cc" | "cpp" | "hpp" | "cxx" | "py" | "rb" | "go" | "java" | "kt"
         | "kts" | "scala" | "js" | "mjs" | "cjs" | "ts" | "tsx" | "jsx" | "sh" | "bash" | "zsh"
         | "fish" | "ps1" | "bat" | "cmd" | "lua" | "pl" | "php" | "swift" | "cs" | "fs" | "vb"
@@ -393,6 +408,12 @@ mod tests {
             "Microsoft Office document (ZIP)"
         );
         assert_eq!(of("a.zip", b"PK\x03\x04rest"), "ZIP archive");
+        assert_eq!(of("b.epub", b"PK\x03\x04rest"), "EPUB ebook (ZIP)");
+        assert_eq!(of("b.FB2.zip", b"PK\x03\x04rest"), "FB2 ebook (ZIP)");
+        let fb2 = b"<?xml version=\"1.0\" encoding=\"windows-1251\"?>\n<FictionBook>";
+        assert_eq!(of("b.fb2", fb2), "FB2 ebook");
+        assert_ne!(of("b.xml", fb2), "FB2 ebook");
+        assert_ne!(of("b.fb2", b"just text"), "FB2 ebook");
         assert_eq!(of("x", b"\xfd7zXZ\0..."), "xz compressed data");
         let mut elf = b"\x7fELF\x02\x01\x01".to_vec();
         elf.resize(16, 0);
