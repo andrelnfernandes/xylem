@@ -313,6 +313,21 @@ const COMMANDS: &[(&str, Command, &str)] = &[
         "files and folders with the same contents, and the space they waste",
     ),
     (
+        "views",
+        Command::Views,
+        "views of the list: Scan, Timeline, Table",
+    ),
+    (
+        "view_scan",
+        Command::ViewScan,
+        "Scan: what in the list deserves a look (names, permissions, links)",
+    ),
+    (
+        "view_timeline",
+        Command::ViewTimeline,
+        "Timeline: the list by the date its files changed",
+    ),
+    (
         "kbyte",
         Command::Kbyte,
         "show size or file count of each directory in the tree",
@@ -510,6 +525,7 @@ const DEFAULT_KEYS: &[(&str, Scope, &str)] = &[
     ("alt+k", Any, "kbyte"),
     ("alt+u", Any, "usage"),
     ("alt+d", Any, "duplicates"),
+    ("alt+v", Any, "views"),
     ("esc", Files, "back"),
     ("left", Files, "left"),
     ("right", Files, "right"),
@@ -1250,6 +1266,11 @@ mod tests {
         };
         let km = Keymap::from_config(&Keys::default(), &options).unwrap();
         for (name, cmd, _) in COMMANDS {
+            // Each view has the selector's key, and one of its own only if
+            // the user gives it one.
+            if matches!(cmd, Command::ViewScan | Command::ViewTimeline) {
+                continue;
+            }
             let bound = km
                 .maps
                 .values()

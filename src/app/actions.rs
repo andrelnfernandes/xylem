@@ -360,6 +360,7 @@ impl App {
     pub(crate) fn set_query(&mut self, text: &str, tagged: bool) -> Result<(), String> {
         if text.trim().is_empty() {
             self.query = None;
+            self.pick = None;
             self.refresh_files();
             self.message = Some(format!("Condition off: {} files", self.files.len()));
             return Ok(());

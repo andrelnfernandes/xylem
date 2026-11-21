@@ -54,6 +54,9 @@ pub struct ContextMenu {
     /// Where it opens: the menu's top left corner, kept inside the screen
     /// by whoever draws it.
     pub at: (u16, u16),
+    /// A letter runs the line whose key it is (the Alt+V selector), instead
+    /// of doing nothing.
+    pub letters: bool,
 }
 
 impl ContextMenu {
@@ -338,6 +341,7 @@ impl App {
             lines,
             selected,
             at,
+            letters: false,
         });
     }
 
@@ -391,6 +395,15 @@ impl App {
             }
             // The menu's key again closes it.
             _ if is_menu_key(key) => self.context_menu = None,
+            KeyCode::Char(c) if menu.letters => {
+                let line = menu.lines.iter().position(|l| {
+                    matches!(l, MenuLine::Run { key, .. }
+                        if key.chars().count() == 1 && key.eq_ignore_ascii_case(&c.to_string()))
+                });
+                if let Some(i) = line {
+                    self.run_menu_line(i);
+                }
+            }
             _ => {}
         }
     }

@@ -90,6 +90,9 @@ reading_idle = 3
 # Keep the titles and authors of the books remembered, for a list of them in
 # the report (I) of any book. Off, reading.toml says nothing of what you read.
 reading_titles = false
+# The Scan (Alt+V, S): the most files whose contents it reads (executables,
+# Office documents, patches). The others are listed as not analysed.
+scan_max_files = 10000
 # Icons and glyphs in file lists and the directory tree: "none" (classic
 # plain text) or "nerd-fonts" (requires a Nerd Font terminal font from
 # https://www.nerdfonts.com, e.g. FiraCode or JetBrainsMono Nerd Font).
@@ -291,6 +294,8 @@ pub struct Options {
     pub reading_idle: u16,
     /// Ebooks: keep the titles of the books remembered, for a list of them.
     pub reading_titles: bool,
+    /// The Scan (Alt+V): the most files whose contents it reads.
+    pub scan_max_files: u32,
     /// Icons and glyphs (Nerd Fonts).
     pub icons: IconStyle,
     /// File names colored by type.
@@ -367,6 +372,7 @@ impl Default for Options {
             reading_stats: false,
             reading_idle: 3,
             reading_titles: false,
+            scan_max_files: 10_000,
             icons: IconStyle::None,
             type_colors: true,
             borders: Borders::Theme,
@@ -438,6 +444,10 @@ impl Options {
             ("reading_stats", Value::from(self.reading_stats)),
             ("reading_idle", Value::from(i64::from(self.reading_idle))),
             ("reading_titles", Value::from(self.reading_titles)),
+            (
+                "scan_max_files",
+                Value::from(i64::from(self.scan_max_files)),
+            ),
             ("icons", s(self.icons.as_str())),
             ("type_colors", Value::from(self.type_colors)),
             ("borders", s(self.borders.as_str())),

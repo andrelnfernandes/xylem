@@ -59,6 +59,7 @@ revisadas por hablantes nativos. Correcciones:
 - [Información](info.md): Info, Avail, estadísticas y tamaños de directorios
 - [Uso de disco](usage.md): adónde va el espacio (Alt+U)
 - [Duplicados](duplicates.md): archivos y carpetas con el mismo contenido (Alt+D)
+- [Vistas](views.md): la lista vista de otra forma: el Escaneo (Alt+V)
 
 ## Trabajar con archivos
 

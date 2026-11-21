@@ -39,6 +39,17 @@ of each version are on
   number of the latest version from the website, and the top line says when
   a newer one is out. Nothing is downloaded or installed. [New
   versions](configuration.md#new-versions)
+- Views (Alt+V): other ways to look at the list. The Scan (`S`) points
+  at what in a folder deserves a look before you open it: names
+  with hidden characters or a double extension (`fatura.pdf.exe`), setuid
+  files and what anyone can write, links that leave the folder or point to
+  nothing, and, read with the viewer's own readers and limits, executables
+  without PIE or NX or packed, Office documents with macros or a remote
+  template, patches that climb out with `..`. Enter on a category brings
+  its files back to the list, for Ctrl+T and the rest. The Timeline (`T`)
+  shows the files of the list in a histogram by date, by hours, days, weeks,
+  months or years; Enter on a bar, or a range, keeps only its files, as a
+  `W` condition. [Views](views.md)
 
 **Changed.**
 
