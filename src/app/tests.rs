@@ -2222,6 +2222,22 @@ fn f12_settings_save_and_apply() {
 }
 
 #[test]
+fn f1_on_the_reading_page_of_f12_opens_its_section() {
+    let (_tmp, mut app) = sample();
+    press(&mut app, KeyCode::F(12));
+    assert_eq!(app.help_topic(), "configuration");
+    press(&mut app, KeyCode::Char('5'));
+    assert_eq!(app.help_topic(), "configuration#reading-time");
+    press(&mut app, KeyCode::Esc);
+    // In a book: the section of the ebooks.
+    let (tmp, mut app) = sample();
+    let path = tmp.path().join("book.fb2");
+    std::fs::write(&path, crate::viewer::epub::fb2::test_books::book2()).unwrap();
+    app.viewer = Some(Viewer::open(path, viewer::LoadOptions::view(1 << 20)).unwrap());
+    assert_eq!(app.help_topic(), "viewer#ebooks");
+}
+
+#[test]
 fn settings_esc_discards() {
     let (_tmp, mut app) = sample();
     press(&mut app, KeyCode::F(12));

@@ -83,7 +83,8 @@ Em mais detalhe:
 - **Achar coisas:** Filespec por nome, data e tamanho, Treespec para digitar um
   caminho, bookmarks, e Ctrl+S para buscar texto nos arquivos marcados.
 - **Olhar dentro:** um visualizador de texto e hex com busca, filtro de linhas
-  com expressões regulares e cores de sintaxe, Markdown renderizado, um modo tabela com filtro SQL
+  com expressões regulares e cores de sintaxe, Markdown renderizado, ebooks EPUB e
+  FB2 para ler como livro, um modo tabela com filtro SQL
   para planilhas, CSV, JSON Lines, DBF, SQLite e Parquet, Ctrl+B para transformar
   esses registros ou linhas em um script, JSON, SQL ou o que for, Autoview ao lado da lista,
   arquivos ZIP, 7z e TAR abertos como diretórios, e modos de exibição que

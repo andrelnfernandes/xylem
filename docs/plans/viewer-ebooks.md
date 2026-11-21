@@ -674,6 +674,18 @@ Como descrito acima ("Etapa 2 em detalhe"), com estes detalhes:
 - **O título do capítulo** que vem do primeiro título (EPUB e FB2) guarda o
   espaço entre duas partes do texto.
 
+### Feito na 3 (2026-11-21)
+
+- **Manual** (só em inglês): a seção "Ebooks" do `viewer.md` (o livro, as
+  teclas, as notas, o `R`, o tempo, o relatório, o que é lido e os limites);
+  em `configuration.md`, a página 5 na tabela e a seção "Reading time", com o
+  que é guardado, onde, e o que apagar faz; as notas da 0.9.0; uma linha
+  nos dois READMEs.
+- **`W`**: `EPUB ebook (ZIP)`, `FB2 ebook`, `FB2 ebook (ZIP)`; `.fb2` é
+  colorido como documento.
+- **F1** num livro abre "Ebooks", e na página 5 do F12 (ou na pergunta de
+  apagar o tempo), "Reading time".
+
 ### A ordem
 
 1a (o livro lido: montagem, relatório, sumário), 1b (o leitor: layout,
@@ -683,7 +695,8 @@ leitura), um commit cada, com os testes de cada uma. As etapas 2 (FB2) e 3
 
 ## Fora deste plano
 
-- MOBI, AZW3, PDF, CBZ/CBR (ver "Formatos").
+- MOBI, AZW3, PDF, CBZ/CBR (ver "Formatos"). O MOBI foi pedido como
+  trabalho futuro em 2026-11-21: está no `BACKLOG.md`.
 - Mostrar imagens.
 - Converter ebooks (para texto, Markdown): o Batch da visão de texto já
   escreve linhas, se alguém precisar.

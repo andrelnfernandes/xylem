@@ -24,7 +24,7 @@ impl App {
                 ConfirmKind::Kbyte(_) => "info",
                 ConfirmKind::OpenHidden { .. } => "files",
                 ConfirmKind::KeepListing => "cloud",
-                ConfirmKind::DeleteReadingTime(_) => "configuration",
+                ConfirmKind::DeleteReadingTime(_) => "configuration#reading-time",
                 ConfirmKind::ReadContents | ConfirmKind::IndexBranch { .. } => "sql",
                 ConfirmKind::DeleteFolders { .. } | ConfirmKind::ReadThroughNetwork(_) => {
                     "duplicates"
@@ -34,8 +34,16 @@ impl App {
         if self.batch_preview.is_some() || self.batch_job.is_some() {
             return "execute";
         }
-        if self.settings.is_some() {
-            return "configuration";
+        if let Some(settings) = &self.settings {
+            // The page of the ebooks has its own section.
+            let reading = crate::settings::PAGES
+                .get(settings.page)
+                .is_some_and(|p| p.0.starts_with("Reading"));
+            return if reading {
+                "configuration#reading-time"
+            } else {
+                "configuration"
+            };
         }
         if self.bookmarks_view.is_some() {
             return "bookmarks";
@@ -91,6 +99,8 @@ impl App {
                 "search"
             } else if viewer.mode == crate::viewer::ViewMode::Table {
                 "tables"
+            } else if viewer.is_book() {
+                "viewer#ebooks"
             } else {
                 "viewer"
             };

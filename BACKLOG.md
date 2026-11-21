@@ -83,6 +83,16 @@ as a link is what `cp -a` and `rsync -l` do).
 
 ## Features
 
+- **MOBI ebooks** (asked on 2026-11-21, after EPUB and FB2 in 0.9.0,
+  [docs/plans/viewer-ebooks.md](docs/plans/viewer-ebooks.md)): a reader for
+  `.mobi` (and `.azw`, `.prc`, the old Mobipocket and Kindle format) by the
+  same road as the EPUB, so the book, the report, the notes, `R` and the
+  time read come for free. The format is a PalmDB with PalmDOC (LZ77) or
+  HUFF/CDIC compression and HTML inside; it is known only from reverse
+  engineering, so the reader must treat every offset and length as hostile,
+  as the Norton Guides one does. Books with DRM (most bought ones) are only
+  said to be, never read. AZW3/KF8 (a newer EPUB-like part inside) to
+  decide when planning.
 - **Remote machines, phases 3 and 4** (phases 1 and 2 are in 0.4.0, phase 3 in 0.7.0;
   [docs/plans/ssh-write.md](docs/plans/ssh-write.md)):
   3. writing on the remote machine: done (rename, mkdir, copy, move, delete,
