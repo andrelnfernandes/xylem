@@ -6441,11 +6441,15 @@ mod tests {
     }
 
     fn draw_row0(app: &mut App) -> String {
+        draw_row0_at_width(app, 120)
+    }
+
+    fn draw_row0_at_width(app: &mut App, width: u16) -> String {
         use ratatui::{Terminal, backend::TestBackend};
-        let mut term = Terminal::new(TestBackend::new(120, 20)).unwrap();
+        let mut term = Terminal::new(TestBackend::new(width, 20)).unwrap();
         term.draw(|f| draw(f, app)).unwrap();
         let buf = term.backend().buffer();
-        (0..120).map(|x| buf[(x, 0)].symbol()).collect()
+        (0..width).map(|x| buf[(x, 0)].symbol()).collect()
     }
 
     fn draw_text(app: &mut App) -> String {
@@ -6725,11 +6729,14 @@ mod tests {
                 .map(|y| (0..120).map(|x| buf[(x, y)].symbol()).collect())
                 .collect()
         };
+        // The files have short names, not the path of the temporary folder:
+        // the header starts with the path, and a long one (XDG_CACHE_HOME
+        // somewhere deep) would push the notes out of the 120 columns.
+        let load = crate::viewer::LoadOptions::view(1 << 20);
         // A tree: its frame, the repeated key, and the path in the footer.
-        let json = tmp.path().join("a.json");
-        std::fs::write(&json, r#"{"k": {"x": 1}, "k": 2}"#).unwrap();
+        let json = r#"{"k": {"x": 1}, "k": 2}"#;
         let mut v =
-            crate::viewer::Viewer::open(json, crate::viewer::LoadOptions::view(1 << 20)).unwrap();
+            crate::viewer::Viewer::from_file("a.json".into(), json.len() as u64, json.into(), load);
         v.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
         app.viewer = Some(v);
         let rows = screen(&mut app);
@@ -6751,11 +6758,13 @@ mod tests {
         assert!(all.contains("Patch  ·  1/1 x"), "{all}");
         assert!(all.contains("] [") && all.contains("hunk"), "{all}");
         // A log with ANSI: the count of what was taken out.
-        let log = tmp.path().join("a.log");
-        std::fs::write(&log, "INFO \x1b[2Jok\n").unwrap();
-        app.viewer = Some(
-            crate::viewer::Viewer::open(log, crate::viewer::LoadOptions::view(1 << 20)).unwrap(),
-        );
+        let log = "INFO \x1b[2Jok\n";
+        app.viewer = Some(crate::viewer::Viewer::from_file(
+            "a.log".into(),
+            log.len() as u64,
+            log.into(),
+            load,
+        ));
         let rows = screen(&mut app);
         assert!(rows[0].contains("[ANSI: 1 removed]"), "{}", rows.join("\n"));
     }
@@ -7460,10 +7469,14 @@ mod tests {
         };
         let mut app = App::new(tmp.path().to_path_buf());
         app.panes[0] = Pane::from_remote(remote);
-        let row = draw_row0(&mut app);
-        let real = tmp.path().canonicalize().unwrap();
+        let real = tmp.path().canonicalize().unwrap().display().to_string();
+        // The remote folder is the temporary one, whose path is as long as
+        // XDG_CACHE_HOME makes it, and the header shortens a path that does
+        // not fit: the 120 columns of the other tests, plus the path.
+        let width = u16::try_from(120 + real.len()).unwrap();
+        let row = draw_row0_at_width(&mut app, width);
         assert!(row.starts_with("Path:  test@testhost "), "{row}");
-        assert!(row.contains(&real.display().to_string()), "{row}");
+        assert!(row.contains(&real), "{row}");
     }
 
     #[test]
