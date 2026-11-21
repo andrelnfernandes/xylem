@@ -8,20 +8,7 @@ machine. The user-facing summary is under "For later" in the
 
 ## Bugs
 
-- **Git status freezes the screen on slow file systems** (found on
-  2026-11-20; to fix in 0.9.0). With Git on, `StatusCache::refresh`
-  (`src/git.rs`) runs `git status` on the thread that draws the screen and
-  reads the keys, before each drawing, and again every 10 seconds
-  (`MAX_AGE`) or 500 ms after a change. On `/mnt/c` in WSL (9p), a
-  repository of 7,621 files took 130 seconds per `git status`, so Xylem
-  answered for a moment and froze again. Workaround: Git off in F12
-  (page 1, E). Fix proposed: read the status in the background, showing the
-  markers when it is done and saying in the footer that it is reading; wait
-  longer before reading again a repository that was slow (a read of 130 s
-  not repeated for some 20 minutes, unless F3 or an operation asks); never
-  two reads of the same repository at once, and drop one whose directory is
-  no longer shown; a test with a slow fake `git` that checks the keys still
-  answer.
+None open.
 
 ## Security
 
@@ -122,11 +109,11 @@ as a link is what `cp -a` and `rsync -l` do).
   read in the background, the main thread was also seen waiting for rclone, for a
   reason not found yet.
 - **Querying the disk, by name and by content**
-  ([docs/plans/query.md](docs/plans/query.md)): approved by the author on 2026-11-14,
-  nothing done yet. A SQL condition over the logged files of the list (name, size,
-  date), then over their contents: read directly, or through an index kept by
-  `tantivy` for each branch, with the difference between the two said on screen.
-  Five stages; the key and a few other decisions are still open there.
+  ([docs/plans/query.md](docs/plans/query.md)): stages 1, 2, 4 and 5 are done
+  (PRs #118 and #119, 2026-11-15): `W` and `Ctrl+W` keep the files that meet a SQL
+  condition, by name, by contents (`contains`, read with no index) or through a
+  `tantivy` index per branch, and the search box. Still open: stage 3, the result
+  as a table (`SELECT`, `GROUP BY`, `JOIN`), through SQLite.
 - **From ZTreeWin, next:** JFC (compare the contents of two files), and saving
   and loading the log (Zlist), so that the tree of a disk or a Drive opens at once.
 - Postponed by choice: macros, chown, Graft. macOS: to look at again when there
@@ -143,9 +130,9 @@ as a link is what `cp -a` and `rsync -l` do).
   author on 2026-11-18, after being left out before. Off by default, turned on in
   F12; the wheel, clicks on the tree, the lists and the footer, double click, tagging
   with the middle button, a right-click menu, and the mouse passed to the programs of
-  the built-in terminal. The four stages are done in the `mouse` branch, one PR at
-  the end. Not yet: clicks on the viewer's list of sheets, its structure and its
-  record (the wheel works there), and a right-click menu in Usage and Duplicates.
+  the built-in terminal. Done (PR #124). Not yet: clicks on the viewer's list of
+  sheets, its structure and its record (the wheel works there), and a right-click
+  menu in Usage and Duplicates.
 - **New file viewers** ([docs/plans/viewers.md](docs/plans/viewers.md)):
   six subprojects, security first. Done: subproject 1 (encodings, compressed
   files, the size limit; PRs #44 to #49), and the table mode with SQLite and the
@@ -153,7 +140,9 @@ as a link is what `cp -a` and `rsync -l` do).
   [the manual](docs/manual/viewer.md). The windowed viewer (3) is started by the
   tables, with no limit of rows in 0.8.0
   ([docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)). Still to do:
-  logs (4), of which the line filter is done; Parquet in windows (0.9). The text
+  Parquet in windows (0.9). The logs (4) are done with the seven viewers below;
+  left of them: End reading a windowed text from its end, the end of a compressed
+  log read in the background, and following a remote file. The text
   is in windows too ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)): a
   file on disk over 16 MiB is read as the screen moves, with no size limit (one of
   234 MB takes 15 MB of memory, not 475). Left of it: a Batch over such a text still
@@ -162,10 +151,10 @@ as a link is what `cp -a` and `rsync -l` do).
   of reading the file from its end (for the logs). Fixed-width and multi-record files (SDF,
   CNAB, SPED) are out, by decision (2026-11-11): they go to a separate product
   ([docs/plans/viewer-positional.md](docs/plans/viewer-positional.md)).
-  Seven new viewers, built on 2026-11-16 in the branch `viewers-next`, not reviewed
-  yet (the list and order are in "Viewers novos" of
-  [docs/plans/viewers.md](docs/plans/viewers.md); what each one still lacks is in the
-  "Implementação" section of its spec):
+  Seven new viewers are done (PR #122, merged on 2026-11-17, with the fixes of
+  its audit; the list is in "Viewers novos" of
+  [docs/plans/viewers.md](docs/plans/viewers.md)). What each one leaves for later
+  is in the "Implementação" section of its spec:
   logs ([viewer-logs.md](docs/plans/viewer-logs.md), which is subproject 4), JSON,
   YAML and TOML as a tree ([viewer-tree.md](docs/plans/viewer-tree.md)), DOCX,
   ODT and PPTX ([viewer-office.md](docs/plans/viewer-office.md)), executables
@@ -182,11 +171,14 @@ as a link is what `cp -a` and `rsync -l` do).
   complete. Left for when they are missed: Parquet and XLSX as outputs. Records into
   `.bat`/`.cmd` wait for item 2 of Security.
 
-- **The manual on the website, and a start screen**
-  ([docs/plans/site.md](docs/plans/site.md)): the manual built with mdBook (side
-  menu, search, one book per language), titled Xylem File Manager, next to the
-  current home page; and the name in block letters for two seconds at start (any
-  key closes it; `splash = false` turns it off). The command stays `xy`.
+- **Views** ([docs/plans/views.md](docs/plans/views.md)): Timeline, Sweep and
+  Table, planned for 0.9.0; nothing done yet.
+- **zoxide** (`Z`): the optional appendix of
+  [docs/plans/fuzzy-find.md](docs/plans/fuzzy-find.md), whose stages are done
+  (0.9.0).
+- **New formats** for the viewer, first `.deb` and `.rpm`
+  with their install scripts, then container images, the systemd journal, EVTX,
+  Arrow and Avro, pcap and Firebird: proposals for 0.9.0, nothing approved.
 
 ## Xylem as a programming cockpit
 
@@ -198,17 +190,16 @@ the right line.
 
 During development only the English manual is updated; the other languages (pt,
 es, de, fr, zh) are synced later, in one documentation task with the website
-rework. A page listed here carries a note at the top pointing to the English
-version; the sync removes the note and the entry.
+rework. The 0.8.0 release synced them all (#126); since then, in 0.9.0:
 
-- `viewer.md`: tables with no limit of 50,000 rows (0.8.0,
-  [docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)).
-- `mouse.md`: new, in English only; each translated `index.md` links to it
-  with an English line, `configuration.md`, `releases.md` and `terminal.md` (the
-  wheel over the terminal) do not mention it yet
-  ([docs/plans/mouse.md](docs/plans/mouse.md)).
-- `viewer.md` ("Big files") and `comparison.md` (the Viewer row): big text files read
-  as the screen moves ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)).
+- `fuzzy.md` and `finding.md`: new, in English only.
+- `viewer.md`: Norton Guides, EPUB and FictionBook.
+- `configuration.md`: the settings of the fuzzy find and of the books.
+- `git.md`: why Git can be turned off, and the status read in the background.
+- `releases.md`: the 0.9.0 notes.
+- `comparison.md`, `commands-keys.md`, `filespec.md`, `glossary.md`,
+  `index.md`, `sql.md`, `treespec.md`: the lines about the fuzzy find, Norton
+  Guides and the books.
 
 ## Tests
 
@@ -233,13 +224,11 @@ version; the sync removes the note and the entry.
   alternate screen that did not ask for the mouse has no scrollback, so the wheel
   does nothing there. xterm's `alternateScroll` sends ↑ and ↓ instead; but some
   programs take ↑ as something else, so it needs a look.
+
 Details from an outside list of suggestions (2026-11-01) that the items above do
 not have. Nothing here is decided. The rest of that list was already planned, or
 postponed by choice (macros, chown).
 
-- **Follow with the line filter:** when logs get follow (subproject 4 of the
-  viewers), new lines could go through the filter in use (`&`), showing only the
-  ones that match. The list suggested F as the key, but F is Find in the viewer.
 - **JFC, side by side:** tag two files, press a key, and see them next to each
   other with the differences highlighted, for `.conf` and `.env` files or versions
   of a script. To decide when JFC gets its spec: this layout, or a plain diff in the

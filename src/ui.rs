@@ -1422,6 +1422,7 @@ fn draw_files(
     let git = git.filter(|g| {
         pane.archive.is_none() && pane.remote.is_none() && g.in_repo(&pane.current_path())
     });
+    let git_reading = git.is_some_and(|g| g.is_reading(&pane.current_path()));
     // Status letters of a file in the repository ("  " if unchanged).
     let marker =
         |pane: &Pane, f: FileRef| git.map(|g| g.marker(&pane.file_path(f)).unwrap_or(*b"  "));
@@ -1450,6 +1451,10 @@ fn draw_files(
     // Not empty: on its way, from a cloud mount.
     if pane.view == FileView::Dir && pane.tree.is_reading(pane.current()) {
         title.push_str("reading... ");
+    }
+    // The status of a big repository on a slow disk, on its way.
+    if git_reading {
+        title.push_str("git status... ");
     }
     let error = match pane.view {
         FileView::Dir => pane.tree.node(pane.current()).error.is_some(),
