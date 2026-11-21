@@ -42,6 +42,13 @@ of each version are on
 - The Type display (`W`) says `EPUB ebook (ZIP)`, `FB2 ebook` and
   `FB2 ebook (ZIP)`.
 
+**Fixed.**
+
+- With Git on, a big repository on a slow file system (`/mnt/c` from WSL,
+  a network share) froze the screen while `git status` ran, for minutes.
+  The status is now read in the background, and a slow repository is read
+  again less often. [Git](git.md)
+
 ## 0.8.0
 
 **Changed: some Alt keys.** Alt no longer repeats Ctrl. It is the other

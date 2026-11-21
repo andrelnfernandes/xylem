@@ -8,20 +8,7 @@ machine. The user-facing summary is under "For later" in the
 
 ## Bugs
 
-- **Git status freezes the screen on slow file systems** (found on
-  2026-11-20; to fix in 0.9.0). With Git on, `StatusCache::refresh`
-  (`src/git.rs`) runs `git status` on the thread that draws the screen and
-  reads the keys, before each drawing, and again every 10 seconds
-  (`MAX_AGE`) or 500 ms after a change. On `/mnt/c` in WSL (9p), a
-  repository of 7,621 files took 130 seconds per `git status`, so Xylem
-  answered for a moment and froze again. Workaround: Git off in F12
-  (page 1, E). Fix proposed: read the status in the background, showing the
-  markers when it is done and saying in the footer that it is reading; wait
-  longer before reading again a repository that was slow (a read of 130 s
-  not repeated for some 20 minutes, unless F3 or an operation asks); never
-  two reads of the same repository at once, and drop one whose directory is
-  no longer shown; a test with a slow fake `git` that checks the keys still
-  answer.
+None open.
 
 ## Security
 

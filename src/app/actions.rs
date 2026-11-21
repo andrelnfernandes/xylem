@@ -367,6 +367,14 @@ impl App {
         let query = crate::model::query::FileQuery::parse(text, tagged)?;
         if query.uses_git() {
             self.refresh_git();
+            let dir = self.current_path();
+            let known = self
+                .git_status
+                .borrow_mut()
+                .known(&dir, std::time::Duration::from_secs(2));
+            if !known {
+                return Err("The Git status is still being read: try again in a moment".into());
+            }
         }
         if query.reads_contents() {
             return self.start_content(query);
