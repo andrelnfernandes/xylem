@@ -60,6 +60,7 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 - [Informationen](info.md): Info, Avail, Statistiken und Verzeichnisgrößen
 - [Speicherplatzbelegung](usage.md): wohin der Platz geht (Alt+U)
 - [Duplikate](duplicates.md): Dateien und Ordner mit gleichem Inhalt (Alt+D)
+- [Ansichten](views.md): die Liste anders gesehen: der Scan (Alt+V)
 
 ## Arbeiten mit Dateien
 

@@ -131,10 +131,7 @@ fn render_with<'d, R: ReadRef<'d>>(
     width: usize,
 ) -> Result<Doc, String> {
     let mut d = DocEvents::new(MAX_EVENTS);
-    match FileKind::parse(data).map_err(|_| "Not a binary this viewer can read".to_string())? {
-        FileKind::MachOFat32 | FileKind::MachOFat64 => fat(&mut d, data)?,
-        _ => one(&mut d, data, None)?,
-    }
+    report(&mut d, data, &mut Vec::new())?;
     if cut {
         d.paragraph("Only the start of the file was read: the report may miss what is after it.");
     }
@@ -147,8 +144,58 @@ fn render_with<'d, R: ReadRef<'d>>(
     Ok(doc)
 }
 
+/// The report into `d`, and what the Scan counts into `warn`.
+fn report<'d, R: ReadRef<'d>>(
+    d: &mut DocEvents,
+    data: R,
+    warn: &mut Vec<String>,
+) -> Result<(), String> {
+    match FileKind::parse(data).map_err(|_| "Not a binary this viewer can read".to_string())? {
+        FileKind::MachOFat32 | FileKind::MachOFat64 => fat(d, data, warn),
+        _ => one(d, data, None, warn),
+    }
+}
+
+/// The protections whose absence the Scan (Alt+V) points at: the ones that
+/// make an attack on the program much easier. The others (canary, RELRO)
+/// are missing from too many honest binaries to say anything.
+const SCAN_CHECKS: &[&str] = &[
+    "PIE",
+    "NX (stack not executable)",
+    "DEP (NX compatible)",
+    "ASLR (dynamic base)",
+    "Stack executable",
+];
+
+/// What the Scan says of the binary at `path`, read up to `limit` bytes:
+/// the protections it lacks and the signs of something hidden (packed
+/// sections, writable and executable ones, data after the end). Empty:
+/// nothing of the kind.
+pub fn warnings_file(path: &std::path::Path, limit: u64) -> Result<Vec<String>, String> {
+    let file = super::open_regular(path).map_err(|e| format!("cannot be read: {e}"))?;
+    let bounded = Bounded::new(file, limit).map_err(|e| format!("cannot be read: {e}"))?;
+    let mut d = DocEvents::new(MAX_EVENTS);
+    let mut warn = Vec::new();
+    report(&mut d, &bounded, &mut warn)?;
+    warn.dedup();
+    Ok(warn)
+}
+
+/// [`warnings_file`] for a binary already in memory (from an archive).
+pub fn warnings(data: &[u8]) -> Result<Vec<String>, String> {
+    let mut d = DocEvents::new(MAX_EVENTS);
+    let mut warn = Vec::new();
+    report(&mut d, data, &mut warn)?;
+    warn.dedup();
+    Ok(warn)
+}
+
 /// A fat (universal) Mach-O: its architectures, then each one.
-fn fat<'d, R: ReadRef<'d>>(d: &mut DocEvents, data: R) -> Result<(), String> {
+fn fat<'d, R: ReadRef<'d>>(
+    d: &mut DocEvents,
+    data: R,
+    warn: &mut Vec<String>,
+) -> Result<(), String> {
     use object::read::macho::{FatArch, MachOFatFile32, MachOFatFile64};
     let arches: Vec<(String, u64, u64)> = match FileKind::parse(data) {
         Ok(FileKind::MachOFat64) => MachOFatFile64::parse(data)
@@ -184,7 +231,7 @@ fn fat<'d, R: ReadRef<'d>>(d: &mut DocEvents, data: R) -> Result<(), String> {
     for (arch, offset, size) in arches {
         let part = data.read_bytes_at(offset, size).ok();
         match part {
-            Some(part) => one(d, part, Some(&arch))?,
+            Some(part) => one(d, part, Some(&arch), warn)?,
             None => d.paragraph(&format!("{arch}: its bytes are outside the file")),
         }
     }
@@ -198,7 +245,12 @@ fn yes(b: bool) -> &'static str {
 
 /// One binary: summary, protections, signature, signs, identity, libraries
 /// and lists.
-fn one<'d, R: ReadRef<'d>>(d: &mut DocEvents, data: R, arch: Option<&str>) -> Result<(), String> {
+fn one<'d, R: ReadRef<'d>>(
+    d: &mut DocEvents,
+    data: R,
+    arch: Option<&str>,
+    warn: &mut Vec<String>,
+) -> Result<(), String> {
     let file = object::File::parse(data)
         .map_err(|e| format!("Not a binary this viewer can read ({e})"))?;
     let kind = FileKind::parse(data).map_err(|e| e.to_string())?;
@@ -376,6 +428,18 @@ fn one<'d, R: ReadRef<'d>>(d: &mut DocEvents, data: R, arch: Option<&str>) -> Re
     {
         signs.push("the entry point is outside every executable section".into());
     }
+    let prefix = arch.map(|a| format!("{a}: ")).unwrap_or_default();
+    for (name, value, bad) in &checks {
+        if *bad && SCAN_CHECKS.contains(&name.as_str()) {
+            let what = match value.as_str() {
+                "no" => format!("no {name}"),
+                "yes" => name.to_lowercase(),
+                v => format!("{name}: {v}"),
+            };
+            warn.push(format!("{prefix}{what}"));
+        }
+    }
+    warn.extend(signs.iter().map(|s| format!("{prefix}{s}")));
     if !signs.is_empty() {
         d.heading(3, "Signs");
         d.start_list(false);
@@ -934,6 +998,14 @@ mod tests {
             .map(|i| doc.line(i).to_string())
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    #[test]
+    fn the_scan_reads_a_real_binary_and_refuses_what_is_not_one() {
+        let me = std::env::current_exe().unwrap();
+        assert!(warnings_file(&me, 256 << 20).is_ok());
+        assert!(warnings(b"\x7fELF\x02\x01\x01\0garbage").is_err());
+        assert!(warnings(b"plain text").is_err());
     }
 
     #[test]

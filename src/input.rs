@@ -75,6 +75,12 @@ pub enum Command {
     Usage,
     /// Alt+D: files and folders with the same contents.
     Duplicates,
+    /// Alt+V: the views of the list (Scan, Timeline, Table).
+    Views,
+    /// The Scan: what in the list deserves a look.
+    ViewScan,
+    /// The Timeline: the list by the date its files changed.
+    ViewTimeline,
     /// Alt+Q: quits, leaving the shell in the current directory.
     QuitChangeDir,
     /// Alt+F: display mode of the file window.

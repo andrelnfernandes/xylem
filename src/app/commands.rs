@@ -374,7 +374,12 @@ impl App {
         }
         // The context menu, from the keyboard (Shift+F10 would otherwise
         // be F10, Quit). Usage and Duplicates keep their keys.
-        if context_menu::is_menu_key(key) && self.usage.is_none() && self.duplicates.is_none() {
+        if context_menu::is_menu_key(key)
+            && self.usage.is_none()
+            && self.duplicates.is_none()
+            && self.scan.is_none()
+            && self.timeline.is_none()
+        {
             self.open_menu_from_keys();
             return;
         }
@@ -384,6 +389,14 @@ impl App {
             return;
         }
         if self.autoview.is_some() && self.autoview_key(key) {
+            return;
+        }
+        if self.scan.is_some() {
+            self.scan_key(key);
+            return;
+        }
+        if self.timeline.is_some() {
+            self.timeline_key(key);
             return;
         }
         if key.code == KeyCode::F(9) {
@@ -610,6 +623,9 @@ impl App {
             }
             Command::Usage => self.open_usage(),
             Command::Duplicates => self.open_duplicates(),
+            Command::Views => self.open_views(),
+            Command::ViewScan => self.open_scan(),
+            Command::ViewTimeline => self.open_timeline(),
             Command::OpenWith { tagged } => self.open_with(tagged),
             Command::CompareBranch => self.ask_compare(true),
             Command::Parent => {

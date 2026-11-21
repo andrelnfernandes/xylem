@@ -31,6 +31,7 @@ mod platform;
 mod rclone;
 mod reading;
 mod remote;
+mod scan;
 mod search;
 mod search_box;
 mod settings;
@@ -39,6 +40,7 @@ mod state;
 mod term;
 #[cfg(test)]
 mod testing;
+mod timeline;
 mod ui;
 mod update;
 mod usage;

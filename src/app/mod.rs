@@ -59,9 +59,13 @@ mod remote_cmd;
 mod terminal;
 mod usage_cmd;
 mod view;
+mod views_cmd;
+pub use views_cmd::{ScanView, TimelineView};
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod views_tests;
 
 pub(crate) use actions::*;
 pub(crate) use prompts::*;
@@ -224,6 +228,13 @@ pub struct App {
     pub bookmarks: Bookmarks,
     /// Active bookmarks manager view (F11), if open.
     pub bookmarks_view: Option<BookmarksView>,
+    /// Alt+V, S: the Scan of the list, on screen.
+    pub scan: Option<ScanView>,
+    /// The last Scan, kept when it was left for the list: the same list
+    /// opens it again.
+    scan_back: Option<ScanView>,
+    /// Alt+V, T: the Timeline of the list, on screen.
+    pub timeline: Option<TimelineView>,
     /// F1 / Alt+H: the help, over whatever is open (which it leaves as it is).
     pub help: Option<crate::help::Help>,
     /// A remote connection being made, for the window at this index.
@@ -372,6 +383,9 @@ impl App {
             history: History::new(),
             bookmarks: Bookmarks::new(),
             bookmarks_view: None,
+            scan: None,
+            scan_back: None,
+            timeline: None,
             help: None,
             connecting: None,
             opening: None,
@@ -652,6 +666,7 @@ impl App {
     /// There is ongoing work that does not depend on the user.
     pub fn busy(&self) -> bool {
         self.busy_without_box()
+            || self.scan.as_ref().is_some_and(ScanView::running)
             || self.fuzzy_running()
             || self
                 .search_box
@@ -699,6 +714,10 @@ impl App {
                 let pane = &self.panes[self.active];
                 sb.step_unindexed(budget, pane);
             }
+        }
+        // The Scan's thread works by itself, and nothing else waits on it.
+        if self.scan.as_ref().is_some_and(ScanView::running) {
+            self.scan_tick(budget);
         }
         if self.batch_job.is_some() {
             self.batch_tick(budget);

@@ -59,6 +59,7 @@ Les versions de ce manuel en espagnol, français, allemand et chinois n'ont pas
 - [Informations](info.md) : Info, Avail, statistiques et tailles des répertoires
 - [Utilisation du disque](usage.md) : où va l'espace (Alt+U)
 - [Doublons](duplicates.md) : fichiers et dossiers au même contenu (Alt+D)
+- [Vues](views.md) : la liste vue autrement : le Scan (Alt+V)
 
 ## Travailler avec les fichiers
 
