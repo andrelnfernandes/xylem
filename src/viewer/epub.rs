@@ -65,6 +65,14 @@ pub struct Book {
     pub notes: HashMap<Box<str>, String>,
     /// What the report warns about, in a line, when there is anything.
     pub warning: Option<String>,
+    /// Where the reading stopped, when the book is remembered: the chapter
+    /// and the line within it.
+    pub at: Option<(usize, usize)>,
+    /// What the book says it is, and its title and author, for what is kept
+    /// of its reading.
+    pub identifier: Option<String>,
+    pub title: Option<String>,
+    pub author: Option<String>,
 }
 
 /// A chapter: the place it starts at (see [`Doc::place`]), in both views;
@@ -87,7 +95,22 @@ pub struct TocEntry {
 
 /// The book in the package `reader`, laid out for `width`, or why it is not
 /// one (the bytes are then shown).
+#[cfg(test)]
 pub fn render<R: Read + Seek>(reader: R, limits: Limits, width: usize) -> Result<Book, String> {
+    render_with(reader, limits, width, &|_| {
+        crate::reading::Summary::default()
+    })
+}
+
+/// As [`render`], with what is kept of the reading of the book: `reading`
+/// is asked with the identifier the book gives (`dc:identifier`), and what
+/// it answers goes on the title page and in the report.
+pub fn render_with<R: Read + Seek>(
+    reader: R,
+    limits: Limits,
+    width: usize,
+    reading: &dyn Fn(Option<&str>) -> crate::reading::Summary,
+) -> Result<Book, String> {
     let mut pkg = Package::open(reader, limits)
         .map_err(|_| "Not an EPUB this viewer can read: showing the bytes".to_string())?;
     let container = pkg
@@ -133,12 +156,12 @@ pub fn render<R: Read + Seek>(reader: R, limits: Limits, width: usize) -> Result
         }
         let n = i + 1;
         let place: Box<str> = format!("c{n}").into();
-        let title = toc
+        let named = toc
             .iter()
             .find(|e| e.target.as_ref().is_some_and(|(p, _)| p == path))
             .map(|e| e.title.clone())
-            .filter(|t| !t.is_empty())
-            .unwrap_or_else(|| file_stem(path));
+            .filter(|t| !t.is_empty());
+        let title = named.clone().unwrap_or_else(|| file_stem(path));
         w.begin_chapter(path, place.clone());
         if encrypted.contains(path) {
             w.note(&format!("[chapter {n}: encrypted, cannot be read]"));
@@ -160,6 +183,12 @@ pub fn render<R: Read + Seek>(reader: R, limits: Limits, width: usize) -> Result
             }
         }
         let words = w.end_chapter(&title);
+        // No name in the contents: the chapter's own heading, if it has one.
+        let own = w.title.trim();
+        let title = match named {
+            None if !own.is_empty() => own.to_string(),
+            _ => title,
+        };
         book_chapters.push(Chapter {
             place,
             title,
@@ -170,9 +199,17 @@ pub fn render<R: Read + Seek>(reader: R, limits: Limits, width: usize) -> Result
     found.merge(&w.found);
     css_findings(&mut pkg, &opf, &mut found);
 
+    let identifier = opf
+        .meta
+        .iter()
+        .find(|(l, _)| l == "Identifier")
+        .map(|(_, v)| v.clone());
+    let summary = reading(identifier.as_deref());
+
     // What it says of itself, then the contents, then the text.
     let mut head = DocEvents::new(200_000);
     panel(&mut head, &opf, &found, encrypted.len());
+    your_reading(&mut head, &summary);
     if pkg.cut || late || w.d.cut {
         head.paragraph("Only the start of the book was read: it is over the limits.");
     }
@@ -198,7 +235,7 @@ pub fn render<R: Read + Seek>(reader: R, limits: Limits, width: usize) -> Result
 
     // The book to read: the title page, then the text without the
     // footnotes, which are shown on demand.
-    let mut reading_events = title_page(&opf, &found, &book_chapters, cut).events;
+    let mut reading_events = title_page(&opf, &found, &book_chapters, cut, &summary).events;
     let mut skip = w.notes_at.iter().peekable();
     for (i, ev) in chapter_events.iter().enumerate() {
         while skip.peek().is_some_and(|r| r.end <= i) {
@@ -241,13 +278,55 @@ pub fn render<R: Read + Seek>(reader: R, limits: Limits, width: usize) -> Result
         toc,
         notes,
         warning: warning(&found),
+        at: summary.at,
+        title: meta_of(&opf, &["Title"]),
+        author: meta_of(&opf, &["Author", "Authors"]),
+        identifier,
     })
+}
+
+/// The first of the metadata under one of `labels`.
+fn meta_of(opf: &Opf, labels: &[&str]) -> Option<String> {
+    labels.iter().find_map(|label| {
+        opf.meta
+            .iter()
+            .find(|(l, _)| l == label)
+            .map(|(_, v)| v.clone())
+    })
+}
+
+/// The reading kept of the book, in the report: its numbers and sessions;
+/// and, with the titles kept, every book read.
+fn your_reading(d: &mut DocEvents, s: &crate::reading::Summary) {
+    if !s.fields.is_empty() {
+        d.rule();
+        d.heading(2, "Your reading");
+        for (label, value) in &s.fields {
+            d.field(label, value);
+        }
+        if !s.sessions.is_empty() {
+            let header = ["Day", "Time", "Words"].map(String::from);
+            d.table(&header, &s.sessions);
+        }
+    }
+    if !s.books.is_empty() {
+        d.rule();
+        d.heading(2, "Your books");
+        let header = ["Title", "Author", "Time read", "Farthest", "Last read"].map(String::from);
+        d.table(&header, &s.books);
+    }
 }
 
 /// The first page of the book to read: its title, who wrote it, who
 /// published it and when; what the report warns about, if anything; and
 /// how long the book is.
-fn title_page(opf: &Opf, found: &Findings, chapters: &[Chapter], cut: bool) -> DocEvents {
+fn title_page(
+    opf: &Opf,
+    found: &Findings,
+    chapters: &[Chapter],
+    cut: bool,
+    summary: &crate::reading::Summary,
+) -> DocEvents {
     let mut d = DocEvents::new(1_000);
     let meta = |label: &str| {
         opf.meta
@@ -274,16 +353,22 @@ fn title_page(opf: &Opf, found: &Findings, chapters: &[Chapter], cut: bool) -> D
     }
     let words: usize = chapters.iter().map(|c| c.words).sum();
     let n = chapters.len();
-    d.paragraph(&format!(
-        "{n} {}, {} words.{}",
-        if n == 1 { "chapter" } else { "chapters" },
-        group(words),
-        if cut {
-            " Only the start was read: it is over the limits."
-        } else {
-            ""
-        }
-    ));
+    d.heading(
+        6,
+        &format!(
+            "{n} {}, {} words.{}",
+            if n == 1 { "chapter" } else { "chapters" },
+            group(words),
+            if cut {
+                " Only the start was read: it is over the limits."
+            } else {
+                ""
+            }
+        ),
+    );
+    if let Some(line) = &summary.line {
+        d.heading(6, line);
+    }
     d.rule();
     d
 }
@@ -1250,6 +1335,10 @@ struct Writer {
     /// The links that call a note, by key; the text of the links open.
     note_keys: HashSet<usize>,
     link_texts: Vec<String>,
+    /// The text of the heading the chapter starts at, while it is read and
+    /// after: its title when the contents do not give one.
+    in_title: bool,
+    title: String,
 }
 
 impl Writer {
@@ -1287,6 +1376,8 @@ impl Writer {
             captured: 0,
             note_keys: HashSet::new(),
             link_texts: Vec::new(),
+            in_title: false,
+            title: String::new(),
         }
     }
 
@@ -1358,6 +1449,8 @@ impl Writer {
         self.start = self.d.events.len();
         self.scripts = 0;
         self.words = 0;
+        self.title.clear();
+        self.in_title = false;
     }
 
     /// A line in place of what could not be shown.
@@ -1933,6 +2026,12 @@ impl Writer {
         let body = body.trim_end_matches(' ');
         self.flush_space();
         self.d.text(body);
+        if self.in_title && self.title.len() < 200 {
+            if !self.title.is_empty() && text.starts_with(' ') {
+                self.title.push(' ');
+            }
+            self.title.push_str(body);
+        }
         if self.para_text.len() < 16 {
             self.para_text.push_str(body);
         }
@@ -1981,6 +2080,7 @@ impl Writer {
             }
             if id.as_ref() == Some(&self.place) {
                 self.placed = true;
+                self.in_title = true;
             }
         }
         if kind == Block::Paragraph {
@@ -2042,7 +2142,10 @@ impl Writer {
                 }
                 self.para_text.clear();
             }
-            Block::Heading(level) => self.d.end(TagEnd::Heading(level)),
+            Block::Heading(level) => {
+                self.d.end(TagEnd::Heading(level));
+                self.in_title = false;
+            }
             Block::Bare => {}
         }
         self.space = false;
@@ -2232,6 +2335,11 @@ pub mod test_books {
 
     /// An EPUB 3 book: a nav, two chapters and a style sheet.
     pub fn book3() -> Vec<u8> {
+        book3_titled("The Test Book")
+    }
+
+    /// The same book with another title and identifier: another book.
+    pub fn book3_titled(title: &str) -> Vec<u8> {
         let manifest = r#"
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="c1" href="Text/one.xhtml" media-type="application/xhtml+xml"/>
@@ -2261,10 +2369,16 @@ pub mod test_books {
             r#"<p>Opening words with no heading.</p>
 <h2 id="later">Later</h2><p>The end.</p>"#,
         );
+        let mut opf = opf("3.0", manifest, spine);
+        if title != "The Test Book" {
+            opf = opf
+                .replace("The Test Book", title)
+                .replace("urn:uuid:1234", &format!("urn:uuid:{}", title.len()));
+        }
         zip(&[
             ("mimetype", "application/epub+zip"),
             ("META-INF/container.xml", CONTAINER),
-            ("OEBPS/content.opf", &opf("3.0", manifest, spine)),
+            ("OEBPS/content.opf", &opf),
             ("OEBPS/nav.xhtml", &nav),
             ("OEBPS/Text/one.xhtml", &one),
             ("OEBPS/Text/two b.xhtml", &two),
@@ -2420,8 +2534,10 @@ to the end<sup><a href="notes.xhtml#e2">[2]</a></sup>, and <a href="notes.xhtml"
         let report = lines(&book.report).join("\n");
         assert!(report.contains("The aside note."));
         assert!(report.contains("A call1 and one to the end[2]"), "{report}");
-        // The contents lead to the chapters.
+        // The contents lead to the chapters, named by their headings.
         assert!(book.toc.is_empty(), "no nav, no ncx");
+        let titles: Vec<&str> = book.chapters.iter().map(|c| c.title.as_str()).collect();
+        assert_eq!(titles, ["Start", "Notes"]);
         assert_eq!(doc.line(doc.place("c2").unwrap()), "Notes");
     }
 

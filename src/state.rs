@@ -147,6 +147,12 @@ pub fn load_state(path: &Path) -> StateFile {
 /// Saves the full state atomically with private permissions.
 pub fn save_state(path: &Path, state: &StateFile) -> io::Result<()> {
     let text = toml::to_string(state).map_err(io::Error::other)?;
+    write_private(path, &text)
+}
+
+/// Writes `text` to `path` whole or not at all (a temporary file renamed
+/// over it), readable only by the user.
+pub fn write_private(path: &Path, text: &str) -> io::Result<()> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
     }

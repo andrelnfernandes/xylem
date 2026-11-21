@@ -5760,3 +5760,54 @@ fn fuzzy_shows_tagged_files_and_how_many_a_folder_has() {
     assert!(rows.iter().any(|r| r.contains("  sub  1*")), "{rows:#?}");
     assert!(rows.iter().any(|r| r.contains("Tagged 1 file")), "the note");
 }
+
+#[test]
+fn turning_the_time_read_off_asks_before_deleting_it() {
+    let (tmp, mut app) = sample();
+    let file = tmp.path().join("state/reading.toml");
+    crate::reading::TEST_PATH.with(|p| *p.borrow_mut() = Some(file));
+    let mut store = crate::reading::Store::default();
+    for (id, seconds) in [("a", 60), ("b", 120)] {
+        store.put(crate::reading::Record {
+            id: id.into(),
+            chapter: 3,
+            seconds,
+            title: Some(format!("Book {id}")),
+            ..Default::default()
+        });
+    }
+    crate::reading::save(&store).unwrap();
+    app.options.reading_stats = true;
+    app.options.reading_titles = true;
+    let mut config = crate::config::Config {
+        options: app.options.clone(),
+        ..Default::default()
+    };
+    config.options.reading_titles = false;
+    // The titles go at once, and nothing is asked of the time.
+    app.save_settings(config.clone());
+    assert!(app.confirm.is_none());
+    let kept = crate::reading::load();
+    assert!(
+        kept.books
+            .iter()
+            .all(|b| b.title.is_none() && b.seconds > 0)
+    );
+    // The time read off: asked first; no keeps it.
+    config.options.reading_stats = false;
+    app.save_settings(config.clone());
+    assert_eq!(
+        app.confirm.as_ref().map(|c| c.question.as_str()),
+        Some("Delete the reading time of 2 books?")
+    );
+    press(&mut app, KeyCode::Char('n'));
+    assert_eq!(crate::reading::load().with_stats(), 2);
+    // Turned on and off again, yes deletes it, and the places stay.
+    app.options.reading_stats = true;
+    app.save_settings(config);
+    press(&mut app, KeyCode::Char('y'));
+    let kept = crate::reading::load();
+    assert_eq!(kept.with_stats(), 0);
+    assert!(kept.books.iter().all(|b| b.chapter == 3));
+    crate::reading::TEST_PATH.with(|p| *p.borrow_mut() = None);
+}

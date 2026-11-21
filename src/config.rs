@@ -81,6 +81,15 @@ reader_paragraphs = "book"
 reader_justify = false
 # Words per minute, for the time left in a chapter and in the book.
 reading_wpm = 250
+# With R in a book (remember where the reading stopped), also keep the time
+# spent reading it: sessions, speed, how far it went. Kept only for the books
+# remembered, in reading.toml in Xylem's state folder, known by a hash.
+reading_stats = false
+# Minutes without a key after which the reading clock stops.
+reading_idle = 3
+# Keep the titles and authors of the books remembered, for a list of them in
+# the report (I) of any book. Off, reading.toml says nothing of what you read.
+reading_titles = false
 # Icons and glyphs in file lists and the directory tree: "none" (classic
 # plain text) or "nerd-fonts" (requires a Nerd Font terminal font from
 # https://www.nerdfonts.com, e.g. FiraCode or JetBrainsMono Nerd Font).
@@ -272,6 +281,12 @@ pub struct Options {
     pub reader_justify: bool,
     /// Ebooks: words per minute, for the time left.
     pub reading_wpm: u16,
+    /// Ebooks: keep the time spent reading the books remembered with R.
+    pub reading_stats: bool,
+    /// Ebooks: minutes without a key before the reading clock stops.
+    pub reading_idle: u16,
+    /// Ebooks: keep the titles of the books remembered, for a list of them.
+    pub reading_titles: bool,
     /// Icons and glyphs (Nerd Fonts).
     pub icons: IconStyle,
     /// File names colored by type.
@@ -342,6 +357,9 @@ impl Default for Options {
             reader_paragraphs: Paragraphs::Book,
             reader_justify: false,
             reading_wpm: 250,
+            reading_stats: false,
+            reading_idle: 3,
+            reading_titles: false,
             icons: IconStyle::None,
             type_colors: true,
             borders: Borders::Theme,
@@ -409,6 +427,9 @@ impl Options {
             ("reader_paragraphs", s(self.reader_paragraphs.as_str())),
             ("reader_justify", Value::from(self.reader_justify)),
             ("reading_wpm", Value::from(i64::from(self.reading_wpm))),
+            ("reading_stats", Value::from(self.reading_stats)),
+            ("reading_idle", Value::from(i64::from(self.reading_idle))),
+            ("reading_titles", Value::from(self.reading_titles)),
             ("icons", s(self.icons.as_str())),
             ("type_colors", Value::from(self.type_colors)),
             ("borders", s(self.borders.as_str())),

@@ -4194,6 +4194,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 ("Tab", "contents"),
                 ("Enter", "notes"),
                 ("g", "go to %"),
+                ("R", "remember"),
                 ("I", "report"),
                 ("Z", "focus"),
                 ("Esc", "close"),
@@ -4406,21 +4407,33 @@ fn book_progress_line(v: &Viewer, width: usize) -> String {
     };
     let o = &v.reader_options;
     let g = crate::viewer::reader::glyphs(o.nerd);
+    // The speed measured of this book, else the one of F12.
+    let wpm = v.reader.as_ref().and_then(|r| r.speed).unwrap_or(o.wpm);
     let title = TableGrid::sanitize_cell(&p.title);
     let title: String = title.chars().take(50).collect();
     let percent = (p.done * 100.0).floor() as usize;
     let time = format!(
         "{}{} left in chapter · {} in book",
         g.clock,
-        crate::viewer::reader::time_left(p.words_left_in_chapter, o.wpm),
-        crate::viewer::reader::time_left(p.words_left, o.wpm),
+        crate::viewer::reader::time_left(p.words_left_in_chapter, wpm),
+        crate::viewer::reader::time_left(p.words_left, wpm),
     );
-    let chapter = format!(
+    let mut chapter = format!(
         "{}Chapter {} of {}: {title}",
         g.book,
         p.chapter + 1,
         p.chapters
     );
+    if let Some(r) = v.reader.as_ref().filter(|r| r.remembered) {
+        let kept = if o.nerd { "\u{f02e}" } else { "[R]" }; // fa-bookmark
+        chapter = match &r.clock {
+            Some(c) => format!(
+                "{kept} {chapter} · {} this time",
+                crate::reading::duration(c.session_seconds())
+            ),
+            None => format!("{kept} {chapter}"),
+        };
+    }
     let bar_cells = 12;
     let bar = crate::viewer::reader::bar(p.done, bar_cells, &g);
     let full = format!("{chapter}   {bar} {percent}%  ·  {time}");

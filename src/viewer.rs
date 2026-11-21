@@ -57,6 +57,9 @@ const TAB_WIDTH: usize = 8;
 const PAN_STEP: usize = 8;
 /// Links followed in a guide that Backspace can go back through.
 const MAX_JUMPS_BACK: usize = 1000;
+/// The most of a book read to know it by its bytes, when it does not say
+/// what it is.
+const MAX_BOOK_HASH: u64 = 256 << 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -129,6 +132,8 @@ pub struct LoadOptions {
     pub c_parsers: bool,
     /// A table is read in another thread, with the screen free and Esc stopping it.
     pub in_background: bool,
+    /// The reader of books: its layout, and what it keeps (see `reading`).
+    pub reader: reader::ReaderOptions,
 }
 
 impl LoadOptions {
@@ -144,6 +149,7 @@ impl LoadOptions {
             fallback: None,
             c_parsers: true,
             in_background: false,
+            reader: reader::ReaderOptions::default(),
         }
     }
 
@@ -159,6 +165,7 @@ impl LoadOptions {
             fallback: None,
             c_parsers: false,
             in_background: false,
+            reader: reader::ReaderOptions::default(),
         }
     }
 }
@@ -570,6 +577,7 @@ impl Viewer {
             },
         );
         v.load = load;
+        v.reader_options = load.reader;
         let (lines, bidi) = match std::mem::take(&mut v.lines) {
             Text::Whole(lines) if whole > 0 => (lines, v.bidi.clone()),
             _ => (Lines::default(), Vec::new()),
@@ -1556,6 +1564,7 @@ impl Viewer {
             v.colors_on = false;
         }
         v.load = load;
+        v.reader_options = load.reader;
         v.compression = compression;
         v.cut = cut;
         v.note = note;
@@ -2065,16 +2074,39 @@ impl Viewer {
             budget: self.load.limits.output.saturating_mul(16).max(16 << 20),
         };
         let width = self.reader_options.column(self.content_width());
+        // What is kept of the books read, and who this one is: asked while
+        // the book is read, for its title page and report.
+        let store = crate::reading::load();
+        let (stats, titles) = (self.reader_options.stats, self.reader_options.titles);
+        let id = std::cell::RefCell::new(None::<String>);
+        let (size, data, path, cut) = (self.size, &self.data, self.path.clone(), self.cut);
+        let lookup = |identifier: Option<&str>| {
+            let bytes;
+            let bytes: &[u8] = if identifier.is_some_and(|i| !i.trim().is_empty()) || !cut {
+                data
+            } else {
+                bytes = read_bounded(&path, MAX_BOOK_HASH).unwrap_or_default();
+                &bytes
+            };
+            let book = crate::reading::identity(identifier, size, bytes);
+            let summary = crate::reading::summary(&store, &book, stats, titles);
+            *id.borrow_mut() = Some(book);
+            summary
+        };
         let result = if !self.cut {
-            let data = &self.data;
             crate::panic_guard::catch(|| {
-                epub::render(std::io::Cursor::new(data.as_slice()), limits, width)
+                epub::render_with(
+                    std::io::Cursor::new(data.as_slice()),
+                    limits,
+                    width,
+                    &lookup,
+                )
             })
         } else if self.on_disk && !autoview && self.compression.is_none() {
             let path = self.path.clone();
             crate::panic_guard::catch(|| {
                 let file = File::open(&path).map_err(|e| format!("Cannot read the file: {e}"))?;
-                epub::render(std::io::BufReader::new(file), limits, width)
+                epub::render_with(std::io::BufReader::new(file), limits, width, &lookup)
             })
         } else {
             if self.note.is_none() {
@@ -2088,9 +2120,34 @@ impl Viewer {
                     self.note
                         .get_or_insert_with(|| format!("{w}: I shows the report"));
                 }
-                let (reader, doc) = reader::Reader::new(book);
+                let at = book.at;
+                let (mut reader, doc) = reader::Reader::new(book);
+                reader.id = id.into_inner();
+                reader.remembered = at.is_some();
+                reader.titles = titles && stats;
+                reader.speed = reader
+                    .id
+                    .as_ref()
+                    .and_then(|i| store.get(i))
+                    .and_then(crate::reading::Record::speed)
+                    .filter(|_| stats);
                 self.md = Some(doc);
                 self.reader = Some(reader);
+                if let Some((chapter, line)) = at {
+                    self.go_to_place(chapter, line);
+                    let n = chapter + 1;
+                    self.note = Some(format!("Back at chapter {n} (R forgets this book)"));
+                }
+                if self.remembers_time() && !autoview {
+                    let at = self.words_read();
+                    if let Some(r) = &mut self.reader {
+                        let mut clock = crate::reading::Clock::new(Duration::from_secs(
+                            u64::from(self.reader_options.idle.max(1)) * 60,
+                        ));
+                        clock.start(std::time::Instant::now(), at, crate::reading::now_secs());
+                        r.clock = Some(clock);
+                    }
+                }
             }
             Some(Err(why)) => {
                 self.note.get_or_insert(why);
@@ -2101,6 +2158,127 @@ impl Viewer {
             }
         }
         self.md.is_some()
+    }
+
+    /// Whether the time read of this book is kept: remembered, with the
+    /// option on.
+    fn remembers_time(&self) -> bool {
+        self.reader_options.stats && self.reader.as_ref().is_some_and(|r| r.remembered)
+    }
+
+    /// Where the reading is: the chapter, and the line of the text within it.
+    fn reading_place(&self) -> Option<(usize, usize)> {
+        let md = self.md.as_ref()?;
+        let r = self.reader.as_ref()?;
+        let rows = self.chapter_rows();
+        let chapter = rows.iter().rposition(|&row| row <= self.reading_top())?;
+        let start = md.place(&r.chapters.get(chapter)?.place)?;
+        let (line, _) = md.anchor(self.top).unwrap_or((start, 0));
+        Some((chapter, line.saturating_sub(start)))
+    }
+
+    /// To the line `line` of chapter `chapter` (as [`reading_place`] says
+    /// them), or as near as the book has.
+    ///
+    /// [`reading_place`]: Self::reading_place
+    fn go_to_place(&mut self, chapter: usize, line: usize) {
+        let (Some(md), Some(r)) = (&self.md, &self.reader) else {
+            return;
+        };
+        let Some(c) = r
+            .chapters
+            .get(chapter.min(r.chapters.len().saturating_sub(1)))
+        else {
+            return;
+        };
+        let Some(start) = md.place(&c.place) else {
+            return;
+        };
+        let line = (start + line).min(md.line_count().saturating_sub(1));
+        self.top = md.row_of(line, 0);
+    }
+
+    /// The words of the book before the top of the screen.
+    fn words_read(&self) -> f64 {
+        let total = self.reader.as_ref().map_or(0, |r| r.total_words());
+        self.book_progress().map_or(0.0, |p| p.done * total as f64)
+    }
+
+    /// R in a book: remember where the reading stops, and (with the option)
+    /// the time read; again, forget the book and what was kept of it.
+    fn toggle_remember(&mut self, now: std::time::Instant) {
+        let place = self.reading_place().unwrap_or((0, 0));
+        let at = self.words_read();
+        let stats = self.reader_options.stats;
+        let idle = Duration::from_secs(u64::from(self.reader_options.idle.max(1)) * 60);
+        let Some(r) = &mut self.reader else { return };
+        let Some(id) = r.id.clone() else { return };
+        let mut store = crate::reading::load();
+        if r.remembered {
+            store.forget(&id);
+            r.remembered = false;
+            r.clock = None;
+            self.note = Some("Forgotten: nothing is kept of this book".into());
+        } else {
+            r.remembered = true;
+            store.put(crate::reading::Record {
+                id,
+                chapter: place.0,
+                line: place.1,
+                at: crate::reading::now_secs(),
+                ..Default::default()
+            });
+            if stats {
+                let mut clock = crate::reading::Clock::new(idle);
+                clock.start(now, at, crate::reading::now_secs());
+                r.clock = Some(clock);
+            }
+            self.note = Some(if stats {
+                "Remembering where you stop and the time read (R forgets)".into()
+            } else {
+                "Remembering where you stop (R forgets)".into()
+            });
+        }
+        if let Err(e) = crate::reading::save(&store) {
+            self.note = Some(format!("Cannot keep it: {e}"));
+        }
+    }
+
+    /// After each key in a remembered book: where the reading is, and the
+    /// clock.
+    fn after_reading_key(&mut self, key: KeyEvent, now: std::time::Instant) {
+        if !self.reading() || !self.reader.as_ref().is_some_and(|r| r.remembered) {
+            return;
+        }
+        let place = self.reading_place();
+        let at = self.words_read();
+        let done = self.book_progress().map_or(0.0, |p| p.done);
+        let end = self.top >= self.last_top();
+        let overlay = self
+            .reader
+            .as_ref()
+            .is_some_and(|r| r.contents.is_some() || r.notes_view.is_some());
+        let forward = !overlay
+            && matches!(
+                key.code,
+                KeyCode::Char(' ') | KeyCode::PageDown | KeyCode::Down
+            );
+        let Some(r) = &mut self.reader else { return };
+        if place.is_some() && place != r.place {
+            r.place = place;
+            r.moved = true;
+        }
+        r.farthest = r.farthest.max(if end { 1.0 } else { done });
+        if let Some(clock) = &mut r.clock {
+            let how = if forward {
+                crate::reading::Move::Forward
+            } else {
+                crate::reading::Move::Other
+            };
+            if let Some(ended) = clock.key(now, at, how, crate::reading::now_secs()) {
+                r.ended.push(ended);
+            }
+        }
     }
 
     /// The rows where the chapters of a book start, in order.
@@ -3510,6 +3688,29 @@ impl Viewer {
     /// Handles a key; what does not belong to the viewer itself (close, switch
     /// file, search) comes back as an `Action`.
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
+        self.handle_key_at(key, std::time::Instant::now())
+    }
+
+    /// [`handle_key`](Self::handle_key) at `now`: the clock of a book read
+    /// takes the time of each key.
+    pub fn handle_key_at(&mut self, key: KeyEvent, now: std::time::Instant) -> Action {
+        let plain = !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        let overlay = self
+            .reader
+            .as_ref()
+            .is_some_and(|r| r.contents.is_some() || r.notes_view.is_some());
+        if self.reading() && plain && !overlay && matches!(key.code, KeyCode::Char('r' | 'R')) {
+            self.toggle_remember(now);
+            return Action::None;
+        }
+        let action = self.key(key);
+        self.after_reading_key(key, now);
+        action
+    }
+
+    fn key(&mut self, key: KeyEvent) -> Action {
         if key.code == KeyCode::Esc && self.reading_table() {
             self.stop_reading_table();
             return Action::None;
@@ -4662,6 +4863,7 @@ mod tests {
         fallback: None,
         c_parsers: true,
         in_background: false,
+        reader: reader::ReaderOptions::DEFAULT,
     };
 
     fn from_gz(name: &str, raw: Vec<u8>, load: LoadOptions) -> Viewer {
@@ -7637,6 +7839,157 @@ new mode 100755
             "{:?}",
             v.note
         );
+    }
+
+    /// Where the tests keep their books, for the length of one test.
+    struct KeptBooks(tempfile::TempDir);
+
+    impl KeptBooks {
+        fn new() -> Self {
+            let tmp = crate::testing::tempdir();
+            let file = tmp.path().join("state/reading.toml");
+            crate::reading::TEST_PATH.with(|p| *p.borrow_mut() = Some(file));
+            KeptBooks(tmp)
+        }
+    }
+
+    impl Drop for KeptBooks {
+        fn drop(&mut self) {
+            crate::reading::TEST_PATH.with(|p| *p.borrow_mut() = None);
+        }
+    }
+
+    fn book_load(stats: bool) -> LoadOptions {
+        LoadOptions {
+            reader: reader::ReaderOptions {
+                stats,
+                titles: stats,
+                ..reader::ReaderOptions::DEFAULT
+            },
+            ..LOAD
+        }
+    }
+
+    #[test]
+    fn r_remembers_where_a_book_stopped_and_r_again_forgets_it() {
+        let kept = KeptBooks::new();
+        let path = kept.0.path().join("book.epub");
+        std::fs::write(&path, epub::test_books::book3()).unwrap();
+        let open = |p: &Path| {
+            let mut v = Viewer::open(p.to_path_buf(), book_load(false)).unwrap();
+            v.page = 4;
+            v.width = 100;
+            v
+        };
+        // Nothing is kept until R.
+        let mut v = open(&path);
+        press(&mut v, KeyCode::Char(']'));
+        drop(v);
+        assert!(crate::reading::load().books.is_empty());
+        // R, then on to chapter two: kept when the viewer closes.
+        let mut v = open(&path);
+        press(&mut v, KeyCode::Char('r'));
+        assert_eq!(
+            v.note.as_deref(),
+            Some("Remembering where you stop (R forgets)")
+        );
+        press(&mut v, KeyCode::Char(']'));
+        press(&mut v, KeyCode::Char(']'));
+        press(&mut v, KeyCode::Down);
+        let place = v.reading_place().unwrap();
+        assert_eq!(place.0, 1);
+        drop(v);
+        let store = crate::reading::load();
+        assert_eq!(store.books.len(), 1);
+        let r = &store.books[0];
+        assert_eq!((r.chapter, r.line), place);
+        assert!(!r.has_stats(), "the time read is off");
+        let text = std::fs::read_to_string(crate::reading::path().unwrap()).unwrap();
+        assert!(
+            !text.contains("Test Book") && !text.contains("book.epub"),
+            "{text}"
+        );
+        // Opened again, moved and renamed: back where it stopped.
+        let moved = kept.0.path().join("other name.epub");
+        std::fs::rename(&path, &moved).unwrap();
+        let v = open(&moved);
+        assert_eq!(
+            v.note.as_deref(),
+            Some("Back at chapter 2 (R forgets this book)")
+        );
+        assert_eq!(v.reading_place(), Some(place));
+        drop(v);
+        // Another book with the old name is another book.
+        let other = epub::test_books::book3_titled("Another Book");
+        std::fs::write(&path, other).unwrap();
+        let v = open(&path);
+        assert_eq!(v.chapter_position(), None, "at its title page");
+        drop(v);
+        // R again forgets it.
+        let mut v = open(&moved);
+        press(&mut v, KeyCode::Char('r'));
+        assert_eq!(
+            v.note.as_deref(),
+            Some("Forgotten: nothing is kept of this book")
+        );
+        drop(v);
+        assert!(crate::reading::load().books.is_empty());
+    }
+
+    #[test]
+    fn the_time_read_is_kept_with_the_option_and_shown_next_time() {
+        let kept = KeptBooks::new();
+        let path = kept.0.path().join("book.epub");
+        std::fs::write(&path, epub::test_books::book3()).unwrap();
+        let t0 = std::time::Instant::now();
+        let at = |s: u64| t0 + Duration::from_secs(s);
+        let key = |v: &mut Viewer, code: KeyCode, s: u64| {
+            v.handle_key_at(KeyEvent::new(code, KeyModifiers::NONE), at(s));
+        };
+        let mut v = Viewer::open(path.clone(), book_load(true)).unwrap();
+        v.page = 2;
+        v.width = 100;
+        key(&mut v, KeyCode::Char('r'), 0);
+        assert!(v.note.as_deref().unwrap().contains("the time read"));
+        // Pages a minute apart, then a pause that does not count.
+        key(&mut v, KeyCode::Char(']'), 30);
+        key(&mut v, KeyCode::Char(' '), 90);
+        key(&mut v, KeyCode::Char(' '), 150);
+        key(&mut v, KeyCode::Char(' '), 1_000);
+        let clock = v.reader.as_ref().unwrap().clock.as_ref().unwrap();
+        assert_eq!(clock.seconds, 150.0);
+        assert!(clock.words > 0.0);
+        drop(v);
+        let store = crate::reading::load();
+        let r = &store.books[0];
+        assert_eq!(r.seconds, 150);
+        assert_eq!(r.sessions.len(), 1);
+        assert!(r.farthest > 0.0);
+        assert_eq!(r.title.as_deref(), Some("The Test Book"), "titles on");
+        // Next time, the title page and the report say it.
+        let mut v = Viewer::open(path.clone(), book_load(true)).unwrap();
+        let md = v.md.as_ref().unwrap();
+        let lines: Vec<&str> = (0..md.line_count()).map(|i| md.line(i)).collect();
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with("Your reading: 2 min in 1 session")),
+            "{lines:?}"
+        );
+        press(&mut v, KeyCode::Char('i'));
+        let md = v.md.as_ref().unwrap();
+        let report: Vec<&str> = (0..md.line_count()).map(|i| md.line(i)).collect();
+        assert!(report.contains(&"Your reading"), "{report:?}");
+        assert!(report.contains(&"Your books"), "{report:?}");
+        drop(v);
+        // With the option off, the time is neither measured nor shown.
+        let mut v = Viewer::open(path, book_load(false)).unwrap();
+        assert!(v.reader.as_ref().unwrap().clock.is_none());
+        let md = v.md.as_ref().unwrap();
+        assert!((0..md.line_count()).all(|i| !md.line(i).starts_with("Your reading")));
+        key(&mut v, KeyCode::Char(' '), 2_000);
+        drop(v);
+        assert_eq!(crate::reading::load().books[0].seconds, 150);
     }
 
     #[test]

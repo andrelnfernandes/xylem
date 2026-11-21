@@ -103,6 +103,7 @@ impl App {
         load.decompress = self.options.viewer_decompress;
         load.fallback = self.options.legacy_charset.fallback();
         load.in_background = true;
+        load.reader = self.reader_options();
         self.load_viewer_with(path, size, load)
     }
 
@@ -110,6 +111,7 @@ impl App {
         let mut load = LoadOptions::autoview();
         load.decompress = self.options.viewer_decompress;
         load.fallback = self.options.legacy_charset.fallback();
+        load.reader = self.reader_options();
         load
     }
 
@@ -155,6 +157,9 @@ impl App {
             justify: o.reader_justify,
             wpm: o.reading_wpm,
             nerd: o.icons == crate::config::IconStyle::NerdFonts,
+            stats: o.reading_stats,
+            idle: o.reading_idle,
+            titles: o.reading_titles,
         }
     }
 
