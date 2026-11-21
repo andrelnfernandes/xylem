@@ -161,8 +161,7 @@ GIF quando valer.
 ## Andamento (2026-11-21, para retomar)
 
 **Decidido pelo autor:** a tecla é **Alt+V**, e as quatro etapas entram na 0.9.0.
-O trabalho fica no branch `views`, criado a partir da `main` em `58620a6`. Por
-enquanto, só este plano mudou, sem commit.
+O trabalho fica no branch `views`, criado a partir da `main` em `58620a6`.
 
 **Conferido no código** (nada escrito ainda):
 
@@ -221,11 +220,15 @@ testa na volta):
 - **Commits:** um commit por etapa no branch `views`, e um PR no fim, se o
   autor concordar.
 
-## Andamento (2026-11-21, tarde): etapas 1 a 3 prontas, sem commit
+## Andamento (2026-11-21, tarde): etapas 1 a 3 prontas (PR #133)
 
-Feitas no branch `views`, sem commit (esperando a palavra do autor), com
+Feitas no branch `views`, num commit só (as etapas mexem nos mesmos
+arquivos), autorizado pelo autor, e no PR #133. Passaram
 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` e
-`cargo test` passando ao fim de cada etapa.
+`cargo test` ao fim de cada etapa.
+
+**Para a etapa 4:** o autor vai retomá-la noutra máquina, com mais memória,
+começando pela medição.
 
 - **Etapa 1** (`src/scan.rs`, `src/app/views_cmd.rs`, `draw_scan` em
   `src/ui.rs`): Alt+V abre o seletor (o menu de contexto, com
