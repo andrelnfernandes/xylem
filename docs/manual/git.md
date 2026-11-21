@@ -8,8 +8,8 @@ Git can be turned off because it is not free: to show the status of the
 files, Xylem runs `git status` for the whole repository, and runs it again
 every few seconds. In a large repository on a slow file system (a Windows
 drive seen from WSL, as `/mnt/c`, or a network share) one `git status` can
-take minutes, and while it runs the screen does not respond. If that
-happens, turn Git off there, on page 1 of F12.
+take minutes. It runs in the background, so the screen goes on answering,
+but it keeps the disk busy; turning Git off, on page 1 of F12, avoids it.
 
 ## The Git menu (Ctrl+G)
 
@@ -35,6 +35,14 @@ of `git status --short`: `M ` staged, ` M` changed but not staged, `A `
 added, `??` untracked, `R ` renamed. Unchanged files show blanks. The status is
 read again after Xylem's own operations, after F3, and every 10 seconds (to
 catch commits made in another terminal).
+
+The status is read in the background: the letters appear when it is done,
+and while a reading takes more than a second the title of the file window
+says `git status...`. A repository whose status took long is read again
+less often on its own: ten times what the last reading took, so one of two
+minutes waits some twenty, unless F3 or an operation asks for it. A
+condition of `W` on `git` waits up to two seconds for the status, and says
+when it is still being read.
 
 ## Diff in the viewer
 

@@ -15,6 +15,7 @@ use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::time::{Duration, Instant};
 
 /// The menu (Ctrl+G), in display order; the first letter chooses.
@@ -292,22 +293,62 @@ pub fn change(action: Action, root: &Path, paths: &[PathBuf]) -> io::Result<Resu
 const MAX_AGE: Duration = Duration::from_secs(10);
 /// Minimum interval between two readings of the same repository.
 const MIN_INTERVAL: Duration = Duration::from_millis(500);
+/// A repository is read again at most this many times the time its last
+/// reading took: one that took 130 s (a big one on `/mnt/c` from WSL) waits
+/// some 20 minutes, unless something asks for it (`invalidate`).
+const SLOW_FACTOR: u32 = 10;
+/// From when a reading is said to be on its way (the title of the file
+/// window), so that a quick one does not blink.
+const SAY_READING: Duration = Duration::from_secs(1);
+
+/// What reads a repository's status: [`read_status`], or a stand-in in the
+/// tests.
+type ReadFn = fn(&Path, bool) -> RepoStatus;
 
 /// Status of the files in the repositories being displayed: the two
 /// letters of `git status --short` (`M `, ` M`, `??`...).
-#[derive(Default)]
+///
+/// `git status` can take minutes (a big repository on a slow file system),
+/// so it runs on a thread of its own: [`refresh`] starts it and comes back,
+/// and a later one takes what it found.
+///
+/// [`refresh`]: Self::refresh
 pub struct StatusCache {
     /// Directory → its repository (or none), so the screen never touches
     /// the disk.
     roots: HashMap<PathBuf, Option<PathBuf>>,
     repos: HashMap<PathBuf, RepoStatus>,
+    /// The readings on their way, one at most per repository.
+    pending: HashMap<PathBuf, Pending>,
+    read: ReadFn,
+}
+
+impl Default for StatusCache {
+    fn default() -> Self {
+        StatusCache {
+            roots: HashMap::new(),
+            repos: HashMap::new(),
+            pending: HashMap::new(),
+            read: read_status,
+        }
+    }
 }
 
 struct RepoStatus {
     files: HashMap<PathBuf, [u8; 2]>,
     /// Untracked directories: everything below them is `??`.
     untracked_dirs: HashSet<PathBuf>,
+    /// When the reading started, and how long it took.
     read_at: Instant,
+    took: Duration,
+    stale: bool,
+}
+
+/// A reading on its way: where its result comes, when it started, and
+/// whether something changed since (it is read again when it arrives).
+struct Pending {
+    result: Receiver<RepoStatus>,
+    started: Instant,
     stale: bool,
 }
 
@@ -318,10 +359,15 @@ impl StatusCache {
         for repo in self.repos.values_mut() {
             repo.stale = true;
         }
+        for pending in self.pending.values_mut() {
+            pending.stale = true;
+        }
     }
 
-    /// Makes sure the repositories of `dirs` are read and current. Called
-    /// before drawing. `trusted` is the `git_trusted` option.
+    /// Makes sure the repositories of `dirs` are being read and current,
+    /// without waiting for any: takes the readings that ended, and starts
+    /// those that are due. Called before drawing. `trusted` is the
+    /// `git_trusted` option.
     pub fn refresh(&mut self, dirs: impl IntoIterator<Item = PathBuf>, trusted: &[String]) {
         let mut wanted = HashSet::new();
         for dir in dirs {
@@ -334,25 +380,128 @@ impl StatusCache {
                 wanted.insert(root);
             }
         }
+        // A repository no longer shown: its reading, when it ends, is let go.
         self.repos.retain(|root, _| wanted.contains(root));
+        self.pending.retain(|root, _| wanted.contains(root));
+        self.collect(None);
         for root in wanted {
+            if self.pending.contains_key(&root) {
+                continue;
+            }
             let due = match self.repos.get(&root) {
                 None => true,
                 Some(r) => {
                     let age = r.read_at.elapsed();
-                    (r.stale && age >= MIN_INTERVAL) || age >= MAX_AGE
+                    let wait = MAX_AGE.max(r.took * SLOW_FACTOR);
+                    (r.stale && age >= MIN_INTERVAL) || age >= wait
                 }
             };
             if due {
-                let status = read_status(&root, is_trusted(&root, trusted));
-                self.repos.insert(root, status);
+                self.start(root.clone(), is_trusted(&root, trusted));
             }
         }
+    }
+
+    /// Starts reading `root` on a thread of its own.
+    fn start(&mut self, root: PathBuf, trusted: bool) {
+        let (send, result) = channel();
+        let read = self.read;
+        let at = root.clone();
+        let spawned = std::thread::Builder::new()
+            .name("git status".into())
+            .spawn(move || {
+                // Gone if the repository left the screen meanwhile.
+                let _ = send.send(read(&at, trusted));
+            });
+        if spawned.is_ok() {
+            self.pending.insert(
+                root,
+                Pending {
+                    result,
+                    started: Instant::now(),
+                    stale: false,
+                },
+            );
+        }
+    }
+
+    /// Takes the readings that ended; with `wait`, waits for each up to
+    /// that long (for the tests).
+    fn collect(&mut self, wait: Option<Duration>) {
+        let roots: Vec<PathBuf> = self.pending.keys().cloned().collect();
+        for root in roots {
+            let Some(pending) = self.pending.get(&root) else {
+                continue;
+            };
+            let got = match wait {
+                Some(limit) => pending
+                    .result
+                    .recv_timeout(limit)
+                    .map_err(|_| TryRecvError::Empty),
+                None => pending.result.try_recv(),
+            };
+            let status = match got {
+                Ok(mut status) => {
+                    status.stale = pending.stale;
+                    status
+                }
+                Err(TryRecvError::Empty) => continue,
+                // The reading died: no markers, and no new reading at once.
+                Err(TryRecvError::Disconnected) => RepoStatus::empty(pending.started),
+            };
+            self.pending.remove(&root);
+            self.repos.insert(root, status);
+        }
+    }
+
+    /// Whether the status of the repository of `dir` is known, waiting up
+    /// to `limit` for a reading on its way: for what needs it at once (a
+    /// condition of `W` on `git`). Outside a repository, it is: there is
+    /// none.
+    pub fn known(&mut self, dir: &Path, limit: Duration) -> bool {
+        let Some(Some(root)) = self.roots.get(dir).cloned() else {
+            return true;
+        };
+        if self.repos.contains_key(&root) && !self.pending.contains_key(&root) {
+            return true;
+        }
+        if let Some(pending) = self.pending.get(&root)
+            && let Ok(mut status) = pending.result.recv_timeout(limit)
+        {
+            status.stale = pending.stale;
+            self.pending.remove(&root);
+            self.repos.insert(root.clone(), status);
+        }
+        self.repos.contains_key(&root)
+    }
+
+    /// Refreshes and waits for the readings to end.
+    #[cfg(test)]
+    pub fn refreshed(&mut self, dirs: impl IntoIterator<Item = PathBuf>, trusted: &[String]) {
+        self.refresh(dirs, trusted);
+        self.settle();
+    }
+
+    /// Waits for the readings on their way to end.
+    #[cfg(test)]
+    pub fn settle(&mut self) {
+        self.collect(Some(Duration::from_secs(60)));
     }
 
     /// Whether `dir` is inside a repository being displayed.
     pub fn in_repo(&self, dir: &Path) -> bool {
         self.roots.get(dir).is_some_and(Option::is_some)
+    }
+
+    /// Whether the status of the repository of `dir` has been on its way
+    /// for a while: the file window says so.
+    pub fn is_reading(&self, dir: &Path) -> bool {
+        let Some(Some(root)) = self.roots.get(dir) else {
+            return false;
+        };
+        self.pending
+            .get(root)
+            .is_some_and(|p| p.started.elapsed() >= SAY_READING)
     }
 
     /// The two status letters of a file; `None` if it is unchanged (or
@@ -381,18 +530,26 @@ impl StatusCache {
     }
 }
 
+impl RepoStatus {
+    fn empty(read_at: Instant) -> Self {
+        RepoStatus {
+            files: HashMap::new(),
+            untracked_dirs: HashSet::new(),
+            read_at,
+            took: read_at.elapsed(),
+            stale: false,
+        }
+    }
+}
+
 /// Reads the status by itself, just because the user walked into the
 /// directory, so it must not run commands that the repository names: see
 /// `reading`. Clean filters cannot be turned off, so a repository that defines
 /// its own is left without markers, unless it is `trusted`.
 fn read_status(root: &Path, trusted: bool) -> RepoStatus {
-    let mut status = RepoStatus {
-        files: HashMap::new(),
-        untracked_dirs: HashSet::new(),
-        read_at: Instant::now(),
-        stale: false,
-    };
+    let mut status = RepoStatus::empty(Instant::now());
     if !trusted && has_own_filters(root) {
+        status.took = status.read_at.elapsed();
         return status;
     }
     let args = ["status", "--porcelain=v1", "-z"];
@@ -405,6 +562,7 @@ fn read_status(root: &Path, trusted: bool) -> RepoStatus {
             &[],
         )
     };
+    status.took = status.read_at.elapsed();
     let Ok((true, out)) = read else {
         return status;
     };
@@ -587,14 +745,14 @@ mod tests {
         let touch = format!("touch '{}'", marker.display());
         git_ok(&root, &["config", "core.fsmonitor", &touch]);
         let mut cache = StatusCache::default();
-        cache.refresh([root.clone()], &[]);
+        cache.refreshed([root.clone()], &[]);
         assert_eq!(cache.marker(&root.join("a.txt")), Some(*b" M"));
 
         git_ok(&root, &["config", "filter.evil.clean", &touch]);
         fs::write(root.join(".gitattributes"), "* filter=evil\n").unwrap();
         cache.invalidate();
         std::thread::sleep(MIN_INTERVAL);
-        cache.refresh([root.clone()], &[]);
+        cache.refreshed([root.clone()], &[]);
         assert_eq!(cache.marker(&root.join("a.txt")), None, "not read");
         assert!(!marker.exists());
     }
@@ -701,7 +859,7 @@ mod tests {
             let root = self.root.as_path();
             let reads: [(&str, &dyn Fn()); 6] = [
                 ("markers", &|| {
-                    StatusCache::default().refresh([root.to_path_buf()], &[])
+                    StatusCache::default().refreshed([root.to_path_buf()], &[])
                 }),
                 ("status", &|| drop(report(Action::Status, root, &[], false))),
                 ("log", &|| drop(report(Action::Log, root, &[], false))),
@@ -911,7 +1069,7 @@ mod tests {
         fs::remove_file(&hostile.marker).unwrap();
         hostile.touch_changed();
         let mut cache = StatusCache::default();
-        cache.refresh([root.to_path_buf()], &trust);
+        cache.refreshed([root.to_path_buf()], &trust);
         assert_eq!(cache.marker(&a), Some(*b" M"));
         assert!(hostile.marker.exists(), "its filter ran for the markers");
 
@@ -993,6 +1151,94 @@ mod tests {
         }
     }
 
+    /// The repositories `slow_read` read, once per reading.
+    static READS: std::sync::Mutex<Vec<PathBuf>> = std::sync::Mutex::new(Vec::new());
+
+    /// A `git status` that takes its time, and finds `a.txt` changed.
+    fn slow_read(root: &Path, _trusted: bool) -> RepoStatus {
+        READS.lock().unwrap().push(root.to_path_buf());
+        let mut status = RepoStatus::empty(Instant::now());
+        std::thread::sleep(Duration::from_millis(300));
+        status.files.insert(PathBuf::from("a.txt"), *b" M");
+        status.took = status.read_at.elapsed();
+        status
+    }
+
+    fn reads_of(root: &Path) -> usize {
+        READS.lock().unwrap().iter().filter(|r| *r == root).count()
+    }
+
+    /// A folder that is a repository, for `slow_read`.
+    fn fake_repo() -> (tempfile::TempDir, PathBuf) {
+        let tmp = crate::testing::tempdir();
+        let root = dunce::canonicalize(tmp.path()).unwrap();
+        fs::create_dir_all(root.join(".git")).unwrap();
+        fs::write(root.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+        (tmp, root)
+    }
+
+    #[test]
+    fn a_slow_status_does_not_hold_the_screen() {
+        let (_tmp, root) = fake_repo();
+        let mut cache = StatusCache {
+            read: slow_read,
+            ..StatusCache::default()
+        };
+        let a = root.join("a.txt");
+        let started = Instant::now();
+        cache.refresh([root.clone()], &[]);
+        assert!(
+            started.elapsed() < Duration::from_millis(150),
+            "it does not wait"
+        );
+        assert_eq!(cache.marker(&a), None, "not read yet");
+        // Asked again while it reads: no second reading.
+        cache.refresh([root.clone()], &[]);
+        cache.refresh([root.clone()], &[]);
+        assert!(!cache.is_reading(&root), "said only after a second");
+        cache.settle();
+        assert_eq!(cache.marker(&a), Some(*b" M"));
+        assert_eq!(reads_of(&root), 1);
+
+        // A repository that took long is not read again soon...
+        cache.repos.get_mut(&root).unwrap().took = Duration::from_secs(130);
+        cache.repos.get_mut(&root).unwrap().read_at = Instant::now() - MAX_AGE * 2;
+        cache.refresh([root.clone()], &[]);
+        assert!(cache.pending.is_empty(), "not due");
+        // ...unless something changed.
+        cache.invalidate();
+        cache.refresh([root.clone()], &[]);
+        assert_eq!(cache.pending.len(), 1);
+        cache.settle();
+        assert_eq!(reads_of(&root), 2);
+        // A change during a reading reads again after it.
+        cache.repos.get_mut(&root).unwrap().read_at = Instant::now() - MAX_AGE * 400;
+        cache.refresh([root.clone()], &[]);
+        cache.invalidate();
+        cache.settle();
+        assert!(cache.repos[&root].stale);
+    }
+
+    #[test]
+    fn a_reading_of_a_repository_no_longer_shown_is_let_go() {
+        let (_tmp, root) = fake_repo();
+        let (_other_tmp, other) = fake_repo();
+        let mut cache = StatusCache {
+            read: slow_read,
+            ..StatusCache::default()
+        };
+        cache.refresh([root.clone()], &[]);
+        cache.refresh([other.clone()], &[]);
+        cache.settle();
+        assert_eq!(cache.marker(&root.join("a.txt")), None);
+        assert_eq!(cache.marker(&other.join("a.txt")), Some(*b" M"));
+        // W on git waits a little for the status it needs.
+        let (_late_tmp, late) = fake_repo();
+        cache.refresh([late.clone()], &[]);
+        assert!(cache.known(&late, Duration::from_secs(5)));
+        assert_eq!(cache.marker(&late.join("a.txt")), Some(*b" M"));
+    }
+
     #[test]
     fn markers_follow_the_repository() {
         let tmp = sample();
@@ -1000,7 +1246,7 @@ mod tests {
         assert_eq!(repo_root(&root.join("new")), Some(root.clone()));
 
         let mut cache = StatusCache::default();
-        cache.refresh([root.clone()], &[]);
+        cache.refreshed([root.clone()], &[]);
         assert!(cache.in_repo(&root));
         assert_eq!(cache.marker(&root.join("a.txt")), Some(*b" M"));
         assert_eq!(cache.marker(&root.join("c.txt")), Some(*b"A "));
@@ -1011,7 +1257,7 @@ mod tests {
             .unwrap();
         cache.invalidate();
         std::thread::sleep(MIN_INTERVAL);
-        cache.refresh([root.clone()], &[]);
+        cache.refreshed([root.clone()], &[]);
         assert_eq!(cache.marker(&root.join("a.txt")), Some(*b"M "));
 
         change(Action::Unstage, &root, &[root.join("a.txt")])
@@ -1019,11 +1265,11 @@ mod tests {
             .unwrap();
         cache.invalidate();
         std::thread::sleep(MIN_INTERVAL);
-        cache.refresh([root.clone()], &[]);
+        cache.refreshed([root.clone()], &[]);
         assert_eq!(cache.marker(&root.join("a.txt")), Some(*b" M"));
 
         let outside = crate::testing::tempdir();
-        cache.refresh([outside.path().to_path_buf()], &[]);
+        cache.refreshed([outside.path().to_path_buf()], &[]);
         assert!(!cache.in_repo(outside.path()));
         assert_eq!(cache.marker(&root.join("a.txt")), None, "no longer shown");
     }
