@@ -33,6 +33,8 @@ pub enum Opt {
     Splash,
     ClockSeconds,
     Mouse,
+    #[cfg_attr(not(feature = "update-check"), allow(dead_code))]
+    CheckUpdates,
     Sort,
     SortDescending,
     EnterViews,
@@ -73,6 +75,48 @@ const EDITOR_LABEL: &str = "Editor (empty: %VISUAL%, %EDITOR%, notepad)";
 const OPENER_LABEL: &str = "Open with (empty: start)";
 #[cfg(windows)]
 const BINARY_EDITOR_LABEL: &str = "Binary editor (empty: auto — heh, hexedit, bvi)";
+
+const CONFIRMATIONS_COMMON: [(char, &str, Opt); 6] = [
+    ('A', "Quit confirmation", Opt::ConfirmQuit),
+    ('B', "Delete to trash / Recycle Bin", Opt::DeleteToTrash),
+    ('C', "Prune confirmation (type)", Opt::PruneConfirmation),
+    (
+        'D',
+        "Entries starting with @ are not saved in history",
+        Opt::HistorySkipAt,
+    ),
+    (
+        'E',
+        "Built-in terminal keeps a shell history of its own",
+        Opt::TerminalHistory,
+    ),
+    (
+        'F',
+        "Alt+T in the fuzzy find tags every match, not only the 500 shown",
+        Opt::FuzzyTagAll,
+    ),
+];
+
+/// With the `update-check` feature, the option to look for new versions.
+#[cfg(feature = "update-check")]
+const CONFIRMATIONS: &[(char, &str, Opt)] = &{
+    let c = CONFIRMATIONS_COMMON;
+    [
+        c[0],
+        c[1],
+        c[2],
+        c[3],
+        c[4],
+        c[5],
+        (
+            'G',
+            "Look for a new version once a day (only its number is fetched)",
+            Opt::CheckUpdates,
+        ),
+    ]
+};
+#[cfg(not(feature = "update-check"))]
+const CONFIRMATIONS: &[(char, &str, Opt)] = &CONFIRMATIONS_COMMON;
 
 pub const PAGES: &[Page] = &[
     (
@@ -154,29 +198,7 @@ pub const PAGES: &[Page] = &[
             ),
         ],
     ),
-    (
-        "Confirmations and history",
-        &[
-            ('A', "Quit confirmation", Opt::ConfirmQuit),
-            ('B', "Delete to trash / Recycle Bin", Opt::DeleteToTrash),
-            ('C', "Prune confirmation (type)", Opt::PruneConfirmation),
-            (
-                'D',
-                "Entries starting with @ are not saved in history",
-                Opt::HistorySkipAt,
-            ),
-            (
-                'E',
-                "Built-in terminal keeps a shell history of its own",
-                Opt::TerminalHistory,
-            ),
-            (
-                'F',
-                "Alt+T in the fuzzy find tags every match, not only the 500 shown",
-                Opt::FuzzyTagAll,
-            ),
-        ],
-    ),
+    ("Confirmations and history", CONFIRMATIONS),
     (
         "Copy, compare and refresh",
         &[
@@ -310,6 +332,10 @@ impl Opt {
             Opt::Splash => yes_no(o.splash),
             Opt::ClockSeconds => yes_no(o.clock_seconds),
             Opt::Mouse => yes_no(o.mouse),
+            Opt::CheckUpdates => match o.check_updates {
+                Some(check) => yes_no(check),
+                None => "(not asked yet)".into(),
+            },
             Opt::FileDisplay => match o.file_display.as_str() {
                 "names" => "Names in columns".into(),
                 "names_size" => "Names and sizes in columns".into(),
@@ -423,6 +449,7 @@ impl Opt {
             Opt::Splash => o.splash = !o.splash,
             Opt::ClockSeconds => o.clock_seconds = !o.clock_seconds,
             Opt::Mouse => o.mouse = !o.mouse,
+            Opt::CheckUpdates => o.check_updates = Some(o.check_updates != Some(true)),
             Opt::FileDisplay => o.file_display = o.file_display.next(),
             Opt::Sort => o.sort = o.sort.next(),
             Opt::SortDescending => o.sort_descending = !o.sort_descending,

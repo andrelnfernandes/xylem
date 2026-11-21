@@ -40,6 +40,7 @@ mod term;
 #[cfg(test)]
 mod testing;
 mod ui;
+mod update;
 mod usage;
 mod viewer;
 mod watch;
@@ -232,6 +233,14 @@ fn main() -> anyhow::Result<()> {
     let mut mouse = Mouse::new();
     if splash {
         app.splash = Some(Instant::now() + app::SPLASH);
+    }
+    // Only in a terminal (`xy` with its output redirected is not a person).
+    app.update_state = update::state_path();
+    if update::ENABLED && std::io::IsTerminal::is_terminal(&stdout()) {
+        app.start_update_check(update::decide(
+            config.options.check_updates,
+            std::env::var_os(update::ENV_VAR),
+        ));
     }
     // Outermost hook: while `panic_guard::catch` runs, a caught panic must
     // not trigger the hooks that restore the terminal.
@@ -459,6 +468,7 @@ fn run(
         app.poll_opening();
         app.apply_reads();
         app.splash_tick(Instant::now());
+        app.update_tick();
         redraw |= app.terminal_tick();
         redraw |= app.editor_tick();
         redraw |= app.table_tick();
