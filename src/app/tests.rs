@@ -4370,8 +4370,14 @@ fn ctrl_b_in_the_viewer_is_not_the_backward_search() {
     app.viewer = Some(Viewer::open(path, viewer::LoadOptions::view(1 << 20)).unwrap());
     ctrl_b(&mut app);
     assert!(app.prompt.as_ref().unwrap().label.starts_with("BATCH"));
+    // F1 opens the page at the Batch of the viewer, not at its top (Edit).
+    assert_eq!(app.help_topic(), "execute#batch-in-the-viewer");
     let f1 = KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE);
-    assert_eq!(help_topic_after(&mut app, f1), "execute");
+    app.handle_key(f1);
+    let help = app.help.as_mut().expect("help open");
+    help.page(80);
+    assert!(help.scroll > 0);
+    press(&mut app, KeyCode::Esc);
 }
 
 #[test]

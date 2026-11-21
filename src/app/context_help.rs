@@ -64,9 +64,8 @@ impl App {
                 PromptKind::ExportDuplicates => "duplicates",
                 PromptKind::Log | PromptKind::Treespec { .. } => "treespec",
                 PromptKind::Fuzzy(_) => "fuzzy",
-                PromptKind::Execute | PromptKind::BatchFile | PromptKind::BatchMask { .. } => {
-                    "execute"
-                }
+                PromptKind::Execute => "execute#execute-x",
+                PromptKind::BatchFile | PromptKind::BatchMask { .. } => "execute#batch-ctrlb",
                 PromptKind::RenameFile(_)
                 | PromptKind::RenameDir(_)
                 | PromptKind::RenameTagged { .. } => "rename",
@@ -76,7 +75,9 @@ impl App {
                 PromptKind::ViewerSearch { .. } | PromptKind::ViewerGoto => "viewer",
                 PromptKind::ViewerSqlFilter => "tables",
                 PromptKind::ViewerLineFilter { .. } => "filter",
-                PromptKind::ViewerBatchFile | PromptKind::ViewerBatchMask { .. } => "execute",
+                PromptKind::ViewerBatchFile | PromptKind::ViewerBatchMask { .. } => {
+                    "execute#batch-in-the-viewer"
+                }
                 PromptKind::CreateArchive(_) => "archives",
                 PromptKind::BookmarkJump
                 | PromptKind::BookmarkSet
