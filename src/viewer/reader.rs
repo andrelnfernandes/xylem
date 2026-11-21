@@ -21,17 +21,29 @@ pub struct ReaderOptions {
     pub wpm: u16,
     /// The terminal font has the Nerd Fonts glyphs.
     pub nerd: bool,
+    /// Keep the time read of the books remembered (`R`), stopping the clock
+    /// after `idle` minutes without a key; keep their titles.
+    pub stats: bool,
+    pub idle: u16,
+    pub titles: bool,
+}
+
+impl ReaderOptions {
+    pub const DEFAULT: ReaderOptions = ReaderOptions {
+        width: 70,
+        blocks: false,
+        justify: false,
+        wpm: 250,
+        nerd: false,
+        stats: false,
+        idle: 3,
+        titles: false,
+    };
 }
 
 impl Default for ReaderOptions {
     fn default() -> Self {
-        ReaderOptions {
-            width: 70,
-            blocks: false,
-            justify: false,
-            wpm: 250,
-            nerd: false,
-        }
+        Self::DEFAULT
     }
 }
 
@@ -165,6 +177,34 @@ pub struct Reader {
     pub notes_view: Option<(Vec<(String, String)>, usize)>,
     /// Z: only the text, and a line of progress.
     pub focus: bool,
+    /// What the book is known by (see [`crate::reading::identity`]), its
+    /// title and author, and whether it is remembered (`R`).
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub author: Option<String>,
+    pub remembered: bool,
+    /// Where the reading is, and the farthest it went (from 0 to 1).
+    pub place: Option<(usize, usize)>,
+    pub farthest: f64,
+    /// The clock, when the time read is kept; the sessions it ended.
+    pub clock: Option<crate::reading::Clock>,
+    pub ended: Vec<crate::reading::Session>,
+    /// Keep the title and author with the rest.
+    pub titles: bool,
+    /// The reading moved since the book opened: there is something to keep.
+    pub moved: bool,
+    /// The speed measured of this book, once enough was measured: for the
+    /// time left, in place of the one of F12.
+    pub speed: Option<u16>,
+}
+
+impl Drop for Reader {
+    /// The viewer closed: what is kept of a remembered book is written.
+    fn drop(&mut self) {
+        if self.remembered && (self.moved || self.clock.is_some()) {
+            let _ = self.keep();
+        }
+    }
 }
 
 impl Reader {
@@ -180,6 +220,17 @@ impl Reader {
             contents: None,
             notes_view: None,
             focus: false,
+            id: book.identifier,
+            title: book.title,
+            author: book.author,
+            remembered: false,
+            place: book.at,
+            farthest: 0.0,
+            clock: None,
+            ended: Vec::new(),
+            titles: false,
+            moved: false,
+            speed: None,
         };
         (reader, book.reading)
     }
@@ -224,6 +275,54 @@ impl Reader {
 
     pub fn total_words(&self) -> usize {
         self.chapters.iter().map(|c| c.words).sum()
+    }
+
+    /// Writes what is kept of this book: where the reading is and, with the
+    /// clock, the time read since it opened.
+    pub fn keep(&mut self) -> std::io::Result<()> {
+        use crate::reading::{self, MAX_SESSIONS};
+        let Some(id) = self.id.clone() else {
+            return Ok(());
+        };
+        let now = reading::now_secs();
+        let mut store = reading::load();
+        let mut r = store.get(&id).cloned().unwrap_or(reading::Record {
+            id,
+            ..Default::default()
+        });
+        if let Some((chapter, line)) = self.place {
+            (r.chapter, r.line) = (chapter, line);
+        }
+        r.at = now;
+        if let Some(mut clock) = self.clock.take() {
+            let mut sessions = std::mem::take(&mut self.ended);
+            sessions.extend(clock.end());
+            if clock.seconds > 0.0 || !sessions.is_empty() {
+                r.seconds += clock.seconds.round() as u64;
+                r.words += clock.words.round() as u64;
+                r.word_seconds += clock.word_seconds.round() as u64;
+                r.farthest = r.farthest.max(self.farthest);
+                if r.first == 0 {
+                    r.first = sessions.first().map_or(now, |s| s.start);
+                }
+                r.last = now;
+                if r.finished == 0 && r.farthest >= 0.999 {
+                    r.finished = now;
+                }
+                r.sessions.extend(sessions);
+                let over = r.sessions.len().saturating_sub(MAX_SESSIONS);
+                r.sessions.drain(..over);
+            }
+            if self.titles {
+                r.title = self.title.clone();
+                r.author = self.author.clone();
+            } else {
+                r.title = None;
+                r.author = None;
+            }
+        }
+        store.put(r);
+        reading::save(&store)
     }
 }
 

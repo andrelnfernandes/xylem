@@ -29,6 +29,7 @@ mod panic_guard;
 mod picker;
 mod platform;
 mod rclone;
+mod reading;
 mod remote;
 mod search;
 mod search_box;

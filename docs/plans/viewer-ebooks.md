@@ -567,6 +567,57 @@ não conta no Autoview nem no relatório; com `reading_stats` desligado nada
 folheio; o mais longe não recua; `R` desligado não grava nada e apaga o que
 havia.
 
+### 1c em detalhe (2026-11-20, ao começar)
+
+- **`src/reading.rs`** (novo, ao lado de `state.rs`): o `reading.toml`, lido e
+  gravado inteiro; a gravação privada e atômica sai de `state::save_state`
+  para uma função comum (`state::write_private`). Até 1.000 livros, sai o
+  lembrado há mais tempo.
+- **A identidade**: SHA-256 de `dc:identifier`, um zero e o tamanho; sem
+  identificador, dos bytes do arquivo (até o limite do `V`) e do tamanho.
+  Guardada em hex, sem mais nada que diga qual livro é.
+- **As opções chegam antes de o livro ser lido**: o `ReaderOptions` passa a
+  ir no `LoadOptions`, porque a página de rosto e o relatório são montados
+  ao abrir.
+- **"Your reading" na página de rosto e no relatório** é o que estava
+  guardado ao abrir o livro (o documento é montado uma vez); o rodapé mostra
+  ao vivo o tempo da sessão. O que muda durante a leitura aparece na próxima
+  vez que o livro abrir.
+- **A lista de todos os livros** (com `G` ligada) fica no relatório (`I`) de
+  qualquer livro, numa seção "Your books": título, autor, tempo, até onde
+  chegou e a última leitura.
+- **Desligar `E`** pergunta ao gravar o F12 (F3), não na hora da tecla:
+  `Delete the reading time of 12 books? (y/n)`.
+- **O relógio** recebe o instante de cada tecla (nos testes, instantes
+  inventados): soma o tempo desde a tecla anterior quando ele não passa do
+  `reading_idle`; uma pausa maior que 30 minutos começa outra sessão.
+
+### Feito na 1c (2026-11-20)
+
+Como descrito acima ("1c em detalhe"), com estes detalhes:
+
+- **`src/reading.rs`**: `Store` (até 1.000 livros), `Record`, `Session`,
+  `identity`, `Clock` (o relógio recebe o instante de cada tecla: os testes
+  usam instantes inventados), `summary` e as datas em UTC sem crate.
+- **Nos testes**, o `reading::path()` só dá um arquivo se o teste pedir
+  (`TEST_PATH`): nenhum teste grava o `reading.toml` do usuário.
+- **Quando grava**: `R` liga (um registro com a posição) ou desliga (apaga o
+  livro); ao fechar o viewer, o `Reader` grava a posição e o tempo, só se a
+  leitura andou ou o relógio correu (o Autoview passando por um livro
+  lembrado não regrava nada).
+- **A velocidade** conta `Space`, `PgDn` e `↓` com ao menos 5 s desde a tecla
+  anterior; com 10 minutos medidos, a velocidade medida daquele livro
+  substitui o `reading_wpm` no tempo que falta do rodapé (a de quando o livro
+  abriu).
+- **O rodapé** de um livro lembrado começa com `[R]` (com Nerd Fonts, o
+  marcador) e, com o tempo ligado, `12 min this time`.
+- **F12**: E, F (1, 2, 3, 5 ou 10 minutos) e G; F e G dizem `(needs E)` com E
+  desligada. Gravar com G desligada (ou com E) tira os títulos na hora; com E
+  desligada, pergunta antes de apagar o tempo.
+- **Um capítulo sem nome no sumário** passa a ter o do seu primeiro título,
+  não o nome do arquivo.
+- **Na página de rosto**, a contagem e "Your reading" ficam centralizadas.
+
 ### A ordem
 
 1a (o livro lido: montagem, relatório, sumário), 1b (o leitor: layout,

@@ -395,6 +395,8 @@ pub(crate) enum ConfirmKind {
     OpenHidden {
         sources: Vec<Source>,
     },
+    /// F12 with the time read turned off: delete what was kept of it?
+    DeleteReadingTime(usize),
 }
 
 const KBYTE_OPTIONS: &[&str] = &[
@@ -1088,6 +1090,20 @@ impl App {
                     self.delete_index(id);
                 } else if (exists && choice == 'i') || (!exists && yes) {
                     self.start_index(id);
+                }
+            }
+            ConfirmKind::DeleteReadingTime(n) => {
+                if yes {
+                    let mut store = crate::reading::load();
+                    store.clear_stats();
+                    self.message = Some(match crate::reading::save(&store) {
+                        Ok(()) => format!("The reading time of {n} books was deleted"),
+                        Err(e) => format!("Cannot delete the reading time: {e}"),
+                    });
+                } else {
+                    self.message = Some(
+                        "The reading time stays kept, hidden: it shows again if turned on".into(),
+                    );
                 }
             }
             ConfirmKind::KeepListing => {
