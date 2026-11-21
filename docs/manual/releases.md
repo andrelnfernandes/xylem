@@ -64,6 +64,9 @@ of each version are on
   a network share) froze the screen while `git status` ran, for minutes.
   The status is now read in the background, and a slow repository is read
   again less often. [Git](git.md)
+- The library Xylem uses for system calls (rustix 1.1.6) is updated for
+  an advisory about extended attributes
+  ([RUSTSEC-2026-0486](https://rustsec.org/advisories/RUSTSEC-2026-0486)).
 
 ## 0.8.0
 
