@@ -2024,6 +2024,7 @@ fn git_menu() {
 
     // Status letters in the list, before and after Add.
     app.refresh_git();
+    app.git_status.borrow_mut().settle();
     let a = app.current_path().join("a.rs");
     assert_eq!(app.git_status.borrow().marker(&a), Some(*b" M"));
     ctrl(&mut app, 'g');
@@ -2031,6 +2032,7 @@ fn git_menu() {
     assert_eq!(app.message.as_deref(), Some("Added a.rs"));
     std::thread::sleep(std::time::Duration::from_millis(600));
     app.refresh_git();
+    app.git_status.borrow_mut().settle();
     assert_eq!(app.git_status.borrow().marker(&a), Some(*b"M "));
 
     // Commit goes to git's editor, in the repository.
@@ -2069,6 +2071,7 @@ fn d_in_viewer_shows_the_git_diff() {
     write(root.join("a.rs"), "fn main() {}\nfn new() {}\n").unwrap();
     app.apply(Command::Relog);
     app.refresh_git();
+    app.git_status.borrow_mut().settle();
 
     // b.txt did not change: no diff.
     press(&mut app, KeyCode::Enter);
@@ -4874,12 +4877,14 @@ fn git_status_is_not_automatic_on_a_cloud_mount() {
     app.options.git = true;
     app.panes[0] = Pane::slow(tmp.path().to_path_buf());
     app.refresh_git();
+    app.git_status.borrow_mut().settle();
     assert!(!app.git_status.borrow().in_repo(tmp.path()), "not read yet");
     while app.reading() {
         app.apply_reads();
         std::thread::sleep(Duration::from_millis(5));
     }
     app.refresh_git();
+    app.git_status.borrow_mut().settle();
     assert!(
         !app.git_status.borrow().in_repo(tmp.path()),
         "not even once read"
@@ -4887,6 +4892,7 @@ fn git_status_is_not_automatic_on_a_cloud_mount() {
     // The same folder, off the mount.
     app.panes[0] = Pane::new(tmp.path().to_path_buf());
     app.refresh_git();
+    app.git_status.borrow_mut().settle();
     assert!(app.git_status.borrow().in_repo(tmp.path()));
 }
 
