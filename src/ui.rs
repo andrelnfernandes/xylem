@@ -3736,6 +3736,8 @@ fn draw_help(frame: &mut Frame, help: &mut Help) {
     hit(body, Spot::Scroll);
     help.height = inner.height as usize;
     let selected = help.selected;
+    // Laying out the page first: it may scroll to a section.
+    help.page(inner.width as usize);
     let scroll = help.scroll;
     let page = help.page(inner.width as usize);
     let total = page.lines.len();
@@ -3830,6 +3832,10 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
         .as_ref()
         .is_some_and(|v| v.behind.is_some() || (v.on_disk && app.can_diff(&v.path)));
     let Some(v) = &mut app.viewer else { return };
+    if v.focused() && app.prompt.is_none() {
+        draw_focused_book(frame, v);
+        return;
+    }
     let [header, body, menu] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(1),
@@ -4027,6 +4033,16 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     if let Some(list) = &mut v.patch_list {
         draw_sheet_list(frame, list, &names, current, &|_| "", "File", body);
     }
+    if v.reader.as_ref().is_some_and(|r| r.contents.is_some()) {
+        let (names, current, marks) = v.contents_names();
+        let mark = |i: usize| marks.get(i).copied().unwrap_or("");
+        if let Some(list) = v.reader.as_mut().and_then(|r| r.contents.as_mut()) {
+            draw_sheet_list(frame, list, &names, current, &mark, "Chapter", body);
+        }
+    }
+    if let Some((notes, scroll)) = v.reader.as_mut().and_then(|r| r.notes_view.as_mut()) {
+        draw_notes(frame, notes, scroll, body);
+    }
     if let Some(view) = &mut v.structure_view {
         draw_structure(frame, view, body);
     }
@@ -4159,6 +4175,47 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 ("Esc", "back"),
             ],
         )]
+    } else if v.reader.as_ref().is_some_and(|r| r.contents.is_some()) {
+        vec![menu_line(
+            "CONTENTS",
+            &[
+                ("↑↓", "move"),
+                ("letters", "narrow the list"),
+                ("Enter", "go"),
+                ("Esc", "back"),
+            ],
+        )]
+    } else if v.reader.as_ref().is_some_and(|r| r.notes_view.is_some()) {
+        vec![menu_line("NOTES", &[("↑↓", "scroll"), ("Esc", "back")])]
+    } else if v.reading() {
+        let first = menu_line(
+            "BOOK",
+            &[
+                ("Space", "page"),
+                ("] [", "chapter"),
+                ("Tab", "contents"),
+                ("Enter", "notes"),
+                ("g", "go to %"),
+                ("R", "remember"),
+                ("I", "report"),
+                ("Z", "focus"),
+                ("Esc", "close"),
+            ],
+        );
+        let second = match note {
+            Some(n) => Line::styled(
+                format!("{:9}{n}", ""),
+                Style::new()
+                    .fg(theme().message)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            None => Line::from(format!(
+                "{:9}{}",
+                "",
+                book_progress_line(v, menu.width as usize)
+            )),
+        };
+        vec![first, second]
     } else if app.batch_preview.is_some() {
         vec![menu_line(
             "BATCH",
@@ -4204,6 +4261,14 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                         ("*", "open all"),
                         ("k", "copy path"),
                         ("Space", "next hit"),
+                        ("Esc", "close"),
+                    ]
+                } else if v.follows_links() && v.is_book() {
+                    vec![
+                        ("] [", "chapter"),
+                        ("Tab", "link"),
+                        ("Enter", "follow"),
+                        ("Backspace", "back"),
                         ("Esc", "close"),
                     ]
                 } else if v.follows_links() {
@@ -4261,6 +4326,9 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
                 }
                 if let Some(path) = v.tree_path() {
                     language = format!("{path}  ·  ");
+                }
+                if let Some(at) = v.chapter_position() {
+                    language.push_str(&format!("{at}  ·  "));
                 }
                 let wrap_badge = if v.wrap { "[Wrap] " } else { "" };
                 let num_badge = if v.line_numbers { "[#] " } else { "" };
@@ -4333,6 +4401,137 @@ fn sheet_word(path: &Path) -> &'static str {
 /// a hostile file can have any number of names. They were made safe when read.
 /// The list of a table's sheets, or of a patch's files (Tab): `names`, with
 /// `current` the one open and `mark` what follows a name.
+/// How far the reading of a book went: the chapter, a bar of the whole
+/// book, and the time left at the reading speed of F12.
+fn book_progress_line(v: &Viewer, width: usize) -> String {
+    let Some(p) = v.book_progress() else {
+        return "The title page: ] goes to the first chapter, Tab to the contents".into();
+    };
+    let o = &v.reader_options;
+    let g = crate::viewer::reader::glyphs(o.nerd);
+    // The speed measured of this book, else the one of F12.
+    let wpm = v.reader.as_ref().and_then(|r| r.speed).unwrap_or(o.wpm);
+    let title = TableGrid::sanitize_cell(&p.title);
+    let title: String = title.chars().take(50).collect();
+    let percent = (p.done * 100.0).floor() as usize;
+    let time = format!(
+        "{}{} left in chapter · {} in book",
+        g.clock,
+        crate::viewer::reader::time_left(p.words_left_in_chapter, wpm),
+        crate::viewer::reader::time_left(p.words_left, wpm),
+    );
+    let mut chapter = format!(
+        "{}Chapter {} of {}: {title}",
+        g.book,
+        p.chapter + 1,
+        p.chapters
+    );
+    if let Some(r) = v.reader.as_ref().filter(|r| r.remembered) {
+        let kept = if o.nerd { "\u{f02e}" } else { "[R]" }; // fa-bookmark
+        chapter = match &r.clock {
+            Some(c) => format!(
+                "{kept} {chapter} · {} this time",
+                crate::reading::duration(c.session_seconds())
+            ),
+            None => format!("{kept} {chapter}"),
+        };
+    }
+    let bar_cells = 12;
+    let bar = crate::viewer::reader::bar(p.done, bar_cells, &g);
+    let full = format!("{chapter}   {bar} {percent}%  ·  {time}");
+    if Span::raw(full.as_str()).width() + 9 <= width {
+        full
+    } else {
+        format!("{chapter}   {bar} {percent}%")
+    }
+}
+
+/// A book in focus (Z): only its text, and a line of how far the reading
+/// went, or the note of the moment.
+fn draw_focused_book(frame: &mut Frame, v: &mut Viewer) {
+    let [body, line] =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
+    hit(body, Spot::Scroll);
+    draw_viewer_body(frame, v, String::new(), body);
+    if v.reader.as_ref().is_some_and(|r| r.contents.is_some()) {
+        let (names, current, marks) = v.contents_names();
+        let mark = |i: usize| marks.get(i).copied().unwrap_or("");
+        if let Some(list) = v.reader.as_mut().and_then(|r| r.contents.as_mut()) {
+            draw_sheet_list(frame, list, &names, current, &mark, "Chapter", body);
+        }
+    }
+    if let Some((notes, scroll)) = v.reader.as_mut().and_then(|r| r.notes_view.as_mut()) {
+        draw_notes(frame, notes, scroll, body);
+    }
+    let width = usize::from(line.width);
+    let text = match &v.note {
+        Some(n) => n.clone(),
+        None => book_progress_line(v, width + 9),
+    };
+    let margin = v.doc_margin();
+    frame.render_widget(
+        Line::styled(
+            fit(&format!("{:margin$}{text}", ""), width),
+            Style::new().fg(theme().dim),
+        ),
+        line,
+    );
+}
+
+/// The notes called on the screen of a book, over its text.
+fn draw_notes(frame: &mut Frame, notes: &[(String, String)], scroll: &mut usize, area: Rect) {
+    let t = theme();
+    let width = 72.min(area.width.saturating_sub(4));
+    let inner_width = usize::from(width.saturating_sub(2)).max(1);
+    let mut lines: Vec<Line> = Vec::new();
+    for (call, text) in notes {
+        let call = TableGrid::sanitize_cell(call);
+        let text = TableGrid::sanitize_cell(text);
+        let head = format!("{call}  ");
+        let mut first = true;
+        for row in wrap(
+            &text,
+            inner_width.saturating_sub(head.chars().count()).max(8),
+        ) {
+            let lead = if first {
+                head.clone()
+            } else {
+                " ".repeat(head.chars().count())
+            };
+            let mut spans = vec![Span::styled(lead, Style::new().fg(t.key))];
+            spans.push(Span::raw(row));
+            lines.push(Line::from(spans));
+            first = false;
+        }
+        lines.push(Line::raw(""));
+    }
+    lines.pop();
+    let height = (lines.len() as u16 + 2)
+        .min(area.height.saturating_sub(2))
+        .max(3);
+    let rows = usize::from(height.saturating_sub(2)).max(1);
+    *scroll = (*scroll).min(lines.len().saturating_sub(rows));
+    let rect = Rect {
+        x: area.x + (area.width.saturating_sub(width)) / 2,
+        y: area.y + (area.height.saturating_sub(height)) / 2,
+        width,
+        height,
+    };
+    let title = if notes.len() == 1 {
+        " Note ".to_string()
+    } else {
+        format!(" {} notes ", notes.len())
+    };
+    let shown: Vec<Line> = lines.into_iter().skip(*scroll).take(rows).collect();
+    frame.render_widget(Clear, rect);
+    frame.render_widget(
+        Paragraph::new(shown)
+            .block(panel(title, true))
+            .style(Style::new().fg(t.text).bg(t.background)),
+        rect,
+    );
+}
+
 fn draw_sheet_list(
     frame: &mut Frame,
     list: &mut crate::viewer::table::SheetList,
@@ -4914,7 +5113,12 @@ fn draw_terminal_panel(
 }
 
 fn draw_viewer_body(frame: &mut Frame, v: &mut Viewer, title: String, area: Rect) {
-    let inner = panel("", false).inner(area);
+    let bare = v.focused();
+    let inner = if bare {
+        area
+    } else {
+        panel("", false).inner(area)
+    };
     v.page = inner.height as usize;
     v.width = inner.width as usize;
 
@@ -4971,7 +5175,11 @@ fn draw_viewer_body(frame: &mut Frame, v: &mut Viewer, title: String, area: Rect
         let spot = Rect::new(x, inner.y + row as u16, width, 1);
         hit(spot.intersection(inner), Spot::Link(id));
     }
-    frame.render_widget(Paragraph::new(lines).block(panel(title, true)), area);
+    if bare {
+        frame.render_widget(Paragraph::new(lines), area);
+    } else {
+        frame.render_widget(Paragraph::new(lines).block(panel(title, true)), area);
+    }
 }
 
 /// How wide a column of the grid is drawn when it starts at `used`: its width,

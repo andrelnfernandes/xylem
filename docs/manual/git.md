@@ -4,6 +4,13 @@ Git is off by default. Turn it on with F12 (page 1, "Git commands") or
 `git = true` under `[options]` in the [configuration](configuration.md). It
 needs the `git` program.
 
+Git can be turned off because it is not free: to show the status of the
+files, Xylem runs `git status` for the whole repository, and runs it again
+every few seconds. In a large repository on a slow file system (a Windows
+drive seen from WSL, as `/mnt/c`, or a network share) one `git status` can
+take minutes, and while it runs the screen does not respond. If that
+happens, turn Git off there, on page 1 of F12.
+
 ## The Git menu (Ctrl+G)
 
 Ctrl+G opens the Git menu in the footer; the next letter chooses:

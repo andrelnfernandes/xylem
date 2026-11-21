@@ -2222,6 +2222,22 @@ fn f12_settings_save_and_apply() {
 }
 
 #[test]
+fn f1_on_the_reading_page_of_f12_opens_its_section() {
+    let (_tmp, mut app) = sample();
+    press(&mut app, KeyCode::F(12));
+    assert_eq!(app.help_topic(), "configuration");
+    press(&mut app, KeyCode::Char('5'));
+    assert_eq!(app.help_topic(), "configuration#reading-time");
+    press(&mut app, KeyCode::Esc);
+    // In a book: the section of the ebooks.
+    let (tmp, mut app) = sample();
+    let path = tmp.path().join("book.fb2");
+    std::fs::write(&path, crate::viewer::epub::fb2::test_books::book2()).unwrap();
+    app.viewer = Some(Viewer::open(path, viewer::LoadOptions::view(1 << 20)).unwrap());
+    assert_eq!(app.help_topic(), "viewer#ebooks");
+}
+
+#[test]
 fn settings_esc_discards() {
     let (_tmp, mut app) = sample();
     press(&mut app, KeyCode::F(12));
@@ -4370,8 +4386,14 @@ fn ctrl_b_in_the_viewer_is_not_the_backward_search() {
     app.viewer = Some(Viewer::open(path, viewer::LoadOptions::view(1 << 20)).unwrap());
     ctrl_b(&mut app);
     assert!(app.prompt.as_ref().unwrap().label.starts_with("BATCH"));
+    // F1 opens the page at the Batch of the viewer, not at its top (Edit).
+    assert_eq!(app.help_topic(), "execute#batch-in-the-viewer");
     let f1 = KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE);
-    assert_eq!(help_topic_after(&mut app, f1), "execute");
+    app.handle_key(f1);
+    let help = app.help.as_mut().expect("help open");
+    help.page(80);
+    assert!(help.scroll > 0);
+    press(&mut app, KeyCode::Esc);
 }
 
 #[test]
@@ -5759,4 +5781,55 @@ fn fuzzy_shows_tagged_files_and_how_many_a_folder_has() {
     };
     assert!(rows.iter().any(|r| r.contains("  sub  1*")), "{rows:#?}");
     assert!(rows.iter().any(|r| r.contains("Tagged 1 file")), "the note");
+}
+
+#[test]
+fn turning_the_time_read_off_asks_before_deleting_it() {
+    let (tmp, mut app) = sample();
+    let file = tmp.path().join("state/reading.toml");
+    crate::reading::TEST_PATH.with(|p| *p.borrow_mut() = Some(file));
+    let mut store = crate::reading::Store::default();
+    for (id, seconds) in [("a", 60), ("b", 120)] {
+        store.put(crate::reading::Record {
+            id: id.into(),
+            chapter: 3,
+            seconds,
+            title: Some(format!("Book {id}")),
+            ..Default::default()
+        });
+    }
+    crate::reading::save(&store).unwrap();
+    app.options.reading_stats = true;
+    app.options.reading_titles = true;
+    let mut config = crate::config::Config {
+        options: app.options.clone(),
+        ..Default::default()
+    };
+    config.options.reading_titles = false;
+    // The titles go at once, and nothing is asked of the time.
+    app.save_settings(config.clone());
+    assert!(app.confirm.is_none());
+    let kept = crate::reading::load();
+    assert!(
+        kept.books
+            .iter()
+            .all(|b| b.title.is_none() && b.seconds > 0)
+    );
+    // The time read off: asked first; no keeps it.
+    config.options.reading_stats = false;
+    app.save_settings(config.clone());
+    assert_eq!(
+        app.confirm.as_ref().map(|c| c.question.as_str()),
+        Some("Delete the reading time of 2 books?")
+    );
+    press(&mut app, KeyCode::Char('n'));
+    assert_eq!(crate::reading::load().with_stats(), 2);
+    // Turned on and off again, yes deletes it, and the places stay.
+    app.options.reading_stats = true;
+    app.save_settings(config);
+    press(&mut app, KeyCode::Char('y'));
+    let kept = crate::reading::load();
+    assert_eq!(kept.with_stats(), 0);
+    assert!(kept.books.iter().all(|b| b.chapter == 3));
+    crate::reading::TEST_PATH.with(|p| *p.borrow_mut() = None);
 }

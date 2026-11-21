@@ -207,9 +207,496 @@ texto grande) é uma decisão à parte, depois de usar.
    decodificado, `windows-1251` e `KOI8-R`, o `.fb2.zip`.
 3. A seção do manual (em inglês), as notas da versão, a coluna `type`.
 
+## Etapa 1 em detalhe (proposta, 2026-11-20)
+
+Pedido do autor em 2026-11-20: começar pelos ebooks. Ao olhar o código, três
+pontos mudam o plano acima, e a etapa 1 se divide em duas.
+
+### O que o código pede
+
+- **A DTD do XHTML.** O `Xml` do Office recusa qualquer `<!DOCTYPE>`, e todo
+  capítulo de EPUB 2 começa com um (`<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML
+  1.1//EN" ...>`), como o EPUB 3 (`<!DOCTYPE html>`). Para os ebooks, um
+  `DOCTYPE` **sem subconjunto interno** é aceito e ignorado (nunca lido, nunca
+  buscado); com subconjunto interno (`[`, onde moram os `<!ENTITY>`), o
+  capítulo é recusado como hoje. O Office continua recusando todos.
+- **O sumário e os links internos** usam o que o Norton Guide já tem: o
+  documento feito com `markdown::from_events_linked`, Tab e Shift+Tab escolhem
+  um link, Enter vai até onde ele leva, Backspace volta. O `follows_links` do
+  viewer passa a valer também para ebooks. No modo ligado os links não mostram
+  o endereço: um link para fora do livro ganha o endereço escrito ao lado,
+  como texto, e não é seguido.
+- **A tecla de lembrar onde parou.** `P` já é "arquivo marcado anterior" no
+  viewer (Ctrl+V). Proposta: **`R`** (remember), livre no viewer.
+
+**Aprovado em 2026-11-20**, com as quatro escolhas como propostas: Space vira
+página num livro (o próximo achado fica em `+` e `-`); Tab abre o sumário na
+leitura; justificado desligado e parágrafos de livro por padrão; a lista de
+todos os livros é uma opção à parte, desligada (`reading_titles`). O `R`
+lembra onde parou, e o tempo de leitura é a opção `reading_stats`, desligada.
+
+### 1a. O EPUB como documento
+
+**Onde fica o código.** `src/viewer/epub.rs`, novo. O `Package` e o `Xml` saem
+de `office.rs` para `src/viewer/package.rs`, compartilhados (só mudam de
+lugar; o `Xml` ganha uma opção `doctype: Allow | Refuse`). `office.rs` só passa
+a usá-los de lá.
+
+**Como se reconhece.** Nome `.epub` e a parte `mimetype` com
+`application/epub+zip`. Sem isso, abre como hoje (a lista de partes do ZIP).
+
+**A montagem**, nesta ordem:
+
+1. `META-INF/container.xml` → o caminho do OPF (o primeiro `rootfile` com
+   `media-type="application/oebps-package+xml"`).
+2. O OPF → metadados (`dc:title`, `dc:creator`, `dc:publisher`,
+   `dc:language`, `dc:date`, `dc:identifier`, `meta name="generator"`), o
+   `manifest` (id → caminho, tipo, `properties`) e o `spine` (a ordem).
+3. Cada caminho é resolvido em relação à pasta do OPF, só como nome de parte
+   do ZIP (o `resolve` do Office). Um que sai do pacote (`../../`, absoluto,
+   `file:`) não é lido e vai para o quadro.
+4. O sumário: `nav.xhtml` (o item com `properties="nav"`, a `nav
+   epub:type="toc"`) no EPUB 3; senão o `toc.ncx` (o `spine toc=`). Até
+   10.000 entradas, com o nível.
+5. Cada capítulo do `spine`, uma vez só (um repetido é pulado), até 10.000.
+
+**Cada capítulo vira eventos**, pela tabela do plano, com estes detalhes:
+
+- **Começa num título que é um lugar** (`c12`, para links e para `]`/`[`): o
+  primeiro `h1`–`h6` do capítulo, se vier antes de qualquer texto; senão, um
+  título acrescentado com o nome do sumário, ou `Chapter 12`.
+- **Um link interno** (`cap2.xhtml#s3`, `#nota1`) leva ao título com aquele
+  `id`, quando é um título; senão, ao começo do capítulo. Ir até qualquer
+  parágrafo pedia lugares fora dos títulos no `markdown::Doc`: fica para
+  depois, se fizer falta.
+- **Notas de rodapé** do EPUB 3 (`aside epub:type="footnote"`) ficam onde
+  estão, como citação.
+- **Entidades do HTML**: a tabela fixa das 252 do HTML 4 (`&nbsp;`,
+  `&mdash;`, `&eacute;`...), que é o que os EPUB 2 usam. As outras do HTML5
+  aparecem como estão (`&foo;`).
+- **XHTML malformado**: `check_end_names` desligado (já é assim), o que ficou
+  aberto é fechado no fim do capítulo, e um capítulo que não dá para ler vira
+  `[chapter 7: cannot be read: motivo]`.
+
+**O documento**, de cima para baixo:
+
+1. **Ebook**: os metadados e o quadro (abaixo).
+2. **Contents**: o sumário como lista aninhada, cada entrada um link para o
+   seu capítulo. Sem sumário, a lista dos capítulos do `spine`, pelo título.
+3. Os capítulos, na ordem do `spine`.
+
+**O quadro.** Como no plano: scripts (manifest `scripted`, `<script>`,
+atributos `on*`, com onde), recursos de fora (`src`/`href` com `http:`,
+`https:` ou `//`, até 1.000 endereços), `form`/`iframe`/`object`/`embed`
+contados, DRM pelo `encryption.xml` (capítulos cifrados: o documento fica só
+com o quadro e o sumário; fontes ofuscadas só citadas), partes fora do
+manifest e itens do manifest que não estão no ZIP, caminhos que saem do
+pacote. Quando nada disso aparece, uma linha: `No scripts, nothing fetched
+from outside`.
+
+**No viewer.**
+
+- `V` e Autoview (F7), com os limites do Office (4 MiB no Autoview; 64 MiB por
+  parte e 256 MiB no todo com `V`), sob o `panic_guard`.
+- `]` e `[`: próximo e anterior capítulo (como os arquivos de um patch). Tab,
+  Enter e Backspace: os links, como no Norton Guide. `H` vai aos bytes.
+- O rodapé diz o capítulo em que se está: `chapter 7 of 31`.
+
+**Testes** (EPUBs montados no teste, com o `zip` de `test_docs`):
+
+- EPUB 3 com `nav.xhtml` e EPUB 2 com `toc.ncx`: títulos, parágrafos, listas,
+  tabela, ênfase, o sumário com os links, a ordem do `spine`.
+- O `DOCTYPE` do XHTML 1.1 aceito; um `DOCTYPE` com `<!ENTITY>` interno
+  recusado sem derrubar o livro; as entidades do HTML.
+- XHTML malformado; um capítulo que não é XML; um capítulo repetido no
+  `spine`; um `spine` que aponta para `../../etc/passwd`.
+- O quadro: `<script>`, `onload`, imagem de `https://`, `encryption.xml` com
+  capítulo cifrado e só com fonte.
+- Um capítulo acima do limite: cortado, com o aviso.
+- No viewer: `]`/`[`, Tab e Enter num link do sumário, Backspace.
+
+### Feito na 1a (2026-11-20)
+
+- **`src/viewer/package.rs`**: o `Package`, o `Xml`, `attr`, `prefixed`,
+  `resolve` e os `Limits` saíram de `office.rs` sem mudar o que fazem. O
+  `Xml::html` aceita um `DOCTYPE` sem subconjunto interno e recusa o que tem
+  `[`; conhece as 252 entidades do HTML 4 (`package/html.rs`, tabela fixa,
+  com teste) e não conta como abertos os elementos que o HTML nunca fecha
+  (`<br>`, `<img>`). O OPF, o `container.xml` e o `toc.ncx` também são lidos
+  assim, porque o NCX traz a DTD dele.
+- **`src/viewer/epub.rs`**: `render` devolve um `Book` (o documento e os
+  capítulos: lugar e título). O documento é feito com
+  `markdown::from_events_linked`; os links do sumário e do texto ganham uma
+  chave na leitura e são resolvidos no fim, para o título com aquele `id` ou
+  para o começo do capítulo; um link para algo que não é capítulo vira texto.
+- **O texto**: espaços juntados como no HTML; o parágrafo aberto só quando
+  chega texto (um `<p></p>` não deixa nada); os itens de lista sem parágrafo
+  próprio ficam juntos; tabelas como no Office; `pre` como bloco de código;
+  imagens, `svg`, vídeo e áudio como uma linha em itálico.
+- **XHTML quebrado**: cada fim de elemento fecha até o elemento de mesmo
+  nome aberto, ou nada; acima de 512 abertos, o resto é lido só como texto;
+  um capítulo que não é XML guarda o que já foi lido e diz que não pôde ser
+  lido.
+- **O quadro**: também `javascript:` em links, `@import` e `url()` de fora
+  nas folhas de estilo do manifest, `remote-resources` do manifest e itens do
+  `spine` que não estão no manifest.
+- **No viewer**: `epub` e `chapters`; `]`/`[` vão de capítulo em capítulo;
+  Tab, Enter e Backspace seguem os links, como no Norton Guide; o rodapé diz
+  `chapter 7 of 31: The Storm`. Autoview e `V` com os limites do Office.
+- Conferido no tmux com um EPUB gerado: o quadro, o sumário, `]`, Tab e
+  Enter, e o Autoview.
+
+### 1b. O leitor (pedido do autor, 2026-11-20)
+
+O autor quer, neste módulo, um leitor acima da média para ebooks de texto
+(sem imagens por enquanto), com enfeites a mais para quem usa Nerd Fonts. Isso
+muda a postura do começo do plano ("inspecionar, não ler"): o livro abre para
+**ler**, e o relatório de inspeção continua a uma tecla, sem nunca ser
+escondido quando há algo a dizer.
+
+**Duas vistas do mesmo livro:**
+
+- **Leitura** (a que abre): a página de rosto, os capítulos com layout de
+  livro, o rodapé de progresso. Se o quadro tem algo (scripts, recursos de
+  fora, DRM, caminhos que saem do pacote), a página de rosto traz uma linha em
+  destaque: `⚠ 3 scripts, 2 addresses outside (I shows the report)`.
+- **Relatório** (`I`, de inspect; no modo de tabela `I` já é a estrutura,
+  ideia parecida): o documento descrito na 1a, com os metadados, o quadro, o
+  sumário e o texto sem enfeites. `I` de novo volta à leitura, no mesmo
+  capítulo.
+
+**O layout de leitura** é uma extensão do `markdown::Doc`, não um renderizador
+novo: um `Style` passado ao `layout` (o padrão é o de hoje, e só o ebook usa
+outro). Assim a busca, as linhas lógicas, os saltos e o `W` continuam valendo.
+
+- **A medida**: o texto numa coluna de até 70 células, centralizada na tela
+  (`reader_width`, F12; 0 = a largura toda). Numa tela estreita, a largura
+  toda.
+- **Parágrafos de livro**: recuo de 3 células na primeira linha e sem linha em
+  branco entre eles; sem recuo o primeiro depois de um título ou de uma quebra
+  de cena. Opção para parágrafos em bloco (linha em branco, sem recuo).
+- **Justificado**: opção, desligada por padrão (numa fonte de largura fixa os
+  espaços largos incomodam mais do que ajudam). Ligado, a última linha do
+  parágrafo fica como está. Sem hifenização (pediria dicionários por língua).
+- **Página de rosto**: título, autores, editora e ano, centralizados, numa
+  moldura de caixa; abaixo, o sumário curto (os capítulos do primeiro nível).
+- **Abertura de capítulo**: linhas em branco acima, o título centralizado e em
+  negrito, um ornamento abaixo.
+- **Quebra de cena**: `<hr>`, e parágrafos só com `*`, `* * *`, `***`, `#`,
+  `~` ou `⁂`, viram um ornamento centralizado.
+- **Citações e epígrafes** com recuo dos dois lados e em itálico; **versos**
+  linha a linha, como estão; **ênfase** em itálico real (SGR 3) e negrito.
+- **Notas**: a chamada vira número sobrescrito (`¹²³`); o texto das notas não
+  interrompe o capítulo.
+
+**A navegação:**
+
+| Tecla | Na leitura |
+|---|---|
+| Space, PgDn / PgUp | página seguinte / anterior: a tela inteira, sem cortar linha (no resto do viewer Space é "próximo achado"; num livro vira página, e o próximo achado fica em `+` e `-`) |
+| `]` `[` | capítulo seguinte / anterior |
+| Tab | o sumário sobre a tela, com o capítulo atual marcado e os já lidos; letras filtram, Enter vai |
+| Enter | as notas cujas chamadas estão na tela, num quadro; Esc fecha |
+| `g` | vai a uma linha, ou a uma porcentagem do livro (`40%`) |
+| Backspace | volta de onde um salto (sumário, `g`, link) trouxe |
+| `/`, `F`, `B` | as buscas de sempre, no livro inteiro |
+| `I` | leitura ou relatório |
+| `R` | lembrar onde parou (1c) |
+| `Z` | foco: esconde a moldura do viewer, fica só o texto e uma linha de progresso |
+
+Os links do texto (raros em ficção fora do sumário) seguem com Tab/Enter só
+no relatório, como no Norton Guide; na leitura, Tab é o sumário, como a lista
+de arquivos de um patch.
+
+**O rodapé de progresso**: `Chapter 7 of 31 · The Storm` à esquerda; à
+direita a barra do livro, a porcentagem e o tempo que falta no capítulo e no
+livro, pelas palavras e uma velocidade de leitura (`reading_wpm`, 250 por
+padrão): `▰▰▰▰▱▱▱▱ 46% · 12 min left in chapter · 4 h 10 min in book`.
+
+**Com Nerd Fonts** (`icons = "nerd-fonts"`), os mesmos lugares ganham
+glifos; sem elas, caracteres que toda fonte tem. Nada muda de largura entre
+os dois (um teste mede cada glifo em 1 célula, como em `icons.md`).
+
+| Lugar | Sem Nerd Fonts | Com Nerd Fonts |
+|---|---|---|
+| Página de rosto | moldura `┌─┐` | moldura com cantos redondos `╭─╮`, ícone de livro e de autor |
+| Ornamento de capítulo e quebra de cena | `*   *   *` | um floreio de glifos |
+| Barra de progresso | `━━━━────` | os glifos de barra com pontas redondas |
+| Rodapé | `Ch 7/31`, `12 min` | ícones de livro, relógio e marcador |
+| Sumário | `▸` no atual, `✓` nos lidos | ícones de capítulo, atual e lido |
+| Lembrando a posição | `[remembered]` | ícone de marcador |
+
+Os glifos exatos se escolhem na implementação, na tela, com o autor.
+
+**Fora, por ora**: imagens (nem a capa), CSS do livro (fontes, cores e
+alinhamentos do editor), hifenização, marcadores múltiplos e grifos (o `R`
+guarda uma posição só), leitura em voz alta. O layout de leitura em Markdown e
+texto puro é uma decisão depois de usar nos ebooks.
+
+### Feito na 1b (2026-11-20)
+
+- **`markdown::BookStyle`** e `Doc::set_book`: o mesmo documento, disposto
+  como livro. As linhas de texto ganharam um papel (parágrafo, primeira linha
+  de parágrafo, título) e as linhas em branco entre dois parágrafos ficaram
+  marcadas, para o livro tirá-las. Recuo de 3 células, títulos centralizados
+  sem `#`, um ornamento sob os de capítulo (`H1`, `H2`), a regra como quebra
+  de cena, e o justificado (os espaços alargados por igual, nunca a última
+  linha, nem uma linha curta demais para não abrir buracos de mais de três
+  células).
+- **As duas vistas** saem do mesmo `epub::render`: `Book` tem `report` e
+  `reading`. A de leitura começa por uma página de rosto (título, autores,
+  editora · ano, o aviso, quantos capítulos e palavras), não tem as notas
+  `aside`, e as chamadas de nota viram sobrescritos. Uma chamada é o link com
+  `epub:type="noteref"`, ou dentro de `sup`, ou com classe de nota, ou de
+  texto curto (`1`, `[12]`, `*`); o texto da nota é o do elemento com aquele
+  `id` (o parágrafo inteiro, quando o `id` está numa âncora dentro dele).
+  Parágrafos só com `* * *`, `***`, `#`, `⁂` viram quebra de cena.
+- **`src/viewer/reader.rs`**: as opções, os glifos (com e sem Nerd Fonts, do
+  mesmo tamanho, com teste), a barra, o tempo que falta e o progresso por
+  palavras.
+- **No viewer**: a coluna centralizada (a margem entra como espaço na
+  linha); Space vira página; Tab abre o sumário (a lista das planilhas, com
+  `▸` no atual e `✓` nos anteriores); Enter abre as notas chamadas na tela;
+  `g 40%`; Backspace volta; `I` troca de vista no mesmo capítulo; `Z` o
+  foco, e Esc sai do foco antes de fechar. O aviso do quadro também aparece
+  como nota ao abrir o livro.
+- **F12**: a página 5, "Reading (ebooks)", com A a D (largura, parágrafos,
+  justificado, velocidade); largura e velocidade andam por valores fixos
+  (0, 60, 66, 70, 80, 100; 150 a 500). E a G ficam para a 1c.
+- **Diferente do plano**: a página de rosto não tem moldura (os títulos
+  centralizados com o ornamento fizeram o papel dela), e não traz o sumário
+  curto, só quantos capítulos e palavras: o sumário é o Tab. A posição conta
+  como capítulo atual aquele cujo título está até duas linhas abaixo do topo
+  (a linha em branco e o título).
+- Conferido no tmux: rosto, capítulo, recuos, quebra de cena, notas, sumário,
+  rodapé, foco, `I`, e com Nerd Fonts, justificado e 60 colunas.
+
+### 1c. Lembrar onde parou (`R`)
+
+Como no plano, com `R` no lugar de `P`. A posição é o número do capítulo e a
+linha lógica dentro dele (não a linha da tela: não muda com a largura nem com
+`W`). A identidade é o SHA-256 de `dc:identifier` + tamanho, ou do arquivo
+inteiro (lido de novo, até o limite do `V`) quando não há identificador.
+`reading.toml` no diretório de estado, gravado pelo `write_atomic` do
+`config.rs` (que vai para um lugar comum), com `0600`.
+
+Testes: ligar, fechar, abrir de novo e voltar ao capítulo; `R` de novo
+esquece e apaga; o arquivo só tem hashes e números; o limite de 1.000; um
+livro movido de lugar continua reconhecido; outro livro com o mesmo nome não.
+
+### 1c, parte 2. O tempo de leitura (pedido do autor, 2026-11-20)
+
+O autor quer saber, por livro, quanto tempo passou lendo, a velocidade, até
+onde chegou. Vai junto com o `R`: **o mesmo interruptor por livro**. Um livro
+lembrado guarda a posição e o tempo; um livro não lembrado não guarda nada.
+
+**O que conta como tempo de leitura:**
+
+- Só com o livro aberto no viewer (`V`) na leitura; o Autoview (F7), o
+  relatório (`I`) e o viewer escondido atrás de outra janela não contam.
+- **Parado não conta**: sem nenhuma tecla por 3 minutos (`reading_idle`, F12),
+  o relógio para no momento da última tecla; a próxima tecla volta a contar.
+  Assim, sair de perto com o livro aberto não infla o tempo.
+- Uma **sessão** é um trecho contínuo: abre e fecha o livro, ou uma pausa
+  maior que 30 minutos.
+
+**A velocidade** (palavras por minuto) mede só a leitura de verdade: as
+palavras das páginas que se passaram para a frente (Space, PgDn, ↓), divididas
+pelo tempo nelas. Não contam: saltos (sumário, `]`/`[`, `g`, buscas, links),
+voltar páginas, e uma página passada em menos de 5 segundos (é folhear). Com
+pelo menos 10 minutos medidos, a velocidade medida substitui os 250 do
+`reading_wpm` no "tempo que falta" do rodapé.
+
+**O que se guarda** (no `reading.toml`, junto com a posição): o tempo total,
+as palavras lidas e o tempo delas (a velocidade sai daí), a parte mais longe a
+que se chegou (não só a posição atual: voltar ao começo não apaga o
+progresso), a data da primeira e da última leitura, a data em que se chegou
+ao fim, e as últimas 100 sessões (início, duração, palavras).
+
+**Onde aparece:**
+
+- **Na página de rosto**: `Your reading: 3 h 20 min in 6 sessions · 46% ·
+  238 words/min · since 2 Nov`.
+- **No relatório (`I`)**: uma seção "Your reading" com esses números, as
+  sessões numa tabela, e quanto falta pela velocidade medida.
+- **No rodapé**, com o livro lembrado: o tempo da sessão atual.
+
+**Privacidade.** Hoje o plano guarda só um hash do livro: ninguém que abra o
+`reading.toml` sabe o que você lê. Com o tempo de leitura, isso continua: os
+números ficam presos ao hash, e você os vê ao abrir o livro. **Uma lista de
+todos os livros com os seus tempos** (um "meus livros") pediria guardar os
+títulos. Proposta: uma opção à parte, desligada por padrão
+(`reading_titles`), que guarda título e autor junto com os números e libera
+uma lista de leitura; até lá, os números só aparecem dentro de cada livro.
+
+**A escolha no F12 (pedido do autor, 2026-11-20).** O tempo de leitura é
+uma opção própria, `reading_stats`, separada do `R`:
+
+- **Desligada** (o padrão): o `R` lembra só a posição; nada de tempo,
+  velocidade ou sessões é medido nem gravado, e a página de rosto e o
+  relatório não mostram "Your reading". O rodapé volta a usar os 250 do
+  `reading_wpm`.
+- **Ligada**: um livro lembrado com `R` guarda também o tempo, como acima.
+- **Desligar depois de usar** para de medir e esconde os números, e pergunta
+  se apaga os que estão guardados (`Delete the reading time of 12 books?`).
+  Respondendo não, eles voltam se a opção for ligada de novo. A posição dos
+  livros fica de qualquer jeito: ela é do `R`.
+
+**Uma página nova no F12, "Reading (ebooks)"**: as quatro páginas de hoje já
+estão cheias, e as opções do leitor ficam juntas:
+
+| Letra | Opção | Padrão |
+|---|---|---|
+| A | Width of the text column (0: the whole screen) — `reader_width` | 70 |
+| B | Paragraphs: book (indented) or block (a blank line) — `reader_paragraphs` | book |
+| C | Justify the text — `reader_justify` | no |
+| D | Reading speed for the time left, words per minute — `reading_wpm` | 250 |
+| E | Keep statistics of reading time (with R) — `reading_stats` | no |
+| F | Minutes without a key before the reading clock stops — `reading_idle` | 3 |
+| G | Keep the titles of the books, for a reading list — `reading_titles` | no |
+
+`F` e `G` só valem com `E` ligada; desligada, aparecem como `(needs E)`.
+Cada uma tem a sua linha comentada no `--default-config`, e a seção do
+manual (`configuration.md`) diz o que se guarda e onde, como na opção do
+fuzzy.
+
+**Testes**: o relógio com um tempo de mentira (como o `RESTART_EVERY` do
+fuzzy, zero nos testes): conta com teclas, para depois do `reading_idle`,
+não conta no Autoview nem no relatório; com `reading_stats` desligado nada
+é medido; desligar pergunta antes de apagar; a velocidade ignora saltos, volta e
+folheio; o mais longe não recua; `R` desligado não grava nada e apaga o que
+havia.
+
+### 1c em detalhe (2026-11-20, ao começar)
+
+- **`src/reading.rs`** (novo, ao lado de `state.rs`): o `reading.toml`, lido e
+  gravado inteiro; a gravação privada e atômica sai de `state::save_state`
+  para uma função comum (`state::write_private`). Até 1.000 livros, sai o
+  lembrado há mais tempo.
+- **A identidade**: SHA-256 de `dc:identifier`, um zero e o tamanho; sem
+  identificador, dos bytes do arquivo (até o limite do `V`) e do tamanho.
+  Guardada em hex, sem mais nada que diga qual livro é.
+- **As opções chegam antes de o livro ser lido**: o `ReaderOptions` passa a
+  ir no `LoadOptions`, porque a página de rosto e o relatório são montados
+  ao abrir.
+- **"Your reading" na página de rosto e no relatório** é o que estava
+  guardado ao abrir o livro (o documento é montado uma vez); o rodapé mostra
+  ao vivo o tempo da sessão. O que muda durante a leitura aparece na próxima
+  vez que o livro abrir.
+- **A lista de todos os livros** (com `G` ligada) fica no relatório (`I`) de
+  qualquer livro, numa seção "Your books": título, autor, tempo, até onde
+  chegou e a última leitura.
+- **Desligar `E`** pergunta ao gravar o F12 (F3), não na hora da tecla:
+  `Delete the reading time of 12 books? (y/n)`.
+- **O relógio** recebe o instante de cada tecla (nos testes, instantes
+  inventados): soma o tempo desde a tecla anterior quando ele não passa do
+  `reading_idle`; uma pausa maior que 30 minutos começa outra sessão.
+
+### Feito na 1c (2026-11-20)
+
+Como descrito acima ("1c em detalhe"), com estes detalhes:
+
+- **`src/reading.rs`**: `Store` (até 1.000 livros), `Record`, `Session`,
+  `identity`, `Clock` (o relógio recebe o instante de cada tecla: os testes
+  usam instantes inventados), `summary` e as datas em UTC sem crate.
+- **Nos testes**, o `reading::path()` só dá um arquivo se o teste pedir
+  (`TEST_PATH`): nenhum teste grava o `reading.toml` do usuário.
+- **Quando grava**: `R` liga (um registro com a posição) ou desliga (apaga o
+  livro); ao fechar o viewer, o `Reader` grava a posição e o tempo, só se a
+  leitura andou ou o relógio correu (o Autoview passando por um livro
+  lembrado não regrava nada).
+- **A velocidade** conta `Space`, `PgDn` e `↓` com ao menos 5 s desde a tecla
+  anterior; com 10 minutos medidos, a velocidade medida daquele livro
+  substitui o `reading_wpm` no tempo que falta do rodapé (a de quando o livro
+  abriu).
+- **O rodapé** de um livro lembrado começa com `[R]` (com Nerd Fonts, o
+  marcador) e, com o tempo ligado, `12 min this time`.
+- **F12**: E, F (1, 2, 3, 5 ou 10 minutos) e G; F e G dizem `(needs E)` com E
+  desligada. Gravar com G desligada (ou com E) tira os títulos na hora; com E
+  desligada, pergunta antes de apagar o tempo.
+- **Um capítulo sem nome no sumário** passa a ter o do seu primeiro título,
+  não o nome do arquivo.
+- **Na página de rosto**, a contagem e "Your reading" ficam centralizadas.
+
+### Etapa 2 em detalhe (2026-11-21, ao começar)
+
+O FB2 entra pelo mesmo caminho do EPUB, para ter de graça a página de rosto,
+o relatório, o sumário, as notas, o `R` e o tempo de leitura:
+
+- **`src/viewer/epub/fb2.rs`**: lê o FB2 e o **traduz para os elementos que
+  o leitor do EPUB já entende** (`section`/`title` → `h1`–`h6` pelo
+  aninhamento, `emphasis` → `em`, `strikethrough` → `s`, `cite` e `epigraph`
+  → `blockquote`, `poem` → `blockquote`, `stanza` → um parágrafo com um verso
+  por linha, `subtitle` → parágrafo em negrito, `text-author` → itálico,
+  `style` → texto, `image` → `[image: id, tipo, tamanho]`). O FB2 `style` e
+  `cite` têm nomes que no XHTML querem dizer outra coisa: traduzidos, nunca
+  passados adiante. O resto passa como está (um `<script>` posto num FB2
+  entra no quadro como no EPUB).
+- **Capítulos**: as `section` de primeiro nível do corpo principal; se há só
+  uma e ela tem seções dentro (um livro com uma parte só), as do segundo.
+  O que vem fora delas (o título do corpo, uma epígrafe, o título de uma
+  parte) abre um capítulo com o próprio título. O sumário vem dos títulos das
+  seções, com o nível de cada uma.
+- **Notas**: o `body name="notes"` (e `comments`) não é capítulo: cada
+  `section` dele é uma nota, como o `aside` do EPUB (no relatório, no fim;
+  no livro, Enter na chamada). `a type="note"` é a chamada.
+- **Metadados** (`title-info`, `document-info`, `publish-info`): título,
+  autores, gêneros, série, idioma, data, editora, ano, ISBN, o programa que
+  gerou; o identificador para o tempo de leitura é o `id` do
+  `document-info`. A anotação entra no relatório.
+- **`binary`** nunca é decodificado: a quantidade, os tipos e o tamanho
+  (pelo comprimento do base64) no quadro, e cada `image` diz o seu.
+- **Codificação**: pelo prólogo (`encoding="windows-1251"`); `windows-1251`
+  e `KOI8-R` entram no `src/charset.rs` (tabelas fixas) e no ciclo de
+  codificações do viewer. Uma declarada desconhecida: UTF-8 com
+  substituição, e o quadro diz qual era.
+- **`.fb2.zip`**: o `Package`, com exatamente um `.fb2` dentro; outro ZIP
+  abre como ZIP. Um `.fb2` passa pelo mesmo limite de uma parte do EPUB.
+- **Refatoração**: o fim do `render_with` do EPUB (relatório, livro, links,
+  notas) vira uma função comum aos dois.
+
+### Feito na 2 (2026-11-21)
+
+Como descrito acima ("Etapa 2 em detalhe"), com estes detalhes:
+
+- **O título de um capítulo** com mais de um parágrafo (`<p>Chapter 1</p>
+  <p>The Start</p>`) vira `Chapter 1. The Start`; um capítulo sem título
+  leva o do livro (se for o primeiro) ou `Chapter N`.
+- **A nota** guarda só o texto, sem o número do seu título (o pop-up já
+  mostra a chamada).
+- **O `T`** de um `.fb2` mostra o XML na codificação declarada (o cabeçalho
+  diz `Windows-1251`); o de um `.fb2.zip` não tem texto, como o EPUB.
+- **No estilo de livro** (vale para o EPUB também): dentro de uma citação
+  (poema, epígrafe) os parágrafos ficam separados por uma linha e sem recuo,
+  para as estrofes; depois de uma linha em branco, e depois de uma citação,
+  o parágrafo não tem recuo.
+- **O `O`** passa por `Windows-1251` e `KOI8-R` também (manual atualizado).
+- **O título do capítulo** que vem do primeiro título (EPUB e FB2) guarda o
+  espaço entre duas partes do texto.
+
+### Feito na 3 (2026-11-21)
+
+- **Manual** (só em inglês): a seção "Ebooks" do `viewer.md` (o livro, as
+  teclas, as notas, o `R`, o tempo, o relatório, o que é lido e os limites);
+  em `configuration.md`, a página 5 na tabela e a seção "Reading time", com o
+  que é guardado, onde, e o que apagar faz; as notas da 0.9.0; uma linha
+  nos dois READMEs.
+- **`W`**: `EPUB ebook (ZIP)`, `FB2 ebook`, `FB2 ebook (ZIP)`; `.fb2` é
+  colorido como documento.
+- **F1** num livro abre "Ebooks", e na página 5 do F12 (ou na pergunta de
+  apagar o tempo), "Reading time".
+
+### A ordem
+
+1a (o livro lido: montagem, relatório, sumário), 1b (o leitor: layout,
+navegação, rodapé, Nerd Fonts) e 1c (lembrar onde parou e o tempo de
+leitura), um commit cada, com os testes de cada uma. As etapas 2 (FB2) e 3
+(manual, notas, `type`) como no plano. O manual pode vir junto com cada etapa, se o autor preferir.
+
 ## Fora deste plano
 
-- MOBI, AZW3, PDF, CBZ/CBR (ver "Formatos").
+- MOBI, AZW3, PDF, CBZ/CBR (ver "Formatos"). O MOBI foi pedido como
+  trabalho futuro em 2026-11-21: está no `BACKLOG.md`.
 - Mostrar imagens.
 - Converter ebooks (para texto, Markdown): o Batch da visão de texto já
   escreve linhas, se alguém precisar.
