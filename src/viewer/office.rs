@@ -11,18 +11,13 @@
 
 use std::collections::HashMap;
 use std::io::{Read, Seek};
-use std::time::{Duration, Instant};
-
-use quick_xml::events::Event;
-use quick_xml::reader::Reader;
+use std::time::Instant;
 
 use super::doc_events::{DocEvents, Look};
 use super::markdown::{self, Doc};
+pub use super::package::Limits;
+use super::package::{Ev, Package, Xml, attr, prefixed, resolve};
 
-/// Most entries in the package.
-const MAX_ENTRIES: usize = 10_000;
-/// Most XML elements open at once.
-const MAX_DEPTH: usize = 256;
 /// Most events of the document.
 const MAX_EVENTS: usize = 4_000_000;
 /// Slides read, at most.
@@ -46,224 +41,6 @@ pub fn kind(path: &std::path::Path) -> Option<Kind> {
         "odp" | "otp" => Kind::Impress,
         _ => return None,
     })
-}
-
-/// How much of a package is read.
-#[derive(Debug, Clone, Copy)]
-pub struct Limits {
-    /// The most of one part, decompressed.
-    pub part: u64,
-    /// The most of all parts together.
-    pub total: u64,
-    pub time: Duration,
-    /// Memory of the document's lines (see `markdown::from_events`).
-    pub budget: usize,
-}
-
-/// A package being read: its parts by name, each decompressed up to a limit.
-struct Package<R: Read + Seek> {
-    zip: zip::ZipArchive<R>,
-    names: Vec<String>,
-    limits: Limits,
-    used: u64,
-    /// A part was cut at its limit, or the total was reached.
-    cut: bool,
-    deadline: Instant,
-}
-
-impl<R: Read + Seek> Package<R> {
-    fn open(reader: R, limits: Limits) -> Result<Self, String> {
-        let zip = zip::ZipArchive::new(reader)
-            .map_err(|_| "Not a document this viewer can read: showing the bytes".to_string())?;
-        if zip.len() > MAX_ENTRIES {
-            return Err(format!(
-                "The document has over {MAX_ENTRIES} parts: showing the bytes"
-            ));
-        }
-        let names = zip
-            .file_names()
-            .filter_map(|n| n.ok().map(|n| n.into_owned()))
-            .collect();
-        Ok(Package {
-            zip,
-            names,
-            limits,
-            used: 0,
-            cut: false,
-            deadline: Instant::now() + limits.time,
-        })
-    }
-
-    fn has(&self, name: &str) -> bool {
-        self.names.iter().any(|n| n == name)
-    }
-
-    /// The text of a part, decompressed up to the limits; `None` if it is not
-    /// there or cannot be read.
-    fn text(&mut self, name: &str) -> Option<String> {
-        if !self.has(name) {
-            return None;
-        }
-        let left = self.limits.total.saturating_sub(self.used);
-        let cap = self.limits.part.min(left);
-        if cap == 0 {
-            self.cut = true;
-            return None;
-        }
-        let file = self.zip.by_name(name).ok()?;
-        let mut bytes = Vec::new();
-        // One byte over the cap tells a part cut from one that fits.
-        file.take(cap + 1).read_to_end(&mut bytes).ok()?;
-        if bytes.len() as u64 > cap {
-            bytes.truncate(cap as usize);
-            self.cut = true;
-        }
-        self.used += bytes.len() as u64;
-        Some(String::from_utf8_lossy(&bytes).into_owned())
-    }
-
-    /// The size the package says a part has (only shown, never trusted).
-    fn declared_size(&mut self, name: &str) -> u64 {
-        self.zip.by_name(name).map(|f| f.size()).unwrap_or(0)
-    }
-
-    fn late(&self) -> bool {
-        Instant::now() >= self.deadline
-    }
-}
-
-/// An element or a piece of text of an XML part.
-enum Ev {
-    Start(String, Vec<(String, String)>),
-    Empty(String, Vec<(String, String)>),
-    End(String),
-    Text(String),
-}
-
-/// An XML part read one event at a time, with no DTD, a limit on its nesting,
-/// and the time limit.
-struct Xml<'a> {
-    reader: Reader<&'a [u8]>,
-    depth: usize,
-    count: usize,
-    deadline: Instant,
-    /// Stopped by the time limit.
-    pub late: bool,
-}
-
-impl<'a> Xml<'a> {
-    fn new(text: &'a str, deadline: Instant) -> Self {
-        let mut reader = Reader::from_str(text);
-        let config = reader.config_mut();
-        config.check_end_names = false;
-        config.expand_empty_elements = false;
-        Xml {
-            reader,
-            depth: 0,
-            count: 0,
-            deadline,
-            late: false,
-        }
-    }
-
-    /// The local part of a name: `w:p` is `p`.
-    fn local(name: &str) -> String {
-        match name.rsplit_once(':') {
-            Some((_, local)) => local.to_string(),
-            None => name.to_string(),
-        }
-    }
-
-    fn attrs(e: &quick_xml::events::BytesStart) -> Vec<(String, String)> {
-        e.attributes()
-            .flatten()
-            .take(64)
-            .map(|a| {
-                let value = a
-                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)
-                    .map_or_else(|_| a.value.to_string(), |v| v.into_owned());
-                let full: &str = a.key.as_ref();
-                // A prefixed name keeps its prefix after a `\u{1}`: `r:id`
-                // and a plain `id` can be on the same element.
-                let key = match full.rsplit_once(':') {
-                    Some((_, local)) => format!("{local}\u{1}"),
-                    None => full.to_string(),
-                };
-                (key, value)
-            })
-            .collect()
-    }
-
-    /// The next event, `Ok(None)` at the end (or at the time limit), or why the
-    /// part is refused.
-    fn next(&mut self) -> Result<Option<Ev>, String> {
-        loop {
-            self.count += 1;
-            if self.count.is_multiple_of(4096) && Instant::now() >= self.deadline {
-                self.late = true;
-                return Ok(None);
-            }
-            let event = self
-                .reader
-                .read_event()
-                .map_err(|_| "The XML of this document is broken".to_string())?;
-            return Ok(Some(match event {
-                Event::Start(e) => {
-                    self.depth += 1;
-                    if self.depth > MAX_DEPTH {
-                        return Err(format!("The XML nests deeper than {MAX_DEPTH} levels"));
-                    }
-                    Ev::Start(Self::local(e.name().as_ref()), Self::attrs(&e))
-                }
-                Event::Empty(e) => Ev::Empty(Self::local(e.name().as_ref()), Self::attrs(&e)),
-                Event::End(e) => {
-                    self.depth = self.depth.saturating_sub(1);
-                    Ev::End(Self::local(e.name().as_ref()))
-                }
-                Event::Text(t) => Ev::Text(t.xml10_content().into_owned()),
-                Event::CData(t) => Ev::Text(t.to_string()),
-                Event::GeneralRef(r) => {
-                    let name = r.to_string();
-                    let c = match name.as_str() {
-                        "lt" => Some('<'),
-                        "gt" => Some('>'),
-                        "amp" => Some('&'),
-                        "apos" => Some('\''),
-                        "quot" => Some('"'),
-                        _ => r.resolve_char_ref().ok().flatten(),
-                    };
-                    Ev::Text(c.map_or_else(|| format!("&{name};"), String::from))
-                }
-                Event::DocType(_) => {
-                    return Err("A document with a DTD is refused".to_string());
-                }
-                Event::Eof => return Ok(None),
-                _ => continue,
-            }));
-        }
-    }
-}
-
-/// An attribute by its local name, with a prefix or not (the one without
-/// first).
-fn attr<'v>(attrs: &'v [(String, String)], name: &str) -> Option<&'v str> {
-    attrs
-        .iter()
-        .find(|(k, _)| k == name)
-        .or_else(|| {
-            attrs
-                .iter()
-                .find(|(k, _)| k.strip_suffix('\u{1}') == Some(name))
-        })
-        .map(|(_, v)| v.as_str())
-}
-
-/// An attribute with a prefix only, as `r:id` beside a plain `id`.
-fn prefixed<'v>(attrs: &'v [(String, String)], name: &str) -> Option<&'v str> {
-    attrs
-        .iter()
-        .find(|(k, _)| k.strip_suffix('\u{1}') == Some(name))
-        .map(|(_, v)| v.as_str())
 }
 
 /// `w:b`, `w:i`... are on unless their value says off.
@@ -326,29 +103,6 @@ fn rels<R: Read + Seek>(pkg: &mut Package<R>, part: &str) -> HashMap<String, Rel
         }
     }
     out
-}
-
-/// `target` from the folder `dir` of the package, or `None` if it climbs out.
-fn resolve(dir: &str, target: &str) -> Option<String> {
-    // An absolute target is from the root of the package. No recursion: a
-    // hostile target may start with millions of `/`.
-    let abs = target.trim_start_matches('/');
-    let (dir, target) = if abs.len() < target.len() {
-        ("", abs)
-    } else {
-        (dir, target)
-    };
-    let mut parts: Vec<&str> = dir.split('/').filter(|p| !p.is_empty()).collect();
-    for p in target.split('/') {
-        match p {
-            "" | "." => {}
-            ".." => {
-                parts.pop()?;
-            }
-            p => parts.push(p),
-        }
-    }
-    Some(parts.join("/"))
 }
 
 /// The metadata worth knowing: who wrote it, who saved it last, when.
@@ -1446,9 +1200,11 @@ pub mod test_docs {
 
 #[cfg(test)]
 mod tests {
+    use super::super::package::MAX_DEPTH;
     use super::test_docs::*;
     use super::*;
     use std::io::Cursor;
+    use std::time::Duration;
 
     const LIMITS: Limits = Limits {
         part: 1 << 20,

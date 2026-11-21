@@ -24,6 +24,7 @@ impl App {
                 ConfirmKind::Kbyte(_) => "info",
                 ConfirmKind::OpenHidden { .. } => "files",
                 ConfirmKind::KeepListing => "cloud",
+                ConfirmKind::DeleteReadingTime(_) => "configuration#reading-time",
                 ConfirmKind::ReadContents | ConfirmKind::IndexBranch { .. } => "sql",
                 ConfirmKind::DeleteFolders { .. } | ConfirmKind::ReadThroughNetwork(_) => {
                     "duplicates"
@@ -33,8 +34,16 @@ impl App {
         if self.batch_preview.is_some() || self.batch_job.is_some() {
             return "execute";
         }
-        if self.settings.is_some() {
-            return "configuration";
+        if let Some(settings) = &self.settings {
+            // The page of the ebooks has its own section.
+            let reading = crate::settings::PAGES
+                .get(settings.page)
+                .is_some_and(|p| p.0.starts_with("Reading"));
+            return if reading {
+                "configuration#reading-time"
+            } else {
+                "configuration"
+            };
         }
         if self.bookmarks_view.is_some() {
             return "bookmarks";
@@ -63,9 +72,8 @@ impl App {
                 PromptKind::ExportDuplicates => "duplicates",
                 PromptKind::Log | PromptKind::Treespec { .. } => "treespec",
                 PromptKind::Fuzzy(_) => "fuzzy",
-                PromptKind::Execute | PromptKind::BatchFile | PromptKind::BatchMask { .. } => {
-                    "execute"
-                }
+                PromptKind::Execute => "execute#execute-x",
+                PromptKind::BatchFile | PromptKind::BatchMask { .. } => "execute#batch-ctrlb",
                 PromptKind::RenameFile(_)
                 | PromptKind::RenameDir(_)
                 | PromptKind::RenameTagged { .. } => "rename",
@@ -75,7 +83,9 @@ impl App {
                 PromptKind::ViewerSearch { .. } | PromptKind::ViewerGoto => "viewer",
                 PromptKind::ViewerSqlFilter => "tables",
                 PromptKind::ViewerLineFilter { .. } => "filter",
-                PromptKind::ViewerBatchFile | PromptKind::ViewerBatchMask { .. } => "execute",
+                PromptKind::ViewerBatchFile | PromptKind::ViewerBatchMask { .. } => {
+                    "execute#batch-in-the-viewer"
+                }
                 PromptKind::CreateArchive(_) => "archives",
                 PromptKind::BookmarkJump
                 | PromptKind::BookmarkSet
@@ -89,6 +99,8 @@ impl App {
                 "search"
             } else if viewer.mode == crate::viewer::ViewMode::Table {
                 "tables"
+            } else if viewer.is_book() {
+                "viewer#ebooks"
             } else {
                 "viewer"
             };

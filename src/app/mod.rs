@@ -446,6 +446,8 @@ impl App {
     /// F3 on the config screen: saves (keeping the file's comments)
     /// and applies immediately.
     pub(crate) fn save_settings(&mut self, config: Config) {
+        let before = (self.options.reading_stats, self.options.reading_titles);
+        let (stats, titles) = (config.options.reading_stats, config.options.reading_titles);
         if let Some(path) = &self.config_file
             && let Err(e) = config.save(path)
         {
@@ -461,12 +463,38 @@ impl App {
                     Some(path) => format!("Configuration saved to {}", path.display()),
                     None => "Configuration applied".into(),
                 });
+                self.reading_options_changed(before.0 && !stats, before.1 && !(titles && stats));
             }
             Err(e) => {
                 if let Some(s) = &mut self.settings {
                     s.message = Some(format!("Cannot apply: {e}"));
                 }
             }
+        }
+    }
+
+    /// The time read or the titles of the books turned off in F12: the
+    /// titles go at once (they say what is read); the time read, if the user
+    /// says so.
+    fn reading_options_changed(&mut self, stats_off: bool, titles_off: bool) {
+        let mut store = crate::reading::load();
+        if titles_off && store.books.iter().any(|b| b.title.is_some()) {
+            store.clear_titles();
+            if let Err(e) = crate::reading::save(&store) {
+                self.message = Some(format!("Cannot forget the titles of the books: {e}"));
+            }
+        }
+        let n = store.with_stats();
+        if stats_off && n > 0 {
+            let books = if n == 1 {
+                "1 book".to_string()
+            } else {
+                format!("{n} books")
+            };
+            self.ask(
+                ConfirmKind::DeleteReadingTime(n),
+                format!("Delete the reading time of {books}?"),
+            );
         }
     }
 

@@ -13,6 +13,8 @@ pub enum Charset {
     Cp437,
     Cp850,
     Cp1252,
+    Cp1251,
+    Koi8R,
 }
 
 impl Charset {
@@ -24,6 +26,8 @@ impl Charset {
             Charset::Cp437 => "CP437",
             Charset::Cp850 => "CP850",
             Charset::Cp1252 => "Windows-1252",
+            Charset::Cp1251 => "Windows-1251",
+            Charset::Koi8R => "KOI8-R",
         }
     }
 
@@ -35,16 +39,21 @@ impl Charset {
             Charset::Cp437 => "DOS, United States",
             Charset::Cp850 => "DOS, Western Europe",
             Charset::Cp1252 => "Windows, Western Europe",
+            Charset::Cp1251 => "Windows, Cyrillic",
+            Charset::Koi8R => "Unix, Russian",
         }
     }
 
-    /// Cycle order: UTF-8 -> CP850 -> 1252 -> CP437 -> UTF-16LE -> UTF-16BE.
+    /// Cycle order: UTF-8 -> CP850 -> 1252 -> CP437 -> 1251 -> KOI8-R ->
+    /// UTF-16LE -> UTF-16BE.
     pub fn next(self) -> Charset {
         match self {
             Charset::Utf8 => Charset::Cp850,
             Charset::Cp850 => Charset::Cp1252,
             Charset::Cp1252 => Charset::Cp437,
-            Charset::Cp437 => Charset::Utf16Le,
+            Charset::Cp437 => Charset::Cp1251,
+            Charset::Cp1251 => Charset::Koi8R,
+            Charset::Koi8R => Charset::Utf16Le,
             Charset::Utf16Le => Charset::Utf16Be,
             Charset::Utf16Be => Charset::Utf8,
         }
@@ -137,7 +146,30 @@ pub fn decode(data: &[u8], charset: Charset) -> Cow<'_, str> {
         Charset::Cp437 => decode_table(data, &CP437).into(),
         Charset::Cp850 => decode_table(data, &CP850).into(),
         Charset::Cp1252 => decode_table(data, &CP1252).into(),
+        Charset::Cp1251 => decode_table(data, &CP1251).into(),
+        Charset::Koi8R => decode_table(data, &KOI8_R).into(),
     }
+}
+
+/// The encoding an XML prolog or a `charset=` names (`windows-1251`,
+/// `KOI8-R`, `utf-8`), if it is one of these.
+pub fn from_label(label: &str) -> Option<Charset> {
+    let l = label.trim().to_ascii_lowercase().replace('_', "-");
+    Some(match l.as_str() {
+        "utf-8" | "utf8" => Charset::Utf8,
+        "utf-16le" => Charset::Utf16Le,
+        "utf-16be" | "utf-16" => Charset::Utf16Be,
+        "windows-1251" | "cp1251" | "x-cp1251" => Charset::Cp1251,
+        "koi8-r" | "koi8r" | "cskoi8r" => Charset::Koi8R,
+        // Latin-1 is 1252 but for 0x80-0x9F, which Latin-1 leaves to
+        // control characters no text uses.
+        "windows-1252" | "cp1252" | "iso-8859-1" | "latin1" | "latin-1" | "us-ascii" | "ascii" => {
+            Charset::Cp1252
+        }
+        "ibm850" | "cp850" => Charset::Cp850,
+        "ibm437" | "cp437" => Charset::Cp437,
+        _ => return None,
+    })
 }
 
 fn decode_utf16(data: &[u8], bom: &[u8], unit: fn([u8; 2]) -> u16) -> String {
@@ -271,6 +303,48 @@ pub(crate) const CP1252: [char; 128] = [
     'ð', 'ñ', 'ò', 'ó', 'ô', 'õ', 'ö', '÷', 'ø', 'ù', 'ú', 'û', 'ü', 'ý', 'þ', 'ÿ',
 ];
 
+/// Windows-1251: Cyrillic, as in many FictionBook files.
+#[rustfmt::skip]
+pub(crate) const CP1251: [char; 128] = [
+    // 0x80
+    'Ђ', 'Ѓ', '‚', 'ѓ', '„', '…', '†', '‡', '€', '‰', 'Љ', '‹', 'Њ', 'Ќ', 'Ћ', 'Џ',
+    // 0x90
+    'ђ', '‘', '’', '“', '”', '•', '–', '—', '\u{FFFD}', '™', 'љ', '›', 'њ', 'ќ', 'ћ', 'џ',
+    // 0xA0
+    '\u{A0}', 'Ў', 'ў', 'Ј', '¤', 'Ґ', '¦', '§', 'Ё', '©', 'Є', '«', '¬', '\u{AD}', '®', 'Ї',
+    // 0xB0
+    '°', '±', 'І', 'і', 'ґ', 'µ', '¶', '·', 'ё', '№', 'є', '»', 'ј', 'Ѕ', 'ѕ', 'ї',
+    // 0xC0
+    'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О', 'П',
+    // 0xD0
+    'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ', 'Ъ', 'Ы', 'Ь', 'Э', 'Ю', 'Я',
+    // 0xE0
+    'а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п',
+    // 0xF0
+    'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я',
+];
+
+/// KOI8-R: Russian, the older Unix encoding.
+#[rustfmt::skip]
+pub(crate) const KOI8_R: [char; 128] = [
+    // 0x80
+    '─', '│', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼', '▀', '▄', '█', '▌', '▐',
+    // 0x90
+    '░', '▒', '▓', '⌠', '■', '∙', '√', '≈', '≤', '≥', '\u{A0}', '⌡', '°', '²', '·', '÷',
+    // 0xA0
+    '═', '║', '╒', 'ё', '╓', '╔', '╕', '╖', '╗', '╘', '╙', '╚', '╛', '╜', '╝', '╞',
+    // 0xB0
+    '╟', '╠', '╡', 'Ё', '╢', '╣', '╤', '╥', '╦', '╧', '╨', '╩', '╪', '╫', '╬', '©',
+    // 0xC0
+    'ю', 'а', 'б', 'ц', 'д', 'е', 'ф', 'г', 'х', 'и', 'й', 'к', 'л', 'м', 'н', 'о',
+    // 0xD0
+    'п', 'я', 'р', 'с', 'т', 'у', 'ж', 'в', 'ь', 'ы', 'з', 'ш', 'э', 'щ', 'ч', 'ъ',
+    // 0xE0
+    'Ю', 'А', 'Б', 'Ц', 'Д', 'Е', 'Ф', 'Г', 'Х', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О',
+    // 0xF0
+    'П', 'Я', 'Р', 'С', 'Т', 'У', 'Ж', 'В', 'Ь', 'Ы', 'З', 'Ш', 'Э', 'Щ', 'Ч', 'Ъ',
+];
+
 #[cfg(test)]
 pub(crate) mod test_util {
     /// Encodes `s` with a 0x80-0xFF table (reverse lookup); ASCII passes through.
@@ -310,6 +384,21 @@ mod tests {
             decode(&[0x80, 0x87, 0xE7, 0x81], Charset::Cp1252),
             "€‡ç\u{FFFD}"
         );
+    }
+
+    #[test]
+    fn cyrillic_tables_and_labels() {
+        let ru = "Съешь же ещё этих мягких французских булок, да выпей чаю. Ёж";
+        for (table, cs) in [(&CP1251, Charset::Cp1251), (&KOI8_R, Charset::Koi8R)] {
+            assert_eq!(decode(&encode(ru, table), cs), ru);
+        }
+        // Known bytes, as the standards give them.
+        assert_eq!(decode(&[0xC0, 0xFF, 0xA8, 0xB9], Charset::Cp1251), "АяЁ№");
+        assert_eq!(decode(&[0xE2, 0xC1, 0xB3, 0xA3], Charset::Koi8R), "БаЁё");
+        assert_eq!(from_label(" Windows-1251 "), Some(Charset::Cp1251));
+        assert_eq!(from_label("koi8_r"), Some(Charset::Koi8R));
+        assert_eq!(from_label("UTF-8"), Some(Charset::Utf8));
+        assert_eq!(from_label("ebcdic"), None);
     }
 
     #[test]
@@ -358,22 +447,24 @@ mod tests {
     }
 
     #[test]
-    fn next_cycles_through_all_six() {
+    fn next_cycles_through_all_eight() {
         let mut c = Charset::Utf8;
         let mut seen = vec![];
-        for _ in 0..6 {
+        for _ in 0..8 {
             seen.push(c);
             c = c.next();
         }
         assert_eq!(c, Charset::Utf8);
         assert_eq!(seen[1], Charset::Cp850);
-        assert_eq!(seen[5], Charset::Utf16Be);
+        assert_eq!(seen[4], Charset::Cp1251);
+        assert_eq!(seen[5], Charset::Koi8R);
+        assert_eq!(seen[7], Charset::Utf16Be);
     }
 
     proptest! {
         #[test]
-        fn never_panics(bytes in prop::collection::vec(any::<u8>(), 0..4096), k in 0usize..6) {
-            let cs = [Charset::Utf8, Charset::Utf16Le, Charset::Utf16Be, Charset::Cp437, Charset::Cp850, Charset::Cp1252][k];
+        fn never_panics(bytes in prop::collection::vec(any::<u8>(), 0..4096), k in 0usize..8) {
+            let cs = [Charset::Utf8, Charset::Utf16Le, Charset::Utf16Be, Charset::Cp437, Charset::Cp850, Charset::Cp1252, Charset::Cp1251, Charset::Koi8R][k];
             let _ = detect(&bytes, None);
             let _ = guess_legacy(&bytes);
             let _ = decode(&bytes, cs);

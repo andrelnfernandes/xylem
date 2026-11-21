@@ -6,6 +6,23 @@ machine. The user-facing summary is under "For later" in the
 (in Portuguese). The order of the work and the rhythm of releases are in
 [docs/plans/roadmap.md](docs/plans/roadmap.md).
 
+## Bugs
+
+- **Git status freezes the screen on slow file systems** (found on
+  2026-11-20; to fix in 0.9.0). With Git on, `StatusCache::refresh`
+  (`src/git.rs`) runs `git status` on the thread that draws the screen and
+  reads the keys, before each drawing, and again every 10 seconds
+  (`MAX_AGE`) or 500 ms after a change. On `/mnt/c` in WSL (9p), a
+  repository of 7,621 files took 130 seconds per `git status`, so Xylem
+  answered for a moment and froze again. Workaround: Git off in F12
+  (page 1, E). Fix proposed: read the status in the background, showing the
+  markers when it is done and saying in the footer that it is reading; wait
+  longer before reading again a repository that was slow (a read of 130 s
+  not repeated for some 20 minutes, unless F3 or an operation asks); never
+  two reads of the same repository at once, and drop one whose directory is
+  no longer shown; a test with a slow fake `git` that checks the keys still
+  answer.
+
 ## Security
 
 Leftovers of the security pass that came from an external audit
@@ -66,6 +83,16 @@ as a link is what `cp -a` and `rsync -l` do).
 
 ## Features
 
+- **MOBI ebooks** (asked on 2026-11-21, after EPUB and FB2 in 0.9.0,
+  [docs/plans/viewer-ebooks.md](docs/plans/viewer-ebooks.md)): a reader for
+  `.mobi` (and `.azw`, `.prc`, the old Mobipocket and Kindle format) by the
+  same road as the EPUB, so the book, the report, the notes, `R` and the
+  time read come for free. The format is a PalmDB with PalmDOC (LZ77) or
+  HUFF/CDIC compression and HTML inside; it is known only from reverse
+  engineering, so the reader must treat every offset and length as hostile,
+  as the Norton Guides one does. Books with DRM (most bought ones) are only
+  said to be, never read. AZW3/KF8 (a newer EPUB-like part inside) to
+  decide when planning.
 - **Remote machines, phases 3 and 4** (phases 1 and 2 are in 0.4.0, phase 3 in 0.7.0;
   [docs/plans/ssh-write.md](docs/plans/ssh-write.md)):
   3. writing on the remote machine: done (rename, mkdir, copy, move, delete,

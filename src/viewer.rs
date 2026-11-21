@@ -5,6 +5,7 @@ pub mod batch;
 pub mod binaries;
 pub mod certs;
 pub mod doc_events;
+pub mod epub;
 pub mod jupyter;
 pub mod line_filter;
 pub mod lines;
@@ -12,8 +13,10 @@ pub mod log;
 pub mod markdown;
 pub mod ng;
 pub mod office;
+mod package;
 mod parquet_pages;
 pub mod patch;
+pub mod reader;
 pub mod records;
 pub mod sql_filter;
 pub mod table;
@@ -54,6 +57,9 @@ const TAB_WIDTH: usize = 8;
 const PAN_STEP: usize = 8;
 /// Links followed in a guide that Backspace can go back through.
 const MAX_JUMPS_BACK: usize = 1000;
+/// The most of a book read to know it by its bytes, when it does not say
+/// what it is.
+const MAX_BOOK_HASH: u64 = 256 << 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -126,6 +132,8 @@ pub struct LoadOptions {
     pub c_parsers: bool,
     /// A table is read in another thread, with the screen free and Esc stopping it.
     pub in_background: bool,
+    /// The reader of books: its layout, and what it keeps (see `reading`).
+    pub reader: reader::ReaderOptions,
 }
 
 impl LoadOptions {
@@ -141,6 +149,7 @@ impl LoadOptions {
             fallback: None,
             c_parsers: true,
             in_background: false,
+            reader: reader::ReaderOptions::default(),
         }
     }
 
@@ -156,6 +165,7 @@ impl LoadOptions {
             fallback: None,
             c_parsers: false,
             in_background: false,
+            reader: reader::ReaderOptions::default(),
         }
     }
 }
@@ -357,6 +367,14 @@ pub struct Viewer {
     office: Option<office::Kind>,
     /// The file is a Norton Guide (see `ng`), shown as a document.
     guide: bool,
+    /// The file is an ebook, EPUB or FictionBook (see `epub`), shown as a
+    /// book; once read, the reader of it (see `reader`).
+    epub: bool,
+    /// The ebook is a FictionBook (`.fb2`, `.fb2.zip`).
+    fb2: bool,
+    pub reader: Option<reader::Reader>,
+    /// The reader's settings (F12), set by the App.
+    pub reader_options: reader::ReaderOptions,
     /// In a guide: the link chosen (an index into the document's jumps), and
     /// where the view was before each link followed, to go back to.
     jump: Option<usize>,
@@ -561,6 +579,7 @@ impl Viewer {
             },
         );
         v.load = load;
+        v.reader_options = load.reader;
         let (lines, bidi) = match std::mem::take(&mut v.lines) {
             Text::Whole(lines) if whole > 0 => (lines, v.bidi.clone()),
             _ => (Lines::default(), Vec::new()),
@@ -1077,6 +1096,9 @@ impl Viewer {
         self.notebook = new.notebook;
         self.office = new.office;
         self.guide = new.guide;
+        self.epub = new.epub;
+        self.fb2 = new.fb2;
+        self.reader = new.reader;
         self.jump = None;
         self.jumps_back.clear();
         self.exe = new.exe;
@@ -1523,13 +1545,21 @@ impl Viewer {
             Some(PathBuf::from(s.strip_suffix('.')?))
         });
         let found = charset::detect(&data, load.fallback);
+        // A FictionBook says its encoding (`windows-1251`), and its text is
+        // shown in it.
+        let declared = (!found.binary && epub::fb2::is_fb2(name.as_deref().unwrap_or(&path)))
+            .then(|| epub::fb2::declared_charset(&data))
+            .flatten();
         let limit = load.limits.output;
-        let mut v = Self::build(path.clone(), size, data, found.charset, found.binary, limit);
+        let charset = declared.unwrap_or(found.charset);
+        let mut v = Self::build(path.clone(), size, data, charset, found.binary, limit);
         let shown_name = name.as_deref().unwrap_or(&path);
         v.notebook = jupyter::is_notebook(shown_name);
         v.office = (!failed).then(|| office::kind(shown_name)).flatten();
         v.guide = !failed && ng::is_guide(shown_name, &v.data);
-        v.exe = !failed && !v.guide && found.binary && binaries::is_binary(&v.data);
+        v.fb2 = !failed && epub::fb2::is_fb2(shown_name);
+        v.epub = !failed && (epub::is_epub(shown_name) || v.fb2);
+        v.exe = !failed && !v.guide && !v.epub && found.binary && binaries::is_binary(&v.data);
         v.cert = !failed && !v.exe && certs::detect(shown_name, &v.data);
         v.cert_der = v.cert && found.binary;
         v.md_file = !failed && !found.binary && (markdown::is_markdown(shown_name) || v.notebook);
@@ -1544,6 +1574,7 @@ impl Viewer {
             v.colors_on = false;
         }
         v.load = load;
+        v.reader_options = load.reader;
         v.compression = compression;
         v.cut = cut;
         v.note = note;
@@ -1826,6 +1857,9 @@ impl Viewer {
         if self.guide {
             return self.render_guide();
         }
+        if self.epub {
+            return self.render_epub();
+        }
         if self.exe {
             return self.render_binary();
         }
@@ -1980,7 +2014,16 @@ impl Viewer {
     /// A document with no text of its own (Office, an executable): `T` has no
     /// source to show, and `H` goes to the bytes.
     fn no_source(&self) -> bool {
-        self.office.is_some() || self.guide || self.exe || self.cert_der
+        self.office.is_some()
+            || self.guide
+            || (self.epub && !self.fb2_text())
+            || self.exe
+            || self.cert_der
+    }
+
+    /// A FictionBook that is XML, not in a ZIP: its source is text.
+    fn fb2_text(&self) -> bool {
+        self.fb2 && !self.data.starts_with(b"PK\x03\x04")
     }
 
     /// A Norton Guide as a document: from the bytes read when they are all
@@ -2034,6 +2077,627 @@ impl Viewer {
         self.md.is_some()
     }
 
+    /// An EPUB as a document: as an Office document, from the bytes read
+    /// when they are all of it, else (with V) from the file.
+    fn render_epub(&mut self) -> bool {
+        let autoview = !self.load.c_parsers;
+        let (part, total) = if autoview {
+            (4 << 20, 4 << 20)
+        } else {
+            (64 << 20, 256 << 20)
+        };
+        let limits = epub::Limits {
+            part,
+            total,
+            time: self.load.limits.time,
+            budget: self.load.limits.output.saturating_mul(16).max(16 << 20),
+        };
+        let width = self.reader_options.column(self.content_width());
+        // What is kept of the books read, and who this one is: asked while
+        // the book is read, for its title page and report.
+        let store = crate::reading::load();
+        let (stats, titles) = (self.reader_options.stats, self.reader_options.titles);
+        let id = std::cell::RefCell::new(None::<String>);
+        let (size, data, path, cut) = (self.size, &self.data, self.path.clone(), self.cut);
+        let lookup = |identifier: Option<&str>| {
+            let bytes;
+            let bytes: &[u8] = if identifier.is_some_and(|i| !i.trim().is_empty()) || !cut {
+                data
+            } else {
+                bytes = read_bounded(&path, MAX_BOOK_HASH).unwrap_or_default();
+                &bytes
+            };
+            let book = crate::reading::identity(identifier, size, bytes);
+            let summary = crate::reading::summary(&store, &book, stats, titles);
+            *id.borrow_mut() = Some(book);
+            summary
+        };
+        let result = if self.fb2 {
+            let whole = !self.cut;
+            let from_disk = self.on_disk && !autoview && self.compression.is_none();
+            if !whole && !from_disk {
+                if self.note.is_none() {
+                    self.note = Some("Too big to read here: V shows it as a book".into());
+                }
+                return false;
+            }
+            let zipped = self
+                .path
+                .to_string_lossy()
+                .to_ascii_lowercase()
+                .ends_with(".zip");
+            crate::panic_guard::catch(|| {
+                let read;
+                let bytes: &[u8] = if whole {
+                    data
+                } else if zipped {
+                    read = read_bounded(&path, limits.total)?;
+                    &read
+                } else {
+                    // One byte over the limit of a part says it was cut.
+                    let file =
+                        open_regular(&path).map_err(|e| format!("Cannot read the file: {e}"))?;
+                    let mut buf = Vec::new();
+                    file.take(limits.part + 1)
+                        .read_to_end(&mut buf)
+                        .map_err(|e| format!("Cannot read the file: {e}"))?;
+                    read = buf;
+                    &read
+                };
+                epub::fb2::render_with(bytes, limits, width, &lookup)
+            })
+        } else if !self.cut {
+            crate::panic_guard::catch(|| {
+                epub::render_with(
+                    std::io::Cursor::new(data.as_slice()),
+                    limits,
+                    width,
+                    &lookup,
+                )
+            })
+        } else if self.on_disk && !autoview && self.compression.is_none() {
+            let path = self.path.clone();
+            crate::panic_guard::catch(|| {
+                let file = File::open(&path).map_err(|e| format!("Cannot read the file: {e}"))?;
+                epub::render_with(std::io::BufReader::new(file), limits, width, &lookup)
+            })
+        } else {
+            if self.note.is_none() {
+                self.note = Some("Too big to read here: V shows it as a book".into());
+            }
+            return false;
+        };
+        match result {
+            Some(Ok(book)) => {
+                if let Some(w) = &book.warning {
+                    self.note
+                        .get_or_insert_with(|| format!("{w}: I shows the report"));
+                }
+                let at = book.at;
+                let (mut reader, doc) = reader::Reader::new(book);
+                reader.id = id.into_inner();
+                reader.remembered = at.is_some();
+                reader.titles = titles && stats;
+                reader.speed = reader
+                    .id
+                    .as_ref()
+                    .and_then(|i| store.get(i))
+                    .and_then(crate::reading::Record::speed)
+                    .filter(|_| stats);
+                self.md = Some(doc);
+                self.reader = Some(reader);
+                if let Some((chapter, line)) = at {
+                    self.go_to_place(chapter, line);
+                    let n = chapter + 1;
+                    self.note = Some(format!("Back at chapter {n} (R forgets this book)"));
+                }
+                if self.remembers_time() && !autoview {
+                    let at = self.words_read();
+                    if let Some(r) = &mut self.reader {
+                        let mut clock = crate::reading::Clock::new(Duration::from_secs(
+                            u64::from(self.reader_options.idle.max(1)) * 60,
+                        ));
+                        clock.start(std::time::Instant::now(), at, crate::reading::now_secs());
+                        r.clock = Some(clock);
+                    }
+                }
+            }
+            Some(Err(why)) => {
+                self.note.get_or_insert(why);
+            }
+            None => {
+                self.note
+                    .get_or_insert_with(|| "Could not read this book: showing the bytes".into());
+            }
+        }
+        self.md.is_some()
+    }
+
+    /// Whether the time read of this book is kept: remembered, with the
+    /// option on.
+    fn remembers_time(&self) -> bool {
+        self.reader_options.stats && self.reader.as_ref().is_some_and(|r| r.remembered)
+    }
+
+    /// Where the reading is: the chapter, and the line of the text within it.
+    fn reading_place(&self) -> Option<(usize, usize)> {
+        let md = self.md.as_ref()?;
+        let r = self.reader.as_ref()?;
+        let rows = self.chapter_rows();
+        let chapter = rows.iter().rposition(|&row| row <= self.reading_top())?;
+        let start = md.place(&r.chapters.get(chapter)?.place)?;
+        let (line, _) = md.anchor(self.top).unwrap_or((start, 0));
+        Some((chapter, line.saturating_sub(start)))
+    }
+
+    /// To the line `line` of chapter `chapter` (as [`reading_place`] says
+    /// them), or as near as the book has.
+    ///
+    /// [`reading_place`]: Self::reading_place
+    fn go_to_place(&mut self, chapter: usize, line: usize) {
+        let (Some(md), Some(r)) = (&self.md, &self.reader) else {
+            return;
+        };
+        let Some(c) = r
+            .chapters
+            .get(chapter.min(r.chapters.len().saturating_sub(1)))
+        else {
+            return;
+        };
+        let Some(start) = md.place(&c.place) else {
+            return;
+        };
+        let line = (start + line).min(md.line_count().saturating_sub(1));
+        self.top = md.row_of(line, 0);
+    }
+
+    /// The words of the book before the top of the screen.
+    fn words_read(&self) -> f64 {
+        let total = self.reader.as_ref().map_or(0, |r| r.total_words());
+        self.book_progress().map_or(0.0, |p| p.done * total as f64)
+    }
+
+    /// R in a book: remember where the reading stops, and (with the option)
+    /// the time read; again, forget the book and what was kept of it.
+    fn toggle_remember(&mut self, now: std::time::Instant) {
+        let place = self.reading_place().unwrap_or((0, 0));
+        let at = self.words_read();
+        let stats = self.reader_options.stats;
+        let idle = Duration::from_secs(u64::from(self.reader_options.idle.max(1)) * 60);
+        let Some(r) = &mut self.reader else { return };
+        let Some(id) = r.id.clone() else { return };
+        let mut store = crate::reading::load();
+        if r.remembered {
+            store.forget(&id);
+            r.remembered = false;
+            r.clock = None;
+            self.note = Some("Forgotten: nothing is kept of this book".into());
+        } else {
+            r.remembered = true;
+            store.put(crate::reading::Record {
+                id,
+                chapter: place.0,
+                line: place.1,
+                at: crate::reading::now_secs(),
+                ..Default::default()
+            });
+            if stats {
+                let mut clock = crate::reading::Clock::new(idle);
+                clock.start(now, at, crate::reading::now_secs());
+                r.clock = Some(clock);
+            }
+            self.note = Some(if stats {
+                "Remembering where you stop and the time read (R forgets)".into()
+            } else {
+                "Remembering where you stop (R forgets)".into()
+            });
+        }
+        if let Err(e) = crate::reading::save(&store) {
+            self.note = Some(format!("Cannot keep it: {e}"));
+        }
+    }
+
+    /// After each key in a remembered book: where the reading is, and the
+    /// clock.
+    fn after_reading_key(&mut self, key: KeyEvent, now: std::time::Instant) {
+        if !self.reading() || !self.reader.as_ref().is_some_and(|r| r.remembered) {
+            return;
+        }
+        let place = self.reading_place();
+        let at = self.words_read();
+        let done = self.book_progress().map_or(0.0, |p| p.done);
+        let end = self.top >= self.last_top();
+        let overlay = self
+            .reader
+            .as_ref()
+            .is_some_and(|r| r.contents.is_some() || r.notes_view.is_some());
+        let forward = !overlay
+            && matches!(
+                key.code,
+                KeyCode::Char(' ') | KeyCode::PageDown | KeyCode::Down
+            );
+        let Some(r) = &mut self.reader else { return };
+        if place.is_some() && place != r.place {
+            r.place = place;
+            r.moved = true;
+        }
+        r.farthest = r.farthest.max(if end { 1.0 } else { done });
+        if let Some(clock) = &mut r.clock {
+            let how = if forward {
+                crate::reading::Move::Forward
+            } else {
+                crate::reading::Move::Other
+            };
+            if let Some(ended) = clock.key(now, at, how, crate::reading::now_secs()) {
+                r.ended.push(ended);
+            }
+        }
+    }
+
+    /// The rows where the chapters of a book start, in order.
+    fn chapter_rows(&self) -> Vec<usize> {
+        let (Some(md), Some(r)) = (&self.md, &self.reader) else {
+            return Vec::new();
+        };
+        r.chapters
+            .iter()
+            .filter_map(|c| md.place(&c.place))
+            .map(|line| md.row_of(line, 0))
+            .collect()
+    }
+
+    /// `]` and `[`: to the start of the next or the previous chapter.
+    fn chapter_step(&mut self, forward: bool) {
+        let rows = self.chapter_rows();
+        let top = self.top;
+        let to = if forward {
+            rows.iter().copied().find(|&r| r > top)
+        } else {
+            rows.iter().copied().rev().find(|&r| r < top)
+        };
+        match to {
+            Some(r) => {
+                self.top = r.min(self.last_top());
+                self.jump = None;
+            }
+            None if forward => self.note = Some("This is the last chapter".into()),
+            None => self.note = Some("This is the first chapter".into()),
+        }
+    }
+
+    /// The highest row the top of the screen goes to.
+    fn last_top(&self) -> usize {
+        self.md
+            .as_ref()
+            .map_or(0, |m| m.row_count().saturating_sub(self.page.max(1)))
+    }
+
+    /// A book shown as a document, with chapters to go through.
+    pub fn is_book(&self) -> bool {
+        self.epub
+            && self.mode == ViewMode::Rendered
+            && self.md.is_some()
+            && self.reader.as_ref().is_some_and(|r| !r.chapters.is_empty())
+    }
+
+    /// The book to read is on the screen (not the report on the file).
+    pub fn reading(&self) -> bool {
+        self.is_book() && self.reader.as_ref().is_some_and(|r| r.reading)
+    }
+
+    /// Z: the text alone, and a line of progress.
+    pub fn focused(&self) -> bool {
+        self.reading() && self.reader.as_ref().is_some_and(|r| r.focus)
+    }
+
+    /// In a book, the chapter at the top of the screen: `chapter 7 of 31:
+    /// The Storm`; before the first, `None`.
+    pub fn chapter_position(&self) -> Option<String> {
+        if !self.is_book() {
+            return None;
+        }
+        let rows = self.chapter_rows();
+        let i = rows.iter().rposition(|&r| r <= self.reading_top())?;
+        let r = self.reader.as_ref()?;
+        let title = r.chapters.get(i).map_or("", |c| c.title.as_str());
+        let title = TableGrid::sanitize_cell(title);
+        let title: String = title.chars().take(60).collect();
+        Some(format!(
+            "chapter {} of {}: {title}",
+            i + 1,
+            r.chapters.len()
+        ))
+    }
+
+    /// How far the reading of a book went, at the top of the screen.
+    pub fn book_progress(&self) -> Option<reader::Progress> {
+        if !self.is_book() {
+            return None;
+        }
+        let r = self.reader.as_ref()?;
+        let rows = self.md.as_ref().map_or(0, |m| m.row_count());
+        reader::Progress::at(&r.chapters, &self.chapter_rows(), self.reading_top(), rows)
+    }
+
+    /// The row the reading is at: in the book to read, a chapter whose
+    /// heading is just under the top (below its blank row and above its
+    /// ornament) is the one being read.
+    fn reading_top(&self) -> usize {
+        if self.reading() {
+            (self.top + 2).min(self.md.as_ref().map_or(0, |m| m.row_count()))
+        } else {
+            self.top
+        }
+    }
+
+    /// The width of the document: in the book to read, the text column.
+    fn doc_width(&self) -> usize {
+        if self.reading() {
+            self.reader_options.column(self.content_width())
+        } else {
+            self.content_width()
+        }
+    }
+
+    /// The cells left of the text column of a book, to center it.
+    pub fn doc_margin(&self) -> usize {
+        if self.reading() {
+            self.content_width().saturating_sub(self.doc_width()) / 2
+        } else {
+            0
+        }
+    }
+
+    /// I: the book to read, or the report on the file; at the same chapter.
+    fn switch_book_view(&mut self) {
+        let rows = self.chapter_rows();
+        let chapter = rows.iter().rposition(|&r| r <= self.top);
+        let Some(r) = &mut self.reader else { return };
+        let Some(other) = r.other.take() else { return };
+        r.other = self.md.replace(other);
+        r.reading = !r.reading;
+        r.contents = None;
+        r.notes_view = None;
+        self.jump = None;
+        self.jumps_back.clear();
+        self.lay_out_book();
+        self.top = match chapter {
+            Some(i) => self.chapter_rows().get(i).copied().unwrap_or(0),
+            None => 0,
+        }
+        .min(self.last_top());
+        self.note = Some(if self.reading() {
+            "The book (I: the report on the file)".into()
+        } else {
+            "The report on the file (I: back to the book)".into()
+        });
+    }
+
+    /// Lays a book's document out for the screen, as a book or not.
+    fn lay_out_book(&mut self) {
+        let style = self.reading().then(|| self.reader_options.style());
+        let width = self.doc_width();
+        if let Some(md) = &mut self.md
+            && self.epub
+        {
+            md.set_book(style);
+            if md.width() != width {
+                md.layout(width);
+            }
+        }
+    }
+
+    /// `g` with a percentage, in a book: that far into it, by words.
+    pub fn goto_percent(&mut self, percent: f64) {
+        let (Some(r), Some(md)) = (&self.reader, &self.md) else {
+            return;
+        };
+        let total = r.total_words();
+        let want = (percent.clamp(0.0, 100.0) / 100.0 * total as f64) as usize;
+        let starts = self.chapter_rows();
+        let rows = md.row_count();
+        let mut before = 0;
+        for (i, c) in r.chapters.iter().enumerate() {
+            let Some(&start) = starts.get(i) else { break };
+            if before + c.words >= want || i + 1 == r.chapters.len() {
+                let end = starts.get(i + 1).copied().unwrap_or(rows);
+                let within = if c.words == 0 {
+                    0.0
+                } else {
+                    (want - before.min(want)) as f64 / c.words as f64
+                };
+                self.push_back();
+                self.top = (start + (within.min(1.0) * (end - start) as f64) as usize)
+                    .min(self.last_top());
+                self.note = Some(format!("{percent}% of the book"));
+                return;
+            }
+            before += c.words;
+        }
+    }
+
+    /// Where the view is now, for Backspace to come back to.
+    fn push_back(&mut self) {
+        if self.jumps_back.len() >= MAX_JUMPS_BACK {
+            self.jumps_back.remove(0);
+        }
+        self.jumps_back.push((self.top, None));
+    }
+
+    /// Tab in the book: the contents, the chapter being read chosen.
+    fn open_contents(&mut self) {
+        let top = self.reading_top();
+        let Some(md) = &self.md else { return };
+        let Some(r) = &mut self.reader else { return };
+        let names = r.toc_names();
+        if names.is_empty() {
+            self.note = Some("This book has no contents".into());
+            return;
+        }
+        let at = r
+            .toc_places()
+            .iter()
+            .rposition(|p| {
+                p.as_ref()
+                    .and_then(|p| md.place(p))
+                    .is_some_and(|line| md.row_of(line, 0) <= top)
+            })
+            .unwrap_or(0);
+        r.contents = Some(table::SheetList::new(&names, at));
+    }
+
+    /// The contents' entry the screen is at, and the marks of the entries
+    /// before it (read) and of it.
+    pub fn contents_names(&self) -> (Vec<String>, usize, Vec<&'static str>) {
+        let (Some(r), Some(md)) = (&self.reader, &self.md) else {
+            return (Vec::new(), 0, Vec::new());
+        };
+        let g = reader::glyphs(self.reader_options.nerd);
+        let rows: Vec<Option<usize>> = r
+            .toc_places()
+            .iter()
+            .map(|p| {
+                p.as_ref()
+                    .and_then(|p| md.place(p))
+                    .map(|l| md.row_of(l, 0))
+            })
+            .collect();
+        let current = rows
+            .iter()
+            .rposition(|row| row.is_some_and(|row| row <= self.reading_top()))
+            .unwrap_or(0);
+        let marks = (0..rows.len())
+            .map(|i| match i.cmp(&current) {
+                std::cmp::Ordering::Less if rows[i].is_some() => g.read,
+                std::cmp::Ordering::Equal => g.current,
+                _ => " ",
+            })
+            .collect();
+        (r.toc_names(), current, marks)
+    }
+
+    /// A key in the contents: as in the list of sheets; Enter goes there.
+    fn contents_key(&mut self, key: KeyEvent) {
+        let Some(r) = &mut self.reader else { return };
+        let names = r.toc_names();
+        let places = r.toc_places();
+        let Some(list) = &mut r.contents else { return };
+        let last = list.shown.len().saturating_sub(1);
+        let page = self.page.max(1);
+        let plain = !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        match key.code {
+            KeyCode::Up => list.cursor = list.cursor.saturating_sub(1),
+            KeyCode::Down => list.cursor = (list.cursor + 1).min(last),
+            KeyCode::PageUp => list.cursor = list.cursor.saturating_sub(page),
+            KeyCode::PageDown => list.cursor = (list.cursor + page).min(last),
+            KeyCode::Home => list.cursor = 0,
+            KeyCode::End => list.cursor = last,
+            KeyCode::Backspace => list.pop(&names),
+            KeyCode::Char(c) if plain => list.push(c, &names),
+            KeyCode::Esc | KeyCode::Tab => r.contents = None,
+            KeyCode::Enter => {
+                let place = list
+                    .shown
+                    .get(list.cursor)
+                    .and_then(|&i| places.get(i).cloned().flatten());
+                r.contents = None;
+                let line = place.and_then(|p| self.md.as_ref()?.place(&p));
+                match line {
+                    Some(line) => {
+                        self.push_back();
+                        let row = self.md.as_ref().map_or(0, |m| m.row_of(line, 0));
+                        self.top = row.min(self.last_top());
+                    }
+                    None => self.note = Some("This entry leads nowhere in the book".into()),
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Enter in the book: the notes whose calls are on the screen.
+    fn open_notes(&mut self) {
+        let (Some(md), Some(r)) = (&self.md, &mut self.reader) else {
+            return;
+        };
+        let (top, end) = (self.top, self.top + self.page.max(1));
+        let notes: Vec<(String, String)> = md
+            .jumps()
+            .iter()
+            .filter(|j| {
+                let row = md.row_of(j.line, j.start);
+                row >= top && row < end
+            })
+            .filter_map(|j| {
+                let text = r.notes.get(&j.to)?;
+                let call: String = md
+                    .line(j.line)
+                    .chars()
+                    .skip(j.start)
+                    .take(j.end - j.start)
+                    .collect();
+                Some((call, text.clone()))
+            })
+            .collect();
+        if notes.is_empty() {
+            self.note = Some("No notes are called on this page".into());
+        } else {
+            r.notes_view = Some((notes, 0));
+        }
+    }
+
+    /// A key while the notes are open: ↑ ↓ scroll them; anything else closes.
+    fn notes_key(&mut self, key: KeyEvent) {
+        let Some(r) = &mut self.reader else { return };
+        let Some((_, scroll)) = &mut r.notes_view else {
+            return;
+        };
+        match key.code {
+            KeyCode::Up => *scroll = scroll.saturating_sub(1),
+            KeyCode::Down => *scroll += 1,
+            KeyCode::PageUp => *scroll = scroll.saturating_sub(self.page.max(1)),
+            KeyCode::PageDown => *scroll += self.page.max(1),
+            _ => r.notes_view = None,
+        }
+    }
+
+    /// The keys of the book to read, before the viewer's own; `None` for a
+    /// key that is the viewer's.
+    fn reading_key(&mut self, key: KeyEvent) -> Option<Action> {
+        let plain = !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        let r = self.reader.as_ref()?;
+        if r.notes_view.is_some() {
+            self.notes_key(key);
+            return Some(Action::None);
+        }
+        if r.contents.is_some() {
+            self.contents_key(key);
+            return Some(Action::None);
+        }
+        match key.code {
+            KeyCode::Char(' ') if plain => self.scroll_down(self.page.max(1)),
+            KeyCode::Tab => self.open_contents(),
+            KeyCode::Enter => self.open_notes(),
+            KeyCode::Backspace => self.jump_back(),
+            KeyCode::Char('z' | 'Z') if plain => {
+                if let Some(r) = &mut self.reader {
+                    r.focus = !r.focus;
+                }
+            }
+            KeyCode::Esc if self.focused() => {
+                if let Some(r) = &mut self.reader {
+                    r.focus = false;
+                }
+            }
+            _ => return None,
+        }
+        Some(Action::None)
+    }
+
     pub fn limit(&self) -> u64 {
         self.load.limits.output as u64
     }
@@ -2055,6 +2719,7 @@ impl Viewer {
     /// A viewer just read again goes back to how the old one was being looked at.
     fn restore_view(&mut self, old: Viewer) {
         let old_line = old.top_line();
+        self.reader_options = old.reader_options;
         if old.charset_manual {
             self.set_charset(old.charset);
             self.charset_manual = true;
@@ -2324,6 +2989,10 @@ impl Viewer {
             notebook: false,
             office: None,
             guide: false,
+            epub: false,
+            fb2: false,
+            reader: None,
+            reader_options: reader::ReaderOptions::default(),
             jump: None,
             jumps_back: Vec::new(),
             exe: false,
@@ -2837,7 +3506,14 @@ impl Viewer {
     /// The rendered mode's rows on screen, laid out for the current width.
     /// The text at the top stays there when the width changes.
     fn rendered_rows(&mut self, height: usize) -> Vec<StyledRow> {
-        let width = self.content_width();
+        let width = self.doc_width();
+        let margin = self.doc_margin();
+        if self.epub {
+            let style = self.reading().then(|| self.reader_options.style());
+            if let Some(md) = &mut self.md {
+                md.set_book(style);
+            }
+        }
         let (top, left, colors) = (self.top, self.left, self.colors_on);
         let numbers = self.line_numbers;
         let hit = self
@@ -2846,7 +3522,7 @@ impl Viewer {
             .map(|h| (h.line, h.start, h.end));
         let jump = self
             .jump
-            .filter(|_| self.guide)
+            .filter(|_| self.follows_links())
             .and_then(|i| self.md.as_ref()?.jumps().get(i))
             .map(|j| (j.line, j.start, j.end));
         let Some(md) = &mut self.md else {
@@ -2864,9 +3540,15 @@ impl Viewer {
         }
         let end = (top + height).min(md.row_count());
         let rows = (top..end)
-            .map(|row| StyledRow {
-                line_num: md.number_of(row).filter(|_| numbers),
-                segments: md.row_segments(row, left, colors, hit, jump),
+            .map(|row| {
+                let mut segments = md.row_segments(row, left, colors, hit, jump);
+                if margin > 0 {
+                    segments.insert(0, (" ".repeat(margin), None, false, Modifier::empty()));
+                }
+                StyledRow {
+                    line_num: md.number_of(row).filter(|_| numbers),
+                    segments,
+                }
             })
             .collect();
         self.top = top;
@@ -3060,6 +3742,29 @@ impl Viewer {
     /// Handles a key; what does not belong to the viewer itself (close, switch
     /// file, search) comes back as an `Action`.
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
+        self.handle_key_at(key, std::time::Instant::now())
+    }
+
+    /// [`handle_key`](Self::handle_key) at `now`: the clock of a book read
+    /// takes the time of each key.
+    pub fn handle_key_at(&mut self, key: KeyEvent, now: std::time::Instant) -> Action {
+        let plain = !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        let overlay = self
+            .reader
+            .as_ref()
+            .is_some_and(|r| r.contents.is_some() || r.notes_view.is_some());
+        if self.reading() && plain && !overlay && matches!(key.code, KeyCode::Char('r' | 'R')) {
+            self.toggle_remember(now);
+            return Action::None;
+        }
+        let action = self.key(key);
+        self.after_reading_key(key, now);
+        action
+    }
+
+    fn key(&mut self, key: KeyEvent) -> Action {
         if key.code == KeyCode::Esc && self.reading_table() {
             self.stop_reading_table();
             return Action::None;
@@ -3100,6 +3805,20 @@ impl Viewer {
         }
         if self.patch_list.is_some() {
             self.patch_list_key(key);
+            return Action::None;
+        }
+        if self.reading()
+            && let Some(action) = self.reading_key(key)
+        {
+            return action;
+        }
+        if self.is_book()
+            && matches!(key.code, KeyCode::Char('i' | 'I'))
+            && !key
+                .modifiers
+                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+        {
+            self.switch_book_view();
             return Action::None;
         }
         if self.mode == ViewMode::Tree
@@ -3308,6 +4027,10 @@ impl Viewer {
                 self.open_patch_list();
                 Action::None
             }
+            KeyCode::Char(c @ (']' | '[')) if self.is_book() => {
+                self.chapter_step(c == ']');
+                Action::None
+            }
             KeyCode::Char(']') => {
                 self.switch_sheet(true);
                 Action::None
@@ -3398,7 +4121,9 @@ impl Viewer {
     /// A guide on screen as a document: Tab, Enter and Backspace go through
     /// its links.
     pub fn follows_links(&self) -> bool {
-        self.guide && self.mode == ViewMode::Rendered && self.md.is_some()
+        (self.guide || (self.epub && !self.reading()))
+            && self.mode == ViewMode::Rendered
+            && self.md.is_some()
     }
 
     /// The row of jump `i` of the document, if there is one.
@@ -3419,7 +4144,7 @@ impl Viewer {
         let Some(md) = &self.md else { return };
         let n = md.jumps().len();
         if n == 0 {
-            self.note = Some("No links in this guide".into());
+            self.note = Some("No links here".into());
             return;
         }
         let (top, page) = (self.top, self.page.max(1));
@@ -4192,6 +4917,7 @@ mod tests {
         fallback: None,
         c_parsers: true,
         in_background: false,
+        reader: reader::ReaderOptions::DEFAULT,
     };
 
     fn from_gz(name: &str, raw: Vec<u8>, load: LoadOptions) -> Viewer {
@@ -5791,7 +6517,7 @@ mod tests {
             v.note.as_deref(),
             Some("Codepage: CP850 (DOS, Western Europe)")
         );
-        for _ in 0..5 {
+        for _ in 0..7 {
             v.handle_key(KeyEvent::from(KeyCode::Char('o')));
         }
         assert_eq!(v.charset(), Charset::Utf8);
@@ -5840,8 +6566,8 @@ mod tests {
         // Xylem's own bytes are taken as UTF-8, so this one looks binary.
         let mut v = Viewer::from_bytes(PathBuf::from("a"), bytes.len() as u64, bytes);
         assert_eq!(v.mode, ViewMode::Hex);
-        for _ in 0..3 {
-            v.cycle_charset(); // CP850, 1252, CP437
+        for _ in 0..5 {
+            v.cycle_charset(); // CP850, 1252, CP437, 1251, KOI8-R
             assert_eq!(v.mode, ViewMode::Hex);
         }
         v.cycle_charset(); // UTF-16LE
@@ -5877,7 +6603,7 @@ mod tests {
             .collect();
         let mut v = from_raw(bytes);
         assert_eq!(v.bidi_count(), 1);
-        for _ in 0..6 {
+        for _ in 0..8 {
             v.cycle_charset();
         }
         assert_eq!(v.charset(), crate::charset::Charset::Utf16Le);
@@ -7082,6 +7808,322 @@ new mode 100755
         std::fs::write(&other, ng::test_guides::small()).unwrap();
         let v = Viewer::open(other, LOAD).unwrap();
         assert_ne!(v.mode, ViewMode::Rendered);
+    }
+
+    #[test]
+    fn an_epub_opens_as_a_book_to_read() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("book.epub");
+        std::fs::write(&path, epub::test_books::book3()).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 4;
+        v.width = 100;
+        assert_eq!(v.mode, ViewMode::Rendered);
+        assert!(v.reading());
+        assert!(!v.follows_links(), "Tab is the contents here");
+        assert_eq!(v.reader.as_ref().unwrap().chapters.len(), 2);
+        assert_eq!(v.chapter_position(), None, "the title page");
+        // The text is a column of 70 cells in the middle of the window.
+        let rows = v.styled(4);
+        assert_eq!(v.doc_margin(), 15);
+        assert!(
+            rows.iter()
+                .all(|r| r.segments.first().is_some_and(|s| s.0 == " ".repeat(15)))
+        );
+        // ] and [ go from chapter to chapter.
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 1 of 2: One"));
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 2 of 2: Two"));
+        let p = v.book_progress().unwrap();
+        assert_eq!((p.chapter, p.chapters), (1, 2));
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(v.note.as_deref(), Some("This is the last chapter"));
+        // Space turns a page.
+        press(&mut v, KeyCode::Char('['));
+        let top = v.top;
+        press(&mut v, KeyCode::Char(' '));
+        assert_eq!(v.top, top + 4);
+        // Tab: the contents, at the chapter being read; Enter goes to one,
+        // Backspace back.
+        press(&mut v, KeyCode::Tab);
+        let (names, current, marks) = v.contents_names();
+        assert_eq!(names, ["One", "Two", "  Later on"]);
+        assert_eq!((current, marks[0]), (0, "▸"));
+        press(&mut v, KeyCode::Down);
+        let before = v.top;
+        assert_eq!(press(&mut v, KeyCode::Enter), Action::None);
+        assert!(v.reader.as_ref().unwrap().contents.is_none());
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 2 of 2: Two"));
+        press(&mut v, KeyCode::Backspace);
+        assert_eq!(v.top, before);
+        // Enter with no note called on the page.
+        press(&mut v, KeyCode::Enter);
+        assert_eq!(v.note.as_deref(), Some("No notes are called on this page"));
+        // A part of the book, by words.
+        v.goto_percent(100.0);
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 2 of 2: Two"));
+        v.goto_percent(0.0);
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 1 of 2: One"));
+        // Z: the text alone; Esc leaves it, and a second Esc closes.
+        press(&mut v, KeyCode::Char('z'));
+        assert!(v.focused());
+        assert_eq!(press(&mut v, KeyCode::Esc), Action::None);
+        assert!(!v.focused());
+        // I: the report, at the same chapter, where Tab follows links.
+        press(&mut v, KeyCode::Char('i'));
+        assert!(!v.reading() && v.follows_links());
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 1 of 2: One"));
+        assert_eq!(v.doc_margin(), 0);
+        press(&mut v, KeyCode::Char('i'));
+        assert!(v.reading());
+        assert_eq!(v.chapter_position().as_deref(), Some("chapter 1 of 2: One"));
+        // H goes to the bytes: a book has no text of its own.
+        press(&mut v, KeyCode::Char('h'));
+        assert!(!v.reading() && !v.follows_links());
+        assert_eq!(v.chapter_position(), None);
+        assert_eq!(press(&mut v, KeyCode::Esc), Action::Close);
+        // A file named .epub that is not one shows its bytes, saying why.
+        let bad = tmp.path().join("bad.epub");
+        std::fs::write(&bad, b"not a zip at all").unwrap();
+        let v = Viewer::open(bad, LOAD).unwrap();
+        assert!(v.md.is_none());
+        assert!(
+            v.note.as_deref().unwrap_or("").contains("EPUB"),
+            "{:?}",
+            v.note
+        );
+    }
+
+    /// Where the tests keep their books, for the length of one test.
+    struct KeptBooks(tempfile::TempDir);
+
+    impl KeptBooks {
+        fn new() -> Self {
+            let tmp = crate::testing::tempdir();
+            let file = tmp.path().join("state/reading.toml");
+            crate::reading::TEST_PATH.with(|p| *p.borrow_mut() = Some(file));
+            KeptBooks(tmp)
+        }
+    }
+
+    impl Drop for KeptBooks {
+        fn drop(&mut self) {
+            crate::reading::TEST_PATH.with(|p| *p.borrow_mut() = None);
+        }
+    }
+
+    fn book_load(stats: bool) -> LoadOptions {
+        LoadOptions {
+            reader: reader::ReaderOptions {
+                stats,
+                titles: stats,
+                ..reader::ReaderOptions::DEFAULT
+            },
+            ..LOAD
+        }
+    }
+
+    #[test]
+    fn r_remembers_where_a_book_stopped_and_r_again_forgets_it() {
+        let kept = KeptBooks::new();
+        let path = kept.0.path().join("book.epub");
+        std::fs::write(&path, epub::test_books::book3()).unwrap();
+        let open = |p: &Path| {
+            let mut v = Viewer::open(p.to_path_buf(), book_load(false)).unwrap();
+            v.page = 4;
+            v.width = 100;
+            v
+        };
+        // Nothing is kept until R.
+        let mut v = open(&path);
+        press(&mut v, KeyCode::Char(']'));
+        drop(v);
+        assert!(crate::reading::load().books.is_empty());
+        // R, then on to chapter two: kept when the viewer closes.
+        let mut v = open(&path);
+        press(&mut v, KeyCode::Char('r'));
+        assert_eq!(
+            v.note.as_deref(),
+            Some("Remembering where you stop (R forgets)")
+        );
+        press(&mut v, KeyCode::Char(']'));
+        press(&mut v, KeyCode::Char(']'));
+        press(&mut v, KeyCode::Down);
+        let place = v.reading_place().unwrap();
+        assert_eq!(place.0, 1);
+        drop(v);
+        let store = crate::reading::load();
+        assert_eq!(store.books.len(), 1);
+        let r = &store.books[0];
+        assert_eq!((r.chapter, r.line), place);
+        assert!(!r.has_stats(), "the time read is off");
+        let text = std::fs::read_to_string(crate::reading::path().unwrap()).unwrap();
+        assert!(
+            !text.contains("Test Book") && !text.contains("book.epub"),
+            "{text}"
+        );
+        // Opened again, moved and renamed: back where it stopped.
+        let moved = kept.0.path().join("other name.epub");
+        std::fs::rename(&path, &moved).unwrap();
+        let v = open(&moved);
+        assert_eq!(
+            v.note.as_deref(),
+            Some("Back at chapter 2 (R forgets this book)")
+        );
+        assert_eq!(v.reading_place(), Some(place));
+        drop(v);
+        // Another book with the old name is another book.
+        let other = epub::test_books::book3_titled("Another Book");
+        std::fs::write(&path, other).unwrap();
+        let v = open(&path);
+        assert_eq!(v.chapter_position(), None, "at its title page");
+        drop(v);
+        // R again forgets it.
+        let mut v = open(&moved);
+        press(&mut v, KeyCode::Char('r'));
+        assert_eq!(
+            v.note.as_deref(),
+            Some("Forgotten: nothing is kept of this book")
+        );
+        drop(v);
+        assert!(crate::reading::load().books.is_empty());
+    }
+
+    #[test]
+    fn the_time_read_is_kept_with_the_option_and_shown_next_time() {
+        let kept = KeptBooks::new();
+        let path = kept.0.path().join("book.epub");
+        std::fs::write(&path, epub::test_books::book3()).unwrap();
+        let t0 = std::time::Instant::now();
+        let at = |s: u64| t0 + Duration::from_secs(s);
+        let key = |v: &mut Viewer, code: KeyCode, s: u64| {
+            v.handle_key_at(KeyEvent::new(code, KeyModifiers::NONE), at(s));
+        };
+        let mut v = Viewer::open(path.clone(), book_load(true)).unwrap();
+        v.page = 2;
+        v.width = 100;
+        key(&mut v, KeyCode::Char('r'), 0);
+        assert!(v.note.as_deref().unwrap().contains("the time read"));
+        // Pages a minute apart, then a pause that does not count.
+        key(&mut v, KeyCode::Char(']'), 30);
+        key(&mut v, KeyCode::Char(' '), 90);
+        key(&mut v, KeyCode::Char(' '), 150);
+        key(&mut v, KeyCode::Char(' '), 1_000);
+        let clock = v.reader.as_ref().unwrap().clock.as_ref().unwrap();
+        assert_eq!(clock.seconds, 150.0);
+        assert!(clock.words > 0.0);
+        drop(v);
+        let store = crate::reading::load();
+        let r = &store.books[0];
+        assert_eq!(r.seconds, 150);
+        assert_eq!(r.sessions.len(), 1);
+        assert!(r.farthest > 0.0);
+        assert_eq!(r.title.as_deref(), Some("The Test Book"), "titles on");
+        // Next time, the title page and the report say it.
+        let mut v = Viewer::open(path.clone(), book_load(true)).unwrap();
+        let md = v.md.as_ref().unwrap();
+        let lines: Vec<&str> = (0..md.line_count()).map(|i| md.line(i)).collect();
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with("Your reading: 2 min in 1 session")),
+            "{lines:?}"
+        );
+        press(&mut v, KeyCode::Char('i'));
+        let md = v.md.as_ref().unwrap();
+        let report: Vec<&str> = (0..md.line_count()).map(|i| md.line(i)).collect();
+        assert!(report.contains(&"Your reading"), "{report:?}");
+        assert!(report.contains(&"Your books"), "{report:?}");
+        drop(v);
+        // With the option off, the time is neither measured nor shown.
+        let mut v = Viewer::open(path, book_load(false)).unwrap();
+        assert!(v.reader.as_ref().unwrap().clock.is_none());
+        let md = v.md.as_ref().unwrap();
+        assert!((0..md.line_count()).all(|i| !md.line(i).starts_with("Your reading")));
+        key(&mut v, KeyCode::Char(' '), 2_000);
+        drop(v);
+        assert_eq!(crate::reading::load().books[0].seconds, 150);
+    }
+
+    #[test]
+    fn a_fictionbook_opens_as_a_book_and_its_text_in_its_encoding() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("book.fb2");
+        std::fs::write(&path, epub::fb2::test_books::book2()).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 6;
+        v.width = 100;
+        assert!(v.reading());
+        assert_eq!(v.reader.as_ref().unwrap().chapters.len(), 3);
+        press(&mut v, KeyCode::Char(']'));
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(
+            v.chapter_position().as_deref(),
+            Some("chapter 2 of 3: Chapter 1. The Start")
+        );
+        // The note called on the page opens with Enter.
+        press(&mut v, KeyCode::Enter);
+        let r = v.reader.as_ref().unwrap();
+        let (notes, _) = r.notes_view.as_ref().expect("the notes are open");
+        assert!(notes[0].1.contains("The note itself."), "{notes:?}");
+        press(&mut v, KeyCode::Esc);
+        // Its source is text: T shows the XML.
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Text);
+
+        // In windows-1251, the text is shown in it, not as 1252.
+        let ru = "Глава";
+        let xml = epub::fb2::test_books::fb2("", &format!("<section><p>{ru}</p></section>"), "")
+            .replace("utf-8", "windows-1251");
+        let bytes: Vec<u8> = xml
+            .chars()
+            .flat_map(|c| {
+                if c.is_ascii() {
+                    vec![c as u8]
+                } else {
+                    crate::charset::test_util::encode(&c.to_string(), &crate::charset::CP1251)
+                }
+            })
+            .collect();
+        let path = tmp.path().join("ru.fb2");
+        std::fs::write(&path, bytes).unwrap();
+        let v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.charset(), Charset::Cp1251);
+        assert!(v.reading());
+    }
+
+    #[test]
+    fn the_notes_called_on_a_page_open_with_enter() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("notes.epub");
+        let manifest = r#"<item id="c1" href="one.xhtml" media-type="application/xhtml+xml"/>"#;
+        let one = epub::test_books::page(
+            r##"<h1>One</h1><p>Called<a epub:type="noteref" href="#n1">1</a>.</p>
+<aside epub:type="footnote" id="n1"><p>The note.</p></aside>"##,
+        );
+        std::fs::write(
+            &path,
+            epub::test_books::zip(&[
+                ("mimetype", "application/epub+zip"),
+                ("META-INF/container.xml", epub::test_books::CONTAINER),
+                (
+                    "OEBPS/content.opf",
+                    &epub::test_books::opf("3.0", manifest, r#"<itemref idref="c1"/>"#),
+                ),
+                ("OEBPS/one.xhtml", &one),
+            ]),
+        )
+        .unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 30;
+        press(&mut v, KeyCode::Enter);
+        let r = v.reader.as_ref().unwrap();
+        let (notes, _) = r.notes_view.as_ref().expect("the notes are open");
+        assert_eq!(notes, &[("¹".to_string(), "The note.".to_string())]);
+        // Any key but the arrows closes them, and does nothing else.
+        assert_eq!(press(&mut v, KeyCode::Esc), Action::None);
+        assert!(v.reader.as_ref().unwrap().notes_view.is_none());
     }
 
     #[test]

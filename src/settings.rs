@@ -39,6 +39,13 @@ pub enum Opt {
     ConfirmQuit,
     DeleteToTrash,
     FuzzyTagAll,
+    ReaderWidth,
+    ReaderParagraphs,
+    ReaderJustify,
+    ReadingWpm,
+    ReadingStats,
+    ReadingIdle,
+    ReadingTitles,
     PruneConfirmation,
     HistorySkipAt,
     CompareIgnore2s,
@@ -196,7 +203,47 @@ pub const PAGES: &[Page] = &[
             ),
         ],
     ),
+    (
+        "Reading (ebooks)",
+        &[
+            ('A', "Width of the text column", Opt::ReaderWidth),
+            ('B', "Paragraphs", Opt::ReaderParagraphs),
+            ('C', "Justify the text", Opt::ReaderJustify),
+            ('D', "Reading speed, for the time left", Opt::ReadingWpm),
+            (
+                'E',
+                "Keep the time spent reading (books remembered with R)",
+                Opt::ReadingStats,
+            ),
+            (
+                'F',
+                "Minutes without a key before the clock stops",
+                Opt::ReadingIdle,
+            ),
+            (
+                'G',
+                "Keep the titles of the books, for a list of them",
+                Opt::ReadingTitles,
+            ),
+        ],
+    ),
 ];
+
+/// The widths of the text column F12 goes through (0: the whole window).
+const READER_WIDTHS: &[u16] = &[0, 60, 66, 70, 80, 100];
+/// The reading speeds F12 goes through, in words per minute.
+const READING_SPEEDS: &[u16] = &[150, 200, 250, 300, 350, 400, 500];
+/// The minutes without a key before the reading clock stops, in F12.
+const READING_IDLES: &[u16] = &[1, 2, 3, 5, 10];
+
+/// The value after `current` in `values`, round; one not there goes to the
+/// first.
+fn next_of(values: &[u16], current: u16) -> u16 {
+    match values.iter().position(|&v| v == current) {
+        Some(i) => values[(i + 1) % values.len()],
+        None => values[0],
+    }
+}
 
 fn yes_no(b: bool) -> String {
     if b { "Yes" } else { "No" }.into()
@@ -287,6 +334,18 @@ impl Opt {
             Opt::ConfirmQuit => yes_no(o.confirm_quit),
             Opt::DeleteToTrash => yes_no(o.delete_to_trash),
             Opt::FuzzyTagAll => yes_no(o.fuzzy_tag_all),
+            Opt::ReaderWidth if o.reader_width == 0 => "The whole window".into(),
+            Opt::ReaderWidth => format!("{} columns", o.reader_width),
+            Opt::ReaderParagraphs => match o.reader_paragraphs {
+                crate::config::Paragraphs::Book => "Book: indented, touching".into(),
+                crate::config::Paragraphs::Block => "Block: a blank row between".into(),
+            },
+            Opt::ReaderJustify => yes_no(o.reader_justify),
+            Opt::ReadingWpm => format!("{} words per minute", o.reading_wpm),
+            Opt::ReadingStats => yes_no(o.reading_stats),
+            Opt::ReadingIdle | Opt::ReadingTitles if !o.reading_stats => "(needs E)".into(),
+            Opt::ReadingIdle => format!("{} min", o.reading_idle),
+            Opt::ReadingTitles => yes_no(o.reading_titles),
             Opt::PruneConfirmation => match o.prune_confirmation.as_str() {
                 "prune" => "PRUNE".into(),
                 "name" => "directory name".into(),
@@ -371,6 +430,14 @@ impl Opt {
             Opt::ConfirmQuit => o.confirm_quit = !o.confirm_quit,
             Opt::DeleteToTrash => o.delete_to_trash = !o.delete_to_trash,
             Opt::FuzzyTagAll => o.fuzzy_tag_all = !o.fuzzy_tag_all,
+            Opt::ReaderWidth => o.reader_width = next_of(READER_WIDTHS, o.reader_width),
+            Opt::ReaderParagraphs => o.reader_paragraphs = o.reader_paragraphs.next(),
+            Opt::ReaderJustify => o.reader_justify = !o.reader_justify,
+            Opt::ReadingWpm => o.reading_wpm = next_of(READING_SPEEDS, o.reading_wpm),
+            Opt::ReadingStats => o.reading_stats = !o.reading_stats,
+            Opt::ReadingIdle | Opt::ReadingTitles if !o.reading_stats => return false,
+            Opt::ReadingIdle => o.reading_idle = next_of(READING_IDLES, o.reading_idle),
+            Opt::ReadingTitles => o.reading_titles = !o.reading_titles,
             Opt::PruneConfirmation => o.prune_confirmation = o.prune_confirmation.next(),
             Opt::HistorySkipAt => o.history_skip_at = !o.history_skip_at,
             Opt::TerminalHistory => o.terminal_history = !o.terminal_history,

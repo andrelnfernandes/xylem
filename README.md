@@ -80,7 +80,8 @@ In more detail:
 - **Finding things:** Filespec by name, date and size, Treespec to type a path,
   bookmarks, and Ctrl+S to search the tagged files for text.
 - **Looking inside:** a text and hex viewer with search, a line filter with
-  regular expressions and syntax colors, Markdown shown rendered, a table mode with a SQL filter for
+  regular expressions and syntax colors, Markdown shown rendered, EPUB and FB2
+  ebooks to read as a book, a table mode with a SQL filter for
   spreadsheets, CSV, JSON Lines, DBF, SQLite and Parquet, and Ctrl+B to turn
   those records or lines into a script, JSON, SQL or anything else,
   Autoview next to the list, ZIP, 7z and TAR archives opened as directories,
