@@ -505,10 +505,20 @@ fn inline(text: &str, base: Kind, links: &mut Vec<String>) -> Vec<Span> {
             let label = &rest[1..close];
             let target = &rest[close + 2..close + end];
             i += rest[..close + end + 1].chars().count();
-            let file_target = target.split('#').next().unwrap_or(target);
-            let kind = match file_target.strip_suffix(".md") {
+            let (file_target, section) = target.split_once('#').unwrap_or((target, ""));
+            let name = match file_target.strip_suffix(".md") {
+                Some(name) => Some(name),
+                // A section of the same page.
+                None if file_target.is_empty() && !section.is_empty() => Some(""),
+                None => None,
+            };
+            let kind = match name {
                 Some(name) if !target.contains("://") => {
-                    links.push(name.to_string());
+                    links.push(if section.is_empty() {
+                        name.to_string()
+                    } else {
+                        format!("{name}#{section}")
+                    });
                     Kind::Link(links.len() - 1)
                 }
                 _ => base,
@@ -551,6 +561,34 @@ pub struct Page {
     pub lines: Vec<Vec<Piece>>,
     /// Targets of the links, and the first line each one is on.
     pub links: Vec<(String, usize)>,
+    /// The anchor of each heading (as GitHub makes them), and its line.
+    pub headings: Vec<(String, usize)>,
+}
+
+/// The anchor GitHub gives a heading: lowercase, spaces as `-`, without
+/// other punctuation. `Batch (Ctrl+B)` is `batch-ctrlb`.
+fn anchor(heading: &str) -> String {
+    plain(heading)
+        .chars()
+        .filter_map(|c| match c {
+            ' ' => Some('-'),
+            '-' | '_' => Some(c),
+            c if c.is_alphanumeric() => Some(c),
+            _ => None,
+        })
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+/// The anchors of the headings of `md`, in order.
+fn anchors(md: &str) -> Vec<String> {
+    blocks(md)
+        .into_iter()
+        .filter_map(|b| match b {
+            Block::Heading(t) => Some(anchor(&t)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Breaks `spans` into lines of `width` columns; continuation lines start
@@ -665,6 +703,7 @@ pub fn layout(md: &str, width: usize) -> Page {
             // The help screen shows the title in its header.
             Block::Title(_) => {}
             Block::Heading(t) => {
+                page.headings.push((anchor(&t), page.lines.len()));
                 let spans = inline(&t, Kind::Heading, &mut names);
                 push(&mut page, wrap(&spans, width, "", 0));
             }
@@ -756,7 +795,7 @@ pub fn layout(md: &str, width: usize) -> Page {
     let lead = page.lines.iter().take_while(|l| blank(l)).count();
     if lead > 0 {
         page.lines.drain(..lead);
-        for (_, line) in &mut page.links {
+        for (_, line) in page.links.iter_mut().chain(&mut page.headings) {
             *line = line.saturating_sub(lead);
         }
     }
@@ -772,6 +811,15 @@ pub fn layout(md: &str, width: usize) -> Page {
 
 // ---------------------------------------------------------------- state
 
+/// `topic#section` as the topic and the section, if any.
+fn split_target(target: &str) -> (&str, Option<&str>) {
+    match target.split_once('#') {
+        Some((topic, section)) if !section.is_empty() => (topic, Some(section)),
+        Some((topic, _)) => (topic, None),
+        None => (target, None),
+    }
+}
+
 /// The help screen: a topic, where it is scrolled to, the selected link and
 /// the way back.
 pub struct Help {
@@ -786,6 +834,8 @@ pub struct Help {
     page: Option<(usize, Page)>,
     /// Lines that fit on the screen, as of the last draw.
     pub height: usize,
+    /// A section to scroll to once the page is laid out.
+    section: Option<String>,
 }
 
 impl Help {
@@ -794,13 +844,13 @@ impl Help {
         Self::with_lang(topic, keys, "auto")
     }
 
+    /// `topic` may name a section: `execute#batch-in-the-viewer`.
     pub fn with_lang(topic: &str, keys: String, configured_lang: &str) -> Self {
+        let (topic, section) = split_target(topic);
+        let known = self::topic(topic).is_some();
         Help {
-            topic: if self::topic(topic).is_some() {
-                topic.to_string()
-            } else {
-                "index".into()
-            },
+            topic: if known { topic } else { "index" }.to_string(),
+            section: section.filter(|_| known).map(str::to_string),
             lang: resolve_language(configured_lang),
             scroll: 0,
             selected: None,
@@ -809,6 +859,17 @@ impl Help {
             page: None,
             height: 20,
         }
+    }
+
+    /// The line of `section` in the page laid out: by its anchor, or in a
+    /// translation, by the place of the English heading with that anchor.
+    fn section_line(&self, page: &Page, section: &str) -> Option<usize> {
+        if let Some((_, line)) = page.headings.iter().find(|(a, _)| a == section) {
+            return Some(*line);
+        }
+        let english = anchors(self::topic(&self.topic)?);
+        let i = english.iter().position(|a| a == section)?;
+        (english.len() == page.headings.len()).then(|| page.headings[i].1)
     }
 
     pub fn title(&self) -> String {
@@ -850,6 +911,11 @@ impl Help {
     pub fn page(&mut self, width: usize) -> &Page {
         if self.page.as_ref().is_none_or(|(w, _)| *w != width) {
             let page = layout(&self.markdown(), width);
+            if let Some(section) = self.section.take()
+                && let Some(line) = self.section_line(&page, &section)
+            {
+                self.scroll = line;
+            }
             self.page = Some((width, page));
         }
         &self.page.as_ref().unwrap().1
@@ -865,15 +931,23 @@ impl Help {
         self.page(width).lines.len()
     }
 
-    fn go(&mut self, topic: &str) {
-        if self::topic(topic).is_none() || topic == self.topic {
+    /// Goes to `target`: a topic, `topic#section`, or `#section` of this one.
+    fn go(&mut self, target: &str) {
+        let (topic, section) = split_target(target);
+        let topic = if topic.is_empty() {
+            self.topic.clone()
+        } else {
+            topic.to_string()
+        };
+        if self::topic(&topic).is_none() || (topic == self.topic && section.is_none()) {
             return;
         }
         self.back
             .push((std::mem::take(&mut self.topic), self.scroll, self.selected));
-        self.topic = topic.to_string();
+        self.topic = topic;
         self.scroll = 0;
         self.selected = None;
+        self.section = section.map(str::to_string);
         self.page = None;
     }
 
@@ -1138,12 +1212,75 @@ mod tests {
                 inline(&t, Kind::Text, &mut links);
             }
             for target in links {
-                assert!(
-                    topic(&target).is_some(),
-                    "{lang}/{name}: link to unknown topic {target}"
-                );
+                let (page, section) = split_target(&target);
+                let page = if page.is_empty() { name } else { page };
+                let Some(en) = topic(page) else {
+                    panic!("{lang}/{name}: link to unknown topic {target}")
+                };
+                if let Some(section) = section {
+                    let own = topic_in(lang, page).unwrap_or_default();
+                    assert!(
+                        anchors(en)
+                            .iter()
+                            .chain(&anchors(&own))
+                            .any(|a| a == section),
+                        "{lang}/{name}: link to unknown section {target}"
+                    );
+                }
             }
         }
+    }
+
+    #[test]
+    fn a_topic_with_a_section_opens_there() {
+        let mut help = Help::with_lang("execute#batch-in-the-viewer", String::new(), "en");
+        assert_eq!(help.topic, "execute");
+        let page = help.page(80);
+        let line = page
+            .headings
+            .iter()
+            .find(|(a, _)| a == "batch-in-the-viewer");
+        let line = line.expect("the heading").1;
+        let text: String = page.lines[line].iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(text, "Batch in the viewer");
+        assert_eq!(help.scroll, line);
+        // A section that is not there leaves the page at its top.
+        let mut help = Help::with_lang("execute#nope", String::new(), "en");
+        help.page(80);
+        assert_eq!(help.scroll, 0);
+        assert_eq!(anchor("Batch (Ctrl+B)"), "batch-ctrlb");
+        assert_eq!(anchor("A SQL condition (`W`)"), "a-sql-condition-w");
+    }
+
+    #[test]
+    fn a_translation_opens_at_the_same_section() {
+        for lang in available_languages() {
+            let mut help = Help::with_lang("execute#batch-in-the-viewer", String::new(), &lang);
+            help.lang = lang.clone();
+            let headings: Vec<usize> = help.page(80).headings.iter().map(|h| h.1).collect();
+            // The page opens at a heading past the first, not mid-text.
+            assert!(help.scroll > 0, "{lang}");
+            assert!(headings.contains(&help.scroll), "{lang}: {}", help.scroll);
+        }
+    }
+
+    #[test]
+    fn a_link_to_a_section_scrolls_to_it_and_back_returns() {
+        let key = |c| KeyEvent::new(c, KeyModifiers::NONE);
+        let mut help = Help::with_lang("execute", String::new(), "en");
+        help.height = 10;
+        help.page(80);
+        let links = help.links();
+        let i = links
+            .iter()
+            .position(|(t, _)| t == "#history")
+            .expect("a link to #history");
+        help.follow(i);
+        assert_eq!(help.topic, "execute");
+        help.page(80);
+        assert!(help.scroll > 0);
+        help.handle_key(key(KeyCode::Backspace));
+        assert_eq!(help.scroll, 0);
     }
 
     #[test]

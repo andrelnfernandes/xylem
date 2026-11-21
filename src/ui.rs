@@ -3736,6 +3736,8 @@ fn draw_help(frame: &mut Frame, help: &mut Help) {
     hit(body, Spot::Scroll);
     help.height = inner.height as usize;
     let selected = help.selected;
+    // Laying out the page first: it may scroll to a section.
+    help.page(inner.width as usize);
     let scroll = help.scroll;
     let page = help.page(inner.width as usize);
     let total = page.lines.len();
