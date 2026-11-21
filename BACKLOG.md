@@ -140,7 +140,7 @@ as a link is what `cp -a` and `rsync -l` do).
   [the manual](docs/manual/viewer.md). The windowed viewer (3) is started by the
   tables, with no limit of rows in 0.8.0
   ([docs/plans/tables-windowed.md](docs/plans/tables-windowed.md)). Still to do:
-  logs (4), of which the line filter is done; Parquet in windows (0.9). The text
+  Parquet in windows (0.9); the logs (4) are done with the seven viewers below. The text
   is in windows too ([docs/plans/text-windowed.md](docs/plans/text-windowed.md)): a
   file on disk over 16 MiB is read as the screen moves, with no size limit (one of
   234 MB takes 15 MB of memory, not 475). Left of it: a Batch over such a text still
@@ -149,10 +149,10 @@ as a link is what `cp -a` and `rsync -l` do).
   of reading the file from its end (for the logs). Fixed-width and multi-record files (SDF,
   CNAB, SPED) are out, by decision (2026-11-11): they go to a separate product
   ([docs/plans/viewer-positional.md](docs/plans/viewer-positional.md)).
-  Seven new viewers, built on 2026-11-16 in the branch `viewers-next`, not reviewed
-  yet (the list and order are in "Viewers novos" of
-  [docs/plans/viewers.md](docs/plans/viewers.md); what each one still lacks is in the
-  "Implementação" section of its spec):
+  Seven new viewers are done (PR #122, merged on 2026-11-17, with the fixes of
+  its audit; the list is in "Viewers novos" of
+  [docs/plans/viewers.md](docs/plans/viewers.md)). What each one leaves for later
+  is in the "Implementação" section of its spec:
   logs ([viewer-logs.md](docs/plans/viewer-logs.md), which is subproject 4), JSON,
   YAML and TOML as a tree ([viewer-tree.md](docs/plans/viewer-tree.md)), DOCX,
   ODT and PPTX ([viewer-office.md](docs/plans/viewer-office.md)), executables
