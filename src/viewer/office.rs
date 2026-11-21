@@ -974,14 +974,9 @@ fn risky(kind: &str) -> bool {
     )
 }
 
-/// The document in the package `reader` as a document laid out for `width`,
-/// or why it could not be read (the bytes are then shown).
-pub fn render<R: Read + Seek>(
-    reader: R,
-    kind: Kind,
-    limits: Limits,
-    width: usize,
-) -> Result<Doc, String> {
+/// The package `reader` read: what it says of itself, what it hides, and
+/// its text as events.
+fn read<R: Read + Seek>(reader: R, kind: Kind, limits: Limits) -> Result<Reading, String> {
     let mut pkg = Package::open(reader, limits)?;
     let odf = matches!(kind, Kind::Text | Kind::Impress);
     let meta = metadata(&mut pkg, odf);
@@ -1073,8 +1068,82 @@ pub fn render<R: Read + Seek>(
             }
         }
     }
-    let mut flow = flow.finish();
+    let flow = flow.finish();
     late |= pkg.late();
+    Ok(Reading {
+        meta,
+        found,
+        flow,
+        late,
+        hidden_slides,
+        cut: pkg.cut,
+    })
+}
+
+/// What [`read`] gives.
+struct Reading {
+    meta: Vec<(String, String)>,
+    found: Findings,
+    flow: Flow,
+    late: bool,
+    hidden_slides: usize,
+    cut: bool,
+}
+
+/// What the Scan (Alt+V) says of the document: macros, what it fetches from
+/// outside when it opens, embedded objects, hidden text and slides. Empty:
+/// nothing of the kind. The same reading and limits as the viewer's.
+pub fn warnings<R: Read + Seek>(
+    reader: R,
+    kind: Kind,
+    limits: Limits,
+) -> Result<Vec<String>, String> {
+    let r = read(reader, kind, limits)?;
+    let mut out = Vec::new();
+    if r.found.macros {
+        out.push("macros".to_string());
+    }
+    let risky_links: Vec<&Rel> = r.found.external.iter().filter(|l| risky(&l.kind)).collect();
+    for l in risky_links.iter().take(2) {
+        out.push(format!("fetches from outside: {} {}", l.kind, l.target));
+    }
+    if risky_links.len() > 2 {
+        out.push(format!(
+            "{} more links fetched from outside",
+            risky_links.len() - 2
+        ));
+    }
+    if !r.found.embedded.is_empty() {
+        out.push(format!("{} embedded objects", r.found.embedded.len()));
+    }
+    if r.flow.hidden > 0 {
+        out.push(format!("hidden text ({} pieces)", r.flow.hidden));
+    }
+    if r.hidden_slides > 0 {
+        out.push(format!("{} hidden slides", r.hidden_slides));
+    }
+    if out.is_empty() && (r.cut || r.late || r.flow.d.cut) {
+        return Err("over the limits of the viewer: only the start was read".into());
+    }
+    Ok(out)
+}
+
+/// The document in the package `reader` as a document laid out for `width`,
+/// or why it could not be read (the bytes are then shown).
+pub fn render<R: Read + Seek>(
+    reader: R,
+    kind: Kind,
+    limits: Limits,
+    width: usize,
+) -> Result<Doc, String> {
+    let Reading {
+        meta,
+        found,
+        mut flow,
+        late,
+        hidden_slides,
+        cut,
+    } = read(reader, kind, limits)?;
 
     // What it says of itself, before the text.
     let mut head = DocEvents::new(100_000);
@@ -1132,7 +1201,7 @@ pub fn render<R: Read + Seek>(
     if flow.images > 0 {
         head.field("Images", &format!("{} (not shown)", flow.images));
     }
-    if pkg.cut || late || flow.d.cut {
+    if cut || late || flow.d.cut {
         head.paragraph("Only the start of the document was read: it is over the limits.");
     }
     head.rule();
@@ -1153,7 +1222,7 @@ pub fn render<R: Read + Seek>(
     }
     events.append(&mut tail.events);
     let mut doc = markdown::from_events("", events, limits.time, limits.budget);
-    if pkg.cut || late || flow.d.cut {
+    if cut || late || flow.d.cut {
         doc.mark_cut();
     }
     doc.layout(width);

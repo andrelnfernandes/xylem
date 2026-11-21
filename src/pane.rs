@@ -36,6 +36,14 @@ pub enum FileView {
     Showall,
 }
 
+/// Files chosen in a view (Alt+V), by their paths, and what to call them in
+/// the title.
+#[derive(Debug, Clone)]
+pub struct Pick {
+    pub label: String,
+    pub paths: Arc<HashSet<PathBuf>>,
+}
+
 /// Reference to a file inside the tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FileRef {
@@ -134,6 +142,9 @@ pub struct Pane {
     pub filespec: Filespec,
     /// W: a condition the files of the list must also meet.
     pub query: Option<FileQuery>,
+    /// A choice made in a view (Alt+V): only these files stay in the list.
+    /// W with no text takes it away.
+    pub pick: Option<Pick>,
     pub sort: Sort,
     /// Alt+K: size or file count next to each directory.
     pub kbyte: Kbyte,
@@ -272,6 +283,7 @@ impl Pane {
             file_state: ListState::default().with_selected(Some(0)),
             filespec: Filespec::default(),
             query: None,
+            pick: None,
             sort: Sort::default(),
             kbyte: Kbyte::default(),
             usage: None,
@@ -1055,11 +1067,17 @@ impl Pane {
         let now = SystemTime::now();
         for (rank, dir) in dirs.into_iter().enumerate() {
             let place = self.query_place(dir);
+            let picked_dir = self.pick.as_ref().map(|_| self.tree.path(dir));
             for (idx, f) in self.tree.node(dir).files.iter().enumerate() {
                 let shown = self.tree.show_hidden || !f.is_hidden();
                 let tagged = f.tagged || !self.tags_only;
+                let picked = match (&self.pick, &picked_dir) {
+                    (Some(pick), Some(dir)) => pick.paths.contains(&dir.join(&f.name)),
+                    _ => true,
+                };
                 if shown
                     && tagged
+                    && picked
                     && self.filespec.matches_entry(f)
                     && self.query_takes(f, &place, now)
                 {

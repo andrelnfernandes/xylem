@@ -171,8 +171,10 @@ as a link is what `cp -a` and `rsync -l` do).
   complete. Left for when they are missed: Parquet and XLSX as outputs. Records into
   `.bat`/`.cmd` wait for item 2 of Security.
 
-- **Views** ([docs/plans/views.md](docs/plans/views.md)): Timeline, Sweep and
-  Table, planned for 0.9.0; nothing done yet.
+- **Views** (Alt+V, [docs/plans/views.md](docs/plans/views.md)): for 0.9.0.
+  The Scan and the Timeline are done (stages 1–3, PR #133). The Table
+  (stage 4) waits for the measurement with 2,000,000 nodes the plan asks
+  for, on a machine with more memory than the WSL.
 - **zoxide** (`Z`): the optional appendix of
   [docs/plans/fuzzy-find.md](docs/plans/fuzzy-find.md), whose stages are done
   (0.9.0).
@@ -197,6 +199,8 @@ rework. The 0.8.0 release synced them all (#126); since then, in 0.9.0:
 - `configuration.md`: the settings of the fuzzy find and of the books.
 - `git.md`: why Git can be turned off, and the status read in the background.
 - `releases.md`: the 0.9.0 notes.
+- `views.md`: new, in English only; the indexes have only its link line.
+- `commands-alt.md`: the Alt+V line; `configuration.md`: `scan_max_files`.
 - `comparison.md`, `commands-keys.md`, `filespec.md`, `glossary.md`,
   `index.md`, `sql.md`, `treespec.md`: the lines about the fuzzy find, Norton
   Guides and the books.

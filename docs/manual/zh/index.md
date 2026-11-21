@@ -47,6 +47,7 @@ Xylem 将外部文件视为潜在恶意：绝不应因文件内容或文件名�
 - [信息](info.md)：Info、Avail、统计信息与目录大小
 - [磁盘用量](usage.md)：空间去向 (Alt+U)
 - [重复文件](duplicates.md)：内容相同的文件和文件夹 (Alt+D)
+- [视图](views.md)：换一种方式看列表：扫描 (Alt+V)
 
 ## 文件操作
 

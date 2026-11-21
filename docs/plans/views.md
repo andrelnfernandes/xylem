@@ -1,6 +1,6 @@
 # Plano: visões fora do visual clássico (Linha do tempo, Varredura, Tabela)
 
-**Proposta para a 0.9.0** (pedida em 2026-11-20). Nada aprovado para código.
+**Para a 0.9.0** (pedida em 2026-11-20; aprovada em 2026-11-21: as quatro etapas entram na 0.9.0, e a tecla é **Alt+V**).
 
 Origem: o autor propôs romper com o visual clássico em situações específicas,
 por um comando. Critério combinado: só vale uma tela nova que responda a uma
@@ -21,11 +21,10 @@ Uma tecla abre um seletor no estilo dos favoritos: **Timeline**, **Scan**,
 diretório, o Branch, o Showall, com o Filespec e o `W` que estiverem valendo.
 Esc volta ao visual clássico, na mesma posição.
 
-Tecla a decidir antes da etapa 1. Letras livres hoje: G, H, J, K, Z; G, H e J
-estão reservadas para comandos que ainda faltam (Global, sHortcut, JFC), e Z
-está proposta para o zoxide. Sobra **K**, ou uma
-combinação com Alt ou Ctrl livre (a conferir no `keymap.rs`). Cada visão também
-pode ter tecla própria em `[keys]`, sem padrão.
+**A tecla é Alt+V** (decidido pelo autor em 2026-11-21): V de visões, ao lado
+do V de View, e o K fica livre. G, H e J estão reservadas para comandos que
+ainda faltam (Global, sHortcut, JFC), Alt+G para o Graft e Z para o zoxide.
+Cada visão também pode ter tecla própria em `[keys]`, sem padrão.
 
 As três visões são só leitura: nada nelas apaga, move ou muda arquivos. Quando
 uma visão leva a uma escolha (uma barra, uma categoria, uma linha), a escolha
@@ -158,3 +157,122 @@ GIF quando valer.
   tabela de resultados.
 - Outras visões (composição por tipo): pode entrar como uma linha no topo do
   Usage, num plano próprio.
+
+## Andamento (2026-11-21, para retomar)
+
+**Decidido pelo autor:** a tecla é **Alt+V**, e as quatro etapas entram na 0.9.0.
+O trabalho fica no branch `views`, criado a partir da `main` em `58620a6`.
+
+**Conferido no código** (nada escrito ainda):
+
+- **A tecla:** `alt+v` está livre no keymap padrão (`src/keymap.rs`, tabela
+  perto da linha 430). Também estão livres `k`, `alt+a`, `alt+e`, `alt+j`,
+  `alt+t`, `alt+w` e `alt+y`.
+- **A lista atual:** `Pane::refresh_files` (`src/pane.rs`, perto da linha
+  1048) monta `pane.files: Vec<FileRef>` a partir de `FileView` (Dir, Branch,
+  Showall), aplicando o `filespec`, o `query` (o `W`, `FileQuery` em
+  `src/model/query.rs`) e o `tags_only`.
+- **O que cada arquivo tem na memória:** `FileEntry` (`src/model/tree.rs`) tem
+  `name`, `size`, `disk`, `link` (inode), `modified`, `mode` e
+  `kind: File | Symlink | Other`. O destino do link não fica guardado:
+  para a Varredura, ler com `read_link`, que não segue o link, só em pasta
+  local.
+- **Nomes:** `bidi::has_bidi` está em `src/bidi.rs`.
+- **Confirmações:** `ask_options` e `ConfirmKind` estão em
+  `src/app/prompts.rs`, e a resposta é tratada em `confirmed()`.
+- **Outras visões que já ocupam a tela:** `pane.usage` (Alt+U) e
+  `pane.duplicates` (Alt+D). Um seletor sobreposto no estilo dos favoritos é o
+  `bookmarks_view`, no App.
+
+**Desenho da etapa 1** (aprovado pelo autor em 2026-11-21, com o aviso nos
+sistemas de arquivos do Windows; o autor pediu as quatro etapas em seguida, e
+testa na volta):
+
+- **O seletor:** Alt+V abre uma caixa no estilo dos favoritos com **S**can,
+  **T**imeline e ta**B**le, que também se escolhem com ↑↓ e Enter. Uma visão
+  que ainda não existe não aparece.
+- **A Varredura:** uma caixa sobreposta no App (`scan: Option<ScanView>`), e
+  não uma visão do Pane como o Usage. Ela lista as categorias com as
+  contagens. Na etapa 2, a mesma caixa mostra o progresso da leitura.
+- **Como a escolha volta para a lista:** um filtro novo no Pane,
+  `pick: Option<Pick { label, paths: Arc<HashSet<PathBuf>> }>`, aplicado em
+  `refresh_files` junto com o `filespec` e o `W`. O título da lista mostra o
+  rótulo, e um `W` vazio desfaz o `pick` também. A Linha do tempo (etapa 3)
+  usa o `W` sobre `modified`, como o plano diz.
+- **As categorias da etapa 1**, todas sem ler conteúdo:
+  1. Nomes com caracteres de controle ou de direção do texto
+     (`bidi::has_bidi`, `char::is_control`).
+  2. Nomes que enganam:
+     - uma extensão de documento seguida de uma executável
+       (`fatura.pdf.exe`; executáveis: exe, scr, bat, cmd, com, pif, js, vbs,
+       jar, msi, ps1, lnk, hta);
+     - espaços antes do ponto da extensão;
+     - um nome que termina em espaço ou ponto.
+  3. setuid e setgid; arquivos e pastas graváveis por qualquer um (numa pasta,
+     só sem o sticky bit). Nos sistemas de arquivos em que os modos são
+     inventados (drvfs e 9p do WSL, vfat, exfat, ntfs, fuseblk), esta categoria
+     não conta nada: a tela mostra no lugar um aviso de que as permissões não
+     valem ali.
+  4. Links que saem da raiz varrida (o diretório, o Branch ou a raiz do
+     Showall), resolvidos sem seguir o link, ou que apontam para o que não
+     existe. Só em pasta local: dentro de um arquivo compactado e na máquina
+     remota, a categoria diz que não foi vista.
+- **Commits:** um commit por etapa no branch `views`, e um PR no fim, se o
+  autor concordar.
+
+## Andamento (2026-11-21, tarde): etapas 1 a 3 prontas (PR #133)
+
+Feitas no branch `views`, num commit só (as etapas mexem nos mesmos
+arquivos), autorizado pelo autor, e no PR #133. Passaram
+`cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` e
+`cargo test` ao fim de cada etapa.
+
+**Para a etapa 4:** o autor vai retomá-la noutra máquina, com mais memória,
+começando pela medição.
+
+- **Etapa 1** (`src/scan.rs`, `src/app/views_cmd.rs`, `draw_scan` em
+  `src/ui.rs`): Alt+V abre o seletor (o menu de contexto, com
+  `letters: true`: a letra roda a linha). A Varredura é uma tela cheia, como
+  os favoritos. Nomes e modos dos arquivos saem da memória; modos das pastas e
+  links, numa thread (`scan::Job`). Enter numa categoria lista os achados com
+  o motivo; Enter num arquivo volta à lista com `Pane::pick` (os caminhos da
+  categoria), cursor nele; numa pasta, vai para ela na árvore. `V` abre o
+  relatório, e Esc volta à Varredura. Esc guarda a Varredura (`scan_back`):
+  Alt+V, S na mesma lista a reabre; `R` varre de novo. O aviso dos sistemas
+  de arquivos do Windows está em `scan::modes_are_made_up` (9p, drvfs, vfat,
+  exfat, ntfs, ntfs3, fuseblk, cifs, smb3, fuse.rclone).
+- **Etapa 2**: a mesma thread lê o conteúdo com os leitores do viewer.
+  `binaries::warnings_file` / `warnings` (sem PIE, sem NX/DEP, sem ASLR, pilha
+  executável e os sinais: empacotado, W+X, dados depois da última seção);
+  `office::warnings` (o `render` foi dividido em `read` + layout, sem mudar o
+  que o viewer mostra); `patch::warnings`. Cada arquivo sob `panic_guard`;
+  o que falha ou passa do teto vai para "Not analysed" com o motivo. Teto:
+  `scan_max_files` (10000, só no arquivo de configuração), contando os
+  arquivos lidos, não os 64 bytes de cada um que dizem se é binário. Dentro de
+  um arquivo compactado, cada membro é extraído com limite de 64 MiB pelo
+  `archive::Reader`, aberto uma vez na thread. Conteúdo desligado na máquina
+  remota e no rclone, com a nota na categoria.
+- **Etapa 3** (`src/timeline.rs`, `draw_timeline`): histograma das datas da
+  lista, escala automática (horas até 2 dias, dias até 90, semanas até 1 ano,
+  meses até 10, anos), `+`/`-`, `B`, Shift+← → para um intervalo, barras à
+  parte para antes de 1980 e para o futuro (mais de um dia à frente). Enter
+  vira `W` sobre `modified`, com AND à condição que já havia, entre
+  parênteses. Até 200.000 barras por escala.
+
+**Traduções pendentes** (só o inglês foi escrito): `views.md` (página nova),
+`releases.md` (0.9.0, Views), `commands-alt.md` (linha Alt+V),
+`configuration.md` (`scan_max_files`). Os índices em pt, es, de, fr e zh
+ganharam só a linha do link, porque o teste `index_links_to_every_topic`
+exige.
+
+**Etapa 4 (Tabela): não começada.** O plano manda medir antes, e a medição
+com 2.000.000 de nós pesa na memória do WSL; ficou para combinar com o
+autor. O caminho visto no código: `viewer::records::RowSource` (lido por
+`table_window::Window` através de um `Opener` `Send + Sync`) pode ser
+implementado sobre um retrato compacto da lista (`Arc<Vec<linha>>`, com o
+índice da pasta em vez do caminho), sem gerar texto: as células só viram
+texto quando a janela as pede. A medir: memória e tempo do retrato com a
+árvore de teste maior. Ainda a decidir: como `T` na tabela marca o arquivo na
+lista (uma ação nova do viewer para o App) e como o filtro SQL da tabela vira
+o `W` (os nomes das colunas iguais aos do `W`; o dialeto do `sql_filter` e o
+do `FileQuery` precisam ser conferidos).

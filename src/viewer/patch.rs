@@ -278,6 +278,34 @@ fn git_names(rest: &str) -> (String, String) {
     }
 }
 
+/// What the Scan (Alt+V) says of a patch: the files it touches that should
+/// not be touched without a look (see [`PatchFile::danger`]), hunks whose
+/// counts lie, and changes only in what cannot be seen. Empty: nothing.
+pub fn warnings(lines: &(impl LineSource + ?Sized)) -> Vec<String> {
+    let index = index(lines);
+    let mut out = Vec::new();
+    let danger: Vec<&PatchFile> = index.files.iter().filter(|f| f.danger).collect();
+    for f in danger.iter().take(2) {
+        out.push(format!("touches {}", shown(&f.name)));
+    }
+    if danger.len() > 2 {
+        out.push(format!("{} more files to look at", danger.len() - 2));
+    }
+    if index.lying_hunks > 0 {
+        out.push(format!(
+            "{} hunks whose counts do not match",
+            index.lying_hunks
+        ));
+    }
+    if !index.unchanged.is_empty() {
+        out.push(format!(
+            "{} lines changed only in what cannot be seen",
+            index.unchanged.len()
+        ));
+    }
+    out
+}
+
 /// A path that a patch should not touch without being looked at: absolute,
 /// climbing out with `..`, into `.git`, or with control, bidi or invisible
 /// characters (a name that hides its real extension).
