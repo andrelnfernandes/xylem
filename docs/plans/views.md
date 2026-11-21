@@ -276,3 +276,79 @@ texto quando a janela as pede. A medir: memória e tempo do retrato com a
 lista (uma ação nova do viewer para o App) e como o filtro SQL da tabela vira
 o `W` (os nomes das colunas iguais aos do `W`; o dialeto do `sql_filter` e o
 do `FileQuery` precisam ser conferidos).
+
+### Medição da Tabela (2026-11-21)
+
+Feita numa máquina com 62 GB e 16 núcleos, em `--release`, pelo teste
+`app::views_tests::table_measure`, que fica `#[ignore]` como os de tempo do
+`fuzzy.rs`:
+
+```
+XY_TABLE_N=2000000 cargo test --release table_measure -- --ignored --nocapture
+```
+
+**Como é a árvore:** inventada, com N arquivos, 10 por pasta, as pastas a 1 a 6
+níveis. Os nomes são curtos (`file_123.txt`). Nomes reais, mais longos, pesam
+mais no buffer de nomes: uns 50 MiB a mais em 2 milhões.
+
+**O retrato medido:**
+- uma linha fixa de 48 bytes por arquivo, com tamanho, espaço em disco, data em
+  segundos, modo, tipo, marca, o número da pasta e onde o nome está;
+- os nomes juntos num `String` só;
+- uma `String` por pasta.
+
+As células das 10 colunas (`name`, `ext`, `dir`, `size`, `disk`, `modified`,
+`age_days`, `mode`, `kind`, `tagged`) só são feitas quando a `table_window::Window`
+real pede as linhas. `git` e `dup` ficaram fora da medição.
+
+| | 100 mil | 1 milhão | 2 milhões |
+|---|---|---|---|
+| a árvore (contexto) | 68 ms, 12 MiB | 0,7 s, 73 MiB | 1,5 s, 135 MiB |
+| a lista do Showall (já existe) | 0,25 s | 3,2 s | **6,8 s** |
+| **o retrato** | 9 ms, 7 MiB | 0,15 s, 70 MiB | **0,37 s, 139 MiB** |
+| abrir a janela e contar as linhas | 9 ms | 10 ms | 10 ms |
+| um filtro SQL sobre tudo (segundo plano) | 0,13 a 0,17 s | 1,2 a 1,6 s | **2,5 a 3,3 s** |
+| ordenar por `size` ou `modified` | 5 ms | 60 ms | 135 ms |
+| ordenar por `dir, name` | 29 ms | 0,45 s | 1,1 s |
+| comparação: todas as células como texto | 0,15 s, 42 MiB | 1,6 s, 418 MiB | 3,3 s, **839 MiB** |
+
+**Os filtros medidos:**
+- `size > 5000000 AND ext = 'jpg'`;
+- `dir LIKE '%music%'`;
+- `modified >= '2024-01-01'`;
+- `age_days < 365 AND name LIKE 'file_1%'`.
+
+Eles correm nas threads da janela, com a tela livre, e o resultado chega aos
+poucos. A ordem é um `Vec<u32>` (8 MiB em 2 milhões). Ordenar por `name` dá 18 ms
+só porque a lista já vem em ordem de nome.
+
+**O que os números dizem:**
+- **O retrato serve para 2 milhões de arquivos.** Ele custa um pouco mais que a
+  própria árvore em memória e 0,37 s para montar na thread principal. Fazer todas
+  as células como texto custaria 6 vezes mais memória e 9 vezes mais tempo, como o
+  plano já previa.
+- **Ordenar a Tabela por qualquer coluna fica barato com o retrato**, porque basta
+  reordenar os números das linhas. Mas a frase "ganha o que as tabelas já têm:
+  ordenar por qualquer coluna" está errada: as tabelas do viewer não ordenam hoje
+  ([tables-windowed.md](tables-windowed.md), "Ordenar uma tabela pela coluna: não
+  existe hoje"). Ordenar seria novo, só da Tabela, ou do viewer inteiro. Isso é
+  decisão do autor.
+- **Achado fora da Tabela:** montar a lista do Showall leva 6,8 s com 2 milhões de
+  arquivos, na thread principal, e 6,5 s disso é a ordenação por nome
+  (`model::sort::sort_by`). Ela parte da ordem da árvore, move elementos de cerca de
+  100 bytes e compara nomes, cada um em sua alocação. O filespec (0,19 s) e os
+  ocultos (0,04 s) pesam pouco. Isso trava o Showall de um disco inteiro antes de
+  qualquer Tabela, e merece um item próprio.
+
+**Decidido pelo autor (2026-11-21):**
+- **A Tabela ordena por qualquer coluna.** Por enquanto só ela: as outras tabelas do
+  viewer continuam sem ordenar. A ordem é um `Vec<u32>` sobre o retrato, e o retrato
+  não muda.
+- **O retrato é montado na thread principal** (0,37 s com 2 milhões de arquivos).
+- **A ordenação lenta do Showall vira um item próprio** em "Bugs" do BACKLOG, fora
+  desta etapa.
+
+**Ainda a decidir, no spec da etapa 4:**
+1. A tecla que ordena, e como a coluna e o sentido aparecem.
+2. Como entram `git` e `dup`: consultados ao montar o retrato.
+3. O que já estava em aberto: `T` na tabela e o filtro virando `W`.

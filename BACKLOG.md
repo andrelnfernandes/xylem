@@ -8,7 +8,17 @@ machine. The user-facing summary is under "For later" in the
 
 ## Bugs
 
-None open.
+- **Showall on a huge tree holds the screen while it sorts the list.** Found by the
+  measurement of the Table on 2026-11-21 ([docs/plans/views.md](docs/plans/views.md),
+  "Medição da Tabela"). With 2,000,000 files, `Pane::refresh_files` takes 6.8 s on
+  the main thread (3.2 s with 1,000,000), and 6.5 s of that is
+  `model::sort::sort_by`. It starts from the order of the tree, moves elements of
+  about 100 bytes, and compares names that each live in an allocation of their own.
+  The filespec (0.19 s) and the hidden check (0.04 s) weigh little, and the list is
+  sorted again each time it is rebuilt. Likely remedies, none tried yet: sorting
+  indices instead of the elements, `sort_unstable` (the `dir_rank` already makes the
+  order total), or keeping the names in one buffer. Measure with
+  `XY_TABLE_N=2000000 cargo test --release table_measure -- --ignored --nocapture`.
 
 ## Security
 
@@ -64,11 +74,13 @@ rest).
    them in a separate, isolated process would contain a bug in them. Also recheck
    the C dependencies whenever these crates are updated: `cargo tree | grep -- -sys`.
 6. **chrono is unmaintained** ([RUSTSEC-2026-0543](https://rustsec.org/advisories/RUSTSEC-2026-0543),
-   seen on 2026-11-21; a warning, so the audit in CI still passes). Xylem does not use
-   it itself: it comes through `arrow`/`parquet` and `trash`, and there is no fixed
-   version to move to. To watch: those crates moving to another date library (`jiff`
-   or `time`), and update them when they do. Until then, recheck at each update of
-   those crates: `cargo tree -i chrono`.
+   seen on 2026-11-21; a warning, so the audit in CI still passes). There is no fixed
+   version. Xylem uses it itself, for dates: the Timeline, `W` and the filespec on
+   `modified`, the info panel, archives, and the viewers of certificates and
+   binaries, among others. It also comes through `arrow`/`parquet` and `trash`. To
+   decide: moving Xylem's own code to another date library (`jiff` or `time`), which
+   still leaves chrono in the tree while those crates pull it, and following them.
+   Recheck with `cargo tree -i chrono`.
 
 Decided against: wiping the password from memory (`zeroize`: ssh and the
 pipe hold it too), and checking where remote symlinks point (copying a link
@@ -178,9 +190,12 @@ as a link is what `cp -a` and `rsync -l` do).
   `.bat`/`.cmd` wait for item 2 of Security.
 
 - **Views** (Alt+V, [docs/plans/views.md](docs/plans/views.md)): for 0.9.0.
-  The Scan and the Timeline are done (stages 1–3, PR #133). The Table
-  (stage 4) waits for the measurement with 2,000,000 nodes the plan asks
-  for, on a machine with more memory than the WSL.
+  The Scan and the Timeline are done (stages 1–3, PR #133). For the Table
+  (stage 4), the measurement with 2,000,000 files is done (2026-11-21): a
+  compact snapshot of the list takes 139 MiB and 0.37 s, and the table
+  window reads it with no text made up front. The Table sorts by column (new:
+  the other tables of the viewer do not), and the snapshot is built on the
+  main thread. Next: its spec, then the code.
 - **zoxide** (`Z`): the optional appendix of
   [docs/plans/fuzzy-find.md](docs/plans/fuzzy-find.md), whose stages are done
   (0.9.0).
