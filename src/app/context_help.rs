@@ -49,6 +49,12 @@ impl App {
         if self.bookmarks_view.is_some() {
             return "bookmarks";
         }
+        if self.scan.is_some() && self.viewer.is_none() {
+            return "views#scan";
+        }
+        if self.timeline.is_some() {
+            return "views#timeline";
+        }
         if let Some(op) = &self.op {
             return match op.kind {
                 OpKind::Delete | OpKind::Prune => "delete",

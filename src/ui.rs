@@ -127,6 +127,14 @@ fn draw_screen(frame: &mut Frame, app: &mut App) {
         draw_bookmarks(frame, app, view);
         return;
     }
+    if let Some(view) = &app.scan {
+        draw_scan(frame, app, view);
+        return;
+    }
+    if let Some(view) = &app.timeline {
+        draw_timeline(frame, app, view);
+        return;
+    }
 
     // The Usage view has three lines of keys of its own.
     let footer = if app.usage.is_some() {
@@ -1450,6 +1458,11 @@ fn draw_files(
         let tagged = if q.tagged() { "tagged, " } else { "" };
         format!(" where {tagged}{}", q.text())
     });
+    // A choice made in a view (Alt+V), on top of the rest.
+    let query = match &pane.pick {
+        Some(pick) => format!("{query} [{}]", pick.label),
+        None => query,
+    };
     let mut title = format!(
         " {}{kind}: {}{query} ({}) {} ",
         crate::icons::view_icon(pane.view, icons).unwrap_or_default(),
@@ -2545,6 +2558,7 @@ const ALT_TREE_WORDS: &[&str] = &[
     "Release",
     "Sort",
     "Usage",
+    "Views",
     "iNdex",
 ];
 const ALT_FILE_WORDS: &[&str] = &[
@@ -2559,6 +2573,7 @@ const ALT_FILE_WORDS: &[&str] = &[
     "Quit here",
     "Sort",
     "Usage",
+    "Views",
     "iNdex",
 ];
 
@@ -3707,6 +3722,331 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
     };
     let line = fit_menu(menu_line("", keys), menu.width as usize);
     render_footer(frame, vec![line], menu, KeyModifiers::NONE);
+}
+
+/// Alt+V, S: the Scan, its categories with their counts, or the hits of one.
+fn draw_scan(frame: &mut Frame, app: &App, view: &app::ScanView) {
+    let [header, body, menu] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Min(3),
+        Constraint::Length(2),
+    ])
+    .areas(frame.area());
+    let bold = Style::new().add_modifier(Modifier::BOLD);
+    let t = theme();
+    let width = usize::from(header.width);
+    let folders = if view.folders == 1 {
+        "folder"
+    } else {
+        "folders"
+    };
+    let files = if view.files == 1 { "file" } else { "files" };
+    frame.render_widget(
+        Line::from(vec![
+            Span::styled("Xylem scan   ", bold),
+            Span::raw(fit(
+                &format!(
+                    "{}: {} {files}, {} {folders}",
+                    view.what,
+                    fmt_num(view.files as u64),
+                    fmt_num(view.folders as u64)
+                ),
+                width.saturating_sub(13),
+            )),
+        ]),
+        header,
+    );
+    let block = panel(" Scan (Alt+V) ", true);
+    let inner = block.inner(body);
+    frame.render_widget(block, body);
+    let room = usize::from(inner.width);
+    let rows = usize::from(inner.height);
+    let mut lines: Vec<Line> = Vec::new();
+
+    if let Some((cat, found)) = view.open_hits() {
+        lines.push(Line::styled(
+            fit(
+                &format!(" {} ({})", cat.title(), fmt_num(found.count() as u64)),
+                room,
+            ),
+            bold,
+        ));
+        let list_rows = rows.saturating_sub(2);
+        let top = view.hit.saturating_sub(list_rows.saturating_sub(1));
+        let path_w = (room.saturating_sub(4) * 3 / 5).max(10);
+        for (i, hit) in found.hits.iter().enumerate().skip(top).take(list_rows) {
+            let cursor = if i == view.hit { "▶ " } else { "  " };
+            let mut path = hit.path.display().to_string();
+            if hit.dir {
+                path.push('/');
+            }
+            let why_w = room.saturating_sub(path_w + 4);
+            let line = Line::from(vec![
+                Span::raw(cursor),
+                Span::raw(format!("{:<path_w$}", fit_tail(&path, path_w))),
+                Span::raw("  "),
+                Span::styled(fit(&hit.why, why_w), Style::new().fg(t.message)),
+            ]);
+            lines.push(if i == view.hit {
+                line.style(highlight(true))
+            } else {
+                line
+            });
+        }
+        if found.more > 0 {
+            lines.push(Line::styled(
+                format!("  ... and {} more, not listed", fmt_num(found.more as u64)),
+                Style::new().fg(t.dim),
+            ));
+        }
+    } else {
+        lines.push(Line::default());
+        for (i, (cat, found)) in view.found.iter().enumerate() {
+            let cursor = if i == view.selected { "▶ " } else { "  " };
+            let count = found.count();
+            let count_style = if count > 0 {
+                Style::new().fg(t.error).add_modifier(Modifier::BOLD)
+            } else {
+                Style::new().fg(t.dim)
+            };
+            let line = Line::from(vec![
+                Span::raw(cursor),
+                Span::styled(format!("{:>7}", fmt_num(count as u64)), count_style),
+                Span::raw("  "),
+                Span::raw(fit(cat.title(), room.saturating_sub(11))),
+            ]);
+            lines.push(if i == view.selected {
+                line.style(highlight(true))
+            } else {
+                line
+            });
+            if let Some(note) = &found.note {
+                lines.push(Line::styled(
+                    fit(&format!("           {note}"), room),
+                    Style::new().fg(t.dim),
+                ));
+            }
+        }
+        lines.push(Line::default());
+        if let Some(job) = &view.job {
+            lines.push(Line::styled(
+                format!(
+                    "  Looking at the disk: {} of {}... (Esc stops)",
+                    fmt_num(job.done() as u64),
+                    fmt_num(job.total as u64)
+                ),
+                Style::new().fg(t.message),
+            ));
+        } else if let Some((done, total)) = view.stopped {
+            lines.push(Line::styled(
+                format!(
+                    "  Stopped: {} of {} looked at on the disk; R scans again",
+                    fmt_num(done as u64),
+                    fmt_num(total as u64)
+                ),
+                Style::new().fg(t.message),
+            ));
+        }
+        lines.push(Line::styled(
+            fit(
+                "  Not an antivirus: the Scan points at what deserves a look, \
+                 and does not say the rest is safe.",
+                room,
+            ),
+            Style::new().fg(t.dim),
+        ));
+    }
+    frame.render_widget(Paragraph::new(lines), inner);
+
+    if let Some(message) = &app.message {
+        let [msg, keys] =
+            Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(menu);
+        frame.render_widget(
+            Line::styled(
+                fit(message, usize::from(msg.width)),
+                Style::new().fg(t.message),
+            ),
+            msg,
+        );
+        let line = fit_menu(menu_line("", &scan_keys(view)), keys.width as usize);
+        render_footer(frame, vec![line], keys, KeyModifiers::NONE);
+        return;
+    }
+    let line = fit_menu(menu_line("", &scan_keys(view)), menu.width as usize);
+    render_footer(frame, vec![line], menu, KeyModifiers::NONE);
+}
+
+/// Alt+V, T: the Timeline, a histogram of the list by date.
+fn draw_timeline(frame: &mut Frame, app: &App, view: &app::TimelineView) {
+    let [header, body, menu] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Min(8),
+        Constraint::Length(2),
+    ])
+    .areas(frame.area());
+    let bold = Style::new().add_modifier(Modifier::BOLD);
+    let t = theme();
+    let line = &view.line;
+    let files = if line.files() == 1 { "file" } else { "files" };
+    frame.render_widget(
+        Line::from(vec![
+            Span::styled("Xylem timeline   ", bold),
+            Span::raw(fit(
+                &format!(
+                    "{}: {} {files} with a date",
+                    view.what,
+                    fmt_num(line.files() as u64)
+                ),
+                usize::from(header.width).saturating_sub(17),
+            )),
+        ]),
+        header,
+    );
+    let what = if view.bytes { "bytes" } else { "files" };
+    let block = panel(
+        format!(" Timeline (Alt+V): by {}, {what} ", line.scale.name()),
+        true,
+    );
+    let inner = block.inner(body);
+    frame.render_widget(block, body);
+    let cols = usize::from(inner.width.saturating_sub(2));
+    let n = line.bars.len().max(1);
+    let bar_w = (cols / n).clamp(1, 4);
+    let visible = (cols / bar_w).max(1);
+    let mut offset = view.offset.get().min(n.saturating_sub(1));
+    if view.cursor < offset {
+        offset = view.cursor;
+    } else if view.cursor >= offset + visible {
+        offset = view.cursor + 1 - visible;
+    }
+    view.offset.set(offset);
+    let shown: Vec<usize> = (offset..(offset + visible).min(line.bars.len())).collect();
+    let value = |i: usize| {
+        let b = &line.bars[i];
+        if view.bytes { b.bytes } else { b.files }
+    };
+    let max = (0..line.bars.len()).map(value).max().unwrap_or(0).max(1);
+    let chart_h = usize::from(inner.height).saturating_sub(5).max(2);
+    let (a, b) = view.chosen();
+
+    let mut lines: Vec<Line> = Vec::new();
+    let (sum_files, sum_bytes) = view.chosen_sum();
+    let file_word = if sum_files == 1 { "file" } else { "files" };
+    lines.push(Line::from(vec![
+        Span::raw(" "),
+        Span::styled(view.chosen_label(), bold),
+        Span::raw(format!(
+            ": {} {file_word}, {}",
+            fmt_num(sum_files),
+            crate::usage::size(sum_bytes)
+        )),
+    ]));
+    lines.push(Line::default());
+    const EIGHTHS: [char; 9] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    for row in (0..chart_h).rev() {
+        let mut spans = vec![Span::raw(" ")];
+        for &i in &shown {
+            let v = value(i);
+            let mut eighths = (v as u128 * chart_h as u128 * 8).div_ceil(max as u128) as usize;
+            if v > 0 {
+                eighths = eighths.max(1);
+            }
+            let fill = eighths.saturating_sub(row * 8).min(8);
+            let cell: String = std::iter::repeat_n(EIGHTHS[fill], bar_w.saturating_sub(1).max(1))
+                .chain((bar_w > 1).then_some(' '))
+                .collect();
+            let edge = line.bars[i].span != crate::timeline::Span::Older
+                && line.bars[i].span != crate::timeline::Span::Future;
+            let style = if i >= a && i <= b {
+                Style::new().fg(t.key).add_modifier(Modifier::BOLD)
+            } else if edge {
+                Style::new().fg(t.bar_mid)
+            } else {
+                Style::new().fg(t.message)
+            };
+            spans.push(Span::styled(cell, style));
+        }
+        lines.push(Line::from(spans));
+    }
+    // The cursor under its bar, and the marks of the axis where they fit.
+    let mut cursor_row = String::from(" ");
+    for &i in &shown {
+        let mark = if i == view.cursor { '▲' } else { ' ' };
+        cursor_row.push(mark);
+        cursor_row.extend(std::iter::repeat_n(' ', bar_w - 1));
+    }
+    lines.push(Line::styled(cursor_row, Style::new().fg(t.key)));
+    let mut axis: Vec<char> = vec![' '; cols + 1];
+    let mut free = 0;
+    for (k, &i) in shown.iter().enumerate() {
+        let x = 1 + k * bar_w;
+        let tick = line.tick(i);
+        if x >= free && x + tick.chars().count() <= axis.len() {
+            for (j, c) in tick.chars().enumerate() {
+                axis[x + j] = c;
+            }
+            free = x + tick.chars().count() + 2;
+        }
+    }
+    lines.push(Line::styled(
+        axis.into_iter().collect::<String>(),
+        Style::new().fg(t.dim),
+    ));
+    if line.undated > 0 {
+        lines.push(Line::styled(
+            format!(
+                " {} files have no date and are not in the chart",
+                fmt_num(line.undated)
+            ),
+            Style::new().fg(t.dim),
+        ));
+    }
+    frame.render_widget(Paragraph::new(lines), inner);
+
+    let keys: &[(&str, &str)] = &[
+        ("Enter", "list them"),
+        ("← →", "move"),
+        ("Shift+← →", "range"),
+        ("+ -", "scale"),
+        ("B", "files/bytes"),
+        ("Esc", "back"),
+    ];
+    if let Some(message) = &app.message {
+        let [msg, keys_area] =
+            Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(menu);
+        frame.render_widget(
+            Line::styled(
+                fit(message, usize::from(msg.width)),
+                Style::new().fg(t.message),
+            ),
+            msg,
+        );
+        let line = fit_menu(menu_line("", keys), keys_area.width as usize);
+        render_footer(frame, vec![line], keys_area, KeyModifiers::NONE);
+        return;
+    }
+    let line = fit_menu(menu_line("", keys), menu.width as usize);
+    render_footer(frame, vec![line], menu, KeyModifiers::NONE);
+}
+
+fn scan_keys(view: &app::ScanView) -> Vec<(&'static str, &'static str)> {
+    if view.open.is_some() {
+        vec![
+            ("Enter", "go to it in the list"),
+            ("V", "view"),
+            ("↑↓", "move"),
+            ("Esc", "categories"),
+        ]
+    } else if view.running() {
+        vec![("Enter", "list"), ("↑↓", "move"), ("Esc", "stop")]
+    } else {
+        vec![
+            ("Enter", "list"),
+            ("↑↓", "move"),
+            ("R", "scan again"),
+            ("Esc", "back"),
+        ]
+    }
 }
 
 /// The help key to show in the footer: F1, unless the terminal is one of

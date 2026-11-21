@@ -133,7 +133,9 @@ mkdir -p ~/.config/xylem && xy --default-config > ~/.config/xylem/config.toml
   Windows Terminal), `graphite` (macOS in dark mode), `daylight` (macOS in
   light mode) or `vivid` (strong colors, for presentations and screenshots).
   F4 shows them all, with a preview.
-- `[options]`: the options of the configuration screen.
+- `[options]`: the options of the configuration screen, and a few that are
+  only in the file: `scan_max_files` (10000), the most files whose contents
+  the [Scan](views.md#scan) reads.
 - `[colors]`: individual colors on top of the theme, as names (`"yellow"`),
   `"#rrggbb"` or indexes from 0 to 255.
 - `[keys.any]`, `[keys.tree]`, `[keys.files]`: rebind keys in both windows or
