@@ -34,6 +34,11 @@ of each version are on
 - F1 opens the help at the section of what you are doing: in the Batch of
   the viewer (Ctrl+B), at "Batch in the viewer", not at the top of the page.
   Links to a section of a page of the help now lead to it.
+- Xylem can tell that a new version is out. The first time it starts, it
+  asks whether it may look once a day; with a yes, it fetches only the
+  number of the latest version from the website, and the top line says when
+  a newer one is out. Nothing is downloaded or installed. [New
+  versions](configuration.md#new-versions)
 
 **Changed.**
 

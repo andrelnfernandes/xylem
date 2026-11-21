@@ -20,10 +20,13 @@ name = "xy"
 path = "src/main.rs"
 
 [features]
-default = ["index"]
+default = ["index", "update-check"]
 # W's index of the contents (tantivy). Without it, contains() and words() read
 # the files every time.
 index = ["dep:tantivy"]
+# Once a day, if the user says yes, ask the website for the latest version
+# (through the system's curl). Off: no question, no check, no option in F12.
+update-check = []
 
 [dependencies]
 anyhow = "1.0.104"
