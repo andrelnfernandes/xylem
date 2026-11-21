@@ -63,6 +63,12 @@ rest).
    Once one is replaced, its format can go back to Autoview. Until then, running
    them in a separate, isolated process would contain a bug in them. Also recheck
    the C dependencies whenever these crates are updated: `cargo tree | grep -- -sys`.
+6. **chrono is unmaintained** ([RUSTSEC-2026-0543](https://rustsec.org/advisories/RUSTSEC-2026-0543),
+   seen on 2026-11-21; a warning, so the audit in CI still passes). Xylem does not use
+   it itself: it comes through `arrow`/`parquet` and `trash`, and there is no fixed
+   version to move to. To watch: those crates moving to another date library (`jiff`
+   or `time`), and update them when they do. Until then, recheck at each update of
+   those crates: `cargo tree -i chrono`.
 
 Decided against: wiping the password from memory (`zeroize`: ssh and the
 pipe hold it too), and checking where remote symlinks point (copying a link
