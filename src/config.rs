@@ -104,6 +104,10 @@ borders = "theme"
 splash = true
 # Seconds in the clock at the top right (the dates in the lists never have them).
 clock_seconds = false
+# Once a day, ask the website for the latest version of Xylem and say when a
+# newer one is out (only the version number is fetched, through curl; nothing
+# about you is sent). With no value, Xylem asks at the first start.
+# check_updates = true
 # The mouse: the wheel, clicks on the tree, the lists and the footer's keys.
 # With it on, the terminal selects text with Shift+drag (Option+drag in iTerm2).
 mouse = false
@@ -299,6 +303,9 @@ pub struct Options {
     pub clock_seconds: bool,
     /// The mouse (docs/plans/mouse.md).
     pub mouse: bool,
+    /// Look for a new version once a day; `None`: not asked yet
+    /// (docs/plans/update-check.md).
+    pub check_updates: Option<bool>,
     /// Initial mode of the files window (Alt+F changes it while running).
     pub file_display: FileDisplay,
     /// Initial file sort order.
@@ -366,6 +373,7 @@ impl Default for Options {
             splash: true,
             clock_seconds: false,
             mouse: false,
+            check_updates: None,
             file_display: FileDisplay::Details,
             sort: SortKey::Name,
             sort_descending: false,
@@ -405,7 +413,7 @@ impl Options {
     fn entries(&self) -> Vec<(&'static str, toml_edit::Value)> {
         use toml_edit::Value;
         let s = |v: &str| Value::from(v);
-        vec![
+        let mut entries = vec![
             ("editor", s(&self.editor)),
             ("editor_in_frame", Value::from(self.editor_in_frame)),
             ("editor_theme", Value::from(self.editor_theme)),
@@ -467,7 +475,12 @@ impl Options {
             ),
             ("terminal_theme", s(self.terminal_theme.as_str())),
             ("terminal_history", Value::from(self.terminal_history)),
-        ]
+        ];
+        // Not asked yet stays out of the file, so the question comes.
+        if let Some(check) = self.check_updates {
+            entries.push(("check_updates", Value::from(check)));
+        }
+        entries
     }
 
     pub fn formats(&self) -> Formats {

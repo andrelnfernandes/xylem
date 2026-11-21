@@ -9,7 +9,7 @@ window and never reaches Xylem) opens five pages:
 |---|---|
 | 1. Programs and formats | editor, open editor inside Xylem's frame, Xylem theme in the editor, edit binary files with E, binary editor, help language, opener, date format, number format, Git commands, trusted Git folders |
 | 2. Display and sorting | hidden files, initial sort order and direction, what Enter does in the file window, initial display mode, syntax colors, soft wrap, line numbers, compressed files, the charset of old text files, the size limit of what the viewer reads, icons and glyphs (Nerd Fonts), file names colored by type, window borders, colors of the built-in terminal, seconds in the clock, [the mouse](mouse.md) |
-| 3. Confirmations and history | confirm on quit, delete to trash, Prune confirmation, entries with `@` not saved, the built-in terminal's own history, [Alt+T in the fuzzy find tags every match](#tagging-every-match-of-the-fuzzy-find) |
+| 3. Confirmations and history | confirm on quit, delete to trash, Prune confirmation, entries with `@` not saved, the built-in terminal's own history, [Alt+T in the fuzzy find tags every match](#tagging-every-match-of-the-fuzzy-find), [looking for a new version](#new-versions) |
 | 4. Copy, compare and refresh | ignore 2 s, ignore 1 h, automatic refresh, where Alt+C/Alt+M paths start, files and folders left out of the index |
 | 5. Reading (ebooks) | the width of the text column, paragraphs as in a book or in blocks, justified text, the reading speed for the time left, [the time spent reading](#reading-time), the minutes without a key before its clock stops, the titles kept for a list of the books |
 
@@ -50,6 +50,37 @@ you check what is tagged before acting on it:
 - **Ctrl+S** in the tree lists the tagged files of the whole tree (a Showall
   of the tagged ones);
 - **Ctrl+V** in the file window views them one after the other.
+
+### New versions
+
+The first time Xylem starts, once the start screen is gone, it asks:
+*Look for a new version of Xylem once a day?* **Y** says yes, **N** no, and
+the answer is kept in the configuration file (`check_updates`). **Esc**
+keeps nothing, and the question comes back the next time. **G** on page 3
+changes the answer later.
+
+With it on, once a day Xylem asks the website
+(`https://andrelnfernandes.github.io/xylem/latest.txt`) for one line: the
+number of the latest version. It does so through the system's `curl`, in
+the background, with HTTPS only and five seconds at most; without a network,
+or without `curl`, nothing is said and it tries again the next day. The
+request carries no more than `xylem/` and the version you run; the website
+sees your IP address, as with any visit. Nothing is downloaded or installed:
+when there is a newer version, the top line says `0.10.0 is out` next to the
+clock, and a message gives the address of the releases. Update as you
+installed: the package manager for a `.deb` or `.rpm`, a new archive
+otherwise.
+
+The answer from the website is read as hostile: anything other than three
+numbers, such as the page of a hotel's Wi-Fi, is ignored. The date of the
+last check and the version found are kept in the state folder
+(`~/.local/state/xylem/update-check`).
+
+`XYLEM_CHECK_UPDATES=0` (or `1`) in the environment answers without asking
+and wins over the file, for installs on many machines. A build without the
+`update-check` feature (`cargo build --no-default-features --features
+index`), as a distribution may make, has no question, no check and no
+option.
 
 ### Reading time
 

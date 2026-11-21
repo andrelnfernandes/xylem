@@ -932,6 +932,15 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
             Style::new().fg(theme().dim),
         ));
     }
+    // A newer version, when one was found (docs/plans/update-check.md).
+    if let Some(newer) = app.update.as_ref().and_then(|u| u.newer())
+        && area.width >= 90
+    {
+        right_spans.push(Span::styled(
+            format!("{newer} is out  "),
+            Style::new().fg(theme().key),
+        ));
+    }
     right_spans.push(Span::raw(clock));
     let width: usize = right_spans.iter().map(|s| s.content.chars().count()).sum();
     let [left, right] =
@@ -5735,6 +5744,12 @@ mod tests {
         let name = concat!("Xylem v", env!("CARGO_PKG_VERSION"), "  ");
         assert!(header(&mut app, 100).contains(name));
         assert!(!header(&mut app, 60).contains("Xylem"));
+        assert!(!header(&mut app, 100).contains("is out"));
+        app.update = Some(crate::update::UpdateCheck::known(crate::update::Version(
+            999, 0, 0,
+        )));
+        assert!(header(&mut app, 100).contains("999.0.0 is out"));
+        assert!(!header(&mut app, 80).contains("is out"), "only with room");
     }
 
     /// The footer's rows on a screen `width` columns wide and 20 high.

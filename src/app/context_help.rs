@@ -25,6 +25,7 @@ impl App {
                 ConfirmKind::OpenHidden { .. } => "files",
                 ConfirmKind::KeepListing => "cloud",
                 ConfirmKind::DeleteReadingTime(_) => "configuration#reading-time",
+                ConfirmKind::CheckUpdates => "configuration#new-versions",
                 ConfirmKind::ReadContents | ConfirmKind::IndexBranch { .. } => "sql",
                 ConfirmKind::DeleteFolders { .. } | ConfirmKind::ReadThroughNetwork(_) => {
                     "duplicates"

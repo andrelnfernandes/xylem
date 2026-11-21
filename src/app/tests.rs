@@ -5839,3 +5839,95 @@ fn turning_the_time_read_off_asks_before_deleting_it() {
     assert!(kept.books.iter().all(|b| b.chapter == 3));
     crate::reading::TEST_PATH.with(|p| *p.borrow_mut() = None);
 }
+
+// The look for a new version (docs/plans/update-check.md): never the
+// network here, a fake fetch.
+
+fn newer_version() -> Option<Vec<u8>> {
+    Some(b"999.0.0\n".to_vec())
+}
+
+fn no_fetch() -> Option<Vec<u8>> {
+    panic!("fetched without a yes")
+}
+
+/// An app whose configuration and check state are in `tmp`.
+fn app_for_updates(fetch: crate::update::FetchFn) -> (tempfile::TempDir, App, PathBuf) {
+    let (tmp, mut app) = sample();
+    let file = tmp.path().join("cfg/config.toml");
+    app.config_file = Some(file.clone());
+    app.update_state = Some(tmp.path().join("state/update-check"));
+    app.update_fetch = fetch;
+    (tmp, app, file)
+}
+
+#[test]
+fn the_question_comes_after_the_splash_and_yes_is_kept() {
+    let (_tmp, mut app, file) = app_for_updates(newer_version);
+    app.splash = Some(std::time::Instant::now() + SPLASH);
+    app.start_update_check(crate::update::Decision::Ask);
+    app.update_tick();
+    assert!(app.confirm.is_none(), "not over the start screen");
+    app.splash = None;
+    app.update_tick();
+    assert!(matches!(
+        app.confirm.as_ref().map(|c| &c.kind),
+        Some(ConfirmKind::CheckUpdates)
+    ));
+    press(&mut app, KeyCode::Char('y'));
+    let (saved, err) = Config::load_from(&file);
+    assert!(err.is_none());
+    assert_eq!(saved.options.check_updates, Some(true));
+    app.update.as_mut().unwrap().wait();
+    app.message = None;
+    app.update_tick();
+    assert_eq!(
+        app.update.as_ref().unwrap().newer(),
+        Some(crate::update::Version(999, 0, 0))
+    );
+    // Asked once only.
+    app.update_tick();
+    assert!(app.confirm.is_none());
+}
+
+#[test]
+fn no_is_kept_and_nothing_is_fetched() {
+    let (_tmp, mut app, file) = app_for_updates(no_fetch);
+    app.start_update_check(crate::update::Decision::Ask);
+    app.update_tick();
+    press(&mut app, KeyCode::Char('n'));
+    assert!(app.update.is_none());
+    let (saved, _) = Config::load_from(&file);
+    assert_eq!(saved.options.check_updates, Some(false));
+}
+
+#[test]
+fn esc_keeps_nothing_and_the_question_comes_back_next_time() {
+    let (_tmp, mut app, file) = app_for_updates(no_fetch);
+    app.start_update_check(crate::update::Decision::Ask);
+    app.update_tick();
+    press(&mut app, KeyCode::Esc);
+    assert!(app.confirm.is_none() && app.update.is_none());
+    assert!(!file.exists(), "nothing written");
+    app.update_tick();
+    assert!(app.confirm.is_none(), "not again in this run");
+}
+
+#[test]
+fn an_answer_that_cannot_be_saved_holds_for_this_run() {
+    let (_tmp, mut app, _file) = app_for_updates(no_fetch);
+    app.config_error = Some("Config error".into());
+    app.start_update_check(crate::update::Decision::Ask);
+    app.update_tick();
+    press(&mut app, KeyCode::Char('n'));
+    assert_eq!(app.options.check_updates, Some(false));
+    assert!(app.message.as_deref().unwrap().contains("Not saved"));
+}
+
+#[test]
+fn not_asked_and_not_fetched_when_answered() {
+    let (_tmp, mut app, _file) = app_for_updates(no_fetch);
+    app.start_update_check(crate::update::Decision::DontCheck);
+    app.update_tick();
+    assert!(app.confirm.is_none() && app.update.is_none());
+}

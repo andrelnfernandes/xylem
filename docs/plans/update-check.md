@@ -179,3 +179,34 @@ opção), mais o `latest.txt` no `pages.yml`. Uma etapa só, um PR.
 - **?2** Avisar também de uma versão de segurança (por exemplo, uma segunda linha
   `security` no `latest.txt`) com mais destaque. Proposta: não agora, para manter o
   formato de uma linha.
+
+## Feito (2026-11-21)
+
+Como acima, com estas diferenças:
+
+- **O `latest.txt` vem da última release publicada**, não da última tag:
+  `gh release view --json tagName` no `pages.yml`, conferida como `N.N.N` (por
+  regex do bash, que não deixa passar uma segunda linha). Uma tag com a release
+  ainda em rascunho não avisa ninguém. Não precisa de `fetch-depth: 0`.
+- **Publicar uma release refaz o site:** `release-site.yml` (em `release:
+  published`) roda o `pages.yml` na `main` (`gh workflow run`, com `actions:
+  write`). O ambiente `github-pages` só aceita deploy da `main`, e o evento de
+  release roda na tag.
+- **O aviso:** em vez de uma linha no `?` (Info), uma mensagem na abertura,
+  quando a versão nova é conhecida (`Xylem 0.10.0 is out: <releases>`), e
+  `0.10.0 is out` na linha de cima, a partir de 90 colunas.
+- **A pergunta** usa a confirmação de sempre (Yes/No no rodapé). Qualquer
+  outra tecla fecha sem gravar, como Esc.
+- **F12, página 3, `G`**: mostra `(not asked yet)` antes da resposta. Ligar
+  pelo F12 consulta na hora (dentro do "uma vez por dia"), e desligar esquece a
+  versão achada.
+- **A versão é guardada como `checked=<segundos>` e `latest=<versão>`** em
+  `state_dir()/update-check`. Um arquivo com mais de 256 bytes, ou que diga
+  outra coisa, conta como "nunca consultou".
+- **O `version-guard` tem um limite:** um PR roda a cópia dele do `ci.yml` e
+  pode tirar o job. Por isso o `CODEOWNERS` cobre `.github/` inteiro, além do
+  `Cargo.toml`, do `Cargo.lock` e do `site/build.sh`. Quem barra o merge é o
+  `CODEOWNERS`, com "Require review from Code Owners" ligado na proteção da
+  `main`, nas configurações do repositório.
+- **Os testes** usam um buscador falso e um arquivo de estado numa pasta
+  temporária. Os e2e rodam com `XYLEM_CHECK_UPDATES=0`.

@@ -45,6 +45,9 @@ opens the current directory. `xy ~/projects` opens another one, and
 `xy user@host:` opens a [remote machine](remote.md). [The command
 line](cli.md) has the other forms.
 
+The first time, Xylem asks whether it may look for a new version once a
+day: **Y** or **N** (see [New versions](configuration.md#new-versions)).
+
 ## Move in the tree
 
 The tree shows the start directory and its subdirectories. Only the start

@@ -397,6 +397,8 @@ pub(crate) enum ConfirmKind {
     },
     /// F12 with the time read turned off: delete what was kept of it?
     DeleteReadingTime(usize),
+    /// At the first start: may Xylem look for new versions?
+    CheckUpdates,
 }
 
 const KBYTE_OPTIONS: &[&str] = &[
@@ -1106,6 +1108,7 @@ impl App {
                     );
                 }
             }
+            ConfirmKind::CheckUpdates => self.answer_update_question(yes),
             ConfirmKind::KeepListing => {
                 if choice == 's' {
                     self.cloud_log = None;

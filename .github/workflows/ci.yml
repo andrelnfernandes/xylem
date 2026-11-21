@@ -102,6 +102,39 @@ jobs:
           name: packages-x86_64
           path: target/packages/
 
+  # A pull request by someone other than the owner that touches the version,
+  # or how it is published, fails here and says what (docs/plans/update-check.md):
+  # the version on the website tells every user to update. Only the diff is
+  # read; nothing of the pull request runs. A pull request can remove this job
+  # from its own copy of ci.yml: CODEOWNERS is what blocks the merge.
+  version-guard:
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != github.repository_owner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: The version and how it is published
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          package_version() {
+            git show "$1:Cargo.toml" | awk '/^\[package\]/{p=1;next} /^\[/{p=0} p&&/^version *=/{print;exit}'
+          }
+          lock_version() {
+            git show "$1:Cargo.lock" | awk '$0=="name = \"xylem-fm\""{getline;print;exit}'
+          }
+          found=$(git diff --name-only "$BASE...$HEAD" | grep -E '^(\.github/(workflows/|release-notes/|CODEOWNERS$)|site/build\.sh$)' || true)
+          [ "$(package_version "$BASE")" = "$(package_version "$HEAD")" ] || found="$found Cargo.toml(version)"
+          [ "$(lock_version "$BASE")" = "$(lock_version "$HEAD")" ] || found="$found Cargo.lock(version)"
+          if [ -n "$found" ]; then
+            echo "::error::this pull request touches the version or how it is published:" $found
+            exit 1
+          fi
+
   audit:
     runs-on: ubuntu-latest
     steps:

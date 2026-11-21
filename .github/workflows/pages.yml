@@ -2,7 +2,8 @@ name: Website
 
 # Publishes the website (site/, with the images from docs/, and the manual
 # from docs/manual/ as mdBook) on GitHub Pages whenever it changes on main.
-# Needs Settings → Pages → Source: GitHub Actions.
+# Needs Settings → Pages → Source: GitHub Actions. Publishing a release runs
+# it too (release-site.yml), for latest.txt.
 
 on:
   push:
@@ -40,6 +41,20 @@ jobs:
         run: cargo install mdbook --version 0.5.4 --locked
       - name: Assemble the site
         run: sh site/build.sh _site
+      # The version Xylem's update check reads (docs/plans/update-check.md):
+      # that of the latest published release, not of Cargo.toml, which
+      # changes before the release is out. Three numbers or nothing.
+      - name: The latest version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          version=${tag#v}
+          if ! [[ "$version" =~ ^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$ ]]; then
+            echo "::error::the latest release is $tag, not vN.N.N"
+            exit 1
+          fi
+          printf '%s\n' "$version" > _site/latest.txt
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
