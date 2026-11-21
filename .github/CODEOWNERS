@@ -1,0 +1,8 @@
+# The version and how it is published need the owner's review
+# (docs/plans/update-check.md): the version on the website tells every user of
+# Xylem to update. With "Require review from Code Owners" in the protection of
+# main, no merge touches these without it.
+/Cargo.toml           @andrelnfernandes
+/Cargo.lock           @andrelnfernandes
+/site/build.sh        @andrelnfernandes
+/.github/             @andrelnfernandes

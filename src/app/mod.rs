@@ -258,6 +258,15 @@ pub struct App {
     pub should_quit: bool,
     /// Until when the start screen with the name stays up (the option `splash`).
     pub splash: Option<Instant>,
+    /// The look for a new version (docs/plans/update-check.md).
+    pub update: Option<crate::update::UpdateCheck>,
+    /// Whether to ask, once the start screen is gone, if Xylem may look for
+    /// new versions.
+    pub ask_update: bool,
+    /// The fetch the check uses, and where it keeps its date (others in the
+    /// tests).
+    pub update_fetch: crate::update::FetchFn,
+    pub update_state: Option<PathBuf>,
     /// Alt+Q: the directory for the shell to go to on exit.
     pub quit_dir: Option<PathBuf>,
     /// Ctrl/Alt currently pressed (only on terminals that report it).
@@ -381,6 +390,10 @@ impl App {
             editors: Editors::default(),
             should_quit: false,
             splash: None,
+            update: None,
+            ask_update: false,
+            update_fetch: crate::update::fetch_with_curl,
+            update_state: None,
             quit_dir: None,
             held: None,
             sticky: MenuMode::Normal,
@@ -464,6 +477,11 @@ impl App {
                     None => "Configuration applied".into(),
                 });
                 self.reading_options_changed(before.0 && !stats, before.1 && !(titles && stats));
+                match config.options.check_updates {
+                    Some(true) if crate::update::ENABLED => self.check_for_updates(),
+                    Some(true) => {}
+                    _ => self.update = None,
+                }
             }
             Err(e) => {
                 if let Some(s) = &mut self.settings {
@@ -537,6 +555,84 @@ impl App {
     pub fn splash_tick(&mut self, now: Instant) {
         if self.splash.is_some_and(|until| now >= until) {
             self.splash = None;
+        }
+    }
+
+    /// At the start: look for a new version, ask whether to, or neither.
+    pub fn start_update_check(&mut self, decision: crate::update::Decision) {
+        use crate::update::Decision;
+        match decision {
+            Decision::Check => self.check_for_updates(),
+            Decision::Ask => self.ask_update = true,
+            Decision::DontCheck => {}
+        }
+    }
+
+    fn check_for_updates(&mut self) {
+        if self.update.is_none() {
+            let check =
+                crate::update::UpdateCheck::start(self.update_state.clone(), self.update_fetch);
+            self.update = Some(check);
+            self.tell_newer_version();
+        }
+    }
+
+    /// The question, once nothing else is on the screen; the thread's
+    /// answer, when it comes.
+    pub fn update_tick(&mut self) {
+        if self.ask_update
+            && self.splash.is_none()
+            && self.confirm.is_none()
+            && self.prompt.is_none()
+            && self.settings.is_none()
+            && self.connecting.is_none()
+        {
+            self.ask_update = false;
+            self.ask(
+                ConfirmKind::CheckUpdates,
+                "Look for a new version of Xylem once a day? Only the version number is \
+                 fetched, from andrelnfernandes.github.io; F12 changes this"
+                    .into(),
+            );
+        }
+        if self.update.as_mut().is_some_and(|u| u.poll()) {
+            self.tell_newer_version();
+        }
+    }
+
+    /// A newer version known: said once, unless something else is being said.
+    fn tell_newer_version(&mut self) {
+        if let Some(newer) = self.update.as_ref().and_then(|u| u.newer())
+            && self.message.is_none()
+        {
+            self.message = Some(format!(
+                "Xylem {newer} is out: {}",
+                crate::update::RELEASES_URL
+            ));
+        }
+    }
+
+    /// The answer to the question: kept in the configuration file; if it
+    /// cannot be written, it holds for this run only.
+    pub(crate) fn answer_update_question(&mut self, yes: bool) {
+        let mut config = self.config.clone();
+        config.options.check_updates = Some(yes);
+        let saved = match (&self.config_file, &self.config_error) {
+            (Some(_), Some(_)) => Err("the file has errors".to_string()),
+            (Some(path), None) => config.save(path),
+            (None, _) => Err("no configuration folder".to_string()),
+        };
+        self.options.check_updates = Some(yes);
+        self.config.options.check_updates = Some(yes);
+        if let Err(e) = saved {
+            self.message = Some(format!(
+                "Not saved ({e}): the answer holds until Xylem closes"
+            ));
+        } else if !yes {
+            self.message = Some("Xylem will not look for new versions (F12 changes this)".into());
+        }
+        if yes {
+            self.check_for_updates();
         }
     }
 

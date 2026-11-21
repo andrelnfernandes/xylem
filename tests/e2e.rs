@@ -48,6 +48,8 @@ impl Xy {
             ("LANG", "C.UTF-8"),
             // The tests type at once: no start screen to take the first key.
             ("XY_NO_SPLASH", "1"),
+            // Nor the question about new versions, nor the network.
+            ("XYLEM_CHECK_UPDATES", "0"),
         ] {
             cmd.env(name, value);
         }

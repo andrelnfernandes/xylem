@@ -18,6 +18,15 @@ report.
 | A Git repository runs its own commands | Looking at a repository runs no hooks, no `core.fsmonitor`, no external diff and no text conversion, unless its folder is listed in `git_trusted`. |
 | A dependency has a known flaw | The dependencies are checked against the RustSec database in CI. |
 
+## The network
+
+Xylem connects to the network on its own for one thing only: if you said yes
+at the first start, it asks the website once a day for the number of the
+latest version ([New versions](configuration.md#new-versions)). Everything
+else that uses the network is something you asked for: a remote machine
+(`ssh`), the cloud (`rclone`), a container (`docker`), a network share, and
+the programs you run yourself (`X`, the built-in terminal).
+
 ## What you can do
 
 - Turn off decompression in the viewer (`viewer_decompress = false`, F12
@@ -25,6 +34,8 @@ report.
   closed there.
 - Leave Git off (`git = false`, the default) in repositories you did not
   create.
+- Say no to looking for new versions, or turn it off on page 3 of F12, if
+  Xylem should never connect by itself.
 - Do not run Xylem as root.
 - `O` passes the file to another program. Xylem's limits do not apply to
   that program.
