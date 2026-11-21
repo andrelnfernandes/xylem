@@ -618,6 +618,62 @@ Como descrito acima ("1c em detalhe"), com estes detalhes:
   não o nome do arquivo.
 - **Na página de rosto**, a contagem e "Your reading" ficam centralizadas.
 
+### Etapa 2 em detalhe (2026-11-21, ao começar)
+
+O FB2 entra pelo mesmo caminho do EPUB, para ter de graça a página de rosto,
+o relatório, o sumário, as notas, o `R` e o tempo de leitura:
+
+- **`src/viewer/epub/fb2.rs`**: lê o FB2 e o **traduz para os elementos que
+  o leitor do EPUB já entende** (`section`/`title` → `h1`–`h6` pelo
+  aninhamento, `emphasis` → `em`, `strikethrough` → `s`, `cite` e `epigraph`
+  → `blockquote`, `poem` → `blockquote`, `stanza` → um parágrafo com um verso
+  por linha, `subtitle` → parágrafo em negrito, `text-author` → itálico,
+  `style` → texto, `image` → `[image: id, tipo, tamanho]`). O FB2 `style` e
+  `cite` têm nomes que no XHTML querem dizer outra coisa: traduzidos, nunca
+  passados adiante. O resto passa como está (um `<script>` posto num FB2
+  entra no quadro como no EPUB).
+- **Capítulos**: as `section` de primeiro nível do corpo principal; se há só
+  uma e ela tem seções dentro (um livro com uma parte só), as do segundo.
+  O que vem fora delas (o título do corpo, uma epígrafe, o título de uma
+  parte) abre um capítulo com o próprio título. O sumário vem dos títulos das
+  seções, com o nível de cada uma.
+- **Notas**: o `body name="notes"` (e `comments`) não é capítulo: cada
+  `section` dele é uma nota, como o `aside` do EPUB (no relatório, no fim;
+  no livro, Enter na chamada). `a type="note"` é a chamada.
+- **Metadados** (`title-info`, `document-info`, `publish-info`): título,
+  autores, gêneros, série, idioma, data, editora, ano, ISBN, o programa que
+  gerou; o identificador para o tempo de leitura é o `id` do
+  `document-info`. A anotação entra no relatório.
+- **`binary`** nunca é decodificado: a quantidade, os tipos e o tamanho
+  (pelo comprimento do base64) no quadro, e cada `image` diz o seu.
+- **Codificação**: pelo prólogo (`encoding="windows-1251"`); `windows-1251`
+  e `KOI8-R` entram no `src/charset.rs` (tabelas fixas) e no ciclo de
+  codificações do viewer. Uma declarada desconhecida: UTF-8 com
+  substituição, e o quadro diz qual era.
+- **`.fb2.zip`**: o `Package`, com exatamente um `.fb2` dentro; outro ZIP
+  abre como ZIP. Um `.fb2` passa pelo mesmo limite de uma parte do EPUB.
+- **Refatoração**: o fim do `render_with` do EPUB (relatório, livro, links,
+  notas) vira uma função comum aos dois.
+
+### Feito na 2 (2026-11-21)
+
+Como descrito acima ("Etapa 2 em detalhe"), com estes detalhes:
+
+- **O título de um capítulo** com mais de um parágrafo (`<p>Chapter 1</p>
+  <p>The Start</p>`) vira `Chapter 1. The Start`; um capítulo sem título
+  leva o do livro (se for o primeiro) ou `Chapter N`.
+- **A nota** guarda só o texto, sem o número do seu título (o pop-up já
+  mostra a chamada).
+- **O `T`** de um `.fb2` mostra o XML na codificação declarada (o cabeçalho
+  diz `Windows-1251`); o de um `.fb2.zip` não tem texto, como o EPUB.
+- **No estilo de livro** (vale para o EPUB também): dentro de uma citação
+  (poema, epígrafe) os parágrafos ficam separados por uma linha e sem recuo,
+  para as estrofes; depois de uma linha em branco, e depois de uma citação,
+  o parágrafo não tem recuo.
+- **O `O`** passa por `Windows-1251` e `KOI8-R` também (manual atualizado).
+- **O título do capítulo** que vem do primeiro título (EPUB e FB2) guarda o
+  espaço entre duas partes do texto.
+
 ### A ordem
 
 1a (o livro lido: montagem, relatório, sumário), 1b (o leitor: layout,

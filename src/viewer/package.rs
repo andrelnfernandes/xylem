@@ -256,6 +256,15 @@ impl<R: Read + Seek> Package<R> {
     /// The text of a part, decompressed up to the limits; `None` if it is not
     /// there or cannot be read.
     pub(super) fn text(&mut self, name: &str) -> Option<String> {
+        let bytes = self.bytes(name)?;
+        Some(String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    /// The bytes of a part, decompressed up to the limits, as [`text`] reads
+    /// them.
+    ///
+    /// [`text`]: Self::text
+    pub(super) fn bytes(&mut self, name: &str) -> Option<Vec<u8>> {
         if !self.has(name) {
             return None;
         }
@@ -274,7 +283,7 @@ impl<R: Read + Seek> Package<R> {
             self.cut = true;
         }
         self.used += bytes.len() as u64;
-        Some(String::from_utf8_lossy(&bytes).into_owned())
+        Some(bytes)
     }
 
     /// The size the package says a part has (only shown, never trusted).

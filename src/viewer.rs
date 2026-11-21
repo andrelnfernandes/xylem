@@ -367,9 +367,11 @@ pub struct Viewer {
     office: Option<office::Kind>,
     /// The file is a Norton Guide (see `ng`), shown as a document.
     guide: bool,
-    /// The file is an EPUB (see `epub`), shown as a book; once read, the
-    /// reader of it (see `reader`).
+    /// The file is an ebook, EPUB or FictionBook (see `epub`), shown as a
+    /// book; once read, the reader of it (see `reader`).
     epub: bool,
+    /// The ebook is a FictionBook (`.fb2`, `.fb2.zip`).
+    fb2: bool,
     pub reader: Option<reader::Reader>,
     /// The reader's settings (F12), set by the App.
     pub reader_options: reader::ReaderOptions,
@@ -1095,6 +1097,7 @@ impl Viewer {
         self.office = new.office;
         self.guide = new.guide;
         self.epub = new.epub;
+        self.fb2 = new.fb2;
         self.reader = new.reader;
         self.jump = None;
         self.jumps_back.clear();
@@ -1542,13 +1545,20 @@ impl Viewer {
             Some(PathBuf::from(s.strip_suffix('.')?))
         });
         let found = charset::detect(&data, load.fallback);
+        // A FictionBook says its encoding (`windows-1251`), and its text is
+        // shown in it.
+        let declared = (!found.binary && epub::fb2::is_fb2(name.as_deref().unwrap_or(&path)))
+            .then(|| epub::fb2::declared_charset(&data))
+            .flatten();
         let limit = load.limits.output;
-        let mut v = Self::build(path.clone(), size, data, found.charset, found.binary, limit);
+        let charset = declared.unwrap_or(found.charset);
+        let mut v = Self::build(path.clone(), size, data, charset, found.binary, limit);
         let shown_name = name.as_deref().unwrap_or(&path);
         v.notebook = jupyter::is_notebook(shown_name);
         v.office = (!failed).then(|| office::kind(shown_name)).flatten();
         v.guide = !failed && ng::is_guide(shown_name, &v.data);
-        v.epub = !failed && epub::is_epub(shown_name);
+        v.fb2 = !failed && epub::fb2::is_fb2(shown_name);
+        v.epub = !failed && (epub::is_epub(shown_name) || v.fb2);
         v.exe = !failed && !v.guide && !v.epub && found.binary && binaries::is_binary(&v.data);
         v.cert = !failed && !v.exe && certs::detect(shown_name, &v.data);
         v.cert_der = v.cert && found.binary;
@@ -2004,7 +2014,16 @@ impl Viewer {
     /// A document with no text of its own (Office, an executable): `T` has no
     /// source to show, and `H` goes to the bytes.
     fn no_source(&self) -> bool {
-        self.office.is_some() || self.guide || self.epub || self.exe || self.cert_der
+        self.office.is_some()
+            || self.guide
+            || (self.epub && !self.fb2_text())
+            || self.exe
+            || self.cert_der
+    }
+
+    /// A FictionBook that is XML, not in a ZIP: its source is text.
+    fn fb2_text(&self) -> bool {
+        self.fb2 && !self.data.starts_with(b"PK\x03\x04")
     }
 
     /// A Norton Guide as a document: from the bytes read when they are all
@@ -2093,7 +2112,41 @@ impl Viewer {
             *id.borrow_mut() = Some(book);
             summary
         };
-        let result = if !self.cut {
+        let result = if self.fb2 {
+            let whole = !self.cut;
+            let from_disk = self.on_disk && !autoview && self.compression.is_none();
+            if !whole && !from_disk {
+                if self.note.is_none() {
+                    self.note = Some("Too big to read here: V shows it as a book".into());
+                }
+                return false;
+            }
+            let zipped = self
+                .path
+                .to_string_lossy()
+                .to_ascii_lowercase()
+                .ends_with(".zip");
+            crate::panic_guard::catch(|| {
+                let read;
+                let bytes: &[u8] = if whole {
+                    data
+                } else if zipped {
+                    read = read_bounded(&path, limits.total)?;
+                    &read
+                } else {
+                    // One byte over the limit of a part says it was cut.
+                    let file =
+                        open_regular(&path).map_err(|e| format!("Cannot read the file: {e}"))?;
+                    let mut buf = Vec::new();
+                    file.take(limits.part + 1)
+                        .read_to_end(&mut buf)
+                        .map_err(|e| format!("Cannot read the file: {e}"))?;
+                    read = buf;
+                    &read
+                };
+                epub::fb2::render_with(bytes, limits, width, &lookup)
+            })
+        } else if !self.cut {
             crate::panic_guard::catch(|| {
                 epub::render_with(
                     std::io::Cursor::new(data.as_slice()),
@@ -2937,6 +2990,7 @@ impl Viewer {
             office: None,
             guide: false,
             epub: false,
+            fb2: false,
             reader: None,
             reader_options: reader::ReaderOptions::default(),
             jump: None,
@@ -6463,7 +6517,7 @@ mod tests {
             v.note.as_deref(),
             Some("Codepage: CP850 (DOS, Western Europe)")
         );
-        for _ in 0..5 {
+        for _ in 0..7 {
             v.handle_key(KeyEvent::from(KeyCode::Char('o')));
         }
         assert_eq!(v.charset(), Charset::Utf8);
@@ -6512,8 +6566,8 @@ mod tests {
         // Xylem's own bytes are taken as UTF-8, so this one looks binary.
         let mut v = Viewer::from_bytes(PathBuf::from("a"), bytes.len() as u64, bytes);
         assert_eq!(v.mode, ViewMode::Hex);
-        for _ in 0..3 {
-            v.cycle_charset(); // CP850, 1252, CP437
+        for _ in 0..5 {
+            v.cycle_charset(); // CP850, 1252, CP437, 1251, KOI8-R
             assert_eq!(v.mode, ViewMode::Hex);
         }
         v.cycle_charset(); // UTF-16LE
@@ -6549,7 +6603,7 @@ mod tests {
             .collect();
         let mut v = from_raw(bytes);
         assert_eq!(v.bidi_count(), 1);
-        for _ in 0..6 {
+        for _ in 0..8 {
             v.cycle_charset();
         }
         assert_eq!(v.charset(), crate::charset::Charset::Utf16Le);
@@ -7990,6 +8044,53 @@ new mode 100755
         key(&mut v, KeyCode::Char(' '), 2_000);
         drop(v);
         assert_eq!(crate::reading::load().books[0].seconds, 150);
+    }
+
+    #[test]
+    fn a_fictionbook_opens_as_a_book_and_its_text_in_its_encoding() {
+        let tmp = crate::testing::tempdir();
+        let path = tmp.path().join("book.fb2");
+        std::fs::write(&path, epub::fb2::test_books::book2()).unwrap();
+        let mut v = Viewer::open(path, LOAD).unwrap();
+        v.page = 6;
+        v.width = 100;
+        assert!(v.reading());
+        assert_eq!(v.reader.as_ref().unwrap().chapters.len(), 3);
+        press(&mut v, KeyCode::Char(']'));
+        press(&mut v, KeyCode::Char(']'));
+        assert_eq!(
+            v.chapter_position().as_deref(),
+            Some("chapter 2 of 3: Chapter 1. The Start")
+        );
+        // The note called on the page opens with Enter.
+        press(&mut v, KeyCode::Enter);
+        let r = v.reader.as_ref().unwrap();
+        let (notes, _) = r.notes_view.as_ref().expect("the notes are open");
+        assert!(notes[0].1.contains("The note itself."), "{notes:?}");
+        press(&mut v, KeyCode::Esc);
+        // Its source is text: T shows the XML.
+        press(&mut v, KeyCode::Char('t'));
+        assert_eq!(v.mode, ViewMode::Text);
+
+        // In windows-1251, the text is shown in it, not as 1252.
+        let ru = "Глава";
+        let xml = epub::fb2::test_books::fb2("", &format!("<section><p>{ru}</p></section>"), "")
+            .replace("utf-8", "windows-1251");
+        let bytes: Vec<u8> = xml
+            .chars()
+            .flat_map(|c| {
+                if c.is_ascii() {
+                    vec![c as u8]
+                } else {
+                    crate::charset::test_util::encode(&c.to_string(), &crate::charset::CP1251)
+                }
+            })
+            .collect();
+        let path = tmp.path().join("ru.fb2");
+        std::fs::write(&path, bytes).unwrap();
+        let v = Viewer::open(path, LOAD).unwrap();
+        assert_eq!(v.charset(), Charset::Cp1251);
+        assert!(v.reading());
     }
 
     #[test]
