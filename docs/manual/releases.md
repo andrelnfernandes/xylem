@@ -16,8 +16,6 @@ of each version are on
   for case. Without `r`, `s/from/to/` stays literal. Two files that would end
   with the same name are named in the message. [Rename](rename.md)
 
-## 0.9.1
-
 **Fixed.**
 
 - Showall (and Branch) of a tree with millions of files froze the screen for
