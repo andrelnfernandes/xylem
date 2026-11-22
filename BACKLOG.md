@@ -223,7 +223,7 @@ Nothing is behind now.
 ## To evaluate
 
 - **What is left of building the Showall list on a huge tree.** The sort that
-  held the screen for seconds is fixed in 0.9.1 (it was the first item of Bugs):
+  held the screen for seconds is fixed in 0.10.0 (it was the first item of Bugs):
   with 2,000,000 files, `Pane::refresh_files` went from 4.9 s to 0.66 s on the
   main thread (from 2.3 s to 0.35 s with 1,000,000), and `model::sort::sort_by`
   alone from 4.7 s to 0.40 s. Measured on 2026-11-22 on a machine with 8 cores
