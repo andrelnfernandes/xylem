@@ -11,7 +11,7 @@ alive on Windows for decades, and Xylem would not exist
 without that work.
 
 Xylem is not meant to replace ZTreeWin. It exists because I wanted the same
-way of working on Linux, where ZTreeWin does not run natively. Xylem also
+way of working on Linux, where ZTreeWin did not run natively (until ZtreeLin's release in November 2026). Xylem also
 builds for Windows, because Rust makes that easy, but that is not a goal of
 mine: on Windows, ZTreeWin is well worth its license:
 [ztree.com](https://www.ztree.com/), and its users'
@@ -41,6 +41,7 @@ issue.
 | vifm | two panels | vim keys and commands, the results of `:find` as a list to work on, a tree view |
 | broot | one tree that fits the screen | fuzzy search over the whole tree, sizes, a staging area to act on files from many folders |
 | far2l | two panels | Far Manager for Linux, with its plugins: SFTP, SMB, NFS, WebDAV and S3 (NetRocks), a hex editor, Python scripts |
+| ZTreeLin | directory tree above file list; optional split-screen | XTreeGold-style keyboard commands, file tagging and batch operations, powerful search, hex viewer/editor, archive support, text and GUI versions |
 
 **What sets Xylem apart.** The tree is read into memory, and one key lists
 the files of a whole branch, or of everything read, in one list (Branch,
