@@ -188,10 +188,15 @@ Como acima, com estas diferenças:
   `gh release view --json tagName` no `pages.yml`, conferida como `N.N.N` (por
   regex do bash, que não deixa passar uma segunda linha). Uma tag com a release
   ainda em rascunho não avisa ninguém. Não precisa de `fetch-depth: 0`.
-- **Publicar uma release refaz o site:** `release-site.yml` (em `release:
-  published`) roda o `pages.yml` na `main` (`gh workflow run`, com `actions:
-  write`). O ambiente `github-pages` só aceita deploy da `main`, e o evento de
-  release roda na tag.
+- **Publicar uma release refaz o site:** o próprio `release.yml`, logo depois de
+  publicar a release, roda o `pages.yml` na `main` (`gh workflow run`, com `actions:
+  write` no job `publish`). O ambiente `github-pages` só aceita deploy da `main`, e
+  o evento de release roda na tag. O `release-site.yml` (em `release: published`)
+  fica para uma release publicada à mão.
+  **Corrigido em 2026-11-22, depois da 0.9.0:** antes só o `release-site.yml` refazia
+  o site, e ele nunca rodava, porque o GitHub não dispara outro workflow por um
+  evento feito com o token de um workflow, que é como o `release.yml` publica. O
+  `latest.txt` ficou em `0.8.0` depois da 0.9.0, até o site ser refeito à mão.
 - **O aviso:** em vez de uma linha no `?` (Info), uma mensagem na abertura,
   quando a versão nova é conhecida (`Xylem 0.10.0 is out: <releases>`), e
   `0.10.0 is out` na linha de cima, a partir de 90 colunas.
