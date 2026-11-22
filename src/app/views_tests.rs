@@ -473,3 +473,400 @@ fn the_table_shows_the_list_and_w_takes_its_filter_back() {
         "ext = 'txt' AND modified >= '2026-11-18'"
     );
 }
+
+/// What the Table (Alt+V, L; docs/plans/views.md, stage 4) would take with a
+/// big list, before it is written: the list of Showall over a made-up tree, a
+/// compact snapshot of it read by the table window, sorting it by a column,
+/// and, to compare, every cell made text up front.
+/// `XY_TABLE_N=2000000 cargo test --release table_measure -- --ignored --nocapture`
+#[cfg(target_os = "linux")]
+#[test]
+#[ignore]
+fn table_measure() {
+    use crate::model::tree::{FileEntry, FileKind, Tree};
+    use crate::viewer::records::{Budget, Cell, End, Progress, RecordSink, RowSource};
+    use crate::viewer::sql_filter::SqlFilter;
+    use crate::viewer::table::TableRow;
+    use crate::viewer::table_window::{Opener, WINDOW_ROWS, Window};
+    use std::borrow::Cow;
+    use std::fmt::Write as _;
+    use std::sync::Arc;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// The memory the process holds, in MiB.
+    fn rss() -> f64 {
+        let status = std::fs::read_to_string("/proc/self/status").unwrap();
+        let kb: f64 = status
+            .lines()
+            .find_map(|l| l.strip_prefix("VmRSS:"))
+            .and_then(|v| v.trim().trim_end_matches(" kB").trim().parse().ok())
+            .unwrap();
+        kb / 1024.0
+    }
+    let ms = |t: Instant| t.elapsed().as_secs_f64() * 1000.0;
+    let n: usize = std::env::var("XY_TABLE_N")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100_000);
+
+    // The tree: about 10 files a folder, folders 1 to 6 levels deep.
+    const WORDS: &[&str] = &[
+        "src", "docs", "config", "home", "projects", "build", "assets", "images", "Photos",
+        "music", "viewer", "test", "xylem", "data", "backup", "2024", "work", "videos",
+    ];
+    const EXTS: &[&str] = &["txt", "rs", "md", "jpg", "json", "pdf", "mp3", "log"];
+    let mut seed: u64 = 0x2545_F491_4F6C_DD1D;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    let base = 1_500_000_000u64; // 2017
+    let mut listing = Vec::with_capacity(n);
+    let mut folder = String::new();
+    for i in 0..n {
+        if i % 10 == 0 {
+            folder.clear();
+            for _ in 0..1 + next() % 6 {
+                folder.push_str(WORDS[(next() % WORDS.len() as u64) as usize]);
+                folder.push('/');
+            }
+            write!(folder, "d{}", i / 10).unwrap();
+        }
+        let ext = EXTS[(next() % EXTS.len() as u64) as usize];
+        let size = next() % 10_000_000;
+        listing.push((
+            std::path::PathBuf::from(format!("{folder}/file_{i}.{ext}")),
+            Some(FileEntry {
+                name: format!("file_{i}.{ext}").into(),
+                size,
+                disk: size.div_ceil(4096) * 4096,
+                link: None,
+                modified: Some(UNIX_EPOCH + Duration::from_secs(base + next() % 300_000_000)),
+                mode: 0o100644,
+                kind: FileKind::File,
+                tagged: false,
+            }),
+        ));
+    }
+    let before = rss();
+    let start = Instant::now();
+    let tmp = crate::testing::tempdir();
+    let mut pane = Pane::new(tmp.path().to_path_buf());
+    pane.tree = Tree::from_listing(tmp.path().to_path_buf(), listing);
+    let tree_ms = ms(start);
+    let tree_mb = rss() - before;
+    let start = Instant::now();
+    let before = rss();
+    pane.view = FileView::Showall;
+    pane.refresh_files();
+    println!(
+        "{:>9} files in the list; tree built in {tree_ms:.0} ms, {tree_mb:.0} MiB; \
+         the list (Showall) in {:.0} ms, {:.0} MiB",
+        pane.files.len(),
+        ms(start),
+        rss() - before
+    );
+    // How much of the list is its sorting (by name, the default), from the
+    // order of the tree, as refresh_files has them.
+    let mut again: Vec<(crate::pane::FileRef, usize)> = pane
+        .tree
+        .visible_subtree(crate::model::tree::ROOT)
+        .into_iter()
+        .enumerate()
+        .flat_map(|(rank, dir)| {
+            (0..pane.tree.node(dir).files.len())
+                .map(move |idx| (crate::pane::FileRef { dir, idx }, rank))
+        })
+        .collect();
+    let sort = pane.sort;
+    let start = Instant::now();
+    crate::model::sort::sort_by(&mut again, &sort, |&(f, rank)| {
+        sort.key_for(pane.file(f), rank)
+    });
+    println!("    of which sorting it again: {:.0} ms", ms(start));
+    drop(again);
+    let start = Instant::now();
+    let kept = pane
+        .files
+        .iter()
+        .filter(|&&f| pane.filespec.matches_entry(pane.file(f)))
+        .count();
+    println!(
+        "    the filespec over every file again: {:.0} ms ({kept} kept)",
+        ms(start)
+    );
+    let start = Instant::now();
+    let hidden = pane
+        .files
+        .iter()
+        .filter(|&&f| pane.file(f).is_hidden())
+        .count();
+    println!(
+        "    is_hidden over every file again: {:.0} ms ({hidden})",
+        ms(start)
+    );
+
+    // (a) The snapshot: one fixed row a file, the names in one buffer, the
+    // folder by its number.
+    struct Row {
+        size: u64,
+        disk: u64,
+        /// Seconds since 1970; `i64::MIN` when not known.
+        modified: i64,
+        name: u32,
+        name_len: u32,
+        dir: u32,
+        mode: u32,
+        kind: u8,
+        tagged: bool,
+    }
+    struct Snapshot {
+        rows: Vec<Row>,
+        names: String,
+        dirs: Vec<String>,
+        now: i64,
+    }
+    let before = rss();
+    let start = Instant::now();
+    let mut dir_of: Vec<u32> = Vec::new();
+    let mut snap = Snapshot {
+        rows: Vec::with_capacity(pane.files.len()),
+        names: String::new(),
+        dirs: Vec::new(),
+        now: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i64),
+    };
+    let root_len = pane.tree.path(crate::model::tree::ROOT).as_os_str().len() + 1;
+    for f in &pane.files {
+        if dir_of.len() <= f.dir {
+            dir_of.resize(f.dir + 1, u32::MAX);
+        }
+        if dir_of[f.dir] == u32::MAX {
+            dir_of[f.dir] = snap.dirs.len() as u32;
+            let path = pane.tree.path(f.dir);
+            let text = path.to_string_lossy();
+            snap.dirs
+                .push(text.get(root_len..).unwrap_or("").to_string());
+        }
+        let e = pane.file(*f);
+        let at = snap.names.len() as u32;
+        snap.names.push_str(&e.name.to_string_lossy());
+        snap.rows.push(Row {
+            size: e.size,
+            disk: e.disk,
+            modified: e
+                .modified
+                .and_then(|m| m.duration_since(UNIX_EPOCH).ok())
+                .map_or(i64::MIN, |d| d.as_secs() as i64),
+            name: at,
+            name_len: snap.names.len() as u32 - at,
+            dir: dir_of[f.dir],
+            mode: e.mode,
+            kind: e.kind as u8,
+            tagged: e.tagged,
+        });
+    }
+    let snap_ms = ms(start);
+    let counted = (snap.rows.capacity() * std::mem::size_of::<Row>()
+        + snap.names.capacity()
+        + snap.dirs.iter().map(|d| d.capacity() + 24).sum::<usize>()) as f64
+        / (1 << 20) as f64;
+    println!(
+        "(a) snapshot: {snap_ms:.0} ms, {:.0} MiB ({counted:.0} MiB counted: {} B a row, \
+         {} folders)",
+        rss() - before,
+        std::mem::size_of::<Row>(),
+        snap.dirs.len()
+    );
+    let snap = Arc::new(snap);
+
+    // The snapshot as the table window reads it: cells made as asked for.
+    const HEADERS: [&str; 10] = [
+        "name", "ext", "dir", "size", "disk", "modified", "age_days", "mode", "kind", "tagged",
+    ];
+    struct Rows(Arc<Snapshot>);
+    impl RowSource for Rows {
+        fn read_from(
+            &mut self,
+            from: usize,
+            budget: Budget,
+            sink: &mut dyn RecordSink,
+        ) -> Result<End, String> {
+            let s = &self.0;
+            let mut date = String::new();
+            let mut mode = String::new();
+            for (i, r) in s.rows.iter().enumerate().skip(from) {
+                if i % 4096 == 0 && budget.cancelled() {
+                    return Ok(End::OutOfTime);
+                }
+                let name = &s.names[r.name as usize..(r.name + r.name_len) as usize];
+                let ext = name.rsplit_once('.').map_or("", |(_, e)| e);
+                date.clear();
+                if r.modified != i64::MIN {
+                    let t = chrono::DateTime::from_timestamp(r.modified, 0).unwrap();
+                    write!(date, "{}", t.format("%Y-%m-%d %H:%M:%S")).unwrap();
+                }
+                mode.clear();
+                write!(mode, "{:o}", r.mode & 0o7777).unwrap();
+                let cells = [
+                    Cell::Text(Cow::Borrowed(name)),
+                    Cell::Text(Cow::Borrowed(ext)),
+                    Cell::Text(Cow::Borrowed(&s.dirs[r.dir as usize])),
+                    Cell::Int(r.size as i64),
+                    Cell::Int(r.disk as i64),
+                    Cell::Text(Cow::Borrowed(&date)),
+                    Cell::Int((s.now - r.modified) / 86_400),
+                    Cell::Text(Cow::Borrowed(&mode)),
+                    Cell::Text(Cow::Borrowed(if r.kind == 0 { "file" } else { "link" })),
+                    Cell::Bool(r.tagged),
+                ];
+                if sink.record(&cells).is_break() {
+                    return Ok(End::Refused);
+                }
+            }
+            Ok(End::Complete)
+        }
+
+        fn count(&mut self, _: Budget, _: &mut Progress<'_>) -> Result<Option<usize>, String> {
+            Ok(Some(self.0.rows.len()))
+        }
+    }
+    struct Head(Vec<TableRow>);
+    impl RecordSink for Head {
+        fn sheets(&mut self, _: &[String], _: usize) {}
+        fn columns(&mut self, _: &[String]) {}
+        fn columns_cut(&mut self) {}
+        fn record(&mut self, cells: &[Cell<'_>]) -> std::ops::ControlFlow<()> {
+            self.0.push(TableRow {
+                cells: cells.iter().map(Cell::display).collect(),
+            });
+            if self.0.len() < WINDOW_ROWS {
+                std::ops::ControlFlow::Continue(())
+            } else {
+                std::ops::ControlFlow::Break(())
+            }
+        }
+    }
+    let before = rss();
+    let start = Instant::now();
+    let mut head = Head(Vec::new());
+    Rows(snap.clone())
+        .read_from(0, Budget::new(Duration::from_secs(60), 0), &mut head)
+        .unwrap();
+    let source = snap.clone();
+    let opener: Opener = Arc::new(move || Ok(Box::new(Rows(source.clone())) as Box<dyn RowSource>));
+    let mut w = Window::new(head.0, HEADERS.map(String::from).to_vec(), opener);
+    w.start();
+    let settle = |w: &mut Window| {
+        let deadline = Instant::now() + Duration::from_secs(600);
+        while w.working() {
+            assert!(Instant::now() < deadline, "the window never settled");
+            w.poll(0, (0, 0));
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    settle(&mut w);
+    println!(
+        "    window open and counted: {:.0} ms, {} rows, {:.0} MiB",
+        ms(start),
+        w.rows,
+        rss() - before
+    );
+    for filter in [
+        "size > 5000000 AND ext = 'jpg'",
+        "dir LIKE '%music%'",
+        "modified >= '2024-01-01'",
+        "age_days < 365 AND name LIKE 'file_1%'",
+    ] {
+        let before = rss();
+        let start = Instant::now();
+        w.filter(Some(SqlFilter::parse(filter).unwrap()));
+        settle(&mut w);
+        let scan = w.scan.as_ref().unwrap();
+        println!(
+            "    filter {filter:<40} {:>6.0} ms, {:>8} matches{}, {:.0} MiB",
+            ms(start),
+            scan.matches.len(),
+            if scan.capped { " (capped)" } else { "" },
+            rss() - before
+        );
+    }
+    drop(w);
+
+    // Sorting: an order of row numbers, the snapshot untouched.
+    let s = &snap;
+    let name = |r: &Row| &s.names[r.name as usize..(r.name + r.name_len) as usize];
+    let before = rss();
+    let mut order: Vec<u32> = (0..s.rows.len() as u32).collect();
+    for (by, sort) in [
+        (
+            "name",
+            &(|o: &mut Vec<u32>| {
+                o.sort_by(|&a, &b| name(&s.rows[a as usize]).cmp(name(&s.rows[b as usize])))
+            }) as &dyn Fn(&mut Vec<u32>),
+        ),
+        ("size", &|o: &mut Vec<u32>| {
+            o.sort_by_key(|&a| s.rows[a as usize].size)
+        }),
+        ("modified", &|o: &mut Vec<u32>| {
+            o.sort_by_key(|&a| s.rows[a as usize].modified)
+        }),
+        ("dir, name", &|o: &mut Vec<u32>| {
+            o.sort_by(|&a, &b| {
+                let (ra, rb) = (&s.rows[a as usize], &s.rows[b as usize]);
+                s.dirs[ra.dir as usize]
+                    .cmp(&s.dirs[rb.dir as usize])
+                    .then_with(|| name(ra).cmp(name(rb)))
+            })
+        }),
+    ] {
+        let start = Instant::now();
+        sort(&mut order);
+        println!("    sort by {by:<10} {:>6.0} ms", ms(start));
+    }
+    println!("    the order: {:.0} MiB", rss() - before);
+    drop(order);
+
+    // (b) To compare: every cell made text up front.
+    let before = rss();
+    let start = Instant::now();
+    let mut all: Vec<TableRow> = Vec::with_capacity(s.rows.len());
+    struct All<'a>(&'a mut Vec<TableRow>);
+    impl RecordSink for All<'_> {
+        fn sheets(&mut self, _: &[String], _: usize) {}
+        fn columns(&mut self, _: &[String]) {}
+        fn columns_cut(&mut self) {}
+        fn record(&mut self, cells: &[Cell<'_>]) -> std::ops::ControlFlow<()> {
+            self.0.push(TableRow {
+                cells: cells.iter().map(Cell::display).collect(),
+            });
+            std::ops::ControlFlow::Continue(())
+        }
+    }
+    Rows(snap.clone())
+        .read_from(
+            0,
+            Budget::new(Duration::from_secs(600), 0),
+            &mut All(&mut all),
+        )
+        .unwrap();
+    let counted = (all.capacity() * std::mem::size_of::<TableRow>()
+        + all
+            .iter()
+            .map(|r| {
+                r.cells.capacity() * std::mem::size_of::<String>()
+                    + r.cells.iter().map(String::capacity).sum::<usize>()
+            })
+            .sum::<usize>()) as f64
+        / (1 << 20) as f64;
+    println!(
+        "(b) every cell as text: {:.0} ms, {:.0} MiB ({counted:.0} MiB counted)",
+        ms(start),
+        rss() - before
+    );
+    assert_eq!(all.len(), pane.files.len());
+}
+
