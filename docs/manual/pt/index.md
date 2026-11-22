@@ -59,7 +59,7 @@ revisadas por falantes nativos. Correções:
 - [Informações](info.md): Info, Avail, estatísticas e tamanhos de diretórios
 - [Uso do disco](usage.md): para onde vai o espaço (Alt+U)
 - [Duplicados](duplicates.md): arquivos e pastas com o mesmo conteúdo (Alt+D)
-- [Visões](views.md): a lista vista de outro jeito: a Varredura (Alt+V)
+- [Visões](views.md): a lista vista de outro jeito: a Varredura, a Linha do tempo e a Tabela (Alt+V)
 
 ## Trabalhando com arquivos
 

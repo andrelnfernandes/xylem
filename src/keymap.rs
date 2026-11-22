@@ -328,6 +328,11 @@ const COMMANDS: &[(&str, Command, &str)] = &[
         "Timeline: the list by the date its files changed",
     ),
     (
+        "view_table",
+        Command::ViewTable,
+        "Table: the list in the table viewer, with its SQL filter",
+    ),
+    (
         "kbyte",
         Command::Kbyte,
         "show size or file count of each directory in the tree",
@@ -1268,7 +1273,10 @@ mod tests {
         for (name, cmd, _) in COMMANDS {
             // Each view has the selector's key, and one of its own only if
             // the user gives it one.
-            if matches!(cmd, Command::ViewScan | Command::ViewTimeline) {
+            if matches!(
+                cmd,
+                Command::ViewScan | Command::ViewTimeline | Command::ViewTable
+            ) {
                 continue;
             }
             let bound = km

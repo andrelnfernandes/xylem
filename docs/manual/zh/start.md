@@ -36,6 +36,8 @@ xy
 
 打开当前目录。`xy ~/projects` 打开其他目录，`xy user@host:` 打开[远程主机](remote.md)。[命令行](cli.md)列出了其他启动形式。
 
+首次启动时，Xylem 会询问是否可以每天检查一次新版本：按 **Y** 或 **N**（参见[新版本](configuration.md#new-versions)）。
+
 ## 在目录树中移动
 
 目录树显示起始目录及其子目录。此时仅起始目录已被读取。

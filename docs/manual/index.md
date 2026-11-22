@@ -57,7 +57,7 @@ native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`
 - [Information](info.md): Info, Avail, statistics and directory sizes
 - [Disk usage](usage.md): where the space goes (Alt+U)
 - [Duplicates](duplicates.md): files and folders with the same contents (Alt+D)
-- [Views](views.md): the list seen another way: the Scan (Alt+V)
+- [Views](views.md): the list seen another way: the Scan, the Timeline and the Table (Alt+V)
 
 ## Working with files
 

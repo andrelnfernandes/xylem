@@ -46,6 +46,9 @@ xy
 `xy user@host:` öffnet einen [entfernten Rechner](remote.md).
 [Die Befehlszeile](cli.md) beschreibt die weiteren Aufrufvarianten.
 
+Beim ersten Start fragt Xylem, ob es einmal am Tag nach einer neuen Version
+suchen darf: **Y** oder **N** (siehe [Neue Versionen](configuration.md#new-versions)).
+
 ## Im Baum bewegen
 
 Der Baum zeigt das Startverzeichnis und seine Unterverzeichnisse an. Nur das

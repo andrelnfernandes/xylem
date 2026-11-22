@@ -45,6 +45,9 @@ abre o diretório atual. `xy ~/projetos` abre outro diretório, e
 `xy user@host:` abre uma [máquina remota](remote.md). [A linha de
 comando](cli.md) traz as demais formas.
 
+Na primeira vez, o Xylem pergunta se pode procurar uma versão nova uma vez
+por dia: **Y** ou **N** (veja [Versões novas](configuration.md#new-versions)).
+
 ## Como mover na árvore
 
 A árvore mostra o diretório inicial e seus subdiretórios. Apenas o diretório

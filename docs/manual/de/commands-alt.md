@@ -30,6 +30,7 @@ funktioniert.
 | Alt+R | Release | ja | | Gibt den Zweig aus dem Speicher frei, wie `-`. Markierungen gehen verloren. |
 | Alt+S | Sort | ja | ja | Sortiert das Dateifenster nach Name, Erweiterung, Datum oder Größe. [Sortieren](sort.md) |
 | Alt+U | Usage | ja | ja | Listet Ordner und Dateien des Zweigs nach belegtem Speicherplatz auf, größte zuerst. [Speicherplatzbelegung](usage.md) |
+| Alt+V | Views | ja | ja | Öffnet die Ansichten der Liste: den Scan, der zeigt, was einen Blick verdient, die Zeitleiste, nach Datum, und die Tabelle, die Liste im Tabellenbetrachter. [Ansichten](views.md) |
 | Alt+N | iNdex | ja | ja | Indiziert die Wörter der eingelesenen Dateien des Zweigs, damit `words()` in einer SQL-Bedingung sofort antwortet. [Der Index](sql.md#ganze-wörter-und-ein-index-words) |
 
 ## Weitere Tasten

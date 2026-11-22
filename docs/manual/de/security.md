@@ -19,6 +19,16 @@ handelt es sich um einen Fehler, der gemeldet werden sollte.
 | Git-Repository führt eigene Skripte aus | Das Betrachten eines Repositories führt keine Hooks, kein `core.fsmonitor`, kein externes Diff und keine Textkonvertierung aus, es sei denn, sein Ordner ist in `git_trusted` eingetragen. |
 | Abhängigkeit weist bekannte Schwachstelle auf | Die Abhängigkeiten werden in der Continuous Integration (CI) mit der RustSec-Datenbank abgeglichen. |
 
+## Das Netzwerk
+
+Xylem verbindet sich von selbst nur für eine einzige Sache mit dem Netzwerk:
+Wenn Sie beim ersten Start zugestimmt haben, fragt es die Website einmal am
+Tag nach der Nummer der neuesten Version ([Neue
+Versionen](configuration.md#new-versions)). Alles andere, was das Netzwerk
+nutzt, haben Sie selbst verlangt: ein entfernter Rechner (`ssh`), die Cloud
+(`rclone`), ein Container (`docker`), eine Netzwerkfreigabe und die Programme,
+die Sie selbst starten (`X`, das integrierte Terminal).
+
 ## Was Sie tun können
 
 - Schalten Sie die Dekomprimierung im Betrachter aus (`viewer_decompress = false`,
@@ -26,6 +36,8 @@ handelt es sich um einen Fehler, der gemeldet werden sollte.
   oder lassen Sie Autoview dort geschlossen.
 - Lassen Sie Git deaktiviert (`git = false`, Standard) in Repositorien, die Sie
   nicht selbst erstellt haben.
+- Lehnen Sie die Suche nach neuen Versionen ab oder schalten Sie sie auf
+  Seite 3 von F12 aus, wenn Xylem sich nie von selbst verbinden soll.
 - Führen Sie Xylem nicht als Root-Benutzer aus.
 - `O` übergibt die Datei an ein anderes Programm. Die Limits von Xylem gelten
   für dieses Fremdprogramm nicht.

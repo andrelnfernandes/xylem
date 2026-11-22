@@ -10,12 +10,21 @@ ramos inteiros, agir sobre as marcações) que nenhum outro gerenciador de
 arquivos igualou. Kim Henkel mantém vivo o jeito XTree no Windows há décadas,
 e o Xylem não existiria sem esse trabalho.
 
-O Xylem não pretende substituir o ZTreeWin. Ele existe porque eu queria o
-mesmo jeito de trabalhar no Linux, onde o ZTreeWin não roda nativamente. O
+O Xylem não pretende substituir o ZTreeWin. Ele começou porque eu queria o
+mesmo jeito de trabalhar no Linux, onde o ZTreeWin não rodava. Desde a
+[beta 2.9.12](https://www.ztree.com/html/beta.htm), de novembro de 2026, roda, como ZTreeLin (e no macOS, como
+ZTreeMac). O Xylem continua como outra leitura do mesmo jeito de trabalhar:
+aberto, feito primeiro para o Linux, com o que está em
+[Onde o Xylem vai além](#where-xylem-goes-further), mais abaixo. O
 Xylem também compila para Windows, porque o Rust torna isso fácil, mas essa
 não é uma meta minha: no Windows, o ZTreeWin vale muito a licença:
 [ztree.com](https://www.ztree.com/), e o [fórum](https://groups.io/g/ZTreeWin)
 dos seus usuários.
+
+O visualizador lê os Norton Guides, os arquivos de ajuda do DOS e do Clipper,
+graças a Dave Pearson, que decifrou o formato deles nos anos 1990 e os mantém
+legíveis desde então:
+[davep.org/norton-guides](https://www.davep.org/norton-guides/).
 
 ## Outros gerenciadores de arquivos para o terminal
 
@@ -36,6 +45,7 @@ desatualizado, abra uma issue.
 | vifm | dois painéis | teclas e comandos do vim, os resultados do `:find` como uma lista para trabalhar, uma visão em árvore |
 | broot | uma árvore que cabe na tela | busca aproximada na árvore inteira, tamanhos, uma área de preparação (staging) para agir sobre arquivos de várias pastas |
 | far2l | dois painéis | o Far Manager para Linux, com seus plugins: SFTP, SMB, NFS, WebDAV e S3 (NetRocks), um editor hexadecimal, scripts em Python |
+| ZTreeLin | uma árvore de diretórios acima da lista de arquivos, tela dividida | o jeito XTree do ZTreeWin no Linux, dos mesmos autores: ler a árvore, marcar em ramos inteiros, agir sobre as marcações; um editor hexadecimal e arquivos compactados; em beta desde novembro de 2026 |
 
 **O que diferencia o Xylem.** A árvore é lida para a memória, e uma tecla
 mostra numa lista só os arquivos de um ramo inteiro, ou de tudo o que foi lido
@@ -45,8 +55,8 @@ você trabalha. Marque ali o que quiser e copie, mova, renomeie ou exclua tudo
 de uma vez. Vários dos programas acima também juntam numa lista arquivos de
 muitas pastas (o panelize do mc, as visões personalizadas do vifm, os
 resultados de busca do yazi, a área de preparação do broot), ou mantêm uma
-seleção entre pastas (nnn, yazi); no Xylem essa lista é o jeito de trabalhar o
-tempo todo, não o resultado de uma busca. Além disso, nenhum dos outros tem no
+seleção entre pastas (nnn, yazi); no Xylem, como no ZTreeLin, essa lista é o
+jeito de trabalhar o tempo todo, não o resultado de uma busca. Além disso, nenhum dos outros tem no
 mesmo programa:
 
 - tabelas com filtro SQL para planilhas, CSV, SQLite (com `JOIN`) e Parquet,
@@ -95,7 +105,9 @@ estão em "Teclas diferentes", no fim.
 - **Árvore:** Global (G, e Ctrl+G para os marcados), Graft (Alt+G), Mirror (Alt+M), liberação parcial (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
   (Ctrl+V), F5/F6 (ocultar níveis de subdiretórios), marcar por atributo
   (Alt+T/U), Treespec em modo de edição (F5, curingas) e pastas especiais (F6),
-  busca ao digitar com prompt (`|`) e modo ativo, troca de unidade (`<` e `>`).
+  busca ao digitar no modo ativo (sem prompt), troca de unidade (`<` e `>`).
+  A busca ao digitar com prompt (`|`) existe, aproximada e também na janela
+  de arquivos: [Busca aproximada](fuzzy.md).
 - **Arquivos:** Abrir em nova janela de terminal (Alt+O), Batch do arquivo
   atual (Alt+B), JFC (J, comparar o conteúdo de dois arquivos), sHortcut (H),
   Print (P), dono/grupo (chown), Megaview (Ctrl+F7 na janela de arquivos),

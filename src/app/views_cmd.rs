@@ -95,6 +95,11 @@ impl App {
                 "T",
                 Command::ViewTimeline,
             ),
+            run(
+                "Table: the list, with a SQL filter",
+                "L",
+                Command::ViewTable,
+            ),
         ];
         let list = match self.focus {
             Focus::Tree => crate::mouse::List::Tree(crate::mouse::Owner::Main(self.active)),
@@ -664,6 +669,102 @@ impl App {
                 self.focus = Focus::Files;
             }
             Err(e) => self.message = Some(e),
+        }
+    }
+}
+
+impl App {
+    /// Alt+V, L: the list in the table viewer. The list is copied once,
+    /// compactly (see `viewer::list_rows`); W in the table brings its filter
+    /// back as the list's `W`.
+    pub(crate) fn open_list_table(&mut self) {
+        if self.files.is_empty() {
+            self.message = Some("No files in the list".into());
+            return;
+        }
+        let pane = &**self;
+        let wants_path = (pane.git_enabled && pane.remote.is_none() && pane.archive.is_none())
+            || !pane.duplicate_groups.is_empty();
+        let mut dirs: Vec<(PathBuf, usize)> = Vec::new();
+        let mut dir_of = std::collections::HashMap::new();
+        let mut files = Vec::with_capacity(pane.files.len());
+        for &f in &pane.files {
+            let dir = *dir_of.entry(f.dir).or_insert_with(|| {
+                let mut depth = 0;
+                let mut at = f.dir;
+                while let Some(parent) = pane.tree.node(at).parent {
+                    depth += 1;
+                    at = parent;
+                }
+                dirs.push((pane.tree.path(f.dir), depth));
+                (dirs.len() - 1) as u32
+            });
+            let entry = pane.file(f).clone();
+            let (git, dup) = if wants_path {
+                let path = dirs[dir as usize].0.join(&entry.name);
+                (
+                    pane.file_git(&path).map(String::into_boxed_str),
+                    pane.dup_group(&path).map(|g| g as u32),
+                )
+            } else {
+                (None, None)
+            };
+            files.push(crate::viewer::list_rows::ListFile {
+                entry,
+                dir,
+                git,
+                dup,
+            });
+        }
+        let what = match pane.view {
+            FileView::Dir => "Files",
+            FileView::Branch(_) => "Branch",
+            FileView::Showall => "Showall",
+        };
+        let title = PathBuf::from(format!(
+            "{what} {}",
+            pane.tree.path(pane.view_root()).display()
+        ));
+        let list = Arc::new(crate::viewer::list_rows::ListSnapshot::new(
+            dirs,
+            files,
+            std::time::SystemTime::now(),
+        ));
+        match Viewer::from_list(title, list) {
+            Ok(mut v) => {
+                v.note = Some(
+                    "s sorts by the column, \\ filters, W takes the filter back to the list".into(),
+                );
+                self.viewer = Some(v);
+            }
+            Err(e) => self.message = Some(format!("Cannot show the list as a table: {e}")),
+        }
+    }
+
+    /// W in the table of the list: its SQL filter becomes the list's
+    /// condition of W, with AND to the one there was.
+    pub(crate) fn list_table_to_list(&mut self) {
+        let Some(v) = &mut self.viewer else {
+            return;
+        };
+        let Some(cond) = v.table.as_ref().and_then(|t| t.active_filter.clone()) else {
+            v.note = Some("No filter: \\ filters the table, then W takes it to the list".into());
+            return;
+        };
+        let (text, tagged) = match &self.query {
+            Some(q) => (format!("({}) AND ({cond})", q.text()), q.tagged()),
+            None => (cond, false),
+        };
+        match self.set_query(&text, tagged) {
+            Ok(()) => {
+                self.viewer = None;
+                self.focus = Focus::Files;
+            }
+            Err(e) => {
+                if let Some(v) = &mut self.viewer {
+                    v.note = Some(e);
+                }
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ Ctrl ou Alt.
 | ← | Arborescence | Replie le répertoire, ou va au répertoire parent. |
 | `?` | les deux | Affiche les statistiques de la fenêtre, du disque, de la machine et de Xylem. [Informations](info.md) |
 | `\` ou `/` | les deux | Treespec : tapez un chemin et le curseur de l'arbre le suit. Dans un Branch ou Showall, va au répertoire du fichier sous le curseur. [Treespec et Log](treespec.md) |
+| `\|` | les deux | Recherche approximative : tapez des morceaux d'un nom, et le curseur va au meilleur dossier (dans l'arborescence) ou fichier de la liste (dans la fenêtre de fichiers). [Recherche approximative](fuzzy.md) |
 | `'` | les deux | Saute à un signet : appuyez ensuite sur sa touche. |
 
 ## Se déplacer

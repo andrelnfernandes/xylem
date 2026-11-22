@@ -394,6 +394,20 @@ pub fn load_dbf_windowed(path: &Path, budget: Budget) -> Result<TableGrid, Strin
     )
 }
 
+/// The file list as a table (Alt+V, Table): its first [`WINDOW_ROWS`]
+/// rows, and a window over the rest when there are more.
+pub fn load_list(title: &Path, list: Opener) -> Result<TableGrid, String> {
+    let mut source = list()?;
+    // The list is in memory: no time limit, and Esc has nothing to stop.
+    let budget = Budget::new(std::time::Duration::from_secs(3600), u64::MAX);
+    load_windowed(
+        title,
+        budget,
+        |budget, sink| source.read_from(0, budget, sink),
+        |_| list,
+    )
+}
+
 /// Load an Apache Parquet file (.parquet).
 pub fn load_parquet(path: &Path, budget: Budget) -> Result<TableGrid, String> {
     load(path, budget, |budget, sink| {

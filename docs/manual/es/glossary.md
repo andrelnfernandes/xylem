@@ -15,6 +15,7 @@ las emplean con estos significados.
 | Tag | Una marca en un archivo (`■`). Los comandos con Ctrl actúan sobre los archivos marcados. Las marcas se mantienen en memoria y se pierden con Release o al salir. [Marcas y operaciones en grupo](tagging.md) |
 | Filespec | El filtro que determina qué archivos muestra la ventana, por nombre, fecha y tamaño. Se define con `F`. [Filespec](filespec.md) |
 | Treespec | Una ruta escrita para mover el cursor del árbol. Se abre con `\` o `/`. [Treespec](treespec.md) |
+| Búsqueda aproximada | `\|`: trozos de un nombre, escritos para llevar el cursor a la mejor carpeta o al mejor archivo. [Búsqueda aproximada](fuzzy.md) |
 | Ventana | Un árbol con su ventana de archivos. F8 abre una segunda al lado. [Pantalla dividida](split.md) |
 | Raíz | El directorio en la parte superior del árbol. `L` lo cambia, y Alt+L convierte el directorio bajo el cursor en la raíz. |
 | Matching | Los archivos registrados que coinciden con el Filespec. |

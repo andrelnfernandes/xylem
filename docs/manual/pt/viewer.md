@@ -9,7 +9,7 @@ Planilhas, CSV, DBF, SQLite e Parquet abrem como tabela (veja [Tabelas](tables.m
 | ↑ ↓ PgUp PgDn Home End | rola verticalmente |
 | ← → | rola horizontalmente |
 | `H` | próximo modo: texto e hexadecimal; num arquivo Markdown, renderizado, texto e hexadecimal |
-| `O` | próxima codificação (UTF-8, CP850, 1252, CP437, UTF-16) |
+| `O` | próxima codificação (UTF-8, CP850, 1252, CP437, 1251, KOI8-R, UTF-16) |
 | `C` | ativa ou desativa as cores de sintaxe |
 | `W` | ativa ou desativa a quebra de linha automática |
 | `#` ou `L` | ativa ou desativa os números de linha (no modo texto) |
@@ -114,6 +114,63 @@ Antes do texto, um bloco diz o que o documento traz além dele, já que muito di
 
 `H` mostra os bytes, e volta; `T` diz que o documento não tem texto próprio. Cada parte do arquivo é descomprimida só até um limite (64 MiB cada, 256 MiB no total; 4 MiB no Autoview), e o cabeçalho diz quando o documento foi cortado. Uma parte XML com DTD, ou aninhada mais fundo que 256 níveis, é recusada. Os antigos `.doc` e `.ppt` abrem em hexadecimal, como antes.
 
+## Ebooks
+
+EPUB (`.epub`, versões 2 e 3) e FictionBook (`.fb2`, e `.fb2.zip` com um único livro dentro) abrem como um livro para ler. Imagens não são mostradas: cada uma é uma linha, como `[image: cover.jpg]`.
+
+**O livro.** Ele abre numa folha de rosto: o título, o autor, quem o publicou e quando, quantos capítulos e palavras tem, e o que o relatório aponta, se houver algo. O texto é uma coluna no meio da janela (70 células por padrão), com os parágrafos recuados como num livro impresso e o título de cada capítulo centralizado sob um ornamento. Uma quebra entre cenas (`* * *`) é desenhada como tal. O rodapé diz o capítulo em que você está, quanto já andou no livro, e o tempo que falta no capítulo e no livro.
+
+| Tecla | O que faz |
+|---|---|
+| Space, PgDn | a próxima página (PgUp a anterior) |
+| `]` `[` | o próximo ou o anterior capítulo |
+| Tab | o sumário: ↑↓ escolhem, letras estreitam a lista, Enter vai, Esc fecha; Backspace depois volta para onde você estava |
+| Enter | as notas chamadas na página, num quadro: ↑↓ o rolam, qualquer outra tecla o fecha |
+| `g` | vai para uma linha, ou para uma parte do livro: `40%` |
+| `R` | lembra onde o livro parou; `R` de novo esquece o livro |
+| `I` | o relatório do arquivo, e de volta ao livro |
+| `Z` | só o texto, sem a moldura e o rodapé; Esc volta |
+| `/` `\` | busca para a frente ou para trás; `+` e `-` vão à próxima ou à anterior ocorrência (Space aqui vira a página) |
+| `H` | os bytes, e volta |
+| Esc | fecha |
+
+As notas de um livro (um `aside` de tipo footnote no EPUB, o corpo `notes` de um FB2) não ficam no texto: cada chamada é um sobrescrito (`¹`), e Enter mostra as notas chamadas na página. No relatório elas ficam onde o livro as tem.
+
+**Lembrar onde você parou.** `R` lembra o livro: quando você o fecha, o Xylem guarda o capítulo e a linha em que você estava, e na próxima vez o livro abre ali, dizendo `Back at chapter 7 (R forgets this book)`. O rodapé de um livro lembrado começa com `[R]`. O livro é reconhecido pelo que ele diz ser (seu identificador) e pelo tamanho, não pelo nome, então um livro movido ou renomeado continua reconhecido, e outro arquivo com o mesmo nome é outro livro. `R` de novo esquece o livro e apaga o que foi guardado dele. Um livro em que você nunca apertou `R` não deixa nada para trás.
+
+**O tempo gasto lendo** é guardado para os livros lembrados com `R`, se você o ligar (**E** na página 5 da [configuração](configuration.md#reading-time)). A folha de rosto e o relatório então dizem há quanto tempo você lê o livro, em quantas sessões, até onde chegou e desde quando; o relatório lista as sessões. O rodapé mostra o tempo desta sessão.
+
+**O relatório** (`I`) é o que o arquivo é antes do texto: o que o livro diz de si (título, autores, editora, idioma, data, identificador, assuntos, série, o programa que o fez), e o que ele traz além do texto, já que um livro de qualquer lugar é um arquivo de qualquer lugar:
+
+- scripts: elementos `<script>`, `onload` e os outros atributos de evento, links `javascript:`, e as partes que um EPUB declara com scripts. Eles nunca são executados; um leitor que executa scripts os executaria;
+- o que um leitor buscaria fora quando o livro abre: imagens, folhas de estilo, fontes e frames com um endereço na internet, listados. Buscá-los avisa a quem está lá que o livro foi aberto, e de onde. Nada é buscado aqui;
+- formulários, frames e objetos embutidos, contados, e o número de links para fora;
+- DRM: um EPUB cujos capítulos estão cifrados diz com quê (Adobe ADEPT, Readium LCP, Apple FairPlay) e não pode ser lido. Fontes ofuscadas, comuns em livros vendidos sem DRM, são só contadas;
+- num EPUB, as partes que o pacote lista mas o arquivo não tem, as que ele tem mas não lista, e endereços que sobem para fora do pacote;
+- num FB2, os arquivos embutidos nele (quantos, de que tipos e de que tamanho), nunca decodificados, e uma codificação declarada que o Xylem não conhece.
+
+Depois vêm o sumário, como links (Tab e Enter os seguem), e o texto inteiro, com as notas onde o livro as tem.
+
+**Ajustes** (página 5 da [configuração](configuration.md)): a largura da coluna (ou a janela inteira), parágrafos recuados e encostados ou separados por uma linha em branco, texto justificado, e a velocidade de leitura com que o tempo que falta é contado. Com o Nerd Fonts ligado (**M** na página 2), os ornamentos são folhas, a barra de progresso é desenhada com os glifos da própria fonte, e o rodapé e o sumário ganham ícones.
+
+**O que é lido.** Um FB2 é lido na codificação que declara (UTF-8, UTF-16, Windows-1251, KOI8-R e as outras do `O`), e `T` mostra o XML dele. Um EPUB é um ZIP: cada parte é descomprimida só até um limite (64 MiB cada, 256 MiB no total; 4 MiB no Autoview, que diz `V shows it as a book` quando um livro é maior), e um FB2 é lido até 64 MiB, e o relatório diz quando só o começo do livro foi lido. Nenhum DTD é lido ou buscado, um XML com entidades próprias é recusado, o texto nunca entra como Markdown, e os endereços de um livro são tomados só como nomes das suas próprias partes, nunca como caminhos no disco. MOBI e AZW3 (Kindle), PDF e quadrinhos (CBZ, CBR) não são lidos aqui: `O` na janela de arquivos os abre em outro programa.
+
+## Norton Guides
+
+Um Norton Guide ou um guia do Expert Help (`.ng`), a ajuda em hipertexto do DOS e do Clipper, abre como documento. Um arquivo precisa do nome `.ng` e da assinatura do guia; qualquer outro abre como antes.
+
+- **No alto:** o título e os créditos do guia, e o que o fez.
+- **Os menus:** cada um com seus itens, e aonde cada item leva.
+- **As entradas:** todas, na ordem do arquivo, cada uma sob um número: `§12`. Uma entrada de lista mostra suas linhas; uma entrada de texto mostra o texto com o layout do guia, e depois seus links de see-also. Todo link diz aonde vai (`→ §12`, `See also: Two() §3`), então uma busca por `§12` leva até lá. Um link que não aponta para nada diz `(broken link)`.
+
+**Seguir links.** **Tab** e **Shift+Tab** escolhem o próximo ou o anterior link (a partir da tela, quando o escolhido saiu dela); **Enter** vai à entrada a que ele leva, com o primeiro link dessa entrada escolhido; **Backspace** volta para onde você estava, por até 1.000 links. Com o mouse ligado, um clique num link o segue, e um clique em `Backspace` no rodapé volta. Num guia, Enter nunca fecha o visualizador: o Esc fecha. Como o guia inteiro é um documento só, uma busca (`/`) olha ele todo.
+
+Negrito, sublinhado e inverso saem nos estilos do tema; as cores de DOS de um guia não são enviadas ao terminal. Os caracteres do guia são da página de código 437, com os glifos que o DOS desenhava para os bytes 1 a 31 (`☺ ♥ ► ▲`); nada num guia chega ao terminal como caractere de controle.
+
+Um guia é uma teia de deslocamentos que podem mentir: cada um é conferido contra o arquivo, cada contagem contra o seu próprio registro, e os espaços em que uma linha se expande têm um limite. O que está errado num guia é listado no alto, em "Problems in this guide", e o resto aparece mesmo assim. Um guia é lido inteiro, até 64 MiB; `H` mostra os bytes.
+
+O formato é conhecido graças a Dave Pearson, que o decifrou nos anos 1990 e mantém os Norton Guides legíveis desde então: <https://www.davep.org/norton-guides/>. O leitor do Xylem é código próprio, escrito a partir da descrição que ele fez do formato; não inclui código dos leitores dele.
+
 ## Executáveis
 
 Um executável, uma biblioteca ou um arquivo objeto abre como um relatório, seja qual for o nome: ELF (Linux, BSD), PE (`.exe`, `.dll`, `.sys` do Windows, também .NET) e Mach-O (macOS, também binários universais com várias arquiteturas). Ele é reconhecido pelos primeiros bytes, nunca pelo nome. O relatório diz:
@@ -177,7 +234,7 @@ Alguns caracteres invisíveis mudam a direção do texto e podem fazer um códig
 
 O Xylem descobre a codificação sozinho, nesta ordem: primeiro descomprime o arquivo, depois procura um BOM (UTF-8, UTF-16 LE ou BE), depois UTF-16 sem BOM, depois UTF-8. Um arquivo que não é nada disso é texto antigo: o Xylem escolhe CP850 (DOS, Europa Ocidental) ou Windows-1252 contando as letras acentuadas. Os arquivos `.reg` do Windows são UTF-16 e abrem como texto normal.
 
-**O** mostra o arquivo na próxima codificação: UTF-8, CP850, Windows-1252, CP437, UTF-16 LE, UTF-16 BE e de volta ao UTF-8. O rodapé diz qual, e o cabeçalho mostra o nome quando não é UTF-8. Se você escolher UTF-16 num arquivo que abriu em hexadecimal, ele passa para texto. Sua escolha continua depois de editar o arquivo e voltar.
+**O** mostra o arquivo na próxima codificação: UTF-8, CP850, Windows-1252, CP437, Windows-1251, KOI8-R, UTF-16 LE, UTF-16 BE e de volta ao UTF-8. O rodapé diz qual, e o cabeçalho mostra o nome quando não é UTF-8. Se você escolher UTF-16 num arquivo que abriu em hexadecimal, ele passa para texto. Sua escolha continua depois de editar o arquivo e voltar.
 
 Para usar sempre uma só codificação nos textos antigos, em vez do palpite, defina `legacy_charset` como `cp850`, `cp1252` ou `cp437` (**K** na página 2 da [configuração](configuration.md)). O padrão é `auto`.
 

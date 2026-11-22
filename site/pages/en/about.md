@@ -7,7 +7,7 @@ differences are in the
 <a href="comparison.md">comparison with ZTreeWin</a>.</p>
 <p>More about XTree: <a href="https://www.xtreefanpage.org/">The XTree Fan Page</a>, kept by
 its fans for over twenty years; and <a href="https://www.ztree.com/">ZTreeWin</a>, which
-carries it on in Windows.</p>
+carries it on in Windows and, since 2026, also on Linux and macOS (in beta).</p>
 </div>
 <blockquote>The name: the xylem is the tissue that carries water through a tree.</blockquote>
 

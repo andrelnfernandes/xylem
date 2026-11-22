@@ -20,6 +20,9 @@ Una ruta fuera del árbol se convierte en un Log al confirmarla. En Branch y
 Showall, `\` va directamente al directorio del archivo seleccionado, dejándolo
 resaltado.
 
+Para encontrar una carpeta por trozos de su nombre, en cualquier nivel, sin
+escribir su ruta: [Búsqueda aproximada](fuzzy.md) (`|`).
+
 ## Log (L)
 
 Abre otro directorio en la ventana, reemplazando el árbol (un directorio dentro

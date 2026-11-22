@@ -4,6 +4,74 @@ A versão mais recente primeiro. Cada seção lista o que há de novo, o que mud
 para quem usava a versão anterior e as teclas que mudaram. As notas completas
 de cada versão estão em `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.9.0
+
+**Novidades.**
+
+- Os Norton Guides (`.ng`), os arquivos de ajuda do DOS e do Clipper, abrem
+  no visualizador como documento: os menus, depois cada entrada numerada
+  (`§12`), com seus links e seu see-also apontando para esses números. Tab
+  escolhe um link, Enter ou um clique o segue, Backspace volta.
+  [O visualizador](viewer.md)
+- Busca aproximada (`|`): digite pedaços de um nome (`cfgxy` encontra
+  `config/xylem`) e o cursor vai para a melhor pasta, na árvore, ou o melhor
+  arquivo da lista, na janela de arquivos. Os resultados aparecem enquanto
+  você digita, o melhor primeiro, mesmo numa árvore de milhões de pastas.
+  Ctrl+T marca o resultado escolhido e Alt+T a lista.
+  [Busca aproximada](fuzzy.md)
+- [Encontrar arquivos e pastas](finding.md): uma página que diz qual busca
+  responde a qual pergunta.
+- Ebooks: EPUB e FictionBook (`.fb2`, `.fb2.zip`) abrem como um livro para
+  ler, numa coluna com os parágrafos de um livro impresso: uma folha de rosto,
+  Space para a próxima página, `]` `[` para os capítulos, Tab para o sumário,
+  Enter para as notas chamadas na página, `g 40%` para uma parte do livro, e
+  quanto falta do capítulo e do livro. `I` mostra o relatório do arquivo: o
+  que o livro diz de si, e se ele traz scripts, coisas buscadas de fora ou
+  DRM. [O visualizador](viewer.md#ebooks)
+- `R` num livro lembra onde você parou, e o livro abre ali na próxima vez. Se
+  você ligar (página 5 do F12), o Xylem também guarda o tempo que você passou
+  lendo cada livro lembrado, as suas sessões e a sua velocidade de leitura,
+  só no seu computador. [Tempo de leitura](configuration.md#reading-time)
+- O F1 abre a ajuda na seção do que você está fazendo: no Batch do
+  visualizador (Ctrl+B), em "Batch no visualizador", não no topo da página.
+  Links para uma seção de uma página da ajuda agora levam até ela.
+- O Xylem pode avisar que saiu uma versão nova. Na primeira vez que abre, ele
+  pergunta se pode procurar uma vez por dia; com um sim, busca no site só o
+  número da versão mais recente, e a linha do topo diz quando sai uma mais
+  nova. Nada é baixado ou instalado. [Versões
+  novas](configuration.md#new-versions)
+- Visões (Alt+V): outras formas de olhar a lista. A Varredura (`S`) aponta o
+  que numa pasta merece um olhar antes de você abri-la: nomes com caracteres
+  ocultos ou extensão dupla (`fatura.pdf.exe`), arquivos setuid e o que
+  qualquer um pode gravar, links que saem da pasta ou apontam para nada, e,
+  lidos com os próprios leitores e limites do visualizador, executáveis sem
+  PIE ou NX ou empacotados, documentos do Office com macros ou modelo remoto,
+  patches que sobem para fora com `..`. Enter numa categoria traz os arquivos
+  dela de volta para a lista, para o Ctrl+T e o resto. A Linha do tempo (`T`)
+  mostra os arquivos da lista num histograma por data, por horas, dias,
+  semanas, meses ou anos; Enter numa barra, ou num intervalo, deixa só os
+  arquivos dela, como uma condição `W`. A Tabela (`L`), que ordena por qualquer coluna com `s`, abre a lista no
+  visualizador de tabelas, um arquivo por linha com as colunas do `W`, mesmo
+  uma lista de milhões de arquivos; `W` ali leva o filtro SQL dela de volta
+  para a lista. [Visões](views.md)
+
+**Mudanças.**
+
+- `O` no visualizador passa por mais duas codificações, Windows-1251 e
+  KOI8-R (cirílico), antes do UTF-16.
+- A exibição de tipo (Alt+F) diz `EPUB ebook (ZIP)`, `FB2 ebook` e
+  `FB2 ebook (ZIP)`.
+
+**Correções.**
+
+- Com o Git ligado, um repositório grande num sistema de arquivos lento
+  (`/mnt/c` no WSL, um compartilhamento de rede) congelava a tela enquanto o
+  `git status` rodava, por minutos. O status agora é lido em segundo plano, e
+  um repositório lento é relido com menos frequência. [Git](git.md)
+- A biblioteca que o Xylem usa para chamadas de sistema (rustix 1.1.6) foi
+  atualizada por causa de um alerta sobre atributos estendidos
+  ([RUSTSEC-2026-0486](https://rustsec.org/advisories/RUSTSEC-2026-0486)).
+
 ## 0.8.0
 
 **Mudança: algumas teclas Alt.** O Alt não repete mais o Ctrl. Ele passa a ser

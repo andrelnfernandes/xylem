@@ -23,7 +23,7 @@ d'aujourd'hui de moins de 1000 octets.
 
 `*` (ou une invite vide) affiche tout. **↑** liste les filespecs précédents ([historique](execute.md#historique)).
 
-Pour choisir des fichiers par une condition SQL (**W**) ou par les mots qu'ils contiennent (**P**), voir [Trouver des fichiers](sql.md).
+Pour choisir des fichiers par une condition SQL (**W**) ou par les mots qu'ils contiennent (**P**), voir [Trouver des fichiers](sql.md). Pour toutes les façons de trouver des fichiers et des dossiers, voir [Trouver des fichiers et des dossiers](finding.md).
 
 Voir aussi : [la fenêtre de fichiers](files.md), [marquage](tagging.md) (Ctrl+T
 dans l'arborescence marque ce qui correspond au filespec).

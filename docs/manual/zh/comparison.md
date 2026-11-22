@@ -4,7 +4,9 @@
 
 我从 1990 年代起就一直在用各种版本的 XTree，自 2013 年起拥有一份付费的 ZTreeWin 授权。在我看来，ZTreeWin 至今仍是最好的文本模式文件管理器：快速、可预期、完全由键盘操作，并围绕一种其他文件管理器都未能企及的工作方式而构建（载入目录树、在整个分支中标记文件、对已标记的文件执行操作）。Kim Henkel 数十年来一直让 XTree 的工作方式在 Windows 上延续下来，没有这份工作就不会有 Xylem。
 
-Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linux 上拥有同样的工作方式，而 ZTreeWin 无法在 Linux 上原生运行。由于 Rust 让跨平台编译变得容易，Xylem 也能在 Windows 上编译，但这并不是我的目标：在 Windows 上，ZTreeWin 完全值得购买：[ztree.com](https://www.ztree.com/)，以及其用户[论坛](https://groups.io/g/ZTreeWin)。
+Xylem 并不打算取代 ZTreeWin。它的起点是我想在 Linux 上拥有同样的工作方式，而当时 ZTreeWin 无法在 Linux 上运行。自 2026 年 11 月的 [2.9.12 测试版](https://www.ztree.com/html/beta.htm) 起，它已经可以了，名为 ZTreeLin（在 macOS 上名为 ZTreeMac）。Xylem 将继续作为同一种工作方式的另一种诠释：开源、首先为 Linux 打造，并具备下文 [Xylem 更进一步的地方](#where-xylem-goes-further) 中所列的功能。由于 Rust 让跨平台编译变得容易，Xylem 也能在 Windows 上编译，但这并不是我的目标：在 Windows 上，ZTreeWin 完全值得购买：[ztree.com](https://www.ztree.com/)，以及其用户[论坛](https://groups.io/g/ZTreeWin)。
+
+查看器能读取 Norton Guides，即 DOS 和 Clipper 的帮助文件，这要感谢 Dave Pearson：他在 1990 年代弄清了这种格式，此后一直让这些文件保持可读：[davep.org/norton-guides](https://www.davep.org/norton-guides/)。
 
 ## 其他终端文件管理器
 
@@ -21,8 +23,9 @@ Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linu
 | vifm | 双面板 | vim 的按键与命令、`:find` 的结果作为可操作的列表、树形视图 |
 | broot | 一棵适应屏幕大小的树 | 在整棵树中模糊搜索、大小统计、用于操作多个文件夹中文件的暂存区 |
 | far2l | 双面板 | Linux 版 Far Manager 及其插件：SFTP、SMB、NFS、WebDAV 和 S3（NetRocks）、十六进制编辑器、Python 脚本 |
+| ZTreeLin | 目录树位于文件列表上方，可分屏 | ZTreeWin 的 XTree 工作方式移植到 Linux，出自同一作者：载入目录树、在整个分支中标记、对已标记的文件执行操作；十六进制编辑器与归档支持；自 2026 年 11 月起处于测试版 |
 
-**Xylem 的不同之处。** 目录树被读入内存，一个按键即可把整个分支或全部已载入内容中的文件列在一个列表中（Branch、Showall），并可按名称、日期和大小（Filespec）或 SQL 条件（`W`）筛选，匹配的字节数与已标记的字节数随时统计。在这里标记所需的文件，然后一次性复制、移动、重命名或删除。上面的几款程序也能把多个文件夹中的文件放进一个列表（mc 的 panelize、vifm 的自定义视图、yazi 的搜索结果、broot 的暂存区），或跨文件夹保留选择（nnn、yazi）；而在 Xylem 中，这个列表就是日常的工作方式，而不是一次搜索的结果。除此之外，其他程序都没有在同一个程序中提供：
+**Xylem 的不同之处。** 目录树被读入内存，一个按键即可把整个分支或全部已载入内容中的文件列在一个列表中（Branch、Showall），并可按名称、日期和大小（Filespec）或 SQL 条件（`W`）筛选，匹配的字节数与已标记的字节数随时统计。在这里标记所需的文件，然后一次性复制、移动、重命名或删除。上面的几款程序也能把多个文件夹中的文件放进一个列表（mc 的 panelize、vifm 的自定义视图、yazi 的搜索结果、broot 的暂存区），或跨文件夹保留选择（nnn、yazi）；而在 Xylem 中（ZTreeLin 也一样），这个列表就是日常的工作方式，而不是一次搜索的结果。除此之外，其他程序都没有在同一个程序中提供：
 
 - 电子表格、CSV、SQLite（支持 `JOIN`）和 Parquet 的表格视图与 SQL 过滤，并可把记录转成脚本、页面或数据库（Batch）。yazi 有一个基于 DuckDB 的插件，可显示 CSV 和 Parquet 文件的预览与摘要，但没有过滤、查询或导出；
 - 针对不可信文件的报告：Office 文档中的宏、远程模板和隐藏文本，可执行文件的保护措施与加壳迹象，补丁中需要检查的文件名，且不运行其中任何内容；
@@ -42,7 +45,7 @@ Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linu
 
 ### Xylem 尚未具备的功能
 
-- **目录树：** Global（G，已标记文件用 Ctrl+G）、Graft (Alt+G)、Mirror (Alt+M)、部分释放（Ctrl+Backspace）、隐藏 (Alt+H)、清理空闲空间 Wash (Alt+W)、卷标 Volume (Ctrl+V)、F5/F6（隐藏子目录层级）、按属性标记（Alt+T/U）、编辑模式下的 Treespec（F5、通配符）与特殊文件夹（F6）、带提示符的先行输入搜索（`|`）与活动模式、盘符切换（`<` 与 `>`）。
+- **目录树：** Global（G，已标记文件用 Ctrl+G）、Graft (Alt+G)、Mirror (Alt+M)、部分释放（Ctrl+Backspace）、隐藏 (Alt+H)、清理空闲空间 Wash (Alt+W)、卷标 Volume (Ctrl+V)、F5/F6（隐藏子目录层级）、按属性标记（Alt+T/U）、编辑模式下的 Treespec（F5、通配符）与特殊文件夹（F6）、活动模式下的先行输入搜索（无提示符）、盘符切换（`<` 与 `>`）。带提示符的先行输入搜索（`|`）已经提供，带有模糊匹配，在文件窗口中也可用：[模糊查找](fuzzy.md)。
 - **文件：** 在新终端窗口中打开 (Alt+O)、当前文件的批处理 (Alt+B)、JFC（J，比较两个文件的内容）、创建快捷方式 sHortcut (H)、打印 Print (P)、修改所有者/组 (chown)、Megaview（文件窗口中的 Ctrl+F7）、在两个窗口间合并已标记文件 (Ctrl+F6)、部分取消标记 Partial Untag (Ctrl+F8)、Showall 以外的 Tags-Only 模式（Ctrl+Enter 与 Ctrl+F4，目录树中的 Ctrl+B）。
 - **通用：** 宏 (F12)、应用程序菜单 (F9)、退出到临时 shell (Ctrl+Q)、保存与加载已载入目录列表（Zlist，Ctrl/Alt+Z）、按名称与属性着色（ZCOLORS.INI）、ZTreeWin 命令行选项、视频模式命令（Alt+F6–F9）。
 

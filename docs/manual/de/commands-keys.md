@@ -29,6 +29,7 @@ F9-Menüs kombiniert: nach F9 nimmt nur der nächste Buchstabe Ctrl oder Alt an.
 | ← | Baum | Klappt das Verzeichnis zu oder wechselt zum übergeordneten Verzeichnis. |
 | `?` | beide | Zeigt Statistiken zu Fenster, Festplatte, Rechner und Xylem an. [Informationen](info.md) |
 | `\` oder `/` | beide | Treespec: Pfad eintippen und der Baum-Cursor folgt ihm. In Branch oder Showall wird das Verzeichnis der Datei unter dem Cursor angesprungen. [Treespec und Log](treespec.md) |
+| `\|` | beide | Unscharfe Suche: Teile eines Namens eintippen, und der Cursor geht zum besten Ordner (im Baum) oder zur besten Datei der Liste (im Dateifenster). [Unscharfe Suche](fuzzy.md) |
 | `'` | beide | Zu einem Lesezeichen springen: anschließend dessen Taste drücken. |
 
 ## Navigation

@@ -1,6 +1,6 @@
 # Trouver des fichiers : SQL et la boîte de recherche
 
-Le [filespec](filespec.md) choisit les fichiers par nom, date et taille. Xylem les trouve aussi par une condition écrite en SQL, sur ce qu'il sait de chaque fichier et sur son contenu (**W**), et par les mots qu'ils contiennent (**P**).
+Le [filespec](filespec.md) choisit les fichiers par nom, date et taille. Xylem les trouve aussi par une condition écrite en SQL, sur ce qu'il sait de chaque fichier et sur son contenu (**W**), et par les mots qu'ils contiennent (**P**). Pour aller à un fichier ou un dossier par des morceaux de son nom, voir [Recherche approximative](fuzzy.md) ; pour toutes les façons de trouver, [Trouver des fichiers et des dossiers](finding.md).
 
 ## Une condition SQL (W)
 

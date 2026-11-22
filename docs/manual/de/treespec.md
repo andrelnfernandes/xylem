@@ -21,6 +21,9 @@ Ein Pfad außerhalb des Baums wird beim Bestätigen wie ein Log geöffnet. In
 Branch und Showall springt `\` direkt zum Verzeichnis der ausgewählten Datei
 und hebt diese hervor.
 
+Um einen Ordner über Teile seines Namens zu finden, auf jeder Ebene und ohne
+seinen Pfad zu tippen: [Unscharfe Suche](fuzzy.md) (`|`).
+
 ## Log (L)
 
 Öffnet ein anderes Verzeichnis im Fenster und ersetzt den Baum (ein Verzeichnis

@@ -626,6 +626,7 @@ impl App {
             Command::Views => self.open_views(),
             Command::ViewScan => self.open_scan(),
             Command::ViewTimeline => self.open_timeline(),
+            Command::ViewTable => self.open_list_table(),
             Command::OpenWith { tagged } => self.open_with(tagged),
             Command::CompareBranch => self.ask_compare(true),
             Command::Parent => {

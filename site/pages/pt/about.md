@@ -7,7 +7,8 @@ as diferenças estão na
 <a href="comparison.md">comparação com o ZTreeWin</a>.</p>
 <p>Mais sobre o XTree (em inglês): <a href="https://www.xtreefanpage.org/">The XTree Fan
 Page</a>, mantida pelos fãs há mais de vinte anos; e o
-<a href="https://www.ztree.com/">ZTreeWin</a>, que continua o XTree no Windows.</p>
+<a href="https://www.ztree.com/">ZTreeWin</a>, que continua o XTree no Windows e, desde
+2026, também no Linux e no macOS (em beta).</p>
 </div>
 <blockquote>O nome: o xilema (<i>xylem</i>, em inglês) é o tecido que leva a água pela árvore.</blockquote>
 

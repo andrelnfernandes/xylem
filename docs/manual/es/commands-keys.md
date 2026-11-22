@@ -29,6 +29,7 @@ tras F9, únicamente la siguiente letra admite Ctrl o Alt.
 | ← | Árbol | Contrae el directorio, o va al directorio padre. |
 | `?` | ambas | Muestra las estadísticas de la ventana, del disco, de la máquina y de Xylem. [Información](info.md) |
 | `\` o `/` | ambas | Treespec: escribe una ruta y el cursor del árbol la sigue. En un Branch o Showall, va al directorio del archivo bajo el cursor. [Treespec y Log](treespec.md) |
+| `\|` | ambas | Búsqueda aproximada: escribe trozos de un nombre y el cursor va a la mejor carpeta (en el árbol) o al mejor archivo de la lista (en la ventana de archivos). [Búsqueda aproximada](fuzzy.md) |
 | `'` | ambas | Salta a un marcador: pulsa su tecla asignada a continuación. |
 
 ## Moverse

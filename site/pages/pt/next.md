@@ -10,11 +10,6 @@
 </div>
 <div class="feature">
 <p class="badge">Planejado</p>
-<h3>Um visualizador que lê mais</h3>
-<p>Um visualizador que lê em janelas, como o <code>less</code>, sem limite de tamanho, e logs que acompanham e colorem por nível.</p>
-</div>
-<div class="feature">
-<p class="badge">Planejado</p>
 <h3>Mais do ZTreeWin</h3>
 <p>Comparar o conteúdo de dois arquivos (JFC), e salvar o log para abrir a árvore de um disco na hora da próxima vez.</p>
 </div>

@@ -28,7 +28,7 @@ In the order of the menu. "Tree" and "Files" say where the key works.
 | Alt+R | Release | yes | | Drops the branch from memory, as `-` does. Its tags are lost. |
 | Alt+S | Sort | yes | yes | Sorts the file window by name, extension, date or size. [Sort](sort.md) |
 | Alt+U | Usage | yes | yes | Lists the folders and files of the branch by the space they take, largest first. [Disk usage](usage.md) |
-| Alt+V | Views | yes | yes | Opens the views of the list: the Scan, which points at names, permissions and links that deserve a look. [Views](views.md) |
+| Alt+V | Views | yes | yes | Opens the views of the list: the Scan, which points at what deserves a look, the Timeline, by date, and the Table, the list in the table viewer. [Views](views.md) |
 | Alt+N | iNdex | yes | yes | Indexes the words of the branch's logged files, so that `words()` in a SQL condition answers at once. [The index](sql.md#whole-words-and-an-index-words) |
 
 ## Other keys

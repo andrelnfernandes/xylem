@@ -23,7 +23,7 @@ que 1000 bytes.
 
 `*` (ou um prompt vazio) mostra tudo. **↑** lista os filespecs anteriores ([histórico](execute.md#histórico)).
 
-Para escolher arquivos por uma condição SQL (**W**) ou pelas palavras que contêm (**P**), veja [Encontrar arquivos](sql.md).
+Para escolher arquivos por uma condição SQL (**W**) ou pelas palavras que contêm (**P**), veja [Encontrar arquivos](sql.md). Para todas as formas de encontrar arquivos e pastas, veja [Encontrar arquivos e pastas](finding.md).
 
 Veja também: [a janela de arquivos](files.md), [marcações](tagging.md) (Ctrl+T
 na árvore marca o que corresponde ao filespec).

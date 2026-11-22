@@ -449,7 +449,32 @@ fn the_scan_draws() {
     screen(&mut app, 30, 10);
 }
 
-/// What the Table (Alt+V, B; docs/plans/views.md, stage 4) would take with a
+#[test]
+fn the_table_shows_the_list_and_w_takes_its_filter_back() {
+    let (_tmp, mut app) = dated();
+    alt(&mut app, 'v');
+    press(&mut app, KeyCode::Char('l'));
+    let v = app.viewer.as_mut().expect("the table of the list");
+    assert_eq!(v.mode, crate::viewer::ViewMode::Table);
+    let t = v.table.as_ref().unwrap();
+    assert_eq!(&t.headers[..4], ["name", "ext", "dir", "size"]);
+    assert_eq!(t.visible_row_count(), 4);
+    // W with no filter says how to make one.
+    press(&mut app, KeyCode::Char('w'));
+    let v = app.viewer.as_mut().expect("still open");
+    assert!(v.note.as_deref().unwrap().contains("filters the table"));
+    v.sql_prompt("ext = 'txt' AND modified >= '2026-11-18'");
+    assert_eq!(v.table.as_ref().unwrap().visible_row_count(), 2);
+    press(&mut app, KeyCode::Char('w'));
+    assert!(app.viewer.is_none());
+    assert_eq!(app.files.len(), 2);
+    assert_eq!(
+        app.query.as_ref().unwrap().text(),
+        "ext = 'txt' AND modified >= '2026-11-18'"
+    );
+}
+
+/// What the Table (Alt+V, L; docs/plans/views.md, stage 4) would take with a
 /// big list, before it is written: the list of Showall over a made-up tree, a
 /// compact snapshot of it read by the table window, sorting it by a column,
 /// and, to compare, every cell made text up front.
@@ -843,4 +868,30 @@ fn table_measure() {
         rss() - before
     );
     assert_eq!(all.len(), pane.files.len());
+}
+
+#[test]
+fn s_sorts_the_table_by_the_column_and_keeps_the_filter() {
+    let (_tmp, mut app) = dated();
+    app.apply(Command::ViewTable);
+    let first = |app: &App| {
+        let t = app.viewer.as_ref().unwrap().table.as_ref().unwrap();
+        t.row(t.file_row(0).unwrap()).unwrap().cells[0].clone()
+    };
+    // The cursor to `modified`, then the newest last and then first.
+    for _ in 0..5 {
+        press(&mut app, KeyCode::Right);
+    }
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(first(&app), "a.txt");
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(first(&app), "d.txt");
+    let v = app.viewer.as_mut().unwrap();
+    assert!(v.note.as_deref().unwrap().contains("descending"));
+    // A filter stays on through a sort.
+    v.sql_prompt("ext = 'txt'");
+    press(&mut app, KeyCode::Char('s'));
+    let t = app.viewer.as_ref().unwrap().table.as_ref().unwrap();
+    assert_eq!(t.visible_row_count(), 3);
+    assert_eq!(first(&app), "a.txt");
 }

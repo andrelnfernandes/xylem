@@ -20,6 +20,9 @@ Un chemin extérieur à l'arborescence devient un Log une fois validé. Dans Bra
 et Showall, `\` va directement au répertoire du fichier sélectionné, en le
 mettant en surbrillance.
 
+Pour trouver un dossier par des morceaux de son nom, à n'importe quel niveau,
+sans taper son chemin : [Recherche approximative](fuzzy.md) (`|`).
+
 ## Log (L)
 
 Ouvre un autre répertoire dans la fenêtre, en remplaçant l'arborescence (un

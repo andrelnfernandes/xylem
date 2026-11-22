@@ -30,6 +30,7 @@ fonctionne.
 | Alt+R | Release | oui | | Libère la branche de la mémoire, comme `-`. Les marques sont perdues. |
 | Alt+S | Sort | oui | oui | Trie la fenêtre de fichiers par nom, extension, date ou taille. [Trier](sort.md) |
 | Alt+U | Usage | oui | oui | Liste les dossiers et fichiers de la branche selon l'espace occupé, les plus volumineux en premier. [Utilisation du disque](usage.md) |
+| Alt+V | Views | oui | oui | Ouvre les vues de la liste : le Scan, qui montre ce qui mérite un coup d'œil, la Timeline, par date, et la Table, la liste dans la visionneuse de tableaux. [Vues](views.md) |
 | Alt+N | iNdex | oui | oui | Indexe les mots des fichiers lus de la branche, pour que `words()` dans une condition SQL réponde instantanément. [L'index](sql.md#mots-entiers-et-un-index--words) |
 
 ## Autres touches

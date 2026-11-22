@@ -1,6 +1,6 @@
 # Plano: avisar que saiu uma versão nova
 
-**Para a 0.9.0** (pedido e aprovado em 2026-11-21). O padrão foi decidido pelo autor: o Xylem
+**Feito na 0.9.0** (pedido e aprovado em 2026-11-21; PR #132). O padrão foi decidido pelo autor: o Xylem
 **pergunta na primeira execução** se pode procurar versões novas.
 
 ## O motivo e o cuidado

@@ -9,6 +9,7 @@ pub mod epub;
 pub mod jupyter;
 pub mod line_filter;
 pub mod lines;
+pub mod list_rows;
 pub mod log;
 pub mod markdown;
 pub mod ng;
@@ -116,6 +117,8 @@ pub enum Action {
     FilterLines,
     /// Ctrl+B: a line of output per record of what is shown.
     Batch,
+    /// W in the table of the list: its filter becomes the list's `W`.
+    ToList,
 }
 
 /// How a file is read: how much of it, and whether a compressed file is
@@ -336,6 +339,9 @@ pub struct Viewer {
     problem: Option<String>,
     /// Tabular grid for CSV, spreadsheet, SQLite, or DBF files.
     pub table: Option<table::TableGrid>,
+    /// The table is the file list (Alt+V, Table), read through this source
+    /// and not from a file.
+    pub list: Option<list_rows::ListTable>,
     /// The list of the table's sheets, while it is open (Tab).
     pub sheet_list: Option<table::SheetList>,
     /// The index of a patch read whole (see `patch`).
@@ -1394,13 +1400,14 @@ impl Viewer {
                     return Err("No table to read".into());
                 };
                 // A mark is a place in the file, and the table is read again.
-                if !t.marked.is_empty() && t.marked_stamp != records::file_stamp(&self.path) {
+                if !t.marked.is_empty() && t.marked_stamp != self.table_stamp() {
                     return Err(
                         "The file changed after its records were marked: mark them again (M clears)"
                             .into(),
                     );
                 }
                 Ok(batch::Source::Table {
+                    rows: self.list.as_ref().map(|l| l.opener.clone()),
                     path: self.path.clone(),
                     sheet: t.current_sheet,
                     table: t.sheets.get(t.current_sheet).cloned(),
@@ -1452,10 +1459,19 @@ impl Viewer {
         Ok((text, usize::MAX, w.size() > limit))
     }
 
+    /// What says the table's file is the one read: the list of Alt+V
+    /// does not change under its table.
+    fn table_stamp(&self) -> records::Stamp {
+        if self.list.is_some() {
+            return None;
+        }
+        records::file_stamp(&self.path)
+    }
+
     /// `m` and Insert: marks or unmarks the record under the cursor, and goes
     /// to the next one.
     fn toggle_mark(&mut self) {
-        let stamp = records::file_stamp(&self.path);
+        let stamp = self.table_stamp();
         let rows = self.grid_rows();
         let Some(t) = &mut self.table else { return };
         let Some(row) = t.file_row(t.cursor_row) else {
@@ -2908,6 +2924,61 @@ impl Viewer {
     }
 
     /// Views bytes already read (e.g. an entry of an archive).
+    /// The file list as a table (Alt+V, Table): `title` names it in the
+    /// header, and the rows after the first ones come from `list`.
+    pub fn from_list(title: PathBuf, list: Arc<list_rows::ListSnapshot>) -> Result<Self, String> {
+        let opener = list.opener();
+        let grid = tabular_loader::load_list(&title, opener.clone())?;
+        let mut v = Self::from_bytes(title, 0, Vec::new());
+        v.on_disk = false;
+        v.table = Some(grid);
+        v.list = Some(list_rows::ListTable {
+            snapshot: list,
+            opener,
+            sort: None,
+        });
+        v.mode = ViewMode::Table;
+        Ok(v)
+    }
+
+    /// `s` in the table of the list: sorts it by the column under the
+    /// cursor, and the other way round on the same column. The filter that
+    /// was on stays on.
+    fn sort_list(&mut self) {
+        let (Some(list), Some(t)) = (&self.list, &self.table) else {
+            return;
+        };
+        let Some(column) = t.headers.get(t.cursor_col).cloned() else {
+            return;
+        };
+        let descending = matches!(&list.sort, Some((c, d)) if *c == column && !*d);
+        let order = Arc::new(list.snapshot.order_by(&column, descending));
+        let opener = list.snapshot.opener_in(Some(order));
+        let (col, filter) = (t.cursor_col, t.active_filter.clone());
+        match tabular_loader::load_list(&self.path, opener.clone()) {
+            Ok(mut grid) => {
+                grid.cursor_col = col;
+                self.table = Some(grid);
+                if let Some(list) = &mut self.list {
+                    list.opener = opener;
+                    list.sort = Some((column.clone(), descending));
+                }
+                if let Some(filter) = filter {
+                    self.sql_prompt(&filter);
+                }
+                let way = if descending {
+                    "descending"
+                } else {
+                    "ascending"
+                };
+                self.note = Some(format!(
+                    "Sorted by {column}, {way} (s again: the other way)"
+                ));
+            }
+            Err(e) => self.note = Some(format!("Cannot sort: {e}")),
+        }
+    }
+
     pub fn from_bytes(path: PathBuf, size: u64, data: Vec<u8>) -> Self {
         let binary = looks_binary(&data);
         Self::build(path, size, data, Charset::Utf8, binary, MAX_BYTES as usize)
@@ -2980,6 +3051,7 @@ impl Viewer {
             lines_cut: text.cut,
             problem: None,
             table: None,
+            list: None,
             sheet_list: None,
             structure_view: None,
             record_view: None,
@@ -3949,6 +4021,18 @@ impl Viewer {
             KeyCode::Right if self.mode == ViewMode::Rendered || self.pans() => {
                 self.left += PAN_STEP;
                 Action::None
+            }
+            KeyCode::Char('s' | 'S')
+                if self.list.is_some() && self.mode == ViewMode::Table && !ctrl && !alt =>
+            {
+                self.sort_list();
+                Action::None
+            }
+            // In the table of the list, W takes its filter back to the list.
+            KeyCode::Char('w' | 'W')
+                if self.list.is_some() && self.mode == ViewMode::Table && !ctrl && !alt =>
+            {
+                Action::ToList
             }
             KeyCode::Char('w' | 'W') => {
                 self.toggle_wrap();

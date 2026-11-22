@@ -5,6 +5,76 @@ les changements pour les utilisateurs de la version précédente et les touches
 modifiées. Les notes complètes de chaque version sont disponibles sur
 `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.9.0
+
+**Nouveautés.**
+
+- Les Norton Guides (`.ng`), les fichiers d'aide de DOS et de Clipper,
+  s'ouvrent dans la visionneuse comme un document : les menus, puis chaque
+  entrée numérotée (`§12`), avec ses liens et ses « voir aussi » renvoyant à
+  ces numéros. Tab choisit un lien, Enter ou un clic le suit, Backspace revient
+  en arrière. [La visionneuse](viewer.md)
+- Recherche approximative (`|`) : tapez des morceaux d'un nom (`cfgxy` trouve
+  `config/xylem`) et le curseur va au meilleur dossier, dans l'arborescence, ou
+  fichier de la liste, dans la fenêtre de fichiers. Les résultats s'affichent à
+  mesure que vous tapez, le meilleur en premier, même dans une arborescence de
+  millions de dossiers. Ctrl+T marque le résultat choisi et Alt+T la liste.
+  [Recherche approximative](fuzzy.md)
+- [Trouver des fichiers et des dossiers](finding.md) : une page qui dit quelle
+  recherche répond à quelle question.
+- Livres numériques : EPUB et FictionBook (`.fb2`, `.fb2.zip`) s'ouvrent comme
+  un livre à lire, dans une colonne aux paragraphes de livre imprimé : une page
+  de titre, Space pour la page suivante, `]` `[` pour les chapitres, Tab pour la
+  table des matières, Enter pour les notes appelées sur la page, `g 40%` pour
+  une partie du livre, et le temps restant du chapitre et du livre. `I` montre
+  le rapport sur le fichier : ce que le livre dit de lui-même, et s'il contient
+  des scripts, des choses récupérées à l'extérieur ou des DRM. [La
+  visionneuse](viewer.md#ebooks)
+- `R` dans un livre mémorise où vous vous êtes arrêté, et le livre s'ouvre là
+  la fois suivante. Si vous l'activez (page 5 de F12), Xylem conserve aussi le
+  temps passé à lire chaque livre mémorisé, vos sessions et votre vitesse de
+  lecture, uniquement sur votre ordinateur. [Temps de
+  lecture](configuration.md#reading-time)
+- F1 ouvre l'aide à la section de ce que vous faites : dans le Batch de la
+  visionneuse (Ctrl+B), à « Batch dans la visionneuse », pas en haut de la page.
+  Les liens vers une section d'une page de l'aide y mènent désormais.
+- Xylem peut savoir qu'une nouvelle version est sortie. Au premier démarrage,
+  il demande s'il peut chercher une fois par jour ; avec un oui, il ne récupère
+  du site web que le numéro de la dernière version, et la ligne du haut indique
+  quand une plus récente est sortie. Rien n'est téléchargé ni installé.
+  [Nouvelles versions](configuration.md#new-versions)
+- Vues (Alt+V) : d'autres façons de regarder la liste. Le Scan (`S`) montre ce
+  qui, dans un dossier, mérite un coup d'œil avant de l'ouvrir : noms avec des
+  caractères cachés ou une double extension (`fatura.pdf.exe`), fichiers setuid
+  et ce que n'importe qui peut écrire, liens qui sortent du dossier ou ne
+  mènent nulle part, et, lus avec les lecteurs et les limites de la visionneuse,
+  exécutables sans PIE ni NX ou compressés, documents Office avec macros ou
+  modèle distant, patchs qui sortent avec `..`. Enter sur une catégorie ramène
+  ses fichiers dans la liste, pour Ctrl+T et le reste. La Timeline (`T`) montre
+  les fichiers de la liste dans un histogramme par date, par heures, jours,
+  semaines, mois ou années ; Enter sur une barre, ou une plage, ne garde que ses
+  fichiers, comme une condition `W`. La Table (`L`), triée par n'importe quelle colonne avec `s`, ouvre la liste dans la
+  visionneuse de tableaux, un fichier par ligne avec les colonnes de `W`, même
+  une liste de millions de fichiers ; `W` y renvoie son filtre SQL à la liste.
+  [Vues](views.md)
+
+**Changements.**
+
+- `O` dans la visionneuse passe par deux encodages de plus, Windows-1251 et
+  KOI8-R (cyrillique), avant l'UTF-16.
+- L'affichage Type (Alt+F) indique `EPUB ebook (ZIP)`, `FB2 ebook` et
+  `FB2 ebook (ZIP)`.
+
+**Corrections.**
+
+- Avec Git activé, un grand dépôt sur un système de fichiers lent (`/mnt/c`
+  depuis WSL, un partage réseau) figeait l'écran pendant que `git status`
+  tournait, pendant des minutes. L'état est désormais lu en arrière-plan, et un
+  dépôt lent est relu moins souvent. [Git](git.md)
+- La bibliothèque que Xylem utilise pour les appels système (rustix 1.1.6) est
+  mise à jour pour un avis concernant les attributs étendus
+  ([RUSTSEC-2026-0486](https://rustsec.org/advisories/RUSTSEC-2026-0486)).
+
 ## 0.8.0
 
 **Changement : certaines touches Alt.** Alt ne répète plus Ctrl. Il devient

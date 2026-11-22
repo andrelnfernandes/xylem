@@ -29,6 +29,7 @@ En el orden del menú. "Árbol" y "Archivos" indican dónde funciona la tecla.
 | Alt+R | Release | sí | | Libera la rama de la memoria, como hace `-`. Las marcas se pierden. |
 | Alt+S | Sort | sí | sí | Ordena la ventana de archivos por nombre, extensión, fecha o tamaño. [Ordenar](sort.md) |
 | Alt+U | Usage | sí | sí | Lista las carpetas y archivos de la rama según el espacio que ocupan, de mayor a menor. [Uso de disco](usage.md) |
+| Alt+V | Views | sí | sí | Abre las vistas de la lista: el Escaneo, que señala lo que merece una mirada, la Línea de tiempo, por fecha, y la Tabla, la lista en el visor de tablas. [Vistas](views.md) |
 | Alt+N | iNdex | sí | sí | Indexa las palabras de los archivos registrados de la rama para que `words()` en una condición SQL responda al instante. [El índice](sql.md#palabras-enteras-y-un-índice-words) |
 
 ## Otras teclas

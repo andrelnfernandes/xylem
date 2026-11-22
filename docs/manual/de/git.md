@@ -4,6 +4,14 @@ Git ist standardmäßig deaktiviert. Schalten Sie es mit F12 (Seite 1,
 „Git commands") oder über `git = true` unter `[options]` in der
 [Konfiguration](configuration.md) ein. Das Programm `git` muss installiert sein.
 
+Git lässt sich ausschalten, weil es etwas kostet: Um den Status der Dateien
+zu zeigen, führt Xylem `git status` für das ganze Repository aus, und das
+alle paar Sekunden erneut. In einem großen Repository auf einem langsamen
+Dateisystem (ein Windows-Laufwerk aus WSL gesehen, wie `/mnt/c`, oder eine
+Netzwerkfreigabe) kann ein einziges `git status` Minuten dauern. Es läuft im
+Hintergrund, sodass der Bildschirm weiter antwortet, aber es hält die
+Festplatte beschäftigt; Git auf Seite 1 von F12 auszuschalten vermeidet das.
+
 ## Das Git-Menü (Ctrl+G)
 
 Ctrl+G öffnet das Git-Menü in der Fußzeile; der nächste Buchstabe wählt den
@@ -31,6 +39,15 @@ aber nicht vorgemerkt, `A ` hinzugefügt, `??` unversioniert, `R ` umbenannt.
 Unveränderte Dateien zeigen Leerzeichen. Der Status wird nach eigenen
 Operationen von Xylem, nach F3 sowie alle 10 Sekunden neu eingelesen (um
 Commits zu erfassen, die in einem anderen Terminal ausgeführt wurden).
+
+Der Status wird im Hintergrund gelesen: Die Zeichen erscheinen, wenn er
+fertig ist, und solange ein Lesen länger als eine Sekunde dauert, zeigt der
+Titel des Dateifensters `git status...`. Ein Repository, dessen Status lange
+gedauert hat, wird von selbst seltener neu gelesen: nach dem Zehnfachen der
+Dauer des letzten Lesens, sodass eines mit zwei Minuten etwa zwanzig wartet,
+es sei denn, F3 oder eine Operation verlangt es. Eine Bedingung von `W` auf
+`git` wartet bis zu zwei Sekunden auf den Status und sagt, wenn er noch
+gelesen wird.
 
 ## Diff im Betrachter
 

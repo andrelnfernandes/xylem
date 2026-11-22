@@ -4,6 +4,14 @@ Git est désactivé par défaut. Activez-le avec F12 (page 1, « Git commands »
 avec `git = true` sous `[options]` dans la [configuration](configuration.md). Le
 programme `git` doit être installé.
 
+Git peut être désactivé parce qu'il n'est pas gratuit : pour afficher l'état des
+fichiers, Xylem lance `git status` sur tout le dépôt, et le relance toutes les
+quelques secondes. Dans un grand dépôt sur un système de fichiers lent (un
+disque Windows vu depuis WSL, comme `/mnt/c`, ou un partage réseau), un seul
+`git status` peut prendre des minutes. Il tourne en arrière-plan, donc l'écran
+continue de répondre, mais il occupe le disque ; désactiver Git, à la page 1 de
+F12, l'évite.
+
 ## Le menu Git (Ctrl+G)
 
 Ctrl+G ouvre le menu Git dans le pied de page ; la lettre suivante choisit :
@@ -31,6 +39,14 @@ indexé, `A ` ajouté, `??` non suivi, `R ` renommé. Les fichiers inchangés
 affichent des espaces. L'état est relu après les opérations de Xylem, après F3,
 et toutes les 10 secondes (pour détecter les commits faits dans un autre
 terminal).
+
+L'état est lu en arrière-plan : les lettres apparaissent quand la lecture est
+finie, et tant qu'une lecture prend plus d'une seconde, le titre de la fenêtre
+de fichiers indique `git status...`. Un dépôt dont l'état a été long à lire est
+relu moins souvent de lui-même : dix fois la durée de la dernière lecture, donc
+une lecture de deux minutes attend une vingtaine de minutes, sauf si F3 ou une
+opération la demande. Une condition de `W` sur `git` attend l'état jusqu'à deux
+secondes, et indique quand il est encore en cours de lecture.
 
 ## Diff dans la visionneuse
 

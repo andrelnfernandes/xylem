@@ -10,8 +10,12 @@ tags) that no other file manager has matched. Kim Henkel has kept the XTree way
 alive on Windows for decades, and Xylem would not exist
 without that work.
 
-Xylem is not meant to replace ZTreeWin. It exists because I wanted the same
-way of working on Linux, where ZTreeWin does not run natively. Xylem also
+Xylem is not meant to replace ZTreeWin. It started because I wanted the same
+way of working on Linux, where ZTreeWin did not run. Since the
+[2.9.12 beta](https://www.ztree.com/html/beta.htm) of November 2026 it does, as ZTreeLin (and on macOS as
+ZTreeMac). Xylem goes on as another take on the same way of working: open
+source, built on Linux first, with what is in
+[Where Xylem goes further](#where-xylem-goes-further), below. Xylem also
 builds for Windows, because Rust makes that easy, but that is not a goal of
 mine: on Windows, ZTreeWin is well worth its license:
 [ztree.com](https://www.ztree.com/), and its users'
@@ -41,6 +45,7 @@ issue.
 | vifm | two panels | vim keys and commands, the results of `:find` as a list to work on, a tree view |
 | broot | one tree that fits the screen | fuzzy search over the whole tree, sizes, a staging area to act on files from many folders |
 | far2l | two panels | Far Manager for Linux, with its plugins: SFTP, SMB, NFS, WebDAV and S3 (NetRocks), a hex editor, Python scripts |
+| ZTreeLin | a directory tree above the file list, split screen | the XTree way of ZTreeWin on Linux, from its makers: log the tree, tag across whole branches, act on the tags; a hex editor and archives; in beta since November 2026 |
 
 **What sets Xylem apart.** The tree is read into memory, and one key lists
 the files of a whole branch, or of everything read, in one list (Branch,
@@ -49,8 +54,8 @@ Showall), narrowed by name, date and size (Filespec) or a SQL condition
 you want there and copy, move, rename or delete it all at once. Several of
 the programs above can put files from many folders in one list too (mc's
 panelize, vifm's custom views, yazi's search results, broot's staging area),
-or keep a selection across folders (nnn, yazi); in Xylem that list is how you
-work all the time, not the result of a search. Besides that, nothing else
+or keep a selection across folders (nnn, yazi); in Xylem, as in ZTreeLin, that
+list is how you work all the time, not the result of a search. Besides that, nothing else
 here has in the same program:
 
 - tables with a SQL filter for spreadsheets, CSV, SQLite (with `JOIN`) and

@@ -10,11 +10,6 @@
 </div>
 <div class="feature">
 <p class="badge">Planned</p>
-<h3>A viewer that reads more</h3>
-<p>A viewer that reads in windows, like <code>less</code>, with no size limit, and logs that follow and color by level.</p>
-</div>
-<div class="feature">
-<p class="badge">Planned</p>
 <h3>More from ZTreeWin</h3>
 <p>Comparing the contents of two files (JFC), and saving the log to open a disk's tree at once next time.</p>
 </div>

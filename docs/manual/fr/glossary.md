@@ -16,6 +16,7 @@ manuel les emploient avec les significations suivantes.
 | Tag | Une marque posée sur un fichier (`■`). Les commandes Ctrl agissent sur les fichiers marqués. Les marques restent en mémoire et sont perdues lors d'un Release ou en quittant. [Marquage et opérations groupées](tagging.md) |
 | Filespec | Le filtre déterminant les fichiers affichés par la fenêtre, par nom, date et taille. Défini avec `F`. [Filespec](filespec.md) |
 | Treespec | Un chemin saisi pour déplacer le curseur de l'arborescence. Ouvert avec `\` ou `/`. [Treespec](treespec.md) |
+| Recherche approximative | `\|` : des morceaux d'un nom, tapés pour amener le curseur au meilleur dossier ou fichier. [Recherche approximative](fuzzy.md) |
 | Fenêtre | Une arborescence avec sa fenêtre de fichiers. F8 en ouvre une seconde à côté. [Écran partagé](split.md) |
 | Racine | Le répertoire au sommet de l'arborescence. `L` le modifie, et Alt+L fait du répertoire sous le curseur la racine. |
 | Matching | Les fichiers lus qui correspondent au Filespec. |

@@ -11,12 +11,21 @@ les fichiers marqués) qu'aucun autre gestionnaire de fichiers n'a égalée. Kim
 Henkel fait vivre la manière XTree sous Windows depuis des décennies, et Xylem
 n'existerait pas sans ce travail.
 
-Xylem n'a pas vocation à remplacer ZTreeWin. Il existe parce que je voulais la
-même manière de travailler sous Linux, où ZTreeWin ne tourne pas nativement.
+Xylem n'a pas vocation à remplacer ZTreeWin. Il est né parce que je voulais la
+même manière de travailler sous Linux, où ZTreeWin ne tournait pas. Depuis la
+[bêta 2.9.12](https://www.ztree.com/html/beta.htm) de novembre 2026, il y tourne, sous le nom de ZTreeLin (et
+sous macOS, ZTreeMac). Xylem continue comme une autre lecture de la même
+manière de travailler : libre, fait d'abord pour Linux, avec ce qui est dans
+[Là où Xylem va plus loin](#where-xylem-goes-further), plus bas.
 Xylem se compile aussi pour Windows, parce que Rust le rend facile, mais ce
 n'est pas un objectif pour moi : sous Windows, ZTreeWin vaut largement sa
 licence : [ztree.com](https://www.ztree.com/), et le
 [forum](https://groups.io/g/ZTreeWin) de ses utilisateurs.
+
+La visionneuse lit les Norton Guides, les fichiers d'aide de DOS et de Clipper,
+grâce à Dave Pearson, qui a décrypté leur format dans les années 1990 et les
+garde lisibles depuis :
+[davep.org/norton-guides](https://www.davep.org/norton-guides/).
 
 ## Autres gestionnaires de fichiers pour le terminal
 
@@ -37,6 +46,7 @@ vite, donc si quelque chose ici n'est plus à jour, ouvrez une issue.
 | vifm | deux panneaux | les touches et commandes de vim, les résultats de `:find` comme liste de travail, une vue en arborescence |
 | broot | une arborescence qui tient dans l'écran | recherche floue dans toute l'arborescence, tailles, une zone de préparation (staging) pour agir sur des fichiers de nombreux dossiers |
 | far2l | deux panneaux | Far Manager pour Linux, avec ses plugins : SFTP, SMB, NFS, WebDAV et S3 (NetRocks), un éditeur hexadécimal, des scripts Python |
+| ZTreeLin | une arborescence au-dessus de la liste des fichiers, écran partagé | la manière XTree de ZTreeWin sous Linux, par ses auteurs : lire l'arborescence, marquer dans des branches entières, agir sur les fichiers marqués ; un éditeur hexadécimal et les archives ; en bêta depuis novembre 2026 |
 
 **Ce qui distingue Xylem.** L'arborescence est lue en mémoire, et une touche
 affiche dans une seule liste les fichiers de toute une branche, ou de tout ce
@@ -47,7 +57,7 @@ renommez ou supprimez le tout en une fois. Plusieurs des programmes ci-dessus
 peuvent aussi rassembler dans une liste des fichiers de nombreux dossiers (le
 panelize de mc, les vues personnalisées de vifm, les résultats de recherche de
 yazi, la zone de préparation de broot), ou garder une sélection entre dossiers
-(nnn, yazi) ; dans Xylem, cette liste est la manière de travailler en
+(nnn, yazi) ; dans Xylem, comme dans ZTreeLin, cette liste est la manière de travailler en
 permanence, et non le résultat d'une recherche. En plus de cela, aucun des
 autres ne réunit dans un même programme :
 
@@ -100,8 +110,10 @@ les exceptions sont dans « Touches différentes », à la fin.
 - **Arborescence :** Global (G, et Ctrl+G pour les marqués), Graft (Alt+G), Mirror (Alt+M), libération partielle (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
   (Ctrl+V), F5/F6 (masquer des niveaux de sous-répertoires), marquer par
   attribut (Alt+T/U), Treespec en mode édition (F5, jokers) et dossiers spéciaux
-  (F6), recherche directe avec invite (`|`) et mode actif, changement de lecteur
-  (`<` et `>`).
+  (F6), recherche directe en mode actif (sans invite), changement de lecteur
+  (`<` et `>`). La recherche directe avec invite (`|`) existe, avec une
+  correspondance approximative et aussi dans la fenêtre de fichiers :
+  [Recherche approximative](fuzzy.md).
 - **Fichiers :** Ouvrir dans une nouvelle fenêtre de terminal (Alt+O), Batch du
   fichier courant (Alt+B), JFC (J, comparer le contenu de deux fichiers),
   sHortcut (H), Print (P), propriétaire/groupe (chown), Megaview (Ctrl+F7 dans

@@ -78,10 +78,16 @@ In more detail:
   and conflict details), delete to the trash with Oops to restore, Prune,
   rename with masks, permissions and dates, Compare between two windows.
 - **Finding things:** Filespec by name, date and size, Treespec to type a path,
-  bookmarks, and Ctrl+S to search the tagged files for text.
+  the fuzzy find (`|`) for a folder or file by pieces of its name, a SQL
+  condition (`W`) over the list, by name, date, size or contents, bookmarks,
+  and Ctrl+S to search the tagged files for text.
+- **Views of the list (Alt+V):** the Scan points at what in a folder deserves
+  a look (hidden characters in names, setuid files, executables without
+  protections, Office documents with macros), the Timeline shows the files by
+  date, and the Table opens the list in the table viewer.
 - **Looking inside:** a text and hex viewer with search, a line filter with
   regular expressions and syntax colors, Markdown shown rendered, EPUB and FB2
-  ebooks to read as a book, a table mode with a SQL filter for
+  ebooks to read as a book, Norton Guides, a table mode with a SQL filter for
   spreadsheets, CSV, JSON Lines, DBF, SQLite and Parquet, and Ctrl+B to turn
   those records or lines into a script, JSON, SQL or anything else,
   Autoview next to the list, ZIP, 7z and TAR archives opened as directories,
@@ -180,8 +186,8 @@ x86_64 or ARM64 (static, runs on any distribution) or Windows x86_64.
 Extract it and put `xy` (`xy.exe`) somewhere on your `PATH`, e.g.:
 
 ```bash
-tar xzf xy-v0.8.0-x86_64-unknown-linux-musl.tar.gz
-install -m 755 xy-v0.8.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
+tar xzf xy-v0.9.0-x86_64-unknown-linux-musl.tar.gz
+install -m 755 xy-v0.9.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
 ```
 
 Each archive has a `.sha256` next to it, to check with `sha256sum -c`.
@@ -334,6 +340,8 @@ Found a problem? Please report it privately [via GitHub Security Advisories](htt
   text, with templates, conditions, totals and output to SQLite.
 - Duplicates (Alt+D): files and whole folders, on local disks and through the
   hashes rclone gives.
+- Finding: the SQL condition (`W`) with an index of the contents, the search
+  box (P) and the fuzzy find (`|`); the views of the list (Alt+V).
 
 ### Next
 
