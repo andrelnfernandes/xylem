@@ -51,7 +51,13 @@ pub fn sniff(head: &[u8]) -> Option<Compression> {
 pub const CHUNK: usize = 64 << 10;
 pub(crate) const VIEW_DICT: u32 = 64 << 20;
 pub const AUTOVIEW_DICT: u32 = 16 << 20;
+/// How long the V key may spend loading a file. Tests share the machine with
+/// each other, so theirs is generous: a small file must not be cut by a busy
+/// machine. The tests of the time limit set their own (`AUTOVIEW_TIME`, zero).
+#[cfg(not(test))]
 pub const VIEW_TIME: Duration = Duration::from_secs(3);
+#[cfg(test)]
+pub const VIEW_TIME: Duration = Duration::from_secs(60);
 pub const AUTOVIEW_TIME: Duration = Duration::from_millis(100);
 pub const TRUNCATED: &str = "compressed data truncated or corrupt";
 
