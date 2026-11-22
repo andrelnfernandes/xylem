@@ -16,6 +16,15 @@ of each version are on
   for case. Without `r`, `s/from/to/` stays literal. Two files that would end
   with the same name are named in the message. [Rename](rename.md)
 
+## 0.9.1
+
+**Fixed.**
+
+- Showall (and Branch) of a tree with millions of files froze the screen for
+  seconds while it sorted the list: about 5 s with 2,000,000 files. It now
+  takes well under a second (0.66 s on the same machine), in every sort order,
+  and the order of the files is the same as before.
+
 ## 0.9.0
 
 **New.**

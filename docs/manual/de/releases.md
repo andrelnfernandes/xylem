@@ -5,6 +5,16 @@ sich für bisherige Nutzer geändert hat und welche Tasten umbelegt wurden. Die
 vollständigen Versionshinweise finden sich unter
 `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.9.1
+
+**Behoben.**
+
+- Showall (und Branch) eines Baums mit Millionen von Dateien hielt den
+  Bildschirm sekundenlang fest, während die Liste sortiert wurde: etwa 5 s bei
+  2.000.000 Dateien. Jetzt dauert es deutlich unter einer Sekunde (0,66 s auf
+  derselben Maschine), in jeder Sortierung, und die Reihenfolge der Dateien ist
+  dieselbe wie vorher.
+
 ## 0.9.0
 
 **Neu.**

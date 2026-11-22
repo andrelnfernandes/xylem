@@ -5,6 +5,15 @@ cambió para quien usaba la versión anterior y las teclas que cambiaron. Las no
 completas de cada versión se encuentran en
 `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.9.1
+
+**Correcciones.**
+
+- El Showall (y el Branch) de un árbol con millones de archivos congelaba la
+  pantalla durante segundos mientras ordenaba la lista: unos 5 s con 2.000.000
+  de archivos. Ahora tarda bastante menos de un segundo (0,66 s en la misma
+  máquina), en cualquier orden, y el orden de los archivos es el mismo de antes.
+
 ## 0.9.0
 
 **Novedades.**
