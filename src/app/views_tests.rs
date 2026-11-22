@@ -448,3 +448,28 @@ fn the_scan_draws() {
     assert!(text.contains("runs as .exe"), "{text}");
     screen(&mut app, 30, 10);
 }
+
+#[test]
+fn the_table_shows_the_list_and_w_takes_its_filter_back() {
+    let (_tmp, mut app) = dated();
+    alt(&mut app, 'v');
+    press(&mut app, KeyCode::Char('l'));
+    let v = app.viewer.as_mut().expect("the table of the list");
+    assert_eq!(v.mode, crate::viewer::ViewMode::Table);
+    let t = v.table.as_ref().unwrap();
+    assert_eq!(&t.headers[..4], ["name", "ext", "dir", "size"]);
+    assert_eq!(t.visible_row_count(), 4);
+    // W with no filter says how to make one.
+    press(&mut app, KeyCode::Char('w'));
+    let v = app.viewer.as_mut().expect("still open");
+    assert!(v.note.as_deref().unwrap().contains("filters the table"));
+    v.sql_prompt("ext = 'txt' AND modified >= '2026-11-18'");
+    assert_eq!(v.table.as_ref().unwrap().visible_row_count(), 2);
+    press(&mut app, KeyCode::Char('w'));
+    assert!(app.viewer.is_none());
+    assert_eq!(app.files.len(), 2);
+    assert_eq!(
+        app.query.as_ref().unwrap().text(),
+        "ext = 'txt' AND modified >= '2026-11-18'"
+    );
+}

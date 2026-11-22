@@ -384,6 +384,32 @@ fn decide(expr: &Expr, row: &Row<'_>) -> Option<bool> {
     }
 }
 
+/// The value of `column` for a file, as `W` sees it: the Table view
+/// (Alt+V) shows the list with these values, so that its filter and `W`
+/// agree. `type` and the functions are not columns here.
+pub fn file_value(
+    column: &str,
+    file: &FileEntry,
+    place: Option<Place<'_>>,
+    now: SystemTime,
+    git: Option<&str>,
+    dup: Option<i64>,
+) -> Option<Value> {
+    if column.eq_ignore_ascii_case("type") {
+        return None;
+    }
+    Row {
+        file,
+        place,
+        now,
+        found: None,
+        git,
+        dup,
+        lazy_type: None,
+    }
+    .get_value(column)
+}
+
 /// One file as a row of `files`.
 struct Row<'a> {
     file: &'a FileEntry,

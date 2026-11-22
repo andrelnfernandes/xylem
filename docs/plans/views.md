@@ -276,3 +276,33 @@ texto quando a janela as pede. A medir: memória e tempo do retrato com a
 lista (uma ação nova do viewer para o App) e como o filtro SQL da tabela vira
 o `W` (os nomes das colunas iguais aos do `W`; o dialeto do `sql_filter` e o
 do `FileQuery` precisam ser conferidos).
+
+## Andamento (2026-11-22): etapa 4, a Tabela
+
+Feita no branch `views-table`, para entrar na 0.9.0 (pedido do autor no dia do
+release: "primeiro vamos terminar o que falta").
+
+- **A medição** (pedida acima), com `cargo test --release -- --ignored --nocapture
+  list_of_two_million`, numa máquina de 14 GB: **2.000.000 de arquivos chegam à tela
+  em 150 ms, com 278 MiB a mais** (146 bytes por arquivo, quase o mesmo que a árvore
+  já gasta com eles). Fica como está: o retrato compacto descrito abaixo pouparia uns
+  30%, ao custo de reescrever os valores do `W`.
+- **Como ficou:** `src/viewer/list_rows.rs`. `ListSnapshot` guarda cada arquivo como
+  `ListFile` (o `FileEntry`, o número da pasta, o Git e o grupo de duplicados), e as
+  pastas uma vez cada. `ListRows` é o `RowSource` da janela de tabelas, e as células
+  só são feitas quando a janela pede a linha, por `query::file_value`, a mesma função
+  do `W`. Por isso o filtro da tabela e o `W` concordam.
+- **As colunas:** as do `W` menos `type` (lê cada arquivo), `path` e `depth` (`dir` já
+  diz). `git` e `dup` só aparecem quando algum arquivo tem um valor.
+- **A tecla é `L`** no seletor (T já era a Linha do tempo), e `view_table` em `[keys]`.
+- **De volta à lista: decidido assim, sem consulta, para caber no dia.** `W` na
+  tabela leva o filtro SQL dela para a lista como condição do `W`, com AND à que
+  havia, como a Linha do tempo faz. Sem filtro, uma nota diz como fazer um.
+  **`T` para marcar na tabela ficou de fora:** as marcas da tabela (`m`) continuam
+  servindo ao Batch, e marcar arquivos se faz na lista, depois do `W`, com Ctrl+T.
+- **O Batch** (Ctrl+B) lê as linhas pela mesma fonte: `batch::Source::Table` ganhou
+  `rows`, que, quando existe, substitui a leitura do arquivo.
+- **Não há ordenação na tabela:** a grade não ordena por coluna (nenhuma tabela
+  ordena hoje). A tabela segue a ordem da lista (Alt+S antes de abrir).
+- **Testes:** `list_rows` (valores, colunas, contagem), `views_tests` (abrir, filtrar,
+  `W` de volta) e `batch` (Batch sobre a lista).

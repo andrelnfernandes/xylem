@@ -8,6 +8,7 @@ A small menu asks which one, each with its letter:
 |---|---|---|
 | `S` | [Scan](#scan) | What in these files deserves a look? |
 | `T` | [Timeline](#timeline) | What changed, and when? |
+| `L` | [Table](#table) | Which files meet this condition, seen as a table? |
 
 A view works on **the current list**: the directory, the Branch or the
 Showall, with the filespec and the `W` condition that are on. It only reads:
@@ -18,7 +19,7 @@ with a condition.
 
 Each view can also have a key of its own in `[keys]`
 ([configuration](configuration.md)), with no key by default: `view_scan`,
-`view_timeline`.
+`view_timeline`, `view_table`.
 
 ## Scan
 
@@ -128,3 +129,28 @@ Enter turns the choice into a [W condition](sql.md) on `modified`, such as
 `modified >= '2026-11-18 00:00:00' AND modified < '2026-11-19 00:00:00'`,
 joined with AND to the condition that was already on. The title of the file
 window shows it, and **W with no text** takes it away.
+
+## Table
+
+The list opens in the [table viewer](tables.md), one file per row, with
+the columns of the [W condition](sql.md): `name`, `ext`, `dir`, `size`,
+`disk`, `modified`, `age_days`, `mode`, `kind` and `tagged`, and `git` and
+`dup` when some file of the list has a Git status or is in a group of
+[duplicates](duplicates.md). The values are the ones `W` sees, so a
+condition that works in one works in the other.
+
+There the list has what tables have: the SQL filter (`\` or `&`), the
+record as a form (Enter), copying a record, marks (`m`) and
+[Batch](execute.md) (Ctrl+B), a line of output per row. A list of
+millions of files opens at once: the table is read in windows, as a big
+file is.
+
+| Key | What it does |
+|---|---|
+| `\` or `&` | the SQL filter of the table |
+| `W` | back to the file window, with the filter as its W condition, joined with AND to the one that was on |
+| Esc | back, changing nothing |
+
+The table is the list as it was when it opened: a file tagged or changed
+after that shows in it the next time it opens. `type`, which reads each
+file, is not a column here; `W` still has it.

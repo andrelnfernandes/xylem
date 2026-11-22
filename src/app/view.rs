@@ -356,6 +356,7 @@ impl App {
                 self.open_prompt(PromptKind::ViewerSqlFilter, label.to_string(), &current);
             }
             ViewerAction::Batch => self.viewer_batch(),
+            ViewerAction::ToList => self.list_table_to_list(),
             ViewerAction::FilterLines => {
                 let Some(v) = &self.viewer else { return };
                 let spec = v.line_filter().cloned().unwrap_or_else(|| LineFilterSpec {

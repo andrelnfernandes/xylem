@@ -1868,6 +1868,8 @@ impl Row<'_> {
 /// What a Batch reads: everything is read again, or kept, away from the screen.
 pub enum Source {
     Table {
+        /// The rows, when they do not come from a file (the list of Alt+V).
+        rows: Option<super::table_window::Opener>,
         path: PathBuf,
         /// The sheet of a spreadsheet.
         sheet: usize,
@@ -2044,6 +2046,7 @@ impl Source {
     ) -> Result<End, String> {
         match self {
             Source::Table {
+                rows,
                 path,
                 sheet,
                 table,
@@ -2066,7 +2069,10 @@ impl Source {
                     (None, Some(table)) => records::SqlitePart::Table(table),
                     (None, None) => records::SqlitePart::First,
                 };
-                records::read_table(path, *sheet, part, budget, &mut sink)
+                match rows {
+                    Some(rows) => rows()?.read_from(0, budget, &mut sink),
+                    None => records::read_table(path, *sheet, part, budget, &mut sink),
+                }
             }
             Source::Text {
                 text,
@@ -2756,6 +2762,7 @@ mod tests {
 
     fn table_source(path: &Path, filter: Option<&str>) -> Source {
         Source::Table {
+            rows: None,
             path: path.to_path_buf(),
             sheet: 0,
             table: None,
@@ -2764,6 +2771,45 @@ mod tests {
             unpacked: u64::MAX,
             marked: Default::default(),
         }
+    }
+
+    #[test]
+    fn a_batch_reads_the_rows_of_the_list_of_alt_v() {
+        use crate::model::tree::{FileEntry, FileKind};
+        use crate::viewer::list_rows::{ListFile, ListSnapshot};
+        let file = |name: &str, size| ListFile {
+            entry: FileEntry {
+                name: name.into(),
+                size,
+                disk: size,
+                link: None,
+                modified: None,
+                mode: 0o100644,
+                kind: FileKind::File,
+                tagged: false,
+            },
+            dir: 0,
+            git: None,
+            dup: None,
+        };
+        let list = std::sync::Arc::new(ListSnapshot::new(
+            vec![("/d".into(), 0)],
+            vec![file("a.txt", 1), file("b.rs", 22)],
+            std::time::SystemTime::now(),
+        ));
+        let source = Source::Table {
+            rows: Some(list.opener()),
+            // Not read: the rows come from the list.
+            path: "/nowhere".into(),
+            sheet: 0,
+            table: None,
+            query: None,
+            filter: Some(sql_filter::SqlFilter::parse("ext = 'rs'").unwrap()),
+            unpacked: u64::MAX,
+            marked: Default::default(),
+        };
+        let mask = Mask::parse("%{name} %{size} %{dir}", Escape::Raw, Path::new("/d"), 1).unwrap();
+        assert_eq!(preview(&source, mask).unwrap().lines, ["b.rs 22 /d"]);
     }
 
     fn csv_rows(n: usize) -> tempfile::TempDir {
@@ -3727,6 +3773,7 @@ mod tests {
         .unwrap();
         drop(db);
         let source = Source::Table {
+            rows: None,
             path: source_db.clone(),
             sheet: 0,
             table: Some("t".to_string()),
@@ -3759,6 +3806,7 @@ mod tests {
             )
             .unwrap();
         let source = Source::Table {
+            rows: None,
             path: source_db.clone(),
             sheet: 0,
             table: Some("a".to_string()),
@@ -3901,6 +3949,7 @@ mod tests {
             panic!("a table");
         };
         let source = Source::Table {
+            rows: None,
             path,
             sheet,
             table,

@@ -81,6 +81,8 @@ pub enum Command {
     ViewScan,
     /// The Timeline: the list by the date its files changed.
     ViewTimeline,
+    /// The Table: the list in the table viewer, with its SQL filter.
+    ViewTable,
     /// Alt+Q: quits, leaving the shell in the current directory.
     QuitChangeDir,
     /// Alt+F: display mode of the file window.
