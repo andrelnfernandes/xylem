@@ -397,7 +397,10 @@ mod tests {
             prop::option::of((
                 prop_oneof![
                     -3i64..3,
-                    Just(-(1i64 << 40)),
+                    // 1653: before 1678, but after 1601, where the times
+                    // of Windows start.
+                    Just(-10_000_000_000i64),
+                    Just(-10_000_000_001i64),
                     Just(1i64 << 40),
                     Just((1i64 << 40) + 1)
                 ],
@@ -409,11 +412,12 @@ mod tests {
                 let mut f = file(&name, size, 0);
                 f.modified = time.map(|(secs, nanos)| {
                     let base = if secs < 0 {
-                        SystemTime::UNIX_EPOCH - Duration::from_secs(secs.unsigned_abs())
+                        SystemTime::UNIX_EPOCH.checked_sub(Duration::from_secs(secs.unsigned_abs()))
                     } else {
-                        SystemTime::UNIX_EPOCH + Duration::from_secs(secs as u64)
+                        SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(secs as u64))
                     };
-                    base + Duration::from_nanos(u64::from(nanos))
+                    base.and_then(|t| t.checked_add(Duration::from_nanos(u64::from(nanos))))
+                        .expect("a time every system can hold")
                 });
                 (f, rank)
             })
