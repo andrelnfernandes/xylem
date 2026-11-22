@@ -1,8 +1,11 @@
 name: Release on the website
 
-# Publishing a release (the draft that release.yml makes) rebuilds the website,
-# so that latest.txt says the new version and Xylem's update check sees it
-# (docs/plans/update-check.md). The website is built from main: only main may
+# Publishing a release by hand (the draft that release.yml makes, when it
+# stopped before publishing it) rebuilds the website, so that latest.txt says
+# the new version and Xylem's update check sees it (docs/plans/update-check.md).
+# When release.yml publishes the release itself, this does not run: GitHub
+# starts no workflow from an event made with a workflow's token, so release.yml
+# rebuilds the website itself. The website is built from main: only main may
 # deploy to GitHub Pages, and a release runs on its tag.
 
 on:

@@ -3,7 +3,8 @@ name: Website
 # Publishes the website (site/, with the images from docs/, and the manual
 # from docs/manual/ as mdBook) on GitHub Pages whenever it changes on main.
 # Needs Settings → Pages → Source: GitHub Actions. Publishing a release runs
-# it too (release-site.yml), for latest.txt.
+# it too, for latest.txt: release.yml starts it, or release-site.yml when the
+# release is published by hand.
 
 on:
   push:
