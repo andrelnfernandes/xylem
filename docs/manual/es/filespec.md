@@ -23,7 +23,7 @@ aplica AND: `*.txt,=TODAY,<s1000` son los archivos `.txt` de hoy de menos de
 
 `*` (o un prompt vacío) muestra todo. **↑** lista los filespecs anteriores ([historial](execute.md#historial)).
 
-Para elegir archivos por una condición SQL (**W**) o por las palabras que contienen (**P**), consulta [Encontrar archivos](sql.md).
+Para elegir archivos por una condición SQL (**W**) o por las palabras que contienen (**P**), consulta [Encontrar archivos](sql.md). Para todas las formas de encontrar archivos y carpetas, consulta [Encontrar archivos y carpetas](finding.md).
 
 Véase también: [la ventana de archivos](files.md), [marcas](tagging.md) (Ctrl+T
 en el árbol marca lo que coincide con el filtro).

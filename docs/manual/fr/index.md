@@ -59,11 +59,11 @@ Les versions de ce manuel en espagnol, français, allemand et chinois n'ont pas
 - [Informations](info.md) : Info, Avail, statistiques et tailles des répertoires
 - [Utilisation du disque](usage.md) : où va l'espace (Alt+U)
 - [Doublons](duplicates.md) : fichiers et dossiers au même contenu (Alt+D)
-- [Vues](views.md) : la liste vue autrement : le Scan (Alt+V)
+- [Vues](views.md) : la liste vue autrement : le Scan, la Timeline et la Table (Alt+V)
 
 ## Travailler avec les fichiers
 
-- [Trouver des fichiers et des dossiers](finding.md): quelle recherche répond à quelle question
+- [Trouver des fichiers et des dossiers](finding.md) : quelle recherche répond à quelle question
 - [Marquage et opérations groupées](tagging.md)
 - [Copier et Déplacer](copy-move.md), [choisir un dossier](picker.md)
 - [Supprimer, corbeille et Prune](delete.md)
@@ -71,7 +71,7 @@ Les versions de ce manuel en espagnol, français, allemand et chinois n'ont pas
 - [Permissions et dates](attributes.md)
 - [Filespec : le filtre de fichiers](filespec.md)
 - [Treespec et Log](treespec.md)
-- [Recherche approximative](fuzzy.md): un dossier ou un fichier par des morceaux de son nom (`|`)
+- [Recherche approximative](fuzzy.md) : un dossier ou un fichier par des morceaux de son nom (`|`)
 - [Comparer](compare.md) et [Trier](sort.md)
 - [Éditer, eXécuter et Batch](execute.md)
 - [Archives](archives.md) : ZIP, 7z et TAR

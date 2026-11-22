@@ -18,6 +18,16 @@ mémoire. Si cela se produit, il s'agit d'une anomalie à signaler.
 | Dépôt Git exécutant ses propres commandes | L'exploration d'un dépôt n'exécute aucun hook, aucun `core.fsmonitor`, aucun diff externe ni conversion de texte, sauf si son dossier figure dans `git_trusted`. |
 | Dépendance comportant une faille connue | Les dépendances sont vérifiées contre la base de données RustSec lors de l'intégration continue (CI). |
 
+## Le réseau
+
+Xylem ne se connecte au réseau de lui-même que pour une seule chose : si vous
+avez dit oui au premier démarrage, il demande au site web une fois par jour le
+numéro de la dernière version ([Nouvelles versions](configuration.md#new-versions)).
+Tout le reste qui utilise le réseau est quelque chose que vous avez demandé :
+une machine distante (`ssh`), le cloud (`rclone`), un conteneur (`docker`), un
+partage réseau, et les programmes que vous lancez vous-même (`X`, le terminal
+intégré).
+
 ## Ce que vous pouvez faire
 
 - Désactivez la décompression dans la visionneuse (`viewer_decompress = false`,
@@ -25,6 +35,8 @@ mémoire. Si cela se produit, il s'agit d'une anomalie à signaler.
   gardez Autoview fermé dans ces répertoires.
 - Laissez Git désactivé (`git = false`, par défaut) dans les dépôts que vous
   n'avez pas créés vous-même.
+- Répondez non à la recherche de nouvelles versions, ou désactivez-la à la
+  page 3 de F12, si Xylem ne doit jamais se connecter de lui-même.
 - N'exécutez pas Xylem en tant qu'administrateur (root).
 - `O` transmet le fichier à une autre application. Les limites de Xylem ne
   s'appliquent pas à cette application tierce.

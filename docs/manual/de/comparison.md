@@ -11,12 +11,21 @@ Markierungen arbeiten), die kein anderer Dateimanager erreicht hat. Kim Henkel
 hält die XTree-Arbeitsweise unter Windows seit Jahrzehnten lebendig, und ohne
 diese Arbeit gäbe es Xylem nicht.
 
-Xylem soll ZTreeWin nicht ersetzen. Es gibt Xylem, weil ich dieselbe
-Arbeitsweise unter Linux haben wollte, wo ZTreeWin nicht nativ läuft. Xylem
+Xylem soll ZTreeWin nicht ersetzen. Xylem entstand, weil ich dieselbe
+Arbeitsweise unter Linux haben wollte, wo ZTreeWin nicht lief. Seit der
+[Beta 2.9.12](https://www.ztree.com/html/beta.htm) vom November 2026 läuft es dort, als ZTreeLin (und unter
+macOS als ZTreeMac). Xylem geht weiter als eine andere Fassung derselben
+Arbeitsweise: quelloffen, zuerst für Linux gebaut, mit dem, was unter
+[Wo Xylem weiter geht](#where-xylem-goes-further) weiter unten steht. Xylem
 lässt sich auch für Windows übersetzen, weil Rust das leicht macht, aber das
 ist kein Ziel von mir: Unter Windows ist ZTreeWin seine Lizenz mehr als wert:
 [ztree.com](https://www.ztree.com/), und das
 [Forum](https://groups.io/g/ZTreeWin) seiner Benutzer.
+
+Der Betrachter liest Norton Guides, die Hilfedateien von DOS und Clipper,
+dank Dave Pearson, der ihr Format in den 1990er-Jahren entschlüsselt hat und
+sie seitdem lesbar hält:
+[davep.org/norton-guides](https://www.davep.org/norton-guides/).
 
 ## Andere Dateimanager für das Terminal
 
@@ -100,8 +109,10 @@ Tasten sind, wo immer möglich, die von ZTreeWin; die Ausnahmen stehen unter
 - **Baum:** Global (G, und Ctrl+G für die markierten), Graft (Alt+G), Mirror (Alt+M), teilweises Freigeben (Ctrl+Backspace), Ausblenden (Alt+H), Wash
   (Alt+W), Volume (Ctrl+V), F5/F6 (Unterverzeichnisebenen ausblenden), nach
   Attribut markieren (Alt+T/U), Treespec im Bearbeitungsmodus (F5,
-  Platzhalter) und spezielle Ordner (F6), direkte Suche mit Eingabezeile (`|`)
-  und aktivem Modus, Laufwerkswechsel (`<` und `>`).
+  Platzhalter) und spezielle Ordner (F6), direkte Suche im aktiven Modus (ohne
+  Eingabezeile), Laufwerkswechsel (`<` und `>`). Die direkte Suche mit
+  Eingabezeile (`|`) gibt es, unscharf und auch im Dateifenster:
+  [Unscharfe Suche](fuzzy.md).
 - **Dateien:** In neuem Terminalfenster öffnen (Alt+O), Batch der aktuellen
   Datei (Alt+B), JFC (J, Inhalt zweier Dateien vergleichen), Verknüpfung
   erstellen (H), Drucken (P), Eigentümer/Gruppe (chown), Megaview (Ctrl+F7 im

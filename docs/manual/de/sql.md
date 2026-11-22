@@ -1,6 +1,6 @@
 # Dateien finden: SQL und das Suchfeld
 
-Die [Filespec](filespec.md) wählt Dateien nach Name, Datum und Größe. Xylem findet sie auch über eine in SQL geschriebene Bedingung, über das, was es von jeder Datei weiß, und über ihren Inhalt (**W**), sowie über die Wörter darin (**P**).
+Die [Filespec](filespec.md) wählt Dateien nach Name, Datum und Größe. Xylem findet sie auch über eine in SQL geschriebene Bedingung, über das, was es von jeder Datei weiß, und über ihren Inhalt (**W**), sowie über die Wörter darin (**P**). Um über Teile des Namens zu einer Datei oder einem Ordner zu gehen, siehe [Unscharfe Suche](fuzzy.md); alle Wege, etwas zu finden, beschreibt [Dateien und Ordner finden](finding.md).
 
 ## Eine SQL-Bedingung (W)
 

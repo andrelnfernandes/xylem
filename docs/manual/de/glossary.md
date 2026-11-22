@@ -15,6 +15,7 @@ Handbuch verwenden sie in diesen Bedeutungen.
 | Tag | Eine Markierung an einer Datei (`■`). Die Ctrl-Befehle wirken auf die markierten Dateien. Markierungen bleiben im Speicher und gehen bei Release oder beim Beenden verloren. [Markierungen und Gruppenoperationen](tagging.md) |
 | Filespec | Der Filter, welche Dateien das Fenster anzeigt, nach Name, Datum und Größe. Festgelegt mit `F`. [Filespec](filespec.md) |
 | Treespec | Ein eingegebener Pfad, um den Baum-Cursor zu bewegen. Geöffnet mit `\` oder `/`. [Treespec](treespec.md) |
+| Unscharfe Suche | `\|`: Teile eines Namens, eingetippt, um den Cursor zum besten Ordner oder zur besten Datei zu bewegen. [Unscharfe Suche](fuzzy.md) |
 | Fenster | Ein Baum mit seinem Dateifenster. F8 öffnet ein zweites daneben. [Geteilter Bildschirm](split.md) |
 | Wurzel | Das Verzeichnis an der Spitze des Baums. `L` ändert es, und Alt+L macht das Verzeichnis unter dem Cursor zur Wurzel. |
 | Matching | Die eingelesenen Dateien, die dem Filespec entsprechen. |

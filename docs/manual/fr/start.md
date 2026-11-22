@@ -46,6 +46,9 @@ ouvre le répertoire courant. `xy ~/projects` ouvre un autre répertoire, et
 `xy user@host:` ouvre une [machine distante](remote.md).
 [La ligne de commande](cli.md) présente les autres options.
 
+La première fois, Xylem demande s'il peut chercher une nouvelle version une fois
+par jour : **Y** ou **N** (voir [Nouvelles versions](configuration.md#new-versions)).
+
 ## Se déplacer dans l'arborescence
 
 L'arborescence affiche le répertoire de départ et ses sous-répertoires. Seul le

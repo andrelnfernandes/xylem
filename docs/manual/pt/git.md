@@ -4,6 +4,14 @@ O Git vem desativado por padrão. Ative-o com F12 (página 1, "Git commands") ou
 `git = true` sob `[options]` na [configuração](configuration.md). Requer o
 programa `git`.
 
+O Git pode ser desligado porque não sai de graça: para mostrar o status dos
+arquivos, o Xylem executa `git status` no repositório inteiro, e o executa de
+novo a cada poucos segundos. Num repositório grande, num sistema de arquivos
+lento (uma unidade do Windows vista do WSL, como `/mnt/c`, ou um
+compartilhamento de rede), um só `git status` pode levar minutos. Ele roda em
+segundo plano, então a tela continua respondendo, mas mantém o disco ocupado;
+desligar o Git, na página 1 do F12, evita isso.
+
 ## O menu Git (Ctrl+G)
 
 Ctrl+G abre o menu Git no rodapé; a próxima letra escolhe:
@@ -29,6 +37,14 @@ letras de `git status --short`: `M ` em stage, ` M` alterado mas fora de stage,
 mostram espaços em branco. O status é relido após as próprias operações do
 Xylem, após F3 e a cada 10 segundos (para detectar commits feitos em outro
 terminal).
+
+O status é lido em segundo plano: as letras aparecem quando a leitura termina,
+e enquanto uma leitura leva mais de um segundo o título da janela de arquivos
+diz `git status...`. Um repositório cujo status demorou é relido sozinho com
+menos frequência: dez vezes o que a última leitura levou, então uma de dois
+minutos espera uns vinte, a não ser que F3 ou uma operação a peça. Uma
+condição de `W` sobre `git` espera até dois segundos pelo status, e avisa
+quando ele ainda está sendo lido.
 
 ## Diff no visualizador
 

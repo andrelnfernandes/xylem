@@ -18,6 +18,15 @@ agote la memoria. Si esto ocurre, se trata de un error que debe notificarse.
 | Repositorio Git ejecuta sus propios comandos | Examinar un repositorio no ejecuta hooks, ni `core.fsmonitor`, ni diff externo ni conversiones de texto, salvo que su carpeta esté incluida en `git_trusted`. |
 | Dependencia con vulnerabilidad conocida | Las dependencias se verifican contra la base de datos de RustSec en la integración continua (CI). |
 
+## La red
+
+Xylem se conecta a la red por su cuenta para una sola cosa: si dijiste que sí
+en el primer arranque, pregunta al sitio web una vez al día el número de la
+última versión ([Versiones nuevas](configuration.md#new-versions)). Todo lo
+demás que usa la red es algo que pediste tú: una máquina remota (`ssh`), la
+nube (`rclone`), un contenedor (`docker`), una carpeta compartida en red y los
+programas que ejecutas tú mismo (`X`, la terminal integrada).
+
 ## Qué puedes hacer tú
 
 - Desactiva la descompresión en el visor (`viewer_decompress = false`, F12
@@ -25,6 +34,8 @@ agote la memoria. Si esto ocurre, se trata de un error que debe notificarse.
   Autoview cerrado allí.
 - Deja Git desactivado (`git = false`, la opción predeterminada) en repositorios
   que no hayas creado tú.
+- Di que no a buscar versiones nuevas, o desactívalo en la página 3 de F12, si
+  Xylem nunca debe conectarse por sí mismo.
 - No ejecutes Xylem como usuario root.
 - `O` pasa el archivo a otro programa. Los límites de Xylem no se aplican a
   dicho programa.

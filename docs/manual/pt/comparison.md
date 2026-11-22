@@ -10,12 +10,21 @@ ramos inteiros, agir sobre as marcações) que nenhum outro gerenciador de
 arquivos igualou. Kim Henkel mantém vivo o jeito XTree no Windows há décadas,
 e o Xylem não existiria sem esse trabalho.
 
-O Xylem não pretende substituir o ZTreeWin. Ele existe porque eu queria o
-mesmo jeito de trabalhar no Linux, onde o ZTreeWin não roda nativamente. O
+O Xylem não pretende substituir o ZTreeWin. Ele começou porque eu queria o
+mesmo jeito de trabalhar no Linux, onde o ZTreeWin não rodava. Desde a
+[beta 2.9.12](https://www.ztree.com/html/beta.htm), de novembro de 2026, roda, como ZTreeLin (e no macOS, como
+ZTreeMac). O Xylem continua como outra leitura do mesmo jeito de trabalhar:
+aberto, feito primeiro para o Linux, com o que está em
+[Onde o Xylem vai além](#where-xylem-goes-further), mais abaixo. O
 Xylem também compila para Windows, porque o Rust torna isso fácil, mas essa
 não é uma meta minha: no Windows, o ZTreeWin vale muito a licença:
 [ztree.com](https://www.ztree.com/), e o [fórum](https://groups.io/g/ZTreeWin)
 dos seus usuários.
+
+O visualizador lê os Norton Guides, os arquivos de ajuda do DOS e do Clipper,
+graças a Dave Pearson, que decifrou o formato deles nos anos 1990 e os mantém
+legíveis desde então:
+[davep.org/norton-guides](https://www.davep.org/norton-guides/).
 
 ## Outros gerenciadores de arquivos para o terminal
 
@@ -95,7 +104,9 @@ estão em "Teclas diferentes", no fim.
 - **Árvore:** Global (G, e Ctrl+G para os marcados), Graft (Alt+G), Mirror (Alt+M), liberação parcial (Ctrl+Backspace), Hide (Alt+H), Wash (Alt+W), Volume
   (Ctrl+V), F5/F6 (ocultar níveis de subdiretórios), marcar por atributo
   (Alt+T/U), Treespec em modo de edição (F5, curingas) e pastas especiais (F6),
-  busca ao digitar com prompt (`|`) e modo ativo, troca de unidade (`<` e `>`).
+  busca ao digitar no modo ativo (sem prompt), troca de unidade (`<` e `>`).
+  A busca ao digitar com prompt (`|`) existe, aproximada e também na janela
+  de arquivos: [Busca aproximada](fuzzy.md).
 - **Arquivos:** Abrir em nova janela de terminal (Alt+O), Batch do arquivo
   atual (Alt+B), JFC (J, comparar o conteúdo de dois arquivos), sHortcut (H),
   Print (P), dono/grupo (chown), Megaview (Ctrl+F7 na janela de arquivos),

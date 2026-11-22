@@ -9,7 +9,7 @@ Tabellenkalkulationen, CSV, DBF, SQLite und Parquet öffnen sich als Tabelle (si
 | ↑ ↓ PgUp PgDn Home End | scrollen |
 | ← → | seitlich scrollen |
 | `H` | nächster Modus: Text und Hex; bei einer Markdown-Datei gerendert, Text und Hex |
-| `O` | nächste Kodierung (UTF-8, CP850, 1252, CP437, UTF-16) |
+| `O` | nächste Kodierung (UTF-8, CP850, 1252, CP437, 1251, KOI8-R, UTF-16) |
 | `C` | Syntaxfarben ein oder aus |
 | `W` | Zeilenumbruch ein oder aus |
 | `#` oder `L` | Zeilennummern ein oder aus (im Textmodus) |
@@ -115,6 +115,63 @@ Vor dem Text sagt ein Block, was das Dokument außer ihm enthält, denn vieles d
 
 `H` zeigt die Bytes und kehrt zurück; `T` sagt, dass das Dokument keinen eigenen Text hat. Jeder Teil der Datei wird nur bis zu einem Limit entpackt (64 MiB je Teil, 256 MiB insgesamt; 4 MiB im Autoview), und die Kopfzeile sagt, wenn das Dokument abgeschnitten wurde. Ein XML-Teil mit einer DTD oder einer Verschachtelung tiefer als 256 Ebenen wird abgelehnt. Die alten `.doc` und `.ppt` öffnen sich wie bisher in Hex.
 
+## E-Books
+
+EPUB (`.epub`, Versionen 2 und 3) und FictionBook (`.fb2`, und `.fb2.zip` mit einem einzigen Buch darin) öffnen sich als Buch zum Lesen. Bilder werden nicht gezeigt: Jedes ist eine Zeile, etwa `[image: cover.jpg]`.
+
+**Das Buch.** Es öffnet sich bei einer Titelseite: der Titel, der Autor, wer es wann veröffentlicht hat, wie viele Kapitel und Wörter es hat und wovor der Bericht warnt, falls etwas. Der Text ist eine Spalte in der Mitte des Fensters (standardmäßig 70 Zellen), mit eingerückten Absätzen wie in einem gedruckten Buch und dem Titel jedes Kapitels zentriert unter einem Ornament. Ein Szenenwechsel (`* * *`) wird als solches gezeichnet. Die Fußzeile nennt das Kapitel, in dem Sie sind, wie weit Sie im Buch sind und die verbleibende Zeit im Kapitel und im Buch.
+
+| Taste | Funktion |
+|---|---|
+| Space, PgDn | die nächste Seite (PgUp die vorige) |
+| `]` `[` | das nächste oder das vorige Kapitel |
+| Tab | das Inhaltsverzeichnis: ↑↓ wählen, Buchstaben grenzen die Liste ein, Enter springt, Esc schließt; Backspace geht danach zurück, wo Sie waren |
+| Enter | die auf der Seite aufgerufenen Anmerkungen, in einem Kasten: ↑↓ scrollen ihn, jede andere Taste schließt ihn |
+| `g` | zu einer Zeile springen oder zu einer Stelle im Buch: `40%` |
+| `R` | merkt sich, wo das Buch aufgehört hat; `R` erneut vergisst das Buch |
+| `I` | der Bericht über die Datei, und zurück zum Buch |
+| `Z` | nur der Text, ohne Rahmen und Fußzeile; Esc kehrt zurück |
+| `/` `\` | vorwärts oder rückwärts suchen; `+` und `-` gehen zum nächsten oder vorigen Treffer (Space blättert hier um) |
+| `H` | die Bytes, und zurück |
+| Esc | schließen |
+
+Die Anmerkungen eines Buchs (ein EPUB-`aside` vom Typ footnote, der `notes`-Body eines FB2) stehen nicht im Text: Jeder Aufruf ist eine Hochzahl (`¹`), und Enter zeigt die auf der Seite aufgerufenen Anmerkungen. Im Bericht stehen sie dort, wo das Buch sie hat.
+
+**Merken, wo Sie aufgehört haben.** `R` merkt sich das Buch: Wenn Sie es schließen, speichert Xylem das Kapitel und die Zeile, bei der Sie waren, und beim nächsten Mal öffnet sich das Buch dort und sagt `Back at chapter 7 (R forgets this book)`. Die Fußzeile eines gemerkten Buchs beginnt mit `[R]`. Das Buch wird an dem erkannt, was es zu sein angibt (seiner Kennung), und an seiner Größe, nicht an seinem Namen; so wird ein verschobenes oder umbenanntes Buch weiter erkannt, und eine andere Datei mit demselben Namen ist ein anderes Buch. `R` erneut vergisst das Buch und löscht, was davon gespeichert war. Ein Buch, auf dem Sie nie `R` gedrückt haben, hinterlässt nichts.
+
+**Die Lesezeit** wird für die mit `R` gemerkten Bücher gespeichert, wenn Sie sie einschalten (**E** auf Seite 5 der [Konfiguration](configuration.md#reading-time)). Die Titelseite und der Bericht sagen dann, wie lange Sie das Buch gelesen haben, in wie vielen Sitzungen, wie weit Sie gekommen sind und seit wann; der Bericht listet die Sitzungen auf. Die Fußzeile zeigt die Zeit dieser Sitzung.
+
+**Der Bericht** (`I`) ist das, was die Datei vor dem Text ist: was das Buch über sich sagt (Titel, Autoren, Verlag, Sprache, Datum, Kennung, Themen, Reihe, das Programm, das es erstellt hat) und was es außer seinem Text enthält, denn ein Buch von irgendwoher ist eine Datei von irgendwoher:
+
+- Skripte: `<script>`-Elemente, `onload` und die anderen Ereignisattribute, `javascript:`-Links und die Teile, die ein EPUB als skriptgesteuert angibt. Sie werden nie ausgeführt; ein Reader, der Skripte ausführt, würde es tun;
+- was ein Reader beim Öffnen des Buchs von außen laden würde: Bilder, Stylesheets, Schriften und Frames mit einer Adresse im Internet, aufgelistet. Sie zu laden verrät dem, der dort ist, dass das Buch geöffnet wurde, und von wo. Hier wird nichts geladen;
+- Formulare, Frames und eingebettete Objekte, gezählt, und die Anzahl der Links nach außen;
+- DRM: Ein EPUB mit verschlüsselten Kapiteln sagt, womit (Adobe ADEPT, Readium LCP, Apple FairPlay), und kann nicht gelesen werden. Verschleierte Schriften, üblich in Büchern, die ohne DRM verkauft werden, werden nur gezählt;
+- in einem EPUB die Teile, die das Paket auflistet, die die Datei aber nicht hat, die, die sie hat, aber nicht auflistet, und Adressen, die aus dem Paket hinausklettern;
+- in einem FB2 die darin eingebetteten Dateien (ihre Anzahl, Typen und Größe), nie dekodiert, und eine angegebene Kodierung, die Xylem nicht kennt.
+
+Danach kommen das Inhaltsverzeichnis als Links (Tab und Enter folgen ihnen) und der ganze Text, mit den Anmerkungen dort, wo das Buch sie hat.
+
+**Einstellungen** (Seite 5 der [Konfiguration](configuration.md)): die Breite der Spalte (oder das ganze Fenster), Absätze eingerückt und aneinander oder getrennt durch eine Leerzeile, Blocksatz und die Lesegeschwindigkeit, mit der die verbleibende Zeit berechnet wird. Mit eingeschalteten Nerd Fonts (**M** auf Seite 2) sind die Ornamente Blätter, der Fortschrittsbalken wird mit den Symbolen der Schrift gezeichnet, und Fußzeile und Inhaltsverzeichnis bekommen Icons.
+
+**Was gelesen wird.** Ein FB2 wird in der Kodierung gelesen, die es angibt (UTF-8, UTF-16, Windows-1251, KOI8-R und die anderen von `O`), und `T` zeigt sein XML. Ein EPUB ist ein ZIP: Jeder Teil wird nur bis zu einem Limit entpackt (64 MiB je Teil, 256 MiB insgesamt; 4 MiB im Autoview, der `V shows it as a book` sagt, wenn ein Buch größer ist), und ein FB2 wird bis 64 MiB gelesen, und der Bericht sagt, wenn nur der Anfang des Buchs gelesen wurde. Keine DTD wird je gelesen oder geladen, ein XML mit eigenen Entitäten wird abgelehnt, der Text wird nie als Markdown gelesen, und die Adressen in einem Buch gelten nur als Namen seiner eigenen Teile, nie als Pfade auf der Festplatte. MOBI und AZW3 (Kindle), PDF und Comics (CBZ, CBR) werden hier nicht gelesen: `O` im Dateifenster öffnet sie in einem anderen Programm.
+
+## Norton Guides
+
+Ein Norton Guide oder ein Expert-Help-Guide (`.ng`), die Hypertext-Hilfe von DOS und Clipper, öffnet sich als Dokument. Eine Datei braucht sowohl den Namen `.ng` als auch die Signatur eines Guides; alles andere öffnet sich wie bisher.
+
+- **Oben:** der Titel und die Credits des Guides und womit er erstellt wurde.
+- **Die Menüs:** jedes mit seinen Punkten und wohin jeder Punkt führt.
+- **Die Einträge:** alle, in der Reihenfolge der Datei, jeder unter einer Nummer: `§12`. Ein Listeneintrag zeigt seine Zeilen; ein Texteintrag zeigt seinen Text im Layout des Guides, dann seine Siehe-auch-Links. Jeder Link sagt, wohin er führt (`→ §12`, `See also: Two() §3`), sodass eine Suche nach `§12` dorthin bringt. Ein Link, der ins Leere zeigt, sagt `(broken link)`.
+
+**Links folgen.** **Tab** und **Shift+Tab** wählen den nächsten oder den vorigen Link (vom Bildschirm aus, wenn der gewählte daraus verschwunden ist); **Enter** geht zu dem Eintrag, zu dem er führt, mit dem ersten Link dieses Eintrags gewählt; **Backspace** geht zurück, wo Sie waren, über bis zu 1.000 Links. Mit eingeschalteter Maus folgt ein Klick auf einen Link ihm, und ein Klick auf `Backspace` in der Fußzeile geht zurück. In einem Guide schließt Enter den Betrachter nie: Das tut Esc. Weil der ganze Guide ein Dokument ist, durchsucht eine Suche (`/`) weiterhin alles.
+
+Fett, Unterstrichen und Invers erscheinen in den Stilen des Themas; die DOS-Farben eines Guides werden nicht an das Terminal gesendet. Die Zeichen des Guides sind Codepage 437, mit den Symbolen, die DOS für die Bytes 1 bis 31 zeichnete (`☺ ♥ ► ▲`); nichts in einem Guide erreicht das Terminal als Steuerzeichen.
+
+Ein Guide ist ein Geflecht von Offsets, die lügen könnten: Jeder wird gegen die Datei geprüft, jede Anzahl gegen ihren eigenen Datensatz, und die Leerzeichen, zu denen eine Zeile sich ausdehnt, haben ein Limit. Was an einem Guide falsch ist, wird oben unter „Problems in this guide“ aufgelistet, und der Rest wird trotzdem gezeigt. Ein Guide wird ganz gelesen, bis 64 MiB; `H` zeigt die Bytes.
+
+Das Format ist dank Dave Pearson bekannt, der es in den 1990er-Jahren entschlüsselt hat und Norton Guides seitdem lesbar hält: <https://www.davep.org/norton-guides/>. Der Leser von Xylem ist eigener Code, geschrieben nach seiner Beschreibung des Formats; er enthält keinen Code aus seinen Readern.
+
 ## Ausführbare Dateien
 
 Eine ausführbare Datei, eine Bibliothek oder eine Objektdatei öffnet sich als Bericht, egal wie sie heißt: ELF (Linux, BSD), PE (Windows-`.exe`, `.dll`, `.sys`, auch .NET) und Mach-O (macOS, auch Universal-Binaries mit mehreren Architekturen). Sie wird an ihren ersten Bytes erkannt, nie am Namen. Der Bericht sagt:
@@ -178,7 +235,7 @@ Manche unsichtbaren Zeichen ändern die Schreibrichtung des Textes und können C
 
 Xylem erkennt die Kodierung selbst, in dieser Reihenfolge: zuerst wird die Datei entpackt, dann wird nach einer BOM gesucht (UTF-8, UTF-16 LE oder BE), dann nach UTF-16 ohne BOM, dann nach UTF-8. Passt nichts davon, ist es alter Text: Xylem rät CP850 (DOS, Westeuropa) oder Windows-1252, indem es die Buchstaben mit Akzent zählt. `.reg`-Dateien von Windows sind UTF-16 und öffnen sich als normaler Text.
 
-**O** zeigt die Datei in der nächsten Kodierung: UTF-8, CP850, Windows-1252, CP437, UTF-16 LE, UTF-16 BE und wieder UTF-8. Die Fußzeile sagt, welche, und die Kopfzeile zeigt den Namen, wenn es nicht UTF-8 ist. Wählen Sie UTF-16 bei einer Datei, die in Hex geöffnet wurde, wechselt sie zu Text. Ihre Wahl bleibt, wenn Sie die Datei bearbeiten und zurückkehren.
+**O** zeigt die Datei in der nächsten Kodierung: UTF-8, CP850, Windows-1252, CP437, Windows-1251, KOI8-R, UTF-16 LE, UTF-16 BE und wieder UTF-8. Die Fußzeile sagt, welche, und die Kopfzeile zeigt den Namen, wenn es nicht UTF-8 ist. Wählen Sie UTF-16 bei einer Datei, die in Hex geöffnet wurde, wechselt sie zu Text. Ihre Wahl bleibt, wenn Sie die Datei bearbeiten und zurückkehren.
 
 Um für alte Textdateien immer eine feste Kodierung statt der Vermutung zu nutzen, setzen Sie `legacy_charset` auf `cp850`, `cp1252` oder `cp437` (**K** auf Seite 2 der [Konfiguration](configuration.md)). Standard ist `auto`.
 

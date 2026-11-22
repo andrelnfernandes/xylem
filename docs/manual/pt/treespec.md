@@ -20,6 +20,9 @@ Um caminho fora da árvore se torna um Log ao ser confirmado. Em Branch e
 Showall, `\` vai direto para o diretório do arquivo selecionado, com ele
 destacado.
 
+Para encontrar uma pasta por pedaços do nome, em qualquer nível, sem digitar
+o caminho: [Busca aproximada](fuzzy.md) (`|`).
+
 ## Log (L)
 
 Abre outro diretório na janela, substituindo a árvore (um diretório dentro da

@@ -24,7 +24,7 @@ kleiner als 1000 Bytes sind.
 `*` (oder eine leere Eingabezeile) zeigt alles an. **↑** listet frühere Filespecs
 auf ([Verlauf](execute.md#verlauf)).
 
-Um Dateien über eine SQL-Bedingung (**W**) oder über die Wörter darin (**P**) zu wählen, siehe [Dateien finden](sql.md).
+Um Dateien über eine SQL-Bedingung (**W**) oder über die Wörter darin (**P**) zu wählen, siehe [Dateien finden](sql.md). Alle Wege, Dateien und Ordner zu finden, beschreibt [Dateien und Ordner finden](finding.md).
 
 Siehe auch: [das Dateifenster](files.md), [Markierungen](tagging.md) (Ctrl+T im
 Baum markiert alles, was zum Filespec passt).

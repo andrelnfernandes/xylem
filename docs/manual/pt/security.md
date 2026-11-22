@@ -18,6 +18,15 @@ memória. Se isso ocorrer, trata-se de uma falha a ser relatada.
 | Repositório Git executa comandos próprios | Navegar por um repositório não executa hooks, `core.fsmonitor`, diff externo nem conversão de texto, a menos que seu diretório conste em `git_trusted`. |
 | Dependência com vulnerabilidade conhecida | As dependências são verificadas contra o banco de dados do RustSec na integração contínua (CI). |
 
+## A rede
+
+O Xylem se conecta à rede por conta própria para uma coisa só: se você disse
+sim na primeira vez, ele pergunta ao site, uma vez por dia, o número da versão
+mais recente ([Versões novas](configuration.md#new-versions)). Todo o resto
+que usa a rede é algo que você pediu: uma máquina remota (`ssh`), a nuvem
+(`rclone`), um container (`docker`), um compartilhamento de rede e os
+programas que você mesmo executa (`X`, o terminal integrado).
+
 ## O que você pode fazer
 
 - Desative a descompressão no visualizador (`viewer_decompress = false`,
@@ -25,6 +34,8 @@ memória. Se isso ocorrer, trata-se de uma falha a ser relatada.
   mantenha o Autoview fechado nessas pastas.
 - Mantenha o suporte a Git desativado (`git = false`, o padrão) em repositórios
   que você não criou.
+- Responda não à busca de versões novas, ou desligue-a na página 3 do F12, se
+  o Xylem nunca deve se conectar sozinho.
 - Não execute o Xylem como root.
 - O comando `O` repassa o arquivo para outro programa. Os limites do Xylem não
   se aplicam a esse outro programa.

@@ -1,6 +1,6 @@
 # Encontrar archivos: SQL y la caja de búsqueda
 
-El [filespec](filespec.md) elige archivos por nombre, fecha y tamaño. Xylem también los encuentra por una condición escrita en SQL, sobre lo que sabe de cada archivo y sobre su contenido (**W**), y por las palabras que contienen (**P**).
+El [filespec](filespec.md) elige archivos por nombre, fecha y tamaño. Xylem también los encuentra por una condición escrita en SQL, sobre lo que sabe de cada archivo y sobre su contenido (**W**), y por las palabras que contienen (**P**). Para ir a un archivo o una carpeta por trozos de su nombre, consulta [Búsqueda aproximada](fuzzy.md); para todas las formas de encontrar cosas, [Encontrar archivos y carpetas](finding.md).
 
 ## Una condición SQL (W)
 

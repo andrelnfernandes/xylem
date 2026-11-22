@@ -5,6 +5,78 @@ sich für bisherige Nutzer geändert hat und welche Tasten umbelegt wurden. Die
 vollständigen Versionshinweise finden sich unter
 `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.9.0
+
+**Neu.**
+
+- Norton Guides (`.ng`), die Hilfedateien von DOS und Clipper, öffnen sich
+  im Betrachter als Dokument: die Menüs, dann jeder Eintrag nummeriert
+  (`§12`), mit seinen Links und seinem Siehe-auch, die auf diese Nummern
+  zeigen. Tab wählt einen Link, Enter oder ein Klick folgt ihm, Backspace
+  geht zurück. [Der Betrachter](viewer.md)
+- Unscharfe Suche (`|`): Teile eines Namens tippen (`cfgxy` findet
+  `config/xylem`), und der Cursor geht zum besten Ordner, im Baum, oder zur
+  besten Datei der Liste, im Dateifenster. Die Ergebnisse erscheinen beim
+  Tippen, die besten zuerst, auch in einem Baum mit Millionen Ordnern.
+  Ctrl+T markiert das gewählte Ergebnis und Alt+T die Liste. [Unscharfe
+  Suche](fuzzy.md)
+- [Dateien und Ordner finden](finding.md): eine Seite, die sagt, welche
+  Suche welche Frage beantwortet.
+- E-Books: EPUB und FictionBook (`.fb2`, `.fb2.zip`) öffnen sich als Buch
+  zum Lesen, in einer Spalte mit den Absätzen eines gedruckten Buchs: eine
+  Titelseite, Space für die nächste Seite, `]` `[` für Kapitel, Tab für das
+  Inhaltsverzeichnis, Enter für die auf der Seite aufgerufenen Anmerkungen,
+  `g 40%` für eine Stelle im Buch, und wie viel vom Kapitel und vom Buch
+  bleibt. `I` zeigt den Bericht über die Datei: was das Buch über sich sagt
+  und ob es Skripte, von außen Geladenes oder DRM enthält. [Der
+  Betrachter](viewer.md#ebooks)
+- `R` in einem Buch merkt sich, wo Sie aufgehört haben, und das Buch öffnet
+  sich beim nächsten Mal dort. Wenn Sie es einschalten (Seite 5 von F12),
+  speichert Xylem auch die Zeit, die Sie mit jedem gemerkten Buch verbracht
+  haben, Ihre Sitzungen und Ihre Lesegeschwindigkeit, nur auf Ihrem Rechner.
+  [Lesezeit](configuration.md#reading-time)
+- F1 öffnet die Hilfe beim Abschnitt dessen, was Sie gerade tun: im Batch
+  des Betrachters (Ctrl+B) bei „Batch im Betrachter“, nicht am Anfang der
+  Seite. Links auf einen Abschnitt einer Hilfeseite führen jetzt dorthin.
+- Xylem kann erkennen, dass eine neue Version erschienen ist. Beim ersten
+  Start fragt es, ob es einmal am Tag nachsehen darf; bei Ja lädt es von der
+  Website nur die Nummer der neuesten Version, und die oberste Zeile sagt,
+  wenn eine neuere erschienen ist. Nichts wird heruntergeladen oder
+  installiert. [Neue Versionen](configuration.md#new-versions)
+- Ansichten (Alt+V): andere Arten, die Liste anzusehen. Der Scan (`S`) zeigt,
+  was in einem Ordner einen Blick verdient, bevor Sie ihn öffnen: Namen mit
+  versteckten Zeichen oder doppelter Endung (`fatura.pdf.exe`),
+  Setuid-Dateien und was jeder schreiben kann, Links, die den Ordner
+  verlassen oder ins Leere zeigen, und, gelesen mit den eigenen Lesern und
+  Limits des Betrachters, ausführbare Dateien ohne PIE oder NX oder gepackt,
+  Office-Dokumente mit Makros oder einer entfernten Vorlage, Patches, die mit
+  `..` hinausklettern. Enter auf einer Kategorie bringt ihre Dateien zurück
+  in die Liste, für Ctrl+T und den Rest. Die Zeitleiste (`T`) zeigt die
+  Dateien der Liste in einem Histogramm nach Datum, nach Stunden, Tagen,
+  Wochen, Monaten oder Jahren; Enter auf einem Balken oder einem Bereich
+  behält nur dessen Dateien, als `W`-Bedingung. Die Tabelle (`L`) öffnet die
+  Liste im Tabellenbetrachter, eine Datei pro Zeile mit den Spalten von `W`,
+  auch eine Liste mit Millionen Dateien; `W` dort bringt ihren SQL-Filter
+  zurück in die Liste. [Ansichten](views.md)
+
+**Geändert.**
+
+- `O` im Betrachter geht vor UTF-16 durch zwei weitere Kodierungen,
+  Windows-1251 und KOI8-R (Kyrillisch).
+- Die Typanzeige (Alt+F) sagt `EPUB ebook (ZIP)`, `FB2 ebook` und
+  `FB2 ebook (ZIP)`.
+
+**Behoben.**
+
+- Mit eingeschaltetem Git fror ein großes Repository auf einem langsamen
+  Dateisystem (`/mnt/c` aus WSL, eine Netzwerkfreigabe) den Bildschirm ein,
+  solange `git status` lief, minutenlang. Der Status wird jetzt im
+  Hintergrund gelesen, und ein langsames Repository wird seltener neu
+  gelesen. [Git](git.md)
+- Die Bibliothek, die Xylem für Systemaufrufe verwendet (rustix 1.1.6), ist
+  wegen eines Sicherheitshinweises zu erweiterten Attributen aktualisiert
+  ([RUSTSEC-2026-0486](https://rustsec.org/advisories/RUSTSEC-2026-0486)).
+
 ## 0.8.0
 
 **Geändert: einige Alt-Tasten.** Alt wiederholt Ctrl nicht mehr. Es ist die

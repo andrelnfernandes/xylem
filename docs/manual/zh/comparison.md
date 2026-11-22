@@ -4,7 +4,9 @@
 
 我从 1990 年代起就一直在用各种版本的 XTree，自 2013 年起拥有一份付费的 ZTreeWin 授权。在我看来，ZTreeWin 至今仍是最好的文本模式文件管理器：快速、可预期、完全由键盘操作，并围绕一种其他文件管理器都未能企及的工作方式而构建（载入目录树、在整个分支中标记文件、对已标记的文件执行操作）。Kim Henkel 数十年来一直让 XTree 的工作方式在 Windows 上延续下来，没有这份工作就不会有 Xylem。
 
-Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linux 上拥有同样的工作方式，而 ZTreeWin 无法在 Linux 上原生运行。由于 Rust 让跨平台编译变得容易，Xylem 也能在 Windows 上编译，但这并不是我的目标：在 Windows 上，ZTreeWin 完全值得购买：[ztree.com](https://www.ztree.com/)，以及其用户[论坛](https://groups.io/g/ZTreeWin)。
+Xylem 并不打算取代 ZTreeWin。它的起点是我想在 Linux 上拥有同样的工作方式，而当时 ZTreeWin 无法在 Linux 上运行。自 2026 年 11 月的 [2.9.12 测试版](https://www.ztree.com/html/beta.htm) 起，它已经可以了，名为 ZTreeLin（在 macOS 上名为 ZTreeMac）。Xylem 将继续作为同一种工作方式的另一种诠释：开源、首先为 Linux 打造，并具备下文 [Xylem 更进一步的地方](#where-xylem-goes-further) 中所列的功能。由于 Rust 让跨平台编译变得容易，Xylem 也能在 Windows 上编译，但这并不是我的目标：在 Windows 上，ZTreeWin 完全值得购买：[ztree.com](https://www.ztree.com/)，以及其用户[论坛](https://groups.io/g/ZTreeWin)。
+
+查看器能读取 Norton Guides，即 DOS 和 Clipper 的帮助文件，这要感谢 Dave Pearson：他在 1990 年代弄清了这种格式，此后一直让这些文件保持可读：[davep.org/norton-guides](https://www.davep.org/norton-guides/)。
 
 ## 其他终端文件管理器
 
@@ -42,7 +44,7 @@ Xylem 并不打算取代 ZTreeWin。它之所以存在，是因为我想在 Linu
 
 ### Xylem 尚未具备的功能
 
-- **目录树：** Global（G，已标记文件用 Ctrl+G）、Graft (Alt+G)、Mirror (Alt+M)、部分释放（Ctrl+Backspace）、隐藏 (Alt+H)、清理空闲空间 Wash (Alt+W)、卷标 Volume (Ctrl+V)、F5/F6（隐藏子目录层级）、按属性标记（Alt+T/U）、编辑模式下的 Treespec（F5、通配符）与特殊文件夹（F6）、带提示符的先行输入搜索（`|`）与活动模式、盘符切换（`<` 与 `>`）。
+- **目录树：** Global（G，已标记文件用 Ctrl+G）、Graft (Alt+G)、Mirror (Alt+M)、部分释放（Ctrl+Backspace）、隐藏 (Alt+H)、清理空闲空间 Wash (Alt+W)、卷标 Volume (Ctrl+V)、F5/F6（隐藏子目录层级）、按属性标记（Alt+T/U）、编辑模式下的 Treespec（F5、通配符）与特殊文件夹（F6）、活动模式下的先行输入搜索（无提示符）、盘符切换（`<` 与 `>`）。带提示符的先行输入搜索（`|`）已经提供，带有模糊匹配，在文件窗口中也可用：[模糊查找](fuzzy.md)。
 - **文件：** 在新终端窗口中打开 (Alt+O)、当前文件的批处理 (Alt+B)、JFC（J，比较两个文件的内容）、创建快捷方式 sHortcut (H)、打印 Print (P)、修改所有者/组 (chown)、Megaview（文件窗口中的 Ctrl+F7）、在两个窗口间合并已标记文件 (Ctrl+F6)、部分取消标记 Partial Untag (Ctrl+F8)、Showall 以外的 Tags-Only 模式（Ctrl+Enter 与 Ctrl+F4，目录树中的 Ctrl+B）。
 - **通用：** 宏 (F12)、应用程序菜单 (F9)、退出到临时 shell (Ctrl+Q)、保存与加载已载入目录列表（Zlist，Ctrl/Alt+Z）、按名称与属性着色（ZCOLORS.INI）、ZTreeWin 命令行选项、视频模式命令（Alt+F6–F9）。
 
