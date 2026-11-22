@@ -1,6 +1,6 @@
 # Plano: visões fora do visual clássico (Linha do tempo, Varredura, Tabela)
 
-**Para a 0.9.0** (pedida em 2026-11-20; aprovada em 2026-11-21: as quatro etapas entram na 0.9.0, e a tecla é **Alt+V**).
+**Feito na 0.9.0** (pedida em 2026-11-20; aprovada em 2026-11-21: as quatro etapas entram na 0.9.0, e a tecla é **Alt+V**). Etapas 1 a 3 no PR #133; a 4, a Tabela, no branch `views-table`.
 
 Origem: o autor propôs romper com o visual clássico em situações específicas,
 por um comando. Critério combinado: só vale uma tela nova que responda a uma

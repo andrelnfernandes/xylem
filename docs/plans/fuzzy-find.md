@@ -1,6 +1,7 @@
 # Plano: busca aproximada ao digitar (`|`), e o zoxide como apêndice
 
-**Proposta para a 0.9.0** (pedida em 2026-11-20). Nada aprovado para código.
+**Feito na 0.9.0** (pedido em 2026-11-20; as quatro etapas no PR #129). O apêndice do
+zoxide (`Z`) não foi feito e continua opcional, no BACKLOG.
 
 ## Objetivo
 

@@ -1,6 +1,7 @@
 # Plano: EPUB e FB2 como documento no viewer
 
-**Proposta para a 0.9.0** (pedida em 2026-11-20). Nada aprovado para código.
+**Feito na 0.9.0** (pedido em 2026-11-20): EPUB e FB2, com o lugar onde parou e o tempo
+de leitura, no PR #130. O MOBI, pedido depois, está no BACKLOG.
 
 ## Objetivo
 
