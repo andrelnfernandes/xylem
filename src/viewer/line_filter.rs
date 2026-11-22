@@ -60,6 +60,7 @@ impl LineMatcher {
                 text: spec.text.clone(),
                 case_sensitive: spec.case_sensitive,
                 hex: false,
+                unicode: false,
             })?)
         };
         Ok(LineMatcher {

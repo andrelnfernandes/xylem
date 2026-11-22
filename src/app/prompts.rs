@@ -37,7 +37,8 @@ pub(crate) enum PromptKind {
     Chmod(Vec<PathBuf>),
     Log,
     Execute,
-    /// Ctrl+S: term to search for in the tagged files (F2 and F4 change the options).
+    /// Ctrl+S: terms to search for in the tagged files, with AND, OR, NOT
+    /// (F2 and F4 change the options).
     SearchTagged {
         spec: SearchSpec,
     },
@@ -144,7 +145,7 @@ impl PromptKind {
     pub(crate) fn search_label(&self) -> Option<String> {
         Some(match self {
             PromptKind::SearchTagged { spec } => {
-                format!("SEARCH tagged files ({}): ", spec.mode_label())
+                format!("SEARCH tagged files ({}): ", spec.tagged_mode_label())
             }
             PromptKind::ViewerSearch { spec, forward, .. } => {
                 let dir = if *forward { "FIND" } else { "FIND backward" };
@@ -189,7 +190,8 @@ impl Prompt {
         matches!(self.kind, PromptKind::Transfer { tagged: true, .. })
     }
 
-    /// Search prompts accept F2 (case) and F4 (text/hex).
+    /// Search prompts accept F2 (case) and F4 (text/hex; in Ctrl+S,
+    /// text+Unicode/text/hex).
     pub fn is_search(&self) -> bool {
         matches!(
             self.kind,

@@ -867,7 +867,7 @@ impl Keymap {
              F2                      in prompts that ask for a folder: pick it in a tree\n  \
              F11                     in Log, Copy and Move: choose a bookmark\n  \
              ↑, ↓                    in prompts: history\n  \
-             F2, F4                  in search prompts: match case, text/hex\n  \
+             F2, F4                  in search prompts: match case, text/hex (Ctrl+S: text+Unicode/text/hex)\n  \
              F2                      in tagged rename: cycles case (lower, upper, title)\n\n\
              BOOKMARKS (Alt+B, F11, ')\n  \
              ' + 0-9 / a-z           instant jump to bookmark\n  \

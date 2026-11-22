@@ -4394,6 +4394,7 @@ dependencies = [
 name = "xylem-fm"
 version = "0.9.0"
 dependencies = [
+ "aho-corasick",
  "anyhow",
  "arboard",
  "arrow-array",
