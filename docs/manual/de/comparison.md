@@ -81,7 +81,9 @@ Plugin-System und die bereits dafür geschriebenen Plugins (yazi, nnn, ranger,
 lf, far2l): Xylem hat keines, nur eXecute und Batch. vi-Tasten von Anfang an
 (ranger, lf, yazi, vifm), wo Xylem eigene Ein-Buchstaben-Befehle hat. Jahre der
 Nutzung durch viele Menschen und getestete Builds für macOS und Windows,
-während Xylem neu ist, auf dem Mac ungetestet und unter Windows experimentell.
+während Xylem neu ist, auf dem Mac nur kurz
+ausprobiert (von einem Nutzer, auf Intel und Apple Silicon) und unter Windows
+experimentell.
 
 ## ZTreeWin
 

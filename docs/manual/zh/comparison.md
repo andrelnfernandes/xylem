@@ -33,7 +33,7 @@ Xylem 并不打算取代 ZTreeWin。它的起点是我想在 Linux 上拥有同�
 - 内置终端，其目录树会跟随 shell 的 `cd`；
 - 来自外部的文件在任何地方都被视为潜在恶意，所读取的一切都有上限（[安全](security.md)）。
 
-**其他程序领先的地方。** 图片预览（yazi、superfile、ranger）。插件系统以及已经为其编写的插件（yazi、nnn、ranger、lf、far2l）：Xylem 没有插件，只有 eXecute 和 Batch。从一开始就采用 vi 按键（ranger、lf、yazi、vifm），而 Xylem 有自己的单字母命令。多年来被许多人使用，并有经过测试的 macOS 和 Windows 版本；而 Xylem 是新项目，未在 Mac 上测试，在 Windows 上仍属实验性质。
+**其他程序领先的地方。** 图片预览（yazi、superfile、ranger）。插件系统以及已经为其编写的插件（yazi、nnn、ranger、lf、far2l）：Xylem 没有插件，只有 eXecute 和 Batch。从一开始就采用 vi 按键（ranger、lf、yazi、vifm），而 Xylem 有自己的单字母命令。多年来被许多人使用，并有经过测试的 macOS 和 Windows 版本；而 Xylem 是新项目，仅由一位用户在 Mac（Intel 与 Apple 芯片）上简单试用过，在 Windows 上仍属实验性质。
 
 ## ZTreeWin
 

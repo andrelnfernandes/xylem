@@ -134,8 +134,9 @@ as a link is what `cp -a` and `rsync -l` do).
   as a table (`SELECT`, `GROUP BY`, `JOIN`), through SQLite.
 - **From ZTreeWin, next:** JFC (compare the contents of two files), and saving
   and loading the log (Zlist), so that the tree of a disk or a Drive opens at once.
-- Postponed by choice: macros, chown, Graft. macOS: to look at again when there
-  is a machine to test on. It builds (#123, checked in CI) and watches the
+- Postponed by choice: macros, chown, Graft. macOS: no package yet. It builds
+  (#123, checked in CI), and the author of #123 ran it on macOS 15 (Intel) and
+  27 (Apple silicon) and reports that it works; nothing was tested further. It watches the
   directories with kqueue, which reports files created, deleted or renamed in a
   directory but not a change in the contents of a file already there: a file that
   grows keeps its old size on screen until the directory is read again. FSEvents

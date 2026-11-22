@@ -356,7 +356,8 @@ Found a problem? Please report it privately [via GitHub Security Advisories](htt
 
 - Windows: it builds and passes the tests (see
   [Windows](docs/manual/windows.md)), but it is not a priority. macOS: it
-  builds, and CI checks it, but it has not been tested on a Mac.
+  builds, and CI checks it; a user ran it on macOS 15 (Intel) and 27 (Apple
+  silicon) and reports that it works. There is no macOS package yet.
 - Postponed by choice: macros, chown and Graft.
 
 The full list of what is left, including the developers' notes, is in

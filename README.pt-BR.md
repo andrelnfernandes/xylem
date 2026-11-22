@@ -365,7 +365,8 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
 
 - Windows: compila e passa nos testes (veja
   [Windows](docs/manual/pt/windows.md)), mas não é prioridade. macOS: compila, e
-  o CI confere, mas ainda não foi testado num Mac.
+  o CI confere; um usuário o rodou no macOS 15 (Intel) e no 27 (Apple silicon)
+  e conta que funciona. Ainda não há pacote para macOS.
 - Adiados por opção: macros, chown e Graft.
 
 A lista completa do que falta, com as notas de desenvolvimento, está em

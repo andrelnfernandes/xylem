@@ -77,8 +77,8 @@ superfile, ranger). Um sistema de plugins e os plugins já escritos para ele
 (yazi, nnn, ranger, lf, far2l): o Xylem não tem, só o eXecute e o Batch.
 Teclas do vi desde o início (ranger, lf, yazi, vifm), onde o Xylem tem seus
 próprios comandos de uma letra. Anos de uso por muita gente, e versões para
-macOS e Windows testadas, enquanto o Xylem é novo, não foi testado num Mac e é
-experimental no Windows.
+macOS e Windows testadas, enquanto o Xylem é novo, só foi experimentado de leve num Mac (por um usuário, em Intel e Apple
+silicon) e é experimental no Windows.
 
 ## ZTreeWin
 

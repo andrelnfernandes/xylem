@@ -81,8 +81,8 @@ ranger). Un système de plugins et les plugins déjà écrits pour lui (yazi, nn
 ranger, lf, far2l) : Xylem n'en a pas, seulement eXecute et Batch. Les touches
 vi dès le départ (ranger, lf, yazi, vifm), là où Xylem a ses propres commandes
 d'une lettre. Des années d'usage par beaucoup de monde, et des versions macOS
-et Windows testées, là où Xylem est nouveau, non testé sur Mac et
-expérimental sous Windows.
+et Windows testées, là où Xylem est nouveau, à peine essayé sur Mac (par un
+utilisateur, sur Intel et Apple silicon) et expérimental sous Windows.
 
 ## ZTreeWin
 
