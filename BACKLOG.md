@@ -8,17 +8,7 @@ machine. The user-facing summary is under "For later" in the
 
 ## Bugs
 
-- **Showall on a huge tree holds the screen while it sorts the list.** Found by the
-  measurement of the Table on 2026-11-21 ([docs/plans/views.md](docs/plans/views.md),
-  "Medição da Tabela"). With 2,000,000 files, `Pane::refresh_files` takes 6.8 s on
-  the main thread (3.2 s with 1,000,000), and 6.5 s of that is
-  `model::sort::sort_by`. It starts from the order of the tree, moves elements of
-  about 100 bytes, and compares names that each live in an allocation of their own.
-  The filespec (0.19 s) and the hidden check (0.04 s) weigh little, and the list is
-  sorted again each time it is rebuilt. Likely remedies, none tried yet: sorting
-  indices instead of the elements, `sort_unstable` (the `dir_rank` already makes the
-  order total), or keeping the names in one buffer. Measure with
-  `XY_TABLE_N=2000000 cargo test --release table_measure -- --ignored --nocapture`.
+None open.
 
 ## Security
 
@@ -231,6 +221,19 @@ Nothing is behind now.
   it is caught: log the error of `write_script` in the test.
 
 ## To evaluate
+
+- **What is left of building the Showall list on a huge tree.** The sort that
+  held the screen for seconds is fixed in 0.9.1 (it was the first item of Bugs):
+  with 2,000,000 files, `Pane::refresh_files` went from 4.9 s to 0.66 s on the
+  main thread (from 2.3 s to 0.35 s with 1,000,000), and `model::sort::sort_by`
+  alone from 4.7 s to 0.40 s. Measured on 2026-11-22 on a machine with 8 cores
+  ([docs/plans/views.md](docs/plans/views.md), "Medição da Tabela"). What is
+  left, if a bigger tree asks for it: the filespec costs 0.13 s even for `*`
+  (`globset` over every name), and the list is still sorted again each time it
+  is rebuilt. Measure with
+  `XY_TABLE_N=2000000 cargo test --release table_measure -- --ignored --nocapture`
+  and, for the sort alone in every mode,
+  `XY_SORT_N=2000000 cargo test --release sort_measure -- --ignored --nocapture`.
 
 - **The memory of a big tree (JSON, YAML, TOML):** the tree stops at 2,000,000
   nodes, which take about 170 MiB; a JSON of 4 MiB such as `[0,0,0,...]` reaches
