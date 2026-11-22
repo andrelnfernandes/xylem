@@ -5,6 +5,17 @@ someone who used the version before, and the keys that moved. The full notes
 of each version are on
 `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.10.0 (in development)
+
+**New.**
+
+- The Filespec takes regular expressions between slashes, mixed with globs,
+  dates and sizes: `/^report-\d{4}/`, `/\.jpe?g$/i`. [Filespec](filespec.md)
+- The batch Rename (Ctrl+R) takes regular expressions with the `r` flag:
+  `s/(\d+)-(\w+)/$2-$1/r`, with `${name}` groups and `\U`, `\L`, `\u`, `\l`
+  for case. Without `r`, `s/from/to/` stays literal. Two files that would end
+  with the same name are named in the message. [Rename](rename.md)
+
 ## 0.9.0
 
 **New.**

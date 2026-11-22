@@ -1218,9 +1218,17 @@ impl App {
         if pattern.is_empty() {
             return;
         }
-        let mask = RenameMask::new(pattern, case_mode);
+        let mask = match RenameMask::parse(pattern, case_mode) {
+            Ok(mask) => mask,
+            Err(e) => {
+                self.message = Some(e);
+                return;
+            }
+        };
         let mut pairs = Vec::new();
-        let mut seen_dsts = std::collections::HashSet::new();
+        // Each target and the file that would get it: two files may not end
+        // with the same name, even if one of them keeps its own.
+        let mut seen_dsts = std::collections::HashMap::new();
 
         for (i, s) in sources.iter().enumerate() {
             let index = i + 1;
@@ -1229,15 +1237,17 @@ impl App {
             };
             let new_name = mask.apply(file_name, index);
             if let Err(e) = ops::check_name(&new_name) {
-                self.message = Some(format!("Invalid name '{new_name}': {e}"));
+                self.message = Some(format!("{file_name} would become '{new_name}': {e}"));
                 return;
             }
             let dst = s.path.with_file_name(&new_name);
+            if let Some(other) = seen_dsts.insert(dst.clone(), file_name) {
+                self.message = Some(format!(
+                    "{other} and {file_name} would both become {new_name}: nothing renamed"
+                ));
+                return;
+            }
             if dst != s.path {
-                if !seen_dsts.insert(dst.clone()) {
-                    self.message = Some(format!("Duplicate target name generated: {new_name}"));
-                    return;
-                }
                 pairs.push((s.path.clone(), dst, s.size));
             }
         }

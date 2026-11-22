@@ -4421,6 +4421,7 @@ dependencies = [
  "quick-xml 0.42.0",
  "ratatui",
  "regex",
+ "regex-syntax",
  "rusqlite",
  "ruzstd",
  "saphyr-parser",

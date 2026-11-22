@@ -3472,6 +3472,43 @@ fn rename_tagged_files_with_wildcard_mask() {
 }
 
 #[test]
+fn rename_tagged_files_with_a_regex() {
+    let (tmp, mut app) = sample();
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('t'));
+    press(&mut app, KeyCode::Char('t'));
+    app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
+    answer_prompt(&mut app, r"s/^(\w)\.(\w+)$/\U$2\E_$1/r");
+    assert!(tmp.path().join("RS_a").exists());
+    assert!(tmp.path().join("TXT_b").exists());
+}
+
+#[test]
+fn rename_tagged_refuses_bad_regexes_conflicts_and_empty_names() {
+    let (tmp, mut app) = sample();
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('t'));
+    press(&mut app, KeyCode::Char('t'));
+    let rename = |app: &mut App, mask: &str| {
+        app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
+        answer_prompt(app, mask);
+        app.message.take().unwrap_or_default()
+    };
+    let msg = rename(&mut app, r"s/(\w/x/r");
+    assert!(msg.contains("column 1"), "{msg}");
+    // Both would be "x": the message names the two files.
+    let msg = rename(&mut app, r"s/^.*$/x/r");
+    assert!(msg.contains("a.rs and b.txt would both become x"), "{msg}");
+    // One keeps its name, the other would take it.
+    let msg = rename(&mut app, r"s/^b\.txt$/a.rs/r");
+    assert!(msg.contains("would both become a.rs"), "{msg}");
+    let msg = rename(&mut app, r"s/.*//r");
+    assert!(msg.contains("would become ''"), "{msg}");
+    assert!(tmp.path().join("a.rs").exists());
+    assert!(tmp.path().join("b.txt").exists());
+}
+
+#[test]
 fn rename_tagged_files_with_counters_and_search_replace() {
     let (tmp, mut app) = sample();
     press(&mut app, KeyCode::Enter);
