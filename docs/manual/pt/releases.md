@@ -4,6 +4,15 @@ A versão mais recente primeiro. Cada seção lista o que há de novo, o que mud
 para quem usava a versão anterior e as teclas que mudaram. As notas completas
 de cada versão estão em `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.9.1
+
+**Correções.**
+
+- O Showall (e o Branch) de uma árvore com milhões de arquivos travava a tela
+  por segundos enquanto ordenava a lista: uns 5 s com 2.000.000 de arquivos.
+  Agora leva bem menos de um segundo (0,66 s na mesma máquina), em qualquer
+  ordem, e a ordem dos arquivos é a mesma de antes.
+
 ## 0.9.0
 
 **Novidades.**

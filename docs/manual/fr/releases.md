@@ -5,6 +5,16 @@ les changements pour les utilisateurs de la version précédente et les touches
 modifiées. Les notes complètes de chaque version sont disponibles sur
 `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.9.1
+
+**Corrections.**
+
+- Le Showall (et le Branch) d'une arborescence de millions de fichiers figeait
+  l'écran pendant des secondes le temps de trier la liste : environ 5 s avec
+  2 000 000 de fichiers. Cela prend maintenant bien moins d'une seconde (0,66 s
+  sur la même machine), dans tous les ordres, et l'ordre des fichiers reste le
+  même qu'avant.
+
 ## 0.9.0
 
 **Nouveautés.**
