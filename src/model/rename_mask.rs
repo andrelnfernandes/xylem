@@ -2,7 +2,9 @@
 //!
 //! Supports:
 //! - Wildcard masks: `*.jpg`, `new_*.*`, `*_backup.*`, `???_*.*`
-//! - Search & replace: `s/from/to/`, `s/from/to/i`, `/from/to/`
+//! - Search & replace: `s/from/to/`, `s/from/to/i`, `/from/to/` (literal)
+//! - Regular expressions with the `r` flag: `s/(\d+)-(\w+)/$2-$1/r`, with
+//!   `$1`, `${name}` and `\U`, `\L`, `\E`, `\u`, `\l` for case
 //! - Incremental counters: `%03d`, `%02d`, `%d`, `<001>`, `<01>`, `<#>`
 //! - Case conversion: `<lower>`, `<upper>`, `<title>`, `*.<lower>`, or CaseMode (`F2`)
 
@@ -67,20 +69,45 @@ pub fn title_case(s: &str) -> String {
 pub struct RenameMask {
     pattern: String,
     case_mode: CaseMode,
+    /// `s/from/to/r`: the expression, compiled once (or why it could not be).
+    regex: Option<Result<RegexReplace, String>>,
 }
 
 impl RenameMask {
+    /// A mask whose regular expression may be invalid: then it keeps every
+    /// name ([`RenameMask::parse`] says why).
     pub fn new(pattern: &str, case_mode: CaseMode) -> Self {
+        let pattern = pattern.trim().to_string();
+        let regex = split_search_replace(&pattern)
+            .filter(|(_, _, flags)| flags.contains('r'))
+            .map(|(from, to, flags)| RegexReplace::new(from, to, flags.contains('i')));
         Self {
-            pattern: pattern.trim().to_string(),
+            pattern,
             case_mode,
+            regex,
         }
+    }
+
+    /// The mask, or why its regular expression is invalid.
+    pub fn parse(pattern: &str, case_mode: CaseMode) -> Result<Self, String> {
+        let mask = Self::new(pattern, case_mode);
+        if let Some(Err(e)) = &mask.regex {
+            return Err(e.clone());
+        }
+        Ok(mask)
     }
 
     pub fn apply(&self, original_name: &str, index: usize) -> String {
         let pat = self.pattern.as_str();
 
-        // 1. Check for search & replace: s/from/to/[i] or /from/to/[i]
+        // 1. Regular expression: s/from/to/r (invalid: the name stays).
+        match &self.regex {
+            Some(Ok(regex)) => return self.case_mode.apply(&regex.replace(original_name)),
+            Some(Err(_)) => return original_name.to_string(),
+            None => {}
+        }
+
+        // 2. Check for search & replace: s/from/to/[i] or /from/to/[i]
         if let Some(replaced) = try_search_replace(pat, original_name) {
             return self.case_mode.apply(&replaced);
         }
@@ -139,7 +166,9 @@ fn split_stem_ext(name: &str) -> (&str, Option<&str>) {
     }
 }
 
-fn try_search_replace(pattern: &str, source: &str) -> Option<String> {
+/// `s/from/to/flags` or `/from/to/flags` (the flags and the last slash
+/// are optional) as its three parts.
+fn split_search_replace(pattern: &str) -> Option<(&str, &str, &str)> {
     let p = pattern
         .strip_prefix("s/")
         .unwrap_or_else(|| pattern.strip_prefix('/').unwrap_or(""));
@@ -150,9 +179,11 @@ fn try_search_replace(pattern: &str, source: &str) -> Option<String> {
     if parts.len() < 2 {
         return None;
     }
-    let from = parts[0];
-    let to = parts[1];
-    let flags = parts.get(2).copied().unwrap_or("");
+    Some((parts[0], parts[1], parts.get(2).copied().unwrap_or("")))
+}
+
+fn try_search_replace(pattern: &str, source: &str) -> Option<String> {
+    let (from, to, flags) = split_search_replace(pattern)?;
     let case_insensitive = flags.contains('i');
 
     if from.is_empty() {
@@ -164,6 +195,194 @@ fn try_search_replace(pattern: &str, source: &str) -> Option<String> {
     } else {
         Some(source.replace(from, to))
     }
+}
+
+/// A piece of the replacement of a regular expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Piece {
+    Text(String),
+    /// `$1`, `${2}`, `$name`, `${name}` (by number, already resolved).
+    Group(usize),
+    /// `\U` and `\L` until `\E` (or the next one); `\u` and `\l` for the
+    /// next character only.
+    Case(CaseOp),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CaseOp {
+    Upper,
+    Lower,
+    End,
+    NextUpper,
+    NextLower,
+}
+
+/// `s/from/to/r`: every match of `from` replaced by `to`.
+#[derive(Debug, Clone)]
+struct RegexReplace {
+    regex: regex::Regex,
+    to: Vec<Piece>,
+    /// An empty expression keeps the name, as an empty literal does.
+    keep: bool,
+}
+
+impl RegexReplace {
+    fn new(from: &str, to: &str, case_insensitive: bool) -> Result<Self, String> {
+        let regex = super::regex_build::build(from, case_insensitive)?;
+        let to = parse_replacement(to, &regex)?;
+        Ok(RegexReplace {
+            regex,
+            to,
+            keep: from.is_empty(),
+        })
+    }
+
+    fn replace(&self, source: &str) -> String {
+        if self.keep {
+            return source.to_string();
+        }
+        self.regex
+            .replace_all(source, |caps: &regex::Captures| self.expand(caps))
+            .into_owned()
+    }
+
+    fn expand(&self, caps: &regex::Captures) -> String {
+        #[derive(Clone, Copy)]
+        enum Conv {
+            Upper,
+            Lower,
+        }
+        fn push(out: &mut String, c: char, conv: Option<Conv>) {
+            match conv {
+                Some(Conv::Upper) => out.extend(c.to_uppercase()),
+                Some(Conv::Lower) => out.extend(c.to_lowercase()),
+                None => out.push(c),
+            }
+        }
+        let mut out = String::new();
+        let (mut mode, mut next) = (None, None);
+        for piece in &self.to {
+            let text = match piece {
+                Piece::Text(t) => t.as_str(),
+                Piece::Group(i) => caps.get(*i).map_or("", |m| m.as_str()),
+                Piece::Case(op) => {
+                    match op {
+                        CaseOp::Upper => mode = Some(Conv::Upper),
+                        CaseOp::Lower => mode = Some(Conv::Lower),
+                        CaseOp::End => mode = None,
+                        CaseOp::NextUpper => next = Some(Conv::Upper),
+                        CaseOp::NextLower => next = Some(Conv::Lower),
+                    }
+                    continue;
+                }
+            };
+            for c in text.chars() {
+                push(&mut out, c, next.take().or(mode));
+            }
+        }
+        out
+    }
+}
+
+/// The replacement of `s/from/to/r`: `$$` is a `$`, `\\` a backslash; a
+/// group that the expression does not have is an error.
+fn parse_replacement(to: &str, regex: &regex::Regex) -> Result<Vec<Piece>, String> {
+    let groups = regex.captures_len();
+    let group = |name: &str| -> Result<usize, String> {
+        if name.bytes().all(|b| b.is_ascii_digit()) {
+            match name.parse::<usize>() {
+                Ok(n) if n < groups => Ok(n),
+                _ => Err(format!(
+                    "no group ${name}: the regex has {}",
+                    match groups - 1 {
+                        0 => "no groups".to_string(),
+                        1 => "1 group".to_string(),
+                        n => format!("{n} groups"),
+                    }
+                )),
+            }
+        } else {
+            regex
+                .capture_names()
+                .position(|n| n == Some(name))
+                .ok_or_else(|| format!("no group named '{name}' in the regex"))
+        }
+    };
+    let mut pieces = Vec::new();
+    let mut text = String::new();
+    let mut chars = to.chars().peekable();
+    let flush = |text: &mut String, pieces: &mut Vec<Piece>| {
+        if !text.is_empty() {
+            pieces.push(Piece::Text(std::mem::take(text)));
+        }
+    };
+    while let Some(c) = chars.next() {
+        match c {
+            '$' => match chars.peek().copied() {
+                Some('$') => {
+                    chars.next();
+                    text.push('$');
+                }
+                Some('{') => {
+                    chars.next();
+                    let mut name = String::new();
+                    loop {
+                        match chars.next() {
+                            Some('}') => break,
+                            Some(c) => name.push(c),
+                            None => return Err(format!("'${{{name}' has no closing }}")),
+                        }
+                    }
+                    flush(&mut text, &mut pieces);
+                    pieces.push(Piece::Group(group(&name)?));
+                }
+                Some(c) if c.is_ascii_alphanumeric() || c == '_' => {
+                    // `$1a` is group 1 and an `a`; `$name` takes letters,
+                    // digits and `_`.
+                    let digits = c.is_ascii_digit();
+                    let mut name = String::new();
+                    while let Some(c) = chars.next_if(|&c| {
+                        if digits {
+                            c.is_ascii_digit()
+                        } else {
+                            c.is_ascii_alphanumeric() || c == '_'
+                        }
+                    }) {
+                        name.push(c);
+                    }
+                    flush(&mut text, &mut pieces);
+                    pieces.push(Piece::Group(group(&name)?));
+                }
+                _ => text.push('$'),
+            },
+            '\\' => {
+                let op = match chars.peek().copied() {
+                    Some('U') => Some(CaseOp::Upper),
+                    Some('L') => Some(CaseOp::Lower),
+                    Some('E') => Some(CaseOp::End),
+                    Some('u') => Some(CaseOp::NextUpper),
+                    Some('l') => Some(CaseOp::NextLower),
+                    _ => None,
+                };
+                match (op, chars.peek().copied()) {
+                    (Some(op), _) => {
+                        chars.next();
+                        flush(&mut text, &mut pieces);
+                        pieces.push(Piece::Case(op));
+                    }
+                    (None, Some(c @ ('\\' | '$'))) => {
+                        chars.next();
+                        text.push(c);
+                    }
+                    // Any other backslash is just that.
+                    _ => text.push('\\'),
+                }
+            }
+            c => text.push(c),
+        }
+    }
+    flush(&mut text, &mut pieces);
+    Ok(pieces)
 }
 
 fn replace_case_insensitive(source: &str, from: &str, to: &str) -> String {
@@ -357,6 +576,46 @@ mod tests {
             prop_assert_eq!(mask.apply(&name, 1), name.replace(&from, &to));
         }
 
+        /// With `r`, an expression without special characters replaces as
+        /// the literal does.
+        #[test]
+        fn regex_of_plain_text_is_the_literal(
+            name in "[a-c.]{0,16}",
+            from in "[a-c]{1,3}",
+            to in "[a-cx]{0,3}",
+            i in any::<bool>(),
+        ) {
+            let flags = if i { "i" } else { "" };
+            let literal = RenameMask::new(&format!("s/{from}/{to}/{flags}"), CaseMode::None);
+            let regex = RenameMask::new(&format!("s/{from}/{to}/r{flags}"), CaseMode::None);
+            prop_assert_eq!(regex.apply(&name, 1), literal.apply(&name, 1));
+        }
+
+        /// `\U$0` and `\L$0` are the standard conversions of the whole name.
+        #[test]
+        fn regex_case_of_the_whole_name(name in "\\PC{1,24}") {
+            let upper = RenameMask::new(r"s/^.*$/\U$0/r", CaseMode::None);
+            let lower = RenameMask::new(r"s/^.*$/\L$0/r", CaseMode::None);
+            prop_assert_eq!(upper.apply(&name, 1), name.to_uppercase());
+            prop_assert_eq!(lower.apply(&name, 1), name.to_lowercase());
+        }
+
+        /// Whatever replacement is typed, parsing and applying never panic.
+        #[test]
+        fn regex_never_panics(
+            from in prop_oneof![
+                Just(r"(\w+)".to_string()),
+                Just(r"(?<a>.)(?<b>.)?".to_string()),
+                "[a-c()?*+.\\\\]{0,6}",
+            ],
+            to in "[$\\\\{}0-9abULEulx_]{0,12}",
+            name in "\\PC{0,24}",
+        ) {
+            if let Ok(mask) = RenameMask::parse(&format!("s/{from}/{to}/r"), CaseMode::None) {
+                let _ = mask.apply(&name, 1);
+            }
+        }
+
         /// Ignoring case, with characters whose lowercase takes a different
         /// number of bytes (the Kelvin sign is a `k`, `ſ` an `s`).
         #[test]
@@ -471,6 +730,103 @@ mod tests {
         // CaseMode toggle (e.g. F2 in prompt)
         let m5 = RenameMask::new("new_*.*", CaseMode::Lower);
         assert_eq!(m5.apply("FILE_NAME.TXT", 1), "new_file_name.txt");
+    }
+
+    fn rx(mask: &str, name: &str) -> String {
+        RenameMask::parse(mask, CaseMode::None)
+            .unwrap_or_else(|e| panic!("{mask}: {e}"))
+            .apply(name, 1)
+    }
+
+    fn rx_err(mask: &str) -> String {
+        RenameMask::parse(mask, CaseMode::None).expect_err(mask)
+    }
+
+    #[test]
+    fn regex_flag_swaps_groups() {
+        assert_eq!(
+            rx(r"s/(\d+)-(\w+)/$2-$1/r", "2026-report.txt"),
+            "report-2026.txt"
+        );
+        assert_eq!(
+            rx(r"/(\d+)-(\w+)/${2}-${1}/r", "2026-report.txt"),
+            "report-2026.txt"
+        );
+        // Every match, as the literal replace does.
+        assert_eq!(rx(r"s/\s+/_/r", "a  b \tc.txt"), "a_b_c.txt");
+        assert_eq!(rx(r"s/^/new_/r", "a.txt"), "new_a.txt");
+        // `$0` is the whole match, `$$` a dollar, `$1a` group 1 and an `a`.
+        assert_eq!(rx(r"s/\d+/<$0>/r", "v12.txt"), "v<12>.txt");
+        assert_eq!(rx(r"s/(\d)/$$$1a/r", "v1.txt"), "v$1a.txt");
+        // `i` and `r` together.
+        assert_eq!(rx(r"s/JPE?G$/jpg/ri", "a.Jpeg"), "a.jpg");
+        assert_eq!(rx(r"s/JPE?G$/jpg/r", "a.Jpeg"), "a.Jpeg");
+        // The case mode (F2) applies over the result.
+        let mask = RenameMask::parse(r"s/^(\w+)/x_$1/r", CaseMode::Upper).unwrap();
+        assert_eq!(mask.apply("a.txt", 1), "X_A.TXT");
+    }
+
+    #[test]
+    fn regex_named_groups() {
+        let mask = r"s/(?<year>\d{4})-(?<month>\d\d)/${month}.${year}/r";
+        assert_eq!(rx(mask, "2026-11 notes.md"), "11.2026 notes.md");
+        assert_eq!(rx(r"s/(?P<n>\d+)/#$n/r", "a7.txt"), "a#7.txt");
+        assert!(rx_err(r"s/(?<n>\d+)/${m}/r").contains("no group named 'm'"));
+    }
+
+    #[test]
+    fn regex_case_escapes() {
+        assert_eq!(rx(r"s/^(\w+)/\U$1/r", "photo.jpg"), "PHOTO.jpg");
+        assert_eq!(
+            rx(r"s/^(\w+)\.(\w+)$/\U$1\E.$2/r", "photo.jpg"),
+            "PHOTO.jpg"
+        );
+        assert_eq!(rx(r"s/^(\w+)/\L$1/r", "PHOTO.JPG"), "photo.JPG");
+        assert_eq!(rx(r"s/^(\w)/\u$1/r", "photo.jpg"), "Photo.jpg");
+        assert_eq!(rx(r"s/^(\w+)/\l$1/r", "PHOTO.jpg"), "pHOTO.jpg");
+        // `\u` then `\L`: the first upper, the rest lower.
+        assert_eq!(rx(r"s/^(\w+)/\u\L$1/r", "pHOTO.jpg"), "Photo.jpg");
+        // Text counts too; ß is SS in uppercase.
+        assert_eq!(rx(r"s/^/\Uabc_/r", "x"), "ABC_x");
+        assert_eq!(rx(r"s/(stra)(ße)/$1\U$2/r", "straße"), "straSSE");
+        // Other backslashes are just that.
+        assert_eq!(rx(r"s/a/\x\\\$/r", "a"), r"\x\$");
+    }
+
+    #[test]
+    fn regex_errors_say_what() {
+        let e = rx_err(r"s/(\d+/x/r");
+        assert!(
+            e.contains("column 1") && e.contains("unclosed group"),
+            "{e}"
+        );
+        assert!(rx_err(r"s/a{2,1}/x/r").contains("column"));
+        assert!(rx_err(r"s/\w{1000}{1000}/x/r").contains("too big"));
+        assert_eq!(rx_err(r"s/(a)/$2/r"), "no group $2: the regex has 1 group");
+        assert!(rx_err(r"s/a/$9999999999999999999999/r").contains("no group"));
+        assert!(rx_err(r"s/a/${1/r").contains("no closing }"));
+        // `new` keeps the names, rather than renaming them by half a mask.
+        assert_eq!(
+            RenameMask::new(r"s/(/x/r", CaseMode::Upper).apply("a.txt", 1),
+            "a.txt"
+        );
+    }
+
+    #[test]
+    fn without_r_it_stays_literal() {
+        // `.` is a dot, `$1` is text.
+        assert_eq!(rx("s/./_/", "a.b.txt"), "a_b_txt");
+        assert_eq!(rx("s/(a)/$1/", "(a).txt"), "$1.txt");
+        assert_eq!(rx("s/(a/x/", "(a.txt"), "x.txt");
+    }
+
+    #[test]
+    fn regex_results_that_are_no_name() {
+        // The engine gives them; the batch Rename refuses them (check_name).
+        assert_eq!(rx(r"s/.*//r", "a.txt"), "");
+        assert!(crate::ops::check_name(&rx(r"s/.*//r", "a.txt")).is_err());
+        // A `/` cannot come from the mask (it splits it) nor from a name.
+        assert_eq!(rx(r"s/_/\//r", "a_b"), r"a\b");
     }
 
     #[test]

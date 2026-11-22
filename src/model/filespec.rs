@@ -3,7 +3,9 @@
 //! Specs separated by space, `;` or `,` (inside quotes, a name
 //! may contain spaces). Three kinds, as in ZTreeWin:
 //!
-//! - **name**: glob (`*.rs`, `a?c*`, `[abc]*`), case-insensitive;
+//! - **name**: glob (`*.rs`, `a?c*`, `[abc]*`), case-insensitive, or a
+//!   regular expression between slashes (`/^report-\d{4}/`, `/\.rs$/i`
+//!   ignoring case); a name holds no `/`, so the two never mix up;
 //! - **date**: `<`, `=`, `>`, `<=`, `>=` or `<>` and a date (`>01/05/2026`,
 //!   `=TODAY`, `>TODAY-7`);
 //! - **size**: the same with `s` (`>=s200000`, `<s10K`, `>s1G`).
@@ -17,7 +19,9 @@ use std::time::SystemTime;
 
 use chrono::{DateTime, Local, NaiveDate};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+use regex::bytes::Regex;
 
+use super::regex_build;
 use super::tree::FileEntry;
 
 /// Order of day, month and year in typed dates (the one from the configured
@@ -124,6 +128,10 @@ pub struct Filespec {
     text: String,
     include: Option<GlobSet>,
     exclude: GlobSet,
+    /// Regular expressions (`/.../`): including ones add to the globs ("or"),
+    /// excluding ones take away.
+    include_re: Vec<Regex>,
+    exclude_re: Vec<Regex>,
     dates: Conds,
     sizes: Conds,
 }
@@ -144,14 +152,37 @@ impl Filespec {
         let mut exclude = GlobSetBuilder::new();
         let mut has_include = false;
         let (mut dates, mut sizes) = (Vec::new(), Vec::new());
+        let (mut include_re, mut exclude_re) = (Vec::new(), Vec::new());
         let mut parts = Vec::new();
 
         for Token {
             text: part,
             quoted,
             negated,
+            regex,
         } in tokenize(text)
         {
+            let minus = if negated { "-" } else { "" };
+            if let Some(Slashes { flags, closed }) = regex {
+                if !closed {
+                    return Err(format!("regex '{minus}/{part}' needs a closing /"));
+                }
+                if let Some(f) = flags.chars().find(|&c| c != 'i') {
+                    return Err(format!(
+                        "unknown flag '{f}' in '{minus}/{part}/{flags}' (only i)"
+                    ));
+                }
+                let ignore_case = !flags.is_empty();
+                let re = regex_build::build_bytes(&part, ignore_case)?;
+                if negated {
+                    exclude_re.push(re);
+                } else {
+                    include_re.push(re);
+                }
+                let flags = if ignore_case { "i" } else { "" };
+                parts.push(format!("{minus}/{part}/{flags}"));
+                continue;
+            }
             let rest = part.as_str();
             if !quoted && rest.starts_with(['<', '=', '>']) {
                 let (op, value) = split_op(rest).ok_or_else(|| format!("invalid spec '{part}'"))?;
@@ -182,7 +213,6 @@ impl Filespec {
                 .build()
                 .map_err(|e| format!("invalid pattern '{rest}': {}", e.kind()))?;
             set.add(glob);
-            let minus = if negated { "-" } else { "" };
             parts.push(if quoted {
                 format!("{minus}\"{rest}\"")
             } else {
@@ -203,6 +233,8 @@ impl Filespec {
                 None
             },
             exclude: build(exclude)?,
+            include_re,
+            exclude_re,
             dates: Conds::from_list(dates),
             sizes: Conds::from_list(sizes),
         })
@@ -215,7 +247,17 @@ impl Filespec {
 
     /// Names only.
     pub fn matches(&self, name: &OsStr) -> bool {
-        self.include.as_ref().is_none_or(|s| s.is_match(name)) && !self.exclude.is_match(name)
+        let bytes = name.as_encoded_bytes();
+        let included = match &self.include {
+            None if self.include_re.is_empty() => true,
+            globs => {
+                globs.as_ref().is_some_and(|s| s.is_match(name))
+                    || self.include_re.iter().any(|r| r.is_match(bytes))
+            }
+        };
+        included
+            && !self.exclude.is_match(name)
+            && !self.exclude_re.iter().any(|r| r.is_match(bytes))
     }
 
     /// Name, date and size.
@@ -235,41 +277,94 @@ impl Filespec {
     }
 }
 
-/// One spec: the text (without the negating `-` or the quotes).
+/// One spec: the text (without the negating `-`, the quotes or the
+/// slashes of a regular expression).
 struct Token {
     text: String,
     quoted: bool,
     negated: bool,
+    regex: Option<Slashes>,
+}
+
+/// What follows a regular expression: its flags, and whether the closing
+/// slash was there.
+struct Slashes {
+    flags: String,
+    closed: bool,
+}
+
+fn is_separator(c: char) -> bool {
+    matches!(c, ' ' | ';' | ',')
 }
 
 /// Splits the text into specs. Inside quotes, separators and a leading `-`
-/// are part of the name; the `-` only negates outside them (`-"a b*"`).
+/// are part of the name; the `-` only negates outside them (`-"a b*"`). A
+/// spec that starts with `/` is a regular expression up to the next `/` not
+/// escaped by `\`: separators and quotes inside it are part of it
+/// (`/\d{2,4}/`), and the letters after it, up to a separator, its flags.
 fn tokenize(text: &str) -> Vec<Token> {
     let mut out = Vec::new();
     let mut cur = String::new();
     let (mut in_quotes, mut quoted, mut negated) = (false, false, false);
-    let mut flush = |cur: &mut String, quoted: &mut bool, negated: &mut bool| {
-        if !cur.is_empty() {
-            out.push(Token {
-                text: std::mem::take(cur),
-                quoted: *quoted,
-                negated: *negated,
-            });
-        }
-        (*quoted, *negated) = (false, false);
-    };
-    for c in text.chars() {
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
         match c {
+            '/' if !in_quotes && !quoted && cur.is_empty() => {
+                let mut closed = false;
+                while let Some(c) = chars.next() {
+                    match c {
+                        '\\' => {
+                            cur.push(c);
+                            if let Some(next) = chars.next() {
+                                cur.push(next);
+                            }
+                        }
+                        '/' => {
+                            closed = true;
+                            break;
+                        }
+                        c => cur.push(c),
+                    }
+                }
+                let mut flags = String::new();
+                while let Some(c) = chars.next_if(|&c| !is_separator(c)) {
+                    flags.push(c);
+                }
+                out.push(Token {
+                    text: std::mem::take(&mut cur),
+                    quoted: false,
+                    negated,
+                    regex: Some(Slashes { flags, closed }),
+                });
+                negated = false;
+            }
             '"' => {
                 in_quotes = !in_quotes;
                 quoted = true;
             }
-            ' ' | ';' | ',' if !in_quotes => flush(&mut cur, &mut quoted, &mut negated),
+            c if is_separator(c) && !in_quotes => {
+                if !cur.is_empty() {
+                    out.push(Token {
+                        text: std::mem::take(&mut cur),
+                        quoted,
+                        negated,
+                        regex: None,
+                    });
+                }
+                (quoted, negated) = (false, false);
+            }
             '-' if !in_quotes && !quoted && cur.is_empty() && !negated => negated = true,
             c => cur.push(c),
         }
     }
-    flush(&mut cur, &mut quoted, &mut negated);
+    if !cur.is_empty() {
+        out.push(Token {
+            text: cur,
+            quoted,
+            negated,
+            regex: None,
+        });
+    }
     out
 }
 
@@ -429,6 +524,12 @@ mod tests {
             "/",
             "\\",
             "ç",
+            "/^a/",
+            "/\\d{2,4}/i",
+            "/[a-c] ,;/",
+            "/(/",
+            "/i",
+            "x",
         ]);
         prop::collection::vec(piece, 0..10).prop_map(|p| p.concat())
     }
@@ -634,6 +735,68 @@ mod tests {
             Filespec::parse("-\"a b*\" -*.o").unwrap().text(),
             "-\"a b*\" -*.o"
         );
+    }
+
+    #[test]
+    fn regex_between_slashes() {
+        assert!(m(r"/^report-\d{4}/", "report-2026.pdf"));
+        assert!(!m(r"/^report-\d{4}/", "report-26.pdf"));
+        // Case counts, unless /i.
+        assert!(!m(r"/^Report/", "report.txt"));
+        assert!(m(r"/^Report/i", "report.txt"));
+        // Separators and quotes inside the slashes belong to the expression.
+        assert!(m(r"/^\d{2,4}$/", "123"));
+        assert!(m("/a b;c/", "xa b;cx"));
+        assert!(m("/\"x\"/", "a\"x\"b"));
+        // An escaped slash does not close it.
+        assert!(!m(r"/a\/b/", "ab"));
+    }
+
+    #[test]
+    fn regex_combines_with_globs_and_negation() {
+        // "or" with the globs, "and not" with the negated ones.
+        assert!(m(r"*.rs /^Cargo\./", "Cargo.toml"));
+        assert!(m(r"*.rs /^Cargo\./", "main.rs"));
+        assert!(!m(r"*.rs /^Cargo\./", "README.md"));
+        assert!(m(r"*.rs -/^test_/", "main.rs"));
+        assert!(!m(r"*.rs -/^test_/", "test_main.rs"));
+        assert!(m(r"-/\.o$/", "main.c") && !m(r"-/\.o$/", "main.o"));
+        // With date and size: "and".
+        let f = file("report-2026.txt", 100, "2026-05-10");
+        assert!(me(r"/^report-\d+/,<s1K", &f));
+        assert!(!me(r"/^report-\d+/,>s1K", &f));
+        assert!(!me(r"/^draft/,<s1K", &f));
+    }
+
+    #[test]
+    fn regex_errors_say_what_and_where() {
+        let e = Filespec::parse("*.rs /ab(c/").err().unwrap();
+        assert!(e.contains("column 3"), "{e}");
+        let e = Filespec::parse("/abc").err().unwrap();
+        assert!(e.contains("closing /"), "{e}");
+        let e = Filespec::parse("/abc/x").err().unwrap();
+        assert!(e.contains("unknown flag 'x'"), "{e}");
+        let e = Filespec::parse(r"/\w{1000}{1000}/").err().unwrap();
+        assert!(e.contains("too big"), "{e}");
+    }
+
+    #[test]
+    fn regex_text_is_kept_in_the_normalized_text() {
+        let f = Filespec::parse(r"*.rs  -/^a b/  /x{2,3}/ii").unwrap();
+        assert_eq!(f.text(), r"*.rs -/^a b/ /x{2,3}/i");
+        // A slash after other text is not an expression (and matches nothing).
+        assert!(!m("a/b", "a"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn regex_sees_names_that_are_not_utf8() {
+        use std::os::unix::ffi::OsStrExt;
+        let name = OsStr::from_bytes(b"caf\xe9.txt");
+        assert!(Filespec::parse(r"/^caf/").unwrap().matches(name));
+        assert!(Filespec::parse(r"/\.txt$/").unwrap().matches(name));
+        // `.` is a character: the stray byte is none.
+        assert!(!Filespec::parse(r"/^caf.\./").unwrap().matches(name));
     }
 
     #[cfg(unix)]

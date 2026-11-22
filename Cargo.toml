@@ -45,6 +45,9 @@ notify = { version = "8.2.0", default-features = false, features = ["macos_kqueu
 portable-pty = "0.9.0"
 ratatui = "0.30.2"
 regex = "1.13"
+# Where a typed regular expression went wrong (Filespec, Rename); already here
+# through regex.
+regex-syntax = "0.8"
 # The index of the contents for W (docs/plans/query.md, stage 4). With no C:
 # its default features bring the zstd in C.
 tantivy = { version = "0.27", default-features = false, features = ["mmap", "lz4-compression"], optional = true }
