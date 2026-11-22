@@ -45,6 +45,7 @@ issue.
 | vifm | two panels | vim keys and commands, the results of `:find` as a list to work on, a tree view |
 | broot | one tree that fits the screen | fuzzy search over the whole tree, sizes, a staging area to act on files from many folders |
 | far2l | two panels | Far Manager for Linux, with its plugins: SFTP, SMB, NFS, WebDAV and S3 (NetRocks), a hex editor, Python scripts |
+| ZTreeLin | a directory tree above the file list, split screen | the XTree way of ZTreeWin on Linux, from its makers: log the tree, tag across whole branches, act on the tags; a hex editor and archives; in beta since November 2026 |
 
 **What sets Xylem apart.** The tree is read into memory, and one key lists
 the files of a whole branch, or of everything read, in one list (Branch,
@@ -53,8 +54,8 @@ Showall), narrowed by name, date and size (Filespec) or a SQL condition
 you want there and copy, move, rename or delete it all at once. Several of
 the programs above can put files from many folders in one list too (mc's
 panelize, vifm's custom views, yazi's search results, broot's staging area),
-or keep a selection across folders (nnn, yazi); in Xylem that list is how you
-work all the time, not the result of a search. Besides that, nothing else
+or keep a selection across folders (nnn, yazi); in Xylem, as in ZTreeLin, that
+list is how you work all the time, not the result of a search. Besides that, nothing else
 here has in the same program:
 
 - tables with a SQL filter for spreadsheets, CSV, SQLite (with `JOIN`) and

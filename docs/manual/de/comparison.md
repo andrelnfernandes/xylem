@@ -46,6 +46,7 @@ Issue, wenn hier etwas veraltet ist.
 | vifm | zwei Panels | vim-Tasten und -Befehle, die Ergebnisse von `:find` als Liste zum Weiterarbeiten, eine Baumansicht |
 | broot | ein Baum, der auf den Bildschirm passt | unscharfe Suche im ganzen Baum, Größen, ein Bereitstellungsbereich (Staging), um auf Dateien aus vielen Ordnern zu wirken |
 | far2l | zwei Panels | Far Manager für Linux, mit seinen Plugins: SFTP, SMB, NFS, WebDAV und S3 (NetRocks), ein Hex-Editor, Python-Skripte |
+| ZTreeLin | ein Verzeichnisbaum über der Dateiliste, geteilter Bildschirm | die XTree-Arbeitsweise von ZTreeWin unter Linux, von denselben Autoren: den Baum einlesen, in ganzen Zweigen markieren, mit den Markierungen arbeiten; ein Hex-Editor und Archive; seit November 2026 als Beta |
 
 **Was Xylem unterscheidet.** Der Baum wird in den Speicher eingelesen, und
 eine Taste zeigt die Dateien eines ganzen Zweigs, oder von allem Eingelesenen,
@@ -56,7 +57,7 @@ wollen, und kopieren, verschieben, benennen oder löschen Sie alles auf einmal.
 Mehrere der Programme oben können ebenfalls Dateien aus vielen Ordnern in eine
 Liste bringen (das Panelize von mc, die Custom Views von vifm, die
 Suchergebnisse von yazi, der Staging-Bereich von broot) oder eine Auswahl über
-Ordner hinweg behalten (nnn, yazi); in Xylem ist diese Liste die ständige
+Ordner hinweg behalten (nnn, yazi); in Xylem ist diese Liste, wie in ZTreeLin, die ständige
 Arbeitsweise, nicht das Ergebnis einer Suche. Darüber hinaus hat keines der
 anderen in einem einzigen Programm:
 

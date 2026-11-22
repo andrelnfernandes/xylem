@@ -45,6 +45,7 @@ desatualizado, abra uma issue.
 | vifm | dois painéis | teclas e comandos do vim, os resultados do `:find` como uma lista para trabalhar, uma visão em árvore |
 | broot | uma árvore que cabe na tela | busca aproximada na árvore inteira, tamanhos, uma área de preparação (staging) para agir sobre arquivos de várias pastas |
 | far2l | dois painéis | o Far Manager para Linux, com seus plugins: SFTP, SMB, NFS, WebDAV e S3 (NetRocks), um editor hexadecimal, scripts em Python |
+| ZTreeLin | uma árvore de diretórios acima da lista de arquivos, tela dividida | o jeito XTree do ZTreeWin no Linux, dos mesmos autores: ler a árvore, marcar em ramos inteiros, agir sobre as marcações; um editor hexadecimal e arquivos compactados; em beta desde novembro de 2026 |
 
 **O que diferencia o Xylem.** A árvore é lida para a memória, e uma tecla
 mostra numa lista só os arquivos de um ramo inteiro, ou de tudo o que foi lido
@@ -54,8 +55,8 @@ você trabalha. Marque ali o que quiser e copie, mova, renomeie ou exclua tudo
 de uma vez. Vários dos programas acima também juntam numa lista arquivos de
 muitas pastas (o panelize do mc, as visões personalizadas do vifm, os
 resultados de busca do yazi, a área de preparação do broot), ou mantêm uma
-seleção entre pastas (nnn, yazi); no Xylem essa lista é o jeito de trabalhar o
-tempo todo, não o resultado de uma busca. Além disso, nenhum dos outros tem no
+seleção entre pastas (nnn, yazi); no Xylem, como no ZTreeLin, essa lista é o
+jeito de trabalhar o tempo todo, não o resultado de uma busca. Além disso, nenhum dos outros tem no
 mesmo programa:
 
 - tabelas com filtro SQL para planilhas, CSV, SQLite (com `JOIN`) e Parquet,

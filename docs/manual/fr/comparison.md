@@ -46,6 +46,7 @@ vite, donc si quelque chose ici n'est plus à jour, ouvrez une issue.
 | vifm | deux panneaux | les touches et commandes de vim, les résultats de `:find` comme liste de travail, une vue en arborescence |
 | broot | une arborescence qui tient dans l'écran | recherche floue dans toute l'arborescence, tailles, une zone de préparation (staging) pour agir sur des fichiers de nombreux dossiers |
 | far2l | deux panneaux | Far Manager pour Linux, avec ses plugins : SFTP, SMB, NFS, WebDAV et S3 (NetRocks), un éditeur hexadécimal, des scripts Python |
+| ZTreeLin | une arborescence au-dessus de la liste des fichiers, écran partagé | la manière XTree de ZTreeWin sous Linux, par ses auteurs : lire l'arborescence, marquer dans des branches entières, agir sur les fichiers marqués ; un éditeur hexadécimal et les archives ; en bêta depuis novembre 2026 |
 
 **Ce qui distingue Xylem.** L'arborescence est lue en mémoire, et une touche
 affiche dans une seule liste les fichiers de toute une branche, ou de tout ce
@@ -56,7 +57,7 @@ renommez ou supprimez le tout en une fois. Plusieurs des programmes ci-dessus
 peuvent aussi rassembler dans une liste des fichiers de nombreux dossiers (le
 panelize de mc, les vues personnalisées de vifm, les résultats de recherche de
 yazi, la zone de préparation de broot), ou garder une sélection entre dossiers
-(nnn, yazi) ; dans Xylem, cette liste est la manière de travailler en
+(nnn, yazi) ; dans Xylem, comme dans ZTreeLin, cette liste est la manière de travailler en
 permanence, et non le résultat d'une recherche. En plus de cela, aucun des
 autres ne réunit dans un même programme :
 
