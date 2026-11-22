@@ -81,10 +81,16 @@ Em mais detalhe:
   restaurar, Prune, renomear com máscaras, permissões e datas, Compare entre
   duas janelas.
 - **Achar coisas:** Filespec por nome, data e tamanho, Treespec para digitar um
-  caminho, bookmarks, e Ctrl+S para buscar texto nos arquivos marcados.
+  caminho, a busca aproximada (`|`) por pedaços do nome de uma pasta ou
+  arquivo, uma condição SQL (`W`) sobre a lista, por nome, data, tamanho ou
+  conteúdo, bookmarks, e Ctrl+S para buscar texto nos arquivos marcados.
+- **Visões da lista (Alt+V):** a Varredura aponta o que numa pasta merece um
+  olhar (caracteres escondidos nos nomes, arquivos setuid, executáveis sem
+  proteções, documentos do Office com macros), a Linha do tempo mostra os
+  arquivos por data, e a Tabela abre a lista no visualizador de tabelas.
 - **Olhar dentro:** um visualizador de texto e hex com busca, filtro de linhas
   com expressões regulares e cores de sintaxe, Markdown renderizado, ebooks EPUB e
-  FB2 para ler como livro, um modo tabela com filtro SQL
+  FB2 para ler como livro, Norton Guides, um modo tabela com filtro SQL
   para planilhas, CSV, JSON Lines, DBF, SQLite e Parquet, Ctrl+B para transformar
   esses registros ou linhas em um script, JSON, SQL ou o que for, Autoview ao lado da lista,
   arquivos ZIP, 7z e TAR abertos como diretórios, e modos de exibição que
@@ -184,8 +190,8 @@ ARM64 (estático, roda em qualquer distribuição) ou Windows x86_64. Extraia e
 coloque o `xy` (`xy.exe`) numa pasta do `PATH`, por exemplo:
 
 ```bash
-tar xzf xy-v0.8.0-x86_64-unknown-linux-musl.tar.gz
-install -m 755 xy-v0.8.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
+tar xzf xy-v0.9.0-x86_64-unknown-linux-musl.tar.gz
+install -m 755 xy-v0.9.0-x86_64-unknown-linux-musl/xy ~/.local/bin/
 ```
 
 Cada arquivo tem um `.sha256` ao lado, para conferir com `sha256sum -c`.
@@ -343,6 +349,8 @@ Encontrou um problema? Relate-o de forma privada [pelos avisos de segurança do 
   de um texto, com templates, condições, totais e saída em SQLite.
 - Duplicados (Alt+D): arquivos e pastas inteiras, em discos locais e pelos hashes
   que o rclone fornece.
+- Busca: a condição SQL (`W`) com um índice do conteúdo, a caixa de busca (P) e
+  a busca aproximada (`|`); as visões da lista (Alt+V).
 
 ### Próximos passos
 

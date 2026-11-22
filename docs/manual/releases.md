@@ -49,13 +49,15 @@ of each version are on
   its files back to the list, for Ctrl+T and the rest. The Timeline (`T`)
   shows the files of the list in a histogram by date, by hours, days, weeks,
   months or years; Enter on a bar, or a range, keeps only its files, as a
-  `W` condition. [Views](views.md)
+  `W` condition. The Table (`L`) opens the list in the table viewer, a file
+  per row with the columns of `W`, even a list of millions of files; `W`
+  there takes its SQL filter back to the list. [Views](views.md)
 
 **Changed.**
 
 - `O` in the viewer goes through two more encodings, Windows-1251 and
   KOI8-R (Cyrillic), before UTF-16.
-- The Type display (`W`) says `EPUB ebook (ZIP)`, `FB2 ebook` and
+- The Type display (Alt+F) says `EPUB ebook (ZIP)`, `FB2 ebook` and
   `FB2 ebook (ZIP)`.
 
 **Fixed.**

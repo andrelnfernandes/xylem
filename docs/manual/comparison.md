@@ -10,8 +10,12 @@ tags) that no other file manager has matched. Kim Henkel has kept the XTree way
 alive on Windows for decades, and Xylem would not exist
 without that work.
 
-Xylem is not meant to replace ZTreeWin. It exists because I wanted the same
-way of working on Linux, where ZTreeWin does not run natively. Xylem also
+Xylem is not meant to replace ZTreeWin. It started because I wanted the same
+way of working on Linux, where ZTreeWin did not run. Since the
+[2.9.12 beta](https://www.ztree.com/html/beta.htm) of November 2026 it does, as ZTreeLin (and on macOS as
+ZTreeMac). Xylem goes on as another take on the same way of working: open
+source, built on Linux first, with what is in
+[Where Xylem goes further](#where-xylem-goes-further), below. Xylem also
 builds for Windows, because Rust makes that easy, but that is not a goal of
 mine: on Windows, ZTreeWin is well worth its license:
 [ztree.com](https://www.ztree.com/), and its users'

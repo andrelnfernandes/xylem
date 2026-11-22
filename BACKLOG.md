@@ -177,10 +177,11 @@ as a link is what `cp -a` and `rsync -l` do).
   complete. Left for when they are missed: Parquet and XLSX as outputs. Records into
   `.bat`/`.cmd` wait for item 2 of Security.
 
-- **Views** (Alt+V, [docs/plans/views.md](docs/plans/views.md)): for 0.9.0.
-  The Scan and the Timeline are done (stages 1–3, PR #133). The Table
-  (stage 4) waits for the measurement with 2,000,000 nodes the plan asks
-  for, on a machine with more memory than the WSL.
+- **Views** (Alt+V, [docs/plans/views.md](docs/plans/views.md)): done for
+  0.9.0. The Scan and the Timeline (stages 1–3, PR #133), and the Table
+  (stage 4, measured with 2,000,000 files: 150 ms, 278 MiB). Left for later:
+  `T` in the Table to tag a file of the list, and sorting a table by a
+  column.
 - **zoxide** (`Z`): the optional appendix of
   [docs/plans/fuzzy-find.md](docs/plans/fuzzy-find.md), whose stages are done
   (0.9.0).
@@ -198,18 +199,9 @@ the right line.
 
 During development only the English manual is updated; the other languages (pt,
 es, de, fr, zh) are synced later, in one documentation task with the website
-rework. The 0.8.0 release synced them all (#126); since then, in 0.9.0:
-
-- `fuzzy.md` and `finding.md`: new, in English only.
-- `viewer.md`: Norton Guides, EPUB and FictionBook.
-- `configuration.md`: the settings of the fuzzy find and of the books.
-- `git.md`: why Git can be turned off, and the status read in the background.
-- `releases.md`: the 0.9.0 notes.
-- `views.md`: new, in English only; the indexes have only its link line.
-- `commands-alt.md`: the Alt+V line; `configuration.md`: `scan_max_files`.
-- `comparison.md`, `commands-keys.md`, `filespec.md`, `glossary.md`,
-  `index.md`, `sql.md`, `treespec.md`: the lines about the fuzzy find, Norton
-  Guides and the books.
+rework. The 0.8.0 release synced them all (#126), and the 0.9.0 release synced
+them again, the new pages included (`finding.md`, `fuzzy.md`, `views.md`).
+Nothing is behind now.
 
 ## Tests
 
