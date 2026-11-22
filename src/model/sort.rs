@@ -397,12 +397,12 @@ mod tests {
             prop::option::of((
                 prop_oneof![
                     -3i64..3,
-                    // 1653: before 1678, but after 1601, where the times
-                    // of Windows start.
+                    // 1653 and 2286: outside 1678..2262, and inside what
+                    // Windows can hold (1601 to about 30828).
                     Just(-10_000_000_000i64),
                     Just(-10_000_000_001i64),
-                    Just(1i64 << 40),
-                    Just((1i64 << 40) + 1)
+                    Just(10_000_000_000i64),
+                    Just(10_000_000_001i64)
                 ],
                 prop::sample::select(vec![0u32, 1, 999_999_999]),
             )),
