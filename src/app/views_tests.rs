@@ -582,9 +582,7 @@ fn table_measure() {
         .collect();
     let sort = pane.sort;
     let start = Instant::now();
-    crate::model::sort::sort_by(&mut again, &sort, |&(f, rank)| {
-        sort.key_for(pane.file(f), rank)
-    });
+    crate::model::sort::sort_by(&mut again, &sort, |&(f, rank)| (pane.file(f), rank));
     println!("    of which sorting it again: {:.0} ms", ms(start));
     drop(again);
     let start = Instant::now();
