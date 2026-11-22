@@ -1091,9 +1091,7 @@ impl Pane {
             return self.refresh_files();
         }
         let sort = self.sort;
-        sort::sort_by(&mut files, &sort, |&(f, rank)| {
-            sort.key_for(self.file(f), rank)
-        });
+        sort::sort_by(&mut files, &sort, |&(f, rank)| (self.file(f), rank));
         self.files = files.into_iter().map(|(f, _)| f).collect();
         self.files_built += 1;
 

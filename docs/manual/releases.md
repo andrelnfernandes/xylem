@@ -5,6 +5,15 @@ someone who used the version before, and the keys that moved. The full notes
 of each version are on
 `https://github.com/andrelnfernandes/xylem/releases`.
 
+## 0.9.1
+
+**Fixed.**
+
+- Showall (and Branch) of a tree with millions of files froze the screen for
+  seconds while it sorted the list: about 5 s with 2,000,000 files. It now
+  takes well under a second (0.66 s on the same machine), in every sort order,
+  and the order of the files is the same as before.
+
 ## 0.9.0
 
 **New.**

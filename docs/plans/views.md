@@ -353,6 +353,59 @@ só porque a lista já vem em ordem de nome.
 2. Como entram `git` e `dup`: consultados ao montar o retrato.
 3. O que já estava em aberto: `T` na tabela e o filtro virando `W`.
 
+### A ordenação do Showall, corrigida (2026-11-22, para a 0.9.1)
+
+O item de "Bugs" do BACKLOG que esta medição abriu. Medido em outra máquina
+(8 núcleos, 14 GB), por isso o "antes" difere da tabela acima; antes e depois
+foram medidos nela, o antes num export do `HEAD` em `~/.cache/xt-dev/`.
+
+**O que mudou em `model::sort::sort_by`:**
+- os nomes em minúsculas ficam num buffer só, e a chave de cada arquivo guarda
+  os 16 primeiros bytes do nome, o tamanho, a data em nanossegundos (`i128`) ou
+  os 8 primeiros bytes da extensão;
+- o que se move ao ordenar é um par de 32 bytes: um prefixo (`u128`) que
+  junta os primeiros campos da ordem, cada um codificado para manter a ordem, e
+  a posição do arquivo. Só quando dois prefixos empatam a chave inteira é
+  comparada;
+- depois de um campo cortado (data fora de 1678..2262, extensão de mais de 8
+  bytes ou com NUL), o prefixo não leva o nome, e sim o extremo da faixa dos
+  valores cortados, para empatar e cair na chave inteira;
+- a posição desempata no fim: a ordem é total, e o `sort_unstable_by` dá a
+  ordem que o `sort_by` estável dava;
+- nomes ASCII viram minúsculas byte a byte; os outros passam por
+  `str::to_lowercase` como antes (o sigma final depende do contexto).
+
+Threads foram medidas e deixadas de fora: montar as chaves em 8 threads e
+ordenar por merge em paralelo ganhava menos de 0,1 s sobre esta versão, com
+128 MiB a mais no pico (o buffer do merge).
+
+**Números**, `table_measure` e `sort_measure` em `--release`:
+
+| | 100 mil | 1 milhão | 2 milhões |
+|---|---|---|---|
+| a lista do Showall, antes | 0,17 s | 2,3 s | **4,9 s** |
+| a lista do Showall, depois | 29 ms | 0,35 s | **0,66 s** |
+| só o `sort_by` (por nome), antes | 0,17 s | 2,2 s | 4,7 s |
+| só o `sort_by` (por nome), depois | 15 ms | 0,20 s | 0,40 s |
+
+A memória que a lista deixa ocupada ficou igual (62 MiB com 2 milhões).
+
+O `sort_measure` ordena 2 milhões de arquivos, com as entradas juntas num
+`Vec` (sem a árvore espalhada, por isso o "antes" é bem menor que no Showall).
+Por nome: 0,29 s (antes 0,68 s); por extensão: 0,64 s (1,5 s); por data:
+0,32 s (0,83 s); por tamanho: 0,31 s (0,86 s). Com o caminho primeiro, de
+0,14 s a 0,45 s (antes de 0,37 s a 0,81 s).
+
+**Teste de equivalência:** um proptest (`same_order_as_before`) compara a
+ordem nova com a antiga, mantida no módulo de testes, nos 16 modos (Name, Ext,
+Date, Size; subindo e descendo; com e sem o caminho primeiro), com nomes que
+empatam em minúsculas, prefixos longos, NUL, extensões longas, Unicode e datas
+fora da faixa do prefixo. Ele pegou o erro da primeira versão do prefixo
+(depois de uma data cortada vinha o nome).
+
+**O que sobra**, no BACKLOG em "To evaluate": o filespec custa 0,13 s mesmo
+com `*`, e a lista ainda é ordenada de novo a cada vez que é montada.
+
 ## Andamento (2026-11-22): etapa 4, a Tabela
 
 Feita no branch `views-table`, para entrar na 0.9.0 (pedido do autor no dia do
