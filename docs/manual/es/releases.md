@@ -52,7 +52,7 @@ completas de cada versión se encuentran en
   devuelve sus archivos a la lista, para Ctrl+T y lo demás. La Línea de tiempo
   (`T`) muestra los archivos de la lista en un histograma por fecha, por
   horas, días, semanas, meses o años; Enter en una barra, o en un rango, deja
-  solo sus archivos, como una condición `W`. La Tabla (`L`) abre la lista en
+  solo sus archivos, como una condición `W`. La Tabla (`L`), que ordena por cualquier columna con `s`, abre la lista en
   el visor de tablas, un archivo por fila con las columnas de `W`, incluso
   una lista de millones de archivos; `W` allí devuelve su filtro SQL a la
   lista. [Vistas](views.md)

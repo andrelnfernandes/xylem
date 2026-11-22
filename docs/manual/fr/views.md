@@ -149,6 +149,7 @@ lu par fenêtres, comme un gros fichier.
 | Touche | Action |
 |---|---|
 | `\` ou `&` | le filtre SQL du tableau |
+| `s` | trie par la colonne du curseur ; `s` à nouveau, dans l'autre sens ; le filtre reste actif |
 | `W` | retour à la fenêtre de fichiers, avec le filtre comme condition W, joint par AND à celle qui était en vigueur |
 | Esc | retour, sans rien changer |
 

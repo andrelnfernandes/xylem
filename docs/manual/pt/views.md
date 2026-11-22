@@ -146,6 +146,7 @@ um arquivo grande.
 | Tecla | O que faz |
 |---|---|
 | `\` ou `&` | o filtro SQL da tabela |
+| `s` | ordena pela coluna do cursor; `s` de novo, ao contrário; o filtro continua valendo |
 | `W` | de volta à janela de arquivos, com o filtro como a sua condição W, unido com AND à que estava em vigor |
 | Esc | volta, sem mudar nada |
 

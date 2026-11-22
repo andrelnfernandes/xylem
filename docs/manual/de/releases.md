@@ -54,7 +54,7 @@ vollständigen Versionshinweise finden sich unter
   in die Liste, für Ctrl+T und den Rest. Die Zeitleiste (`T`) zeigt die
   Dateien der Liste in einem Histogramm nach Datum, nach Stunden, Tagen,
   Wochen, Monaten oder Jahren; Enter auf einem Balken oder einem Bereich
-  behält nur dessen Dateien, als `W`-Bedingung. Die Tabelle (`L`) öffnet die
+  behält nur dessen Dateien, als `W`-Bedingung. Die Tabelle (`L`), mit `s` nach jeder Spalte sortierbar, öffnet die
   Liste im Tabellenbetrachter, eine Datei pro Zeile mit den Spalten von `W`,
   auch eine Liste mit Millionen Dateien; `W` dort bringt ihren SQL-Filter
   zurück in die Liste. [Ansichten](views.md)

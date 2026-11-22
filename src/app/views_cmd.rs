@@ -730,9 +730,11 @@ impl App {
             files,
             std::time::SystemTime::now(),
         ));
-        match Viewer::from_list(title, list.opener()) {
+        match Viewer::from_list(title, list) {
             Ok(mut v) => {
-                v.note = Some("\\ filters the table, W takes the filter back to the list".into());
+                v.note = Some(
+                    "s sorts by the column, \\ filters, W takes the filter back to the list".into(),
+                );
                 self.viewer = Some(v);
             }
             Err(e) => self.message = Some(format!("Cannot show the list as a table: {e}")),

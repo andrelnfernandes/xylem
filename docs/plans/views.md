@@ -378,7 +378,14 @@ release: "primeiro vamos terminar o que falta").
   servindo ao Batch, e marcar arquivos se faz na lista, depois do `W`, com Ctrl+T.
 - **O Batch** (Ctrl+B) lê as linhas pela mesma fonte: `batch::Source::Table` ganhou
   `rows`, que, quando existe, substitui a leitura do arquivo.
-- **Não há ordenação na tabela ainda:** a medição de 2026-11-21 pede que a Tabela
-  ordene por coluna; vem no commit seguinte.
+- **Ordenar por coluna, como o autor decidiu na medição de 2026-11-21:** `s` ordena
+  pela coluna do cursor, e de novo inverte; o filtro que estava valendo continua.
+  `ListSnapshot::order_by` dá um `Vec<u32>` (ordenação estável, sem caixa nos textos)
+  e o retrato não muda. Na thread principal, com 2.000.000 de arquivos: 14 ms por
+  `size`, 16 ms por `modified`, 0,18 s por `name` e 0,33 s por `dir`. A tecla, que
+  estava em aberto, ficou `s`, livre no viewer.
+- **O retrato não é o compacto da medição de 2026-11-21** (48 bytes por arquivo e os
+  nomes num buffer só, 139 MiB): este guarda o `FileEntry` inteiro de cada arquivo
+  (146 bytes, 278 MiB). Funciona igual; o compacto fica para quando a memória pesar.
 - **Testes:** `list_rows` (valores, colunas, contagem), `views_tests` (abrir, filtrar,
   `W` de volta) e `batch` (Batch sobre a lista).

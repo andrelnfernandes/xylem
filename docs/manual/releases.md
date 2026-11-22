@@ -50,8 +50,8 @@ of each version are on
   shows the files of the list in a histogram by date, by hours, days, weeks,
   months or years; Enter on a bar, or a range, keeps only its files, as a
   `W` condition. The Table (`L`) opens the list in the table viewer, a file
-  per row with the columns of `W`, even a list of millions of files; `W`
-  there takes its SQL filter back to the list. [Views](views.md)
+  per row with the columns of `W`, even a list of millions of files; `s`
+  sorts it by a column, and `W` there takes its SQL filter back to the list. [Views](views.md)
 
 **Changed.**
 

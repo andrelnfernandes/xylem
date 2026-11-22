@@ -50,7 +50,7 @@ de cada versão estão em `https://github.com/andrelnfernandes/xylem/releases`.
   dela de volta para a lista, para o Ctrl+T e o resto. A Linha do tempo (`T`)
   mostra os arquivos da lista num histograma por data, por horas, dias,
   semanas, meses ou anos; Enter numa barra, ou num intervalo, deixa só os
-  arquivos dela, como uma condição `W`. A Tabela (`L`) abre a lista no
+  arquivos dela, como uma condição `W`. A Tabela (`L`), que ordena por qualquer coluna com `s`, abre a lista no
   visualizador de tabelas, um arquivo por linha com as colunas do `W`, mesmo
   uma lista de milhões de arquivos; `W` ali leva o filtro SQL dela de volta
   para a lista. [Visões](views.md)

@@ -87,15 +87,83 @@ impl ListSnapshot {
         }
     }
 
-    /// The source a table window reads it through.
+    /// The source a table window reads it through, in the order of the
+    /// list.
     pub fn opener(self: &Arc<Self>) -> Opener {
+        self.opener_in(None)
+    }
+
+    /// The same, with the rows in `order` (from [`ListSnapshot::order_by`]).
+    pub fn opener_in(self: &Arc<Self>, order: Option<Arc<Vec<u32>>>) -> Opener {
         let list = self.clone();
-        Arc::new(move || Ok(Box::new(ListRows(list.clone())) as Box<dyn RowSource>))
+        Arc::new(move || {
+            Ok(Box::new(ListRows {
+                list: list.clone(),
+                order: order.clone(),
+            }) as Box<dyn RowSource>)
+        })
+    }
+
+    /// The rows sorted by `column`, ascending or not: the numbers of the files,
+    /// the snapshot unchanged. A stable sort: ties keep the order of the list.
+    pub fn order_by(&self, column: &str, descending: bool) -> Vec<u32> {
+        let mut order: Vec<u32> = (0..self.files.len() as u32).collect();
+        let file = |i: &u32| &self.files[*i as usize];
+        let lower = |f: &ListFile| f.entry.name.to_string_lossy().to_lowercase();
+        match column {
+            "name" => order.sort_by_cached_key(|i| lower(file(i))),
+            "ext" => order.sort_by_cached_key(|i| {
+                std::path::Path::new(&file(i).entry.name)
+                    .extension()
+                    .map(|e| e.to_string_lossy().to_lowercase())
+                    .unwrap_or_default()
+            }),
+            "dir" => {
+                // Each folder's place among them, by its path, then the name.
+                let mut by_path: Vec<usize> = (0..self.dirs.len()).collect();
+                by_path.sort_by(|&a, &b| self.dirs[a].0.cmp(&self.dirs[b].0));
+                let mut rank = vec![0u32; self.dirs.len()];
+                for (r, d) in by_path.into_iter().enumerate() {
+                    rank[d] = r as u32;
+                }
+                order.sort_by_cached_key(|i| {
+                    let f = file(i);
+                    (rank.get(f.dir as usize).copied(), lower(f))
+                });
+            }
+            "size" => order.sort_by_key(|i| file(i).entry.size),
+            "disk" => order.sort_by_key(|i| file(i).entry.disk),
+            "modified" => order.sort_by_key(|i| file(i).entry.modified),
+            // Older first: the dates the other way round.
+            "age_days" => order.sort_by_key(|i| std::cmp::Reverse(file(i).entry.modified)),
+            "mode" => order.sort_by_key(|i| file(i).entry.mode & 0o7777),
+            "kind" => order.sort_by_key(|i| file(i).entry.kind as u8),
+            "tagged" => order.sort_by_key(|i| file(i).entry.tagged),
+            "git" => order.sort_by(|a, b| file(a).git.cmp(&file(b).git)),
+            "dup" => order.sort_by_key(|i| file(i).dup),
+            _ => {}
+        }
+        if descending {
+            order.reverse();
+        }
+        order
     }
 }
 
-/// The rows of a [`ListSnapshot`].
-struct ListRows(Arc<ListSnapshot>);
+/// The table of the list in the viewer: the snapshot, the source the table
+/// reads, and the column it is sorted by, if any.
+pub struct ListTable {
+    pub snapshot: Arc<ListSnapshot>,
+    pub opener: Opener,
+    /// The column, and whether descending.
+    pub sort: Option<(String, bool)>,
+}
+
+/// The rows of a [`ListSnapshot`], in the order of the list or in `order`.
+struct ListRows {
+    list: Arc<ListSnapshot>,
+    order: Option<Arc<Vec<u32>>>,
+}
 
 impl RowSource for ListRows {
     fn read_from(
@@ -104,7 +172,7 @@ impl RowSource for ListRows {
         budget: Budget,
         sink: &mut dyn RecordSink,
     ) -> Result<End, String> {
-        let list = &self.0;
+        let list = &self.list;
         let names: Vec<String> = list.columns.iter().map(|c| c.to_string()).collect();
         sink.columns(&names);
         let mut cells = Vec::with_capacity(names.len());
@@ -113,7 +181,8 @@ impl RowSource for ListRows {
                 return Ok(End::OutOfTime);
             }
             cells.clear();
-            cells.extend(list.columns.iter().map(|c| list.cell(i, c)));
+            let at = self.order.as_ref().map_or(i, |o| o[i] as usize);
+            cells.extend(list.columns.iter().map(|c| list.cell(at, c)));
             if sink.record(&cells) == ControlFlow::Break(()) {
                 return Ok(End::Refused);
             }
@@ -126,7 +195,7 @@ impl RowSource for ListRows {
         _budget: Budget,
         progress: &mut Progress<'_>,
     ) -> Result<Option<usize>, String> {
-        let rows = self.0.files.len();
+        let rows = self.list.files.len();
         progress(rows, None);
         Ok(Some(rows))
     }
@@ -216,6 +285,22 @@ mod tests {
     }
 
     #[test]
+    fn the_rows_come_in_the_order_asked_and_the_list_stays() {
+        let list = snapshot();
+        let order = Arc::new(list.order_by("size", true));
+        assert_eq!(*order, [1, 0]);
+        let mut rows = (list.opener_in(Some(order)))().unwrap();
+        let mut sink = Rows(Vec::new(), Vec::new());
+        rows.read_from(0, Budget::unlimited(), &mut sink).unwrap();
+        assert_eq!(sink.0[0][0], "two.rs");
+        assert_eq!(sink.0[1][0], "one.TXT");
+        // Without case, and stable: the list's order on ties.
+        assert_eq!(list.order_by("name", false), [0, 1]);
+        assert_eq!(list.order_by("dir", true), [1, 0]);
+        assert_eq!(list.order_by("tagged", false), [0, 1]);
+    }
+
+    #[test]
     fn the_count_is_the_list() {
         let list = snapshot();
         let mut rows = (list.opener())().unwrap();
@@ -286,5 +371,11 @@ mod measure {
             after - before
         );
         assert!(grid.window.is_some());
+        for column in ["size", "modified", "name", "dir"] {
+            let start = Instant::now();
+            let order = list.order_by(column, false);
+            println!("sort by {column}: {:?}", start.elapsed());
+            assert_eq!(order.len(), FILES);
+        }
     }
 }

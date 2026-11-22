@@ -143,11 +143,13 @@ There the list has what tables have: the SQL filter (`\` or `&`), the
 record as a form (Enter), copying a record, marks (`m`) and
 [Batch](execute.md) (Ctrl+B), a line of output per row. A list of
 millions of files opens at once: the table is read in windows, as a big
-file is.
+file is. It also sorts by any column (`s`), which the other tables of the
+viewer do not: the order of the file window does not change.
 
 | Key | What it does |
 |---|---|
 | `\` or `&` | the SQL filter of the table |
+| `s` | sort by the column under the cursor; `s` again, the other way; the filter stays on |
 | `W` | back to the file window, with the filter as its W condition, joined with AND to the one that was on |
 | Esc | back, changing nothing |
 

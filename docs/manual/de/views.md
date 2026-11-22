@@ -152,6 +152,7 @@ gelesen, wie eine große Datei.
 | Taste | Funktion |
 |---|---|
 | `\` oder `&` | der SQL-Filter der Tabelle |
+| `s` | sortiert nach der Spalte unter dem Cursor; `s` noch einmal, andersherum; der Filter bleibt |
 | `W` | zurück ins Dateifenster, mit dem Filter als seiner W-Bedingung, mit AND an die angehängt, die galt |
 | Esc | zurück, ohne etwas zu ändern |
 

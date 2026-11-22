@@ -53,7 +53,7 @@ modifiées. Les notes complètes de chaque version sont disponibles sur
   ses fichiers dans la liste, pour Ctrl+T et le reste. La Timeline (`T`) montre
   les fichiers de la liste dans un histogramme par date, par heures, jours,
   semaines, mois ou années ; Enter sur une barre, ou une plage, ne garde que ses
-  fichiers, comme une condition `W`. La Table (`L`) ouvre la liste dans la
+  fichiers, comme une condition `W`. La Table (`L`), triée par n'importe quelle colonne avec `s`, ouvre la liste dans la
   visionneuse de tableaux, un fichier par ligne avec les colonnes de `W`, même
   une liste de millions de fichiers ; `W` y renvoie son filtre SQL à la liste.
   [Vues](views.md)

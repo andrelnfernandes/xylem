@@ -870,3 +870,28 @@ fn table_measure() {
     assert_eq!(all.len(), pane.files.len());
 }
 
+#[test]
+fn s_sorts_the_table_by_the_column_and_keeps_the_filter() {
+    let (_tmp, mut app) = dated();
+    app.apply(Command::ViewTable);
+    let first = |app: &App| {
+        let t = app.viewer.as_ref().unwrap().table.as_ref().unwrap();
+        t.row(t.file_row(0).unwrap()).unwrap().cells[0].clone()
+    };
+    // The cursor to `modified`, then the newest last and then first.
+    for _ in 0..5 {
+        press(&mut app, KeyCode::Right);
+    }
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(first(&app), "a.txt");
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(first(&app), "d.txt");
+    let v = app.viewer.as_mut().unwrap();
+    assert!(v.note.as_deref().unwrap().contains("descending"));
+    // A filter stays on through a sort.
+    v.sql_prompt("ext = 'txt'");
+    press(&mut app, KeyCode::Char('s'));
+    let t = app.viewer.as_ref().unwrap().table.as_ref().unwrap();
+    assert_eq!(t.visible_row_count(), 3);
+    assert_eq!(first(&app), "a.txt");
+}
