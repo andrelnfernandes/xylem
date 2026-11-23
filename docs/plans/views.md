@@ -353,7 +353,7 @@ só porque a lista já vem em ordem de nome.
 2. Como entram `git` e `dup`: consultados ao montar o retrato.
 3. O que já estava em aberto: `T` na tabela e o filtro virando `W`.
 
-### A ordenação do Showall, corrigida (2026-11-22, para a 0.9.1)
+### A ordenação do Showall, corrigida (2026-11-22, para a 0.10.0)
 
 O item de "Bugs" do BACKLOG que esta medição abriu. Medido em outra máquina
 (8 núcleos, 14 GB), por isso o "antes" difere da tabela acima; antes e depois

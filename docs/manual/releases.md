@@ -20,8 +20,6 @@ of each version are on
   and `x'4D5A'`, as W's `contains()`: `invoice AND NOT draft`.
   [Search](search.md)
 
-## 0.9.1
-
 **Fixed.**
 
 - Showall (and Branch) of a tree with millions of files froze the screen for
