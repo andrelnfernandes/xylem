@@ -1,6 +1,9 @@
 //! Text or byte search: in tagged files (Ctrl+S) and inside the
 //! viewer (F, B, /, \, +, -, Space), as in ZTreeWin.
 //!
+//! Ctrl+S takes terms joined by AND, OR and NOT ([`expr`]), and looks for
+//! them in text and Unicode at once ([`multi`]).
+//!
 //! Text is searched line by line: a `*` in the middle of the term matches anything
 //! on the same line (`erro*disco`), and a term never crosses a
 //! line break. When ignoring case, accents count too
@@ -10,6 +13,11 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+
+pub mod expr;
+pub mod multi;
+
+use multi::{Matcher, Progress};
 
 /// Lines longer than this (e.g. binary files) are searched in
 /// chunks; a term split between two chunks may not be found.
@@ -22,6 +30,9 @@ pub struct SearchSpec {
     pub case_sensitive: bool,
     /// `text` is hexadecimal pairs: "4d 5a 90".
     pub hex: bool,
+    /// Ctrl+S: each term also in UTF-16 and Windows-1252 (the viewer
+    /// searches what it shows, and leaves this out).
+    pub unicode: bool,
 }
 
 impl SearchSpec {
@@ -30,6 +41,26 @@ impl SearchSpec {
             text: text.to_string(),
             case_sensitive: false,
             hex: false,
+            unicode: true,
+        }
+    }
+
+    /// Ctrl+S's F4: text+Unicode, then text only, then hex.
+    pub fn next_tagged_mode(&mut self) {
+        (self.unicode, self.hex) = match (self.unicode, self.hex) {
+            (_, true) => (true, false),
+            (true, false) => (false, false),
+            (false, false) => (false, true),
+        };
+    }
+
+    /// Ctrl+S's mode, e.g. "text+Unicode, ignore case".
+    pub fn tagged_mode_label(&self) -> &'static str {
+        match (self.hex, self.unicode, self.case_sensitive) {
+            (true, _, _) => "hex",
+            (false, true, true) => "text+Unicode, match case",
+            (false, true, false) => "text+Unicode, ignore case",
+            (false, false, _) => self.mode_label(),
         }
     }
 
@@ -308,14 +339,14 @@ pub type Opener = Box<dyn Fn(&Path) -> io::Result<Box<dyn BufRead>>>;
 /// The file being searched, from one step to the next.
 struct Reading {
     reader: Box<dyn BufRead>,
-    kept: Vec<u8>,
+    progress: Progress,
 }
 
 /// A search over the tagged files in progress (Ctrl+S). Each item
 /// carries a caller-supplied identifier (`T`), returned in the result.
 pub struct SearchJob<T> {
     pub spec: SearchSpec,
-    pattern: Pattern,
+    matcher: Matcher,
     items: Vec<(T, PathBuf)>,
     /// Reads an item's content (from disk, or from inside a ZIP/TAR).
     open: Opener,
@@ -329,7 +360,7 @@ pub struct SearchJob<T> {
 impl<T: Copy> SearchJob<T> {
     pub fn new(spec: SearchSpec, items: Vec<(T, PathBuf)>, open: Opener) -> Result<Self, String> {
         Ok(SearchJob {
-            pattern: Pattern::new(&spec)?,
+            matcher: Matcher::new(&spec)?,
             spec,
             items,
             open,
@@ -357,7 +388,7 @@ impl<T: Copy> SearchJob<T> {
     }
 
     /// Searches until `budget` runs out, going on from where the last step
-    /// stopped. Returns, for each file finished, whether it contains the term.
+    /// stopped. Returns, for each file finished, whether it meets the search.
     /// Files that could not be read stay tagged (and the error is kept), like
     /// ZTreeWin's "Keep".
     pub fn step(&mut self, budget: Duration) -> Vec<(T, bool)> {
@@ -368,11 +399,11 @@ impl<T: Copy> SearchJob<T> {
                 Some(reading) => Ok(reading),
                 None => (self.open)(path).map(|reader| Reading {
                     reader,
-                    kept: Vec::new(),
+                    progress: Progress::default(),
                 }),
             };
             let scanned = reading.and_then(|mut r| {
-                let found = self.pattern.scan(&mut r.reader, &mut r.kept, until)?;
+                let found = self.matcher.scan(&mut r.reader, &mut r.progress, until)?;
                 Ok((found, r))
             });
             match scanned {
@@ -403,6 +434,32 @@ impl<T: Copy> SearchJob<T> {
             s.push_str(&format!(
                 " ({} unreadable, kept tagged; first: {e})",
                 self.errors.len()
+            ));
+        }
+        s.push_str(&self.notes());
+        s
+    }
+
+    /// What text+Unicode could not do as asked, for the screen.
+    pub fn notes(&self) -> String {
+        let mut s = String::new();
+        if !self.matcher.text_only.is_empty() {
+            let terms: Vec<String> = self
+                .matcher
+                .text_only
+                .iter()
+                .map(|t| format!("\"{t}\""))
+                .collect();
+            s.push_str(&format!(
+                "; with a *, searched as text only: {}",
+                terms.join(", ")
+            ));
+        }
+        if !self.matcher.cased_as_typed.is_empty() {
+            let letters: String = self.matcher.cased_as_typed.iter().collect();
+            s.push_str(&format!(
+                "; case not ignored for {letters} (only for letters with one \
+                 upper and one lower form)"
             ));
         }
         s
@@ -584,7 +641,8 @@ mod tests {
         let mut job = SearchJob::new(SearchSpec::new("chave"), vec![(1, path)], opener).unwrap();
         let (steps, results) = run_steps(&mut job);
         assert_eq!(results, [(1, true)]);
-        assert!(steps > 1000, "one line per step at zero budget: {steps}");
+        // About 950 KB, one 8 KiB block per step at zero budget.
+        assert!(steps > 100, "one block per step at zero budget: {steps}");
         assert_eq!(opened.get(), 1, "the reader stays open between steps");
     }
 

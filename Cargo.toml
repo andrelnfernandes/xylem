@@ -45,6 +45,8 @@ notify = { version = "8.2.0", default-features = false, features = ["macos_kqueu
 portable-pty = "0.9.0"
 ratatui = "0.30.2"
 regex = "1.13"
+# Ctrl+S: all the terms, in every encoding, in one reading (regex has it already).
+aho-corasick = "1.1"
 # Where a typed regular expression went wrong (Filespec, Rename); already here
 # through regex.
 regex-syntax = "0.8"

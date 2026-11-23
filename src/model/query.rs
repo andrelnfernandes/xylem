@@ -1258,4 +1258,96 @@ mod tests {
         assert!(job.summary(false).contains("1 answered by the index"));
         assert_eq!(names(job), ["b"]);
     }
+
+    /// An expression of Ctrl+S, written for Ctrl+S and for W.
+    #[derive(Debug, Clone)]
+    enum Cond {
+        Term(usize),
+        And(Box<Cond>, Box<Cond>),
+        Or(Box<Cond>, Box<Cond>),
+        Not(Box<Cond>),
+    }
+
+    impl Cond {
+        fn write(&self, terms: &[String], w: bool) -> String {
+            match self {
+                Cond::Term(i) if w => format!("contains('{}')", terms[*i]),
+                Cond::Term(i) => format!("\"{}\"", terms[*i]),
+                Cond::And(a, b) => format!("({} AND {})", a.write(terms, w), b.write(terms, w)),
+                Cond::Or(a, b) => format!("({} OR {})", a.write(terms, w), b.write(terms, w)),
+                Cond::Not(a) => format!("NOT ({})", a.write(terms, w)),
+            }
+        }
+    }
+
+    fn cond() -> impl proptest::strategy::Strategy<Value = Cond> {
+        use proptest::prelude::*;
+        (0usize..3)
+            .prop_map(Cond::Term)
+            .prop_recursive(4, 12, 2, |inner| {
+                prop_oneof![
+                    (inner.clone(), inner.clone()).prop_map(|(a, b)| Cond::And(a.into(), b.into())),
+                    (inner.clone(), inner.clone()).prop_map(|(a, b)| Cond::Or(a.into(), b.into())),
+                    inner.prop_map(|a| Cond::Not(a.into())),
+                ]
+            })
+    }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(128))]
+        /// `a AND b` in Ctrl+S and `contains('a') AND contains('b')` in W keep
+        /// the same files, in text+Unicode and in text only.
+        #[test]
+        fn ctrl_s_and_w_contains_agree(
+            cond in cond(),
+            terms in proptest::collection::vec("[abAB éÉç]{1,3}", 3),
+            texts in proptest::collection::vec("[abAB éÉç\n]{0,40}", 1..6),
+        ) {
+            use crate::search::{SearchJob, SearchSpec};
+            use std::collections::HashMap;
+            let dir = PathBuf::from("/m");
+            let contents: HashMap<PathBuf, Vec<u8>> = texts
+                .iter()
+                .enumerate()
+                .map(|(i, t)| (dir.join(i.to_string()), t.clone().into_bytes()))
+                .collect();
+            let opener = || -> Opener {
+                let contents = contents.clone();
+                Box::new(move |p: &Path| {
+                    let data = contents.get(p).cloned().unwrap_or_default();
+                    Ok(Box::new(std::io::Cursor::new(data)) as Box<dyn BufRead>)
+                })
+            };
+            let list = (0..texts.len())
+                .map(|i| Candidate {
+                    path: dir.join(i.to_string()),
+                    dir: dir.clone(),
+                    depth: 0,
+                    file: file(&i.to_string(), texts[i].len() as u64),
+                    git: None,
+                    dup: None,
+                })
+                .collect();
+            let w = FileQuery::parse(&cond.write(&terms, true), false).unwrap();
+            let mut job = ContentJob::new(w, list, opener(), local_type(), SystemTime::now(), &|_| None);
+            while !job.is_done() {
+                job.step(Duration::from_millis(50));
+            }
+            let mut by_w: Vec<usize> = (0..texts.len())
+                .filter(|&i| job.hits().contains(&dir.join(i.to_string())))
+                .collect();
+            by_w.sort_unstable();
+            for unicode in [true, false] {
+                let spec = SearchSpec { unicode, ..SearchSpec::new(&cond.write(&terms, false)) };
+                let items = (0..texts.len()).map(|i| (i, dir.join(i.to_string()))).collect();
+                let mut search = SearchJob::new(spec, items, opener()).unwrap();
+                let mut by_s = Vec::new();
+                while !search.is_done() {
+                    by_s.extend(search.step(Duration::from_millis(50)).into_iter().filter(|r| r.1).map(|r| r.0));
+                }
+                by_s.sort_unstable();
+                proptest::prop_assert_eq!(&by_s, &by_w, "unicode {}", unicode);
+            }
+        }
+    }
 }

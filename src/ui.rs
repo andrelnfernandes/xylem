@@ -2929,7 +2929,11 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
             if prompt.is_viewer_search() {
                 help.push(("F3", "direction"));
             }
-            help.push(("F4", "text/hex"));
+            if prompt.is_viewer_search() {
+                help.push(("F4", "text/hex"));
+            } else {
+                help.push(("F4", "Unicode/text/hex"));
+            }
         }
         if prompt.is_line_filter() {
             help.push(("F1", "regex help"));

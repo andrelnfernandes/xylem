@@ -308,11 +308,14 @@ impl App {
                 prompt.label = prompt.kind.search_label().unwrap_or_default();
                 return;
             }
+            let tagged = matches!(prompt.kind, PromptKind::SearchTagged { .. });
             if matches!(key.code, KeyCode::F(2) | KeyCode::F(4))
                 && let Some(spec) = prompt.kind.search_spec_mut()
             {
                 if key.code == KeyCode::F(2) {
                     spec.case_sensitive = !spec.case_sensitive;
+                } else if tagged {
+                    spec.next_tagged_mode();
                 } else {
                     spec.hex = !spec.hex;
                 }

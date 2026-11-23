@@ -2365,7 +2365,7 @@ fn ctrl_s_then_ctrl_v_then_space_walks_the_hits() {
     let (_tmp, mut app) = search_setup();
     ctrl(&mut app, 's');
     let label = app.prompt.as_ref().unwrap().label.clone();
-    assert_eq!(label, "SEARCH tagged files (text, ignore case): ");
+    assert_eq!(label, "SEARCH tagged files (text+Unicode, ignore case): ");
     type_text(&mut app, "senha");
     press(&mut app, KeyCode::Enter);
     while app.busy() {
@@ -2402,6 +2402,28 @@ fn ctrl_s_then_ctrl_v_then_space_walks_the_hits() {
     let v = app.viewer.as_ref().unwrap();
     assert_eq!(v.path.file_name().unwrap(), "1.txt");
     assert_eq!(v.hit.map(|h| h.line), Some(3));
+}
+
+#[test]
+fn ctrl_s_finds_utf16_and_takes_and_or_and_f4_cycles_the_modes() {
+    let (tmp, mut app) = search_setup();
+    let utf16: Vec<u8> = "\u{FEFF}uma SENHA em UTF-16\n"
+        .encode_utf16()
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    write(tmp.path().join("2.txt"), utf16).unwrap();
+    ctrl(&mut app, 's');
+    let label = |app: &App| app.prompt.as_ref().unwrap().label.clone();
+    for want in ["text, ignore case", "hex", "text+Unicode, ignore case"] {
+        press(&mut app, KeyCode::F(4));
+        assert_eq!(label(&app), format!("SEARCH tagged files ({want}): "));
+    }
+    type_text(&mut app, "senha AND NOT (fim OR novo)");
+    press(&mut app, KeyCode::Enter);
+    while app.busy() {
+        app.tick(Duration::from_millis(50));
+    }
+    assert_eq!(tagged(&app), ["2.txt"], "UTF-16, and neither fim nor novo");
 }
 
 #[test]

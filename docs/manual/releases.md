@@ -15,6 +15,10 @@ of each version are on
   `s/(\d+)-(\w+)/$2-$1/r`, with `${name}` groups and `\U`, `\L`, `\u`, `\l`
   for case. Without `r`, `s/from/to/` stays literal. Two files that would end
   with the same name are named in the message. [Rename](rename.md)
+- Ctrl+S looks for each term in UTF-8, UTF-16 and Windows-1252 at once (F4:
+  text+Unicode, text, hex), and takes `AND`, `OR`, `NOT`, parentheses, quotes
+  and `x'4D5A'`, as W's `contains()`: `invoice AND NOT draft`.
+  [Search](search.md)
 
 ## 0.9.1
 
