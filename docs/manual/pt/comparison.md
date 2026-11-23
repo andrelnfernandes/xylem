@@ -137,7 +137,7 @@ deixa para outros programas", mais abaixo.
 | Histórico | janela de histórico com favoritos | ↑ no prompt abre uma lista (digitar filtra, Del esquece), um histórico por tipo, salvo entre sessões |
 | Configuração | 7 páginas, editor de cores por elemento (F4), Alt-Export | 4 páginas com as opções que fazem sentido no Linux; F4 escolhe entre 12 temas prontos; cores individuais em `config.toml` |
 | Tela dividida | painéis opcionais de estatísticas por lado | sem painel de estatísticas |
-| Menus | menu Ctrl/Alt ao segurar a tecla | igual em terminais com o protocolo do kitty; F9 em qualquer terminal |
+| Menus | menu Ctrl/Alt ao segurar a tecla | igual em terminais com o protocolo do kitty; F4 em qualquer terminal |
 
 Opções de configuração do ZTreeWin que não foram trazidas por serem específicas
 do Windows: atributos RSH, junções (*junctions*), OEM/ANSI, EBCDIC, tamanho da
@@ -234,9 +234,9 @@ As teclas seguem as do ZTreeWin. As exceções:
 | Ajuda | F1 | F1 ou Alt+H (no GNOME Terminal, F1 abre a ajuda do terminal) |
 | Configuração | Alt+F10 | F12 ou Alt+F10 (no GNOME, Alt+F10 maximiza a janela e nunca chega ao Xylem) |
 | Favoritos | F11 | F11, Alt+B ou aspas simples `'` (no GNOME Terminal, F11 alterna a tela cheia) |
-| Mover marcados | Ctrl+M | Ctrl+M em terminais com o protocolo do kitty; nos demais, `F9` `M` (ou Alt+M e F6) |
+| Mover marcados | Ctrl+M | Ctrl+M em terminais com o protocolo do kitty; nos demais, `F4` `M` (ou Alt+M e F6) |
 | F2 | (nada) | relê o diretório, igual a F3 |
-| F9 | menu de aplicações (não implementado) | menus Ctrl/Alt |
+| F9 | menu de aplicações (não implementado) | o mesmo que o F4 (os menus Ctrl/Alt), até ganhar um comando próprio |
 | F12 | macros (não implementado) | configuração |
 | Alt+B | Batch do arquivo atual (não implementado) | favoritos |
 | Alt+H | Hide (não implementado) | ajuda |

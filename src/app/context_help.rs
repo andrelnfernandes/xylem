@@ -115,7 +115,7 @@ impl App {
         if self.search_box.is_some() {
             return "sql";
         }
-        // A menu chosen with F9: its own page. Not while Ctrl or Alt is held,
+        // A menu chosen with F4 (or F9): its own page. Not while Ctrl or Alt is held,
         // since Alt+H is itself the help key.
         match self.sticky {
             MenuMode::Git => return "git",

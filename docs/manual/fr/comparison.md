@@ -144,7 +144,7 @@ Xylem laisse à d'autres programmes », plus bas.
 | Historique | fenêtre d'historique avec signets | ↑ à l'invite ouvre une liste (taper filtre, Del oublie), un historique par type, conservé entre les sessions |
 | Configuration | 7 pages, éditeur de couleurs par élément (F4), Alt-Export | 4 pages avec les options pertinentes sous Linux ; F4 choisit parmi 12 thèmes prêts à l'emploi ; couleurs individuelles dans `config.toml` |
 | Écran partagé | panneaux de statistiques optionnels de chaque côté | pas de panneau de statistiques |
-| Menus | menu Ctrl/Alt en maintenant la touche | idem dans les terminaux avec le protocole kitty ; F9 dans tous les terminaux |
+| Menus | menu Ctrl/Alt en maintenant la touche | idem dans les terminaux avec le protocole kitty ; F4 dans tous les terminaux |
 
 Options de configuration de ZTreeWin qui n'ont pas été reprises parce qu'elles
 sont propres à Windows : attributs RSH, jonctions, OEM/ANSI, EBCDIC, taille de
@@ -244,9 +244,9 @@ Les touches suivent celles de ZTreeWin. Les exceptions :
 | Aide | F1 | F1 ou Alt+H (dans GNOME Terminal, F1 ouvre l'aide du terminal) |
 | Configuration | Alt+F10 | F12 ou Alt+F10 (sous GNOME, Alt+F10 maximise la fenêtre et n'atteint jamais Xylem) |
 | Signets | F11 | F11, Alt+B ou apostrophe `'` (dans GNOME Terminal, F11 bascule le plein écran) |
-| Déplacer les fichiers marqués | Ctrl+M | Ctrl+M dans les terminaux avec le protocole kitty ; dans les autres, `F9` `M` (ou Alt+M puis F6) |
+| Déplacer les fichiers marqués | Ctrl+M | Ctrl+M dans les terminaux avec le protocole kitty ; dans les autres, `F4` `M` (ou Alt+M puis F6) |
 | F2 | (rien) | relit le répertoire, comme F3 |
-| F9 | menu d'applications (non implémenté) | menus Ctrl/Alt |
+| F9 | menu d'applications (non implémenté) | comme F4 (les menus Ctrl/Alt), jusqu'à ce qu'il reçoive une commande à lui |
 | F12 | macros (non implémenté) | configuration |
 | Alt+B | Batch du fichier courant (non implémenté) | signets |
 | Alt+H | Hide (non implémenté) | aide |

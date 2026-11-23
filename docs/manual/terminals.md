@@ -16,7 +16,7 @@ lists those cases and the key to use instead.
 ## Ctrl+M
 
 Most terminals send the same byte for Ctrl+M and Enter. Xylem then sees
-Enter. To move the tagged files there, press `F9` and then `M`, or use Alt+M
+Enter. To move the tagged files there, press `F4` and then `M`, or use Alt+M
 and press F6 at the prompt to turn the paths off.
 
 In a terminal with the kitty keyboard protocol the two keys are different,
@@ -29,7 +29,7 @@ their own. Xylem turns it on when the terminal answers that it has it.
 
 | With the protocol | Without it |
 |---|---|
-| Holding Ctrl or Alt shows the CTRL or ALT menu | F9 shows them |
+| Holding Ctrl or Alt shows the CTRL or ALT menu | F4 shows them |
 | Ctrl+M is Move | Ctrl+M is Enter |
 
 | Terminal | Protocol |

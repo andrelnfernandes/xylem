@@ -9,7 +9,7 @@ exception.
 Sans aucun fichier marqué, ces commandes affichent `No tagged files` et
 n'agissent pas.
 
-Pour afficher ce menu, maintenez Ctrl enfoncé ou appuyez sur F9. Voir
+Pour afficher ce menu, maintenez Ctrl enfoncé ou appuyez sur F4. Voir
 [les menus](menus.md).
 
 ## Commandes
@@ -25,7 +25,7 @@ fonctionne.
 | Ctrl+C | Copy | oui | oui | Copie les fichiers marqués dans un dossier de destination, sans leurs chemins. Alt+C conserve les chemins. [Copier et Déplacer](copy-move.md) |
 | Ctrl+D | Delete | oui | oui | Supprime les fichiers marqués, après confirmation. Ils vont à la corbeille si `delete_to_trash` est actif. [Supprimer](delete.md) |
 | Ctrl+G | Git | oui | oui | Ouvre le menu Git. Affiché seulement si l'option Git est activée. [Git](git.md) |
-| Ctrl+M | Move | oui | oui | Déplace les fichiers marqués dans un dossier de destination. Sur les terminaux sans protocole clavier kitty, appuyez sur `F9` `M`. [Copier et Déplacer](copy-move.md) |
+| Ctrl+M | Move | oui | oui | Déplace les fichiers marqués dans un dossier de destination. Sur les terminaux sans protocole clavier kitty, appuyez sur `F4` `M`. [Copier et Déplacer](copy-move.md) |
 | Ctrl+N | New date | | oui | Modifie la date de modification des fichiers marqués. [Permissions et dates](attributes.md) |
 | Ctrl+O | Open | | oui | Ouvre chaque fichier marqué dans le programme par défaut du système. [La fenêtre de fichiers](files.md) |
 | Ctrl+P | Phrase | oui | oui | Ouvre la boîte de recherche sur les fichiers marqués : liste ceux contenant les mots saisis. [La boîte de recherche](sql.md#la-boîte-de-recherche-p) |

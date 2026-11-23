@@ -42,7 +42,7 @@ En eJecutar, `%t` representa los archivos marcados ([eJecutar](execute.md)).
   archivos marcados con sus rutas en la ventana de archivos.
 
 [Los menús](menus.md) explica la regla y cómo mostrar los menús Ctrl y Alt con
-F9. [El menú Ctrl](commands-ctrl.md) y [el menú Alt](commands-alt.md) listan
+F4. [El menú Ctrl](commands-ctrl.md) y [el menú Alt](commands-alt.md) listan
 cada comando.
 
 **Cambió en la versión 0.8.** Alt ya no repite Ctrl: Alt+A, Alt+D, Alt+R,

@@ -16,7 +16,7 @@ dieselben Bytes. Diese Seite listet diese Fälle und die Ausweichtasten auf.
 ## Ctrl+M
 
 Die meisten Terminals senden für Ctrl+M und Enter dasselbe Byte. Xylem sieht
-dann Enter. Um markierte Dateien dort zu verschieben, drücken Sie `F9` und dann
+dann Enter. Um markierte Dateien dort zu verschieben, drücken Sie `F4` und dann
 `M`, oder nutzen Sie Alt+M und drücken F6 in der Eingabezeile, um die Pfade
 abzuschalten.
 
@@ -31,7 +31,7 @@ signalisiert.
 
 | Mit dem Protokoll | Ohne das Protokoll |
 |---|---|
-| Ctrl oder Alt gedrückt halten zeigt das CTRL- oder ALT-Menü | F9 zeigt sie an |
+| Ctrl oder Alt gedrückt halten zeigt das CTRL- oder ALT-Menü | F4 zeigt sie an |
 | Ctrl+M verschiebt Dateien | Ctrl+M entspricht Enter |
 
 | Terminal | Protokoll |

@@ -33,7 +33,7 @@ native speakers. Corrections: `https://github.com/andrelnfernandes/xylem/issues`
 - [What Xylem is](overview.md): logging, tags, and what the commands cover
 - [Install and first five minutes](start.md)
 - [The screen](screen.md): the tree, the file window, the statistics, the footer
-- [The menus, Ctrl and Alt](menus.md): a letter alone, with Ctrl, with Alt, and F9
+- [The menus, Ctrl and Alt](menus.md): a letter alone, with Ctrl, with Alt, and F4
 - [The mouse](mouse.md): turning it on in F12, the wheel, clicks and the footer
 - [Vocabulary](glossary.md): log, branch, tag, filespec
 

@@ -41,7 +41,7 @@ En el orden de los menús. "Árbol" y "Archivos" indican dónde funciona la tecl
 | `Q` | Quit | sí | sí | Sale del programa, tras pedir confirmación. [Salir y cambiar el directorio de la shell](quit.md) |
 
 Las teclas de la última línea del menú (F1, `*`, `?`, `\`, F3, Enter, F5, F7,
-F8, F9) se describen en [teclas de función y símbolos](commands-keys.md).
+F8, F4) se describen en [teclas de función y símbolos](commands-keys.md).
 
 ## Teclas que no figuran en el menú
 

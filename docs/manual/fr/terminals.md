@@ -17,7 +17,7 @@ remplacement à utiliser.
 ## Ctrl+M
 
 La plupart des terminaux envoient le même octet pour Ctrl+M et Enter. Xylem voit
-alors Enter. Pour y déplacer les fichiers marqués, appuyez sur `F9` puis sur
+alors Enter. Pour y déplacer les fichiers marqués, appuyez sur `F4` puis sur
 `M`, ou utilisez Alt+M et appuyez sur F6 à l'invite pour désactiver la
 recréation des chemins.
 
@@ -32,7 +32,7 @@ gère.
 
 | Avec le protocole | Sans le protocole |
 |---|---|
-| Maintenir Ctrl ou Alt affiche le menu CTRL ou ALT | F9 les affiche |
+| Maintenir Ctrl ou Alt affiche le menu CTRL ou ALT | F4 les affiche |
 | Ctrl+M déplace les fichiers | Ctrl+M équivaut à Enter |
 
 | Terminal | Protocole |

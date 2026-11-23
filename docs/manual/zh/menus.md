@@ -6,8 +6,8 @@
 |---|---|---|
 | DIR | 目录树获得焦点 | 光标下的目录 |
 | FILE | 文件窗口获得焦点 | 光标下的文件 |
-| CTRL | 按住 Ctrl，或按 F9 之后 | 已标记的文件 |
-| ALT | 按住 Alt，或按两次 F9 之后 | 参见 [Alt 菜单](#alt命令的另一种变体) |
+| CTRL | 按住 Ctrl，或按 F4 之后 | 已标记的文件 |
+| ALT | 按住 Alt，或按两次 F4 之后 | 参见 [Alt 菜单](#alt命令的另一种变体) |
 
 在归档文件内标题为 ARCHIVE，在远程主机上为 REMOTE。两者都会省略在对应环境中无法使用的命令。
 
@@ -46,13 +46,15 @@ Alt 不再重复 Ctrl 的功能。它的作用取决于当前窗口：
 
 ## 显示 Ctrl 和 Alt 菜单
 
-**F9** 显示 CTRL 菜单，再次按 F9 显示 ALT 菜单，第三次按 F9 返回平时菜单。当其中一个菜单显示时，下一个按下的字母将附带该修饰键：`F9` `C` 等同于 Ctrl+C。按 Esc 返回且不执行任何操作。
+**F4** 显示 CTRL 菜单，再次按 F4 显示 ALT 菜单，第三次按 F4 返回平时菜单。当其中一个菜单显示时，下一个按下的字母将附带该修饰键：`F4` `C` 等同于 Ctrl+C。按 Esc 返回且不执行任何操作。
 
-在 kitty、Ghostty、WezTerm、foot 和新版 Alacritty 中，按住 Ctrl 或 Alt 会直接显示对应菜单，松开按键则恢复 DIR 或 FILE 菜单。这些终端能够单独报告修饰键的按下（kitty 键盘协议）。GNOME Terminal、Ptyxis、Terminator 和 Tilix 不支持此功能，因此在这些终端中菜单仅通过 F9 切换。
+F4 是 ZTreeWin 使用的按键。F9 是 Xylem 之前使用的按键，在它获得自己的命令之前，仍具有相同的作用。
+
+在 kitty、Ghostty、WezTerm、foot 和新版 Alacritty 中，按住 Ctrl 或 Alt 会直接显示对应菜单，松开按键则恢复 DIR 或 FILE 菜单。这些终端能够单独报告修饰键的按下（kitty 键盘协议）。GNOME Terminal、Ptyxis、Terminator 和 Tilix 不支持此功能，因此在这些终端中菜单仅通过 F4 切换。
 
 ## Ctrl+M
 
-大多数终端为 Ctrl+M 和 Enter 发送相同的字节，因此 Xylem 无法将它们区分开。在支持 kitty 键盘协议的终端中可以区分，Ctrl+M 用于移动已标记的文件。在其他终端中，请按 `F9` `M`。
+大多数终端为 Ctrl+M 和 Enter 发送相同的字节，因此 Xylem 无法将它们区分开。在支持 kitty 键盘协议的终端中可以区分，Ctrl+M 用于移动已标记的文件。在其他终端中，请按 `F4` `M`。
 
 ## 0.8 版本变更
 

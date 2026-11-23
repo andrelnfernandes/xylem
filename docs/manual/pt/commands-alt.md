@@ -5,7 +5,7 @@ ramo sob o cursor. Na janela de arquivos, Alt+C e Alt+M atuam sobre os arquivos
 marcados e mantêm seus caminhos. As demais entradas abrem ferramentas que não
 atuam sobre um único arquivo.
 
-Para exibir este menu, segure Alt ou pressione F9 duas vezes. Veja [os menus](menus.md).
+Para exibir este menu, segure Alt ou pressione F4 duas vezes. Veja [os menus](menus.md).
 
 ## Comandos
 

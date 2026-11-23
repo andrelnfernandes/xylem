@@ -2,7 +2,7 @@
 
 Ces touches figurent sur la dernière ligne des menus DIR et FILE, ou n'apparaissent
 pas dans les menus parce qu'elles ne font que déplacer le curseur. Elles ne se
-combinent pas avec les menus de F9 : après F9, seule la lettre suivante prend
+combinent pas avec les menus de F4 : après F4, seule la lettre suivante prend
 Ctrl ou Alt.
 
 ## Touches de fonction
@@ -15,7 +15,7 @@ Ctrl ou Alt.
 | F5 | Fichiers | Crée une archive contenant le fichier. Ctrl+F5 : avec les fichiers marqués. Alt+F5 : ouvre une archive. [Archives](archives.md) |
 | F7 | Fichiers | Autoview : affiche le contenu du fichier sous le curseur à côté de la liste. [La fenêtre de fichiers](files.md) |
 | F8 | les deux | Ouvre une seconde fenêtre à côté de la première, ou la ferme. [Écran partagé](split.md) |
-| F9 | les deux | Affiche le menu CTRL, puis le menu ALT, puis revient au menu normal. [Les menus](menus.md) |
+| F4 (F9) | les deux | Affiche le menu CTRL, puis le menu ALT, puis revient au menu normal. [Les menus](menus.md) |
 | F10 | les deux | Quitte l'application, comme `Q`. |
 | F11 | les deux | Ouvre le gestionnaire de signets, comme Alt+B. Ctrl+F11 enregistre le répertoire courant. [Signets](bookmarks.md) |
 | F12 | les deux | Ouvre la configuration. [Configuration](configuration.md) |

@@ -42,7 +42,7 @@ funktioniert.
 | `Q` | Quit | ja | ja | Beendet das Programm nach Bestätigung. [Beenden und Verzeichnis der Shell wechseln](quit.md) |
 
 Die Tasten in der letzten Menüzeile (F1, `*`, `?`, `\`, F3, Enter, F5, F7, F8,
-F9) werden unter [Funktionstasten und Symbole](commands-keys.md) beschrieben.
+F4) werden unter [Funktionstasten und Symbole](commands-keys.md) beschrieben.
 
 ## Tasten außerhalb des Menüs
 

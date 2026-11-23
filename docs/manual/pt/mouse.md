@@ -76,7 +76,7 @@ botão do meio ou o Ctrl+clique marcam cada arquivo.
 A roda move a lista sob o ponteiro, não a que tem o foco: a janela de arquivos
 pequena sob a árvore rola sem sair da árvore.
 
-Nos menus Ctrl e Alt (mantidos pressionados, ou abertos com F9), uma palavra
+Nos menus Ctrl e Alt (mantidos pressionados, ou abertos com F4), uma palavra
 vale pela sua letra com Ctrl ou Alt: um clique em `Copy` no menu Ctrl copia os
 arquivos marcados.
 

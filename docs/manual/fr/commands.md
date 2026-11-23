@@ -42,7 +42,7 @@ fonctionne.
 | `Q` | Quit | oui | oui | Quitte l'application après confirmation. [Quitter et changer le répertoire du shell](quit.md) |
 
 Les touches de la dernière ligne du menu (F1, `*`, `?`, `\`, F3, Enter, F5, F7,
-F8, F9) sont décrites dans [touches de fonction et symboles](commands-keys.md).
+F8, F4) sont décrites dans [touches de fonction et symboles](commands-keys.md).
 
 ## Touches absentes du menu
 

@@ -144,7 +144,7 @@ Xylem anderen Programmen überlässt" weiter unten.
 | Verlauf | Verlaufsfenster mit Lesezeichen | ↑ in der Eingabezeile öffnet eine Liste (Tippen filtert, Del vergisst), ein Verlauf pro Eingabetyp, bleibt zwischen Sitzungen erhalten |
 | Konfiguration | 7 Seiten, Farbeditor für einzelne Elemente (F4), Alt-Export | 4 Seiten mit den unter Linux sinnvollen Optionen; F4 wählt aus 12 fertigen Themen; Einzelfarben in `config.toml` |
 | Geteilter Bildschirm | optionale Statistikfelder je Seite | kein Statistikfeld |
-| Menüs | Ctrl-/Alt-Menü beim Gedrückthalten der Taste | ebenso in Terminals mit Kitty-Protokoll; F9 in jedem Terminal |
+| Menüs | Ctrl-/Alt-Menü beim Gedrückthalten der Taste | ebenso in Terminals mit Kitty-Protokoll; F4 in jedem Terminal |
 
 Konfigurationsoptionen aus ZTreeWin, die nicht übernommen wurden, da sie
 Windows-spezifisch sind: RSH-Attribute, Junctions, OEM/ANSI, EBCDIC,
@@ -241,9 +241,9 @@ Die Tastenbelegung folgt ZTreeWin, mit diesen Ausnahmen:
 | Hilfe | F1 | F1 oder Alt+H (in GNOME Terminal öffnet F1 die Hilfe des Terminals) |
 | Konfiguration | Alt+F10 | F12 oder Alt+F10 (unter GNOME maximiert Alt+F10 das Fenster und erreicht Xylem nicht) |
 | Lesezeichen | F11 | F11, Alt+B oder einfaches Anführungszeichen `'` (in GNOME Terminal schaltet F11 das Vollbild um) |
-| Markierte verschieben | Ctrl+M | Ctrl+M in Terminals mit Kitty-Protokoll; in anderen `F9` `M` (oder Alt+M und F6) |
+| Markierte verschieben | Ctrl+M | Ctrl+M in Terminals mit Kitty-Protokoll; in anderen `F4` `M` (oder Alt+M und F6) |
 | F2 | (nichts) | liest das Verzeichnis neu ein, genau wie F3 |
-| F9 | Anwendungsmenü (nicht implementiert) | Ctrl-/Alt-Menüs |
+| F9 | Anwendungsmenü (nicht implementiert) | dasselbe wie F4 (die Ctrl-/Alt-Menüs), bis es einen eigenen Befehl bekommt |
 | F12 | Makros (nicht implementiert) | Konfiguration |
 | Alt+B | Batch der aktuellen Datei (nicht implementiert) | Lesezeichen |
 | Alt+H | Hide (nicht implementiert) | Hilfe |

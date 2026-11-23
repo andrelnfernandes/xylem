@@ -41,7 +41,7 @@ Bei eXecute steht `%t` für die markierten Dateien ([Ausführen](execute.md)).
 - Alt+Buchstabe ist die andere Fassung eines Befehls: der gesamte Zweig im Baum,
   die markierten Dateien mit ihren Pfaden im Dateifenster.
 
-[Die Menüs](menus.md) erklärt die Regel und wie die Menüs Ctrl und Alt mit F9
+[Die Menüs](menus.md) erklärt die Regel und wie die Menüs Ctrl und Alt mit F4
 angezeigt werden. [Das Ctrl-Menü](commands-ctrl.md) und
 [das Alt-Menü](commands-alt.md) listen jeden Befehl auf.
 

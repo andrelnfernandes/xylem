@@ -136,7 +136,7 @@ other programs", below.
 | History | history window with bookmarks | ↑ at the prompt opens a list (filter by typing, Del forgets), one history per type, saved between runs |
 | Configuration | 7 pages, per-element color editor (F4), Alt-Export | 4 pages with the options that make sense on Linux; F4 chooses among 12 ready-made themes; individual colors in `config.toml` |
 | Split screen | optional statistics panels per side | no statistics panel |
-| Menus | Ctrl/Alt menu when holding the key | same in terminals with the kitty protocol; F9 in any terminal |
+| Menus | Ctrl/Alt menu when holding the key | same in terminals with the kitty protocol; F4 in any terminal |
 
 ZTreeWin configuration options that were not brought over because they are
 Windows-specific: RSH attributes, junctions, OEM/ANSI, EBCDIC, window
@@ -229,9 +229,9 @@ The keys follow ZTreeWin's. The exceptions:
 | Help | F1 | F1 or Alt+H (on GNOME Terminal, F1 opens terminal help) |
 | Configuration | Alt+F10 | F12 or Alt+F10 (on GNOME, Alt+F10 maximizes the window and never reaches Xylem) |
 | Bookmarks | F11 | F11, Alt+B, or single quote `'` (on GNOME Terminal, F11 toggles fullscreen) |
-| Move tagged | Ctrl+M | Ctrl+M in terminals with the kitty protocol; in others, `F9` `M` (or Alt+M and F6) |
+| Move tagged | Ctrl+M | Ctrl+M in terminals with the kitty protocol; in others, `F4` `M` (or Alt+M and F6) |
 | F2 | (nothing) | rereads the directory, same as F3 |
-| F9 | applications menu (not implemented) | Ctrl/Alt menus |
+| F9 | applications menu (not implemented) | the same as F4 (the Ctrl/Alt menus), until it gets a command of its own |
 | F12 | macros (not implemented) | configuration |
 | Alt+B | Batch of the current file (not implemented) | bookmarks |
 | Alt+H | Hide (not implemented) | help |

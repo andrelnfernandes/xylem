@@ -77,7 +77,7 @@ central o Ctrl+clic marcan cada archivo.
 La rueda mueve la lista bajo el puntero, no la que tiene el foco: la ventana de
 archivos pequeña bajo el árbol se desplaza sin salir del árbol.
 
-En los menús Ctrl y Alt (mantenidos pulsados, o abiertos con F9), una palabra
+En los menús Ctrl y Alt (mantenidos pulsados, o abiertos con F4), una palabra
 equivale a su letra con Ctrl o Alt: un clic en `Copy` en el menú Ctrl copia los
 archivos marcados.
 

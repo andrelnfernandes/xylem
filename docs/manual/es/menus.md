@@ -7,8 +7,8 @@ Existen cuatro menús. El título a la izquierda indica cuál de ellos se muestr
 |---|---|---|
 | DIR | el árbol tiene el foco | el directorio bajo el cursor |
 | FILE | la ventana de archivos tiene el foco | el archivo bajo el cursor |
-| CTRL | se mantiene pulsado Ctrl, o tras pulsar F9 | los archivos marcados |
-| ALT | se mantiene pulsado Alt, o tras pulsar F9 dos veces | consulta [el menú Alt](#alt-la-otra-versión-de-un-comando) |
+| CTRL | se mantiene pulsado Ctrl, o tras pulsar F4 | los archivos marcados |
+| ALT | se mantiene pulsado Alt, o tras pulsar F4 dos veces | consulta [el menú Alt](#alt-la-otra-versión-de-un-comando) |
 
 Dentro de un archivo comprimido el título es ARCHIVE, y en una máquina remota
 es REMOTE. Ambos omiten los comandos que no funcionan en ese contexto.
@@ -64,23 +64,26 @@ Alt no repite a Ctrl. Su acción depende de la ventana activa:
 
 ## Mostrar los menús Ctrl y Alt
 
-**F9** muestra el menú CTRL; pulsar F9 nuevamente muestra el menú ALT, y una
+**F4** muestra el menú CTRL; pulsar F4 nuevamente muestra el menú ALT, y una
 tercera vez regresa al menú original. Mientras se muestra uno de ellos, la
-siguiente letra se interpreta con dicho modificador: `F9` `C` equivale a
+siguiente letra se interpreta con dicho modificador: `F4` `C` equivale a
 Ctrl+C. Esc cancela sin ejecutar ninguna acción.
+
+F4 es la tecla de ZTreeWin. F9, que lo hacía antes en Xylem, sigue haciendo
+lo mismo hasta que tenga un comando propio.
 
 En kitty, Ghostty, WezTerm, foot y versiones recientes de Alacritty, mantener
 pulsado Ctrl o Alt despliega el menú correspondiente, y soltarlo recupera DIR o
 FILE. Estas terminales informan eventos de teclas modificadoras solitarias (el
 protocolo de teclado de kitty). GNOME Terminal, Ptyxis, Terminator y Tilix no lo
-soportan, de modo que en ellas los menús solo se alternan mediante F9.
+soportan, de modo que en ellas los menús solo se alternan mediante F4.
 
 ## Ctrl+M
 
 La mayoría de las terminales envían el mismo byte para Ctrl+M y Enter, por lo
 que Xylem no puede distinguirlos. En terminales compatibles con el protocolo de
 teclado de kitty, las dos teclas son distintas y Ctrl+M mueve los archivos
-marcados. En las demás, pulsa `F9` `M`.
+marcados. En las demás, pulsa `F4` `M`.
 
 ## Cambios en la versión 0.8
 

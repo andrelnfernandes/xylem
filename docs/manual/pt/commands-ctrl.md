@@ -8,7 +8,7 @@ cursor. As linhas indicadas como "tudo o que foi lido" são as exceções.
 Sem nenhum arquivo marcado, esses comandos exibem `No tagged files` e não
 fazem nada.
 
-Para exibir este menu, segure Ctrl ou pressione F9. Veja [os menus](menus.md).
+Para exibir este menu, segure Ctrl ou pressione F4. Veja [os menus](menus.md).
 
 ## Comandos
 
@@ -22,7 +22,7 @@ Na ordem do menu. "Árvore" e "Arquivos" indicam onde a tecla funciona.
 | Ctrl+C | Copy | sim | sim | Copia os arquivos marcados para um diretório de destino, sem seus caminhos. Alt+C mantém os caminhos. [Copiar e Mover](copy-move.md) |
 | Ctrl+D | Delete | sim | sim | Exclui os arquivos marcados, após confirmação. Eles vão para a lixeira quando `delete_to_trash` estiver ativo. [Excluir](delete.md) |
 | Ctrl+G | Git | sim | sim | Abre o menu Git. Aparece apenas com a opção Git ativada. [Git](git.md) |
-| Ctrl+M | Move | sim | sim | Move os arquivos marcados para um diretório de destino. Em terminais sem o protocolo de teclado do kitty, pressione `F9` `M`. [Copiar e Mover](copy-move.md) |
+| Ctrl+M | Move | sim | sim | Move os arquivos marcados para um diretório de destino. Em terminais sem o protocolo de teclado do kitty, pressione `F4` `M`. [Copiar e Mover](copy-move.md) |
 | Ctrl+N | New date | | sim | Define a data de modificação dos arquivos marcados. [Permissões e datas](attributes.md) |
 | Ctrl+O | Open | | sim | Abre cada arquivo marcado no aplicativo padrão do sistema. [A janela de arquivos](files.md) |
 | Ctrl+P | Phrase | sim | sim | Abre a caixa de busca sobre os arquivos marcados: lista aqueles que contêm as palavras digitadas. [A caixa de busca](sql.md#a-caixa-de-busca-p) |

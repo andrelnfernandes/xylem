@@ -282,7 +282,7 @@ pub struct App {
     pub quit_dir: Option<PathBuf>,
     /// Ctrl/Alt currently pressed (only on terminals that report it).
     pub held: Option<MenuMode>,
-    /// Menu chosen with F9; the next letter receives that modifier.
+    /// Menu chosen with F4 (or F9); the next letter receives that modifier.
     pub sticky: MenuMode,
     /// Git status of the files on screen (when `git` is on).
     pub git_status: std::rc::Rc<std::cell::RefCell<git::StatusCache>>,

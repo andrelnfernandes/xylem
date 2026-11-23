@@ -1,8 +1,8 @@
 # Function keys and symbols
 
 These keys are on the last line of the DIR and FILE menus, or are not in a
-menu because they only move the cursor. They are not combined with the F9
-menus: after F9, only the next letter takes Ctrl or Alt.
+menu because they only move the cursor. They are not combined with the F4
+menus: after F4, only the next letter takes Ctrl or Alt.
 
 ## Function keys
 
@@ -14,7 +14,7 @@ menus: after F9, only the next letter takes Ctrl or Alt.
 | F5 | Files | Creates an archive with the file. Ctrl+F5: with the tagged files. Alt+F5: opens an archive. [Archives](archives.md) |
 | F7 | Files | Autoview: shows the contents of the file under the cursor beside the list. [The file window](files.md) |
 | F8 | both | Opens a second window beside the first, and closes it. [Split screen](split.md) |
-| F9 | both | Shows the CTRL menu, then the ALT menu, then goes back. [The menus](menus.md) |
+| F4 (or F9) | both | Shows the CTRL menu, then the ALT menu, then goes back. [The menus](menus.md) |
 | F10 | both | Quits, as `Q`. |
 | F11 | both | Opens the bookmarks manager, as Alt+B. Ctrl+F11 saves the current directory. [Bookmarks](bookmarks.md) |
 | F12 | both | Opens the configuration. [Configuration](configuration.md) |

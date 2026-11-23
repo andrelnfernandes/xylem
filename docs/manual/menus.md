@@ -7,8 +7,8 @@ There are four menus. The title on the left says which one is showing.
 |---|---|---|
 | DIR | the tree has the focus | the directory under the cursor |
 | FILE | the file window has the focus | the file under the cursor |
-| CTRL | Ctrl is held, or after F9 | the tagged files |
-| ALT | Alt is held, or after F9 twice | see [the Alt menu](#alt-the-other-version-of-a-command) |
+| CTRL | Ctrl is held, or after F4 | the tagged files |
+| ALT | Alt is held, or after F4 twice | see [the Alt menu](#alt-the-other-version-of-a-command) |
 
 Inside an archive the title is ARCHIVE, and on a remote machine REMOTE. Both
 leave out the commands that do not work there.
@@ -60,21 +60,24 @@ Alt does not repeat Ctrl. What it does depends on the window:
 
 ## Showing the Ctrl and Alt menus
 
-**F9** shows the CTRL menu, F9 again the ALT menu, and a third time goes
+**F4** shows the CTRL menu, F4 again the ALT menu, and a third time goes
 back. While one of them is showing, the next letter is taken with that
-modifier: `F9` `C` is Ctrl+C. Esc goes back without running anything.
+modifier: `F4` `C` is Ctrl+C. Esc goes back without running anything.
+
+F4 is the key of ZTreeWin. F9, which did this in Xylem before, still does
+the same, until it gets a command of its own.
 
 In kitty, Ghostty, WezTerm, foot and recent Alacritty, holding Ctrl or Alt
 shows the menu, and releasing the key brings back DIR or FILE. These
 terminals report a modifier pressed on its own (the kitty keyboard protocol).
 GNOME Terminal, Ptyxis, Terminator and Tilix do not, so in them the menus
-change only with F9.
+change only with F4.
 
 ## Ctrl+M
 
 Most terminals send the same byte for Ctrl+M and Enter, so Xylem cannot tell
 them apart. In the terminals with the kitty keyboard protocol it can, and
-Ctrl+M moves the tagged files. In the others, press `F9` `M`.
+Ctrl+M moves the tagged files. In the others, press `F4` `M`.
 
 ## Changed in version 0.8
 

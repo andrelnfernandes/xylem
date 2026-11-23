@@ -5,7 +5,7 @@ elle couvre toute la branche sous le curseur. Dans la fenêtre de fichiers, Alt+
 et Alt+M agissent sur les fichiers marqués en préservant leurs chemins. Les
 autres entrées ouvrent des outils ne s'appliquant pas à un seul fichier.
 
-Pour afficher ce menu, maintenez Alt enfoncé ou appuyez sur F9 deux fois. Voir
+Pour afficher ce menu, maintenez Alt enfoncé ou appuyez sur F4 deux fois. Voir
 [les menus](menus.md).
 
 ## Commandes

@@ -23,7 +23,7 @@ Xylem 将外部文件视为潜在恶意：绝不应因文件内容或文件名�
 - [Xylem 是什么](overview.md)：载入、标记与命令涵盖的功能
 - [安装与最初五分钟](start.md)
 - [屏幕](screen.md)：目录树、文件窗口、统计信息与底部状态栏
-- [菜单、Ctrl 与 Alt](menus.md)：单独字母、配合 Ctrl、配合 Alt 与 F9
+- [菜单、Ctrl 与 Alt](menus.md)：单独字母、配合 Ctrl、配合 Alt 与 F4
 - [鼠标](mouse.md)：在 F12 中开启、滚轮、单击与底部状态栏
 - [术语](glossary.md)：Log、Branch、Tag、Filespec
 

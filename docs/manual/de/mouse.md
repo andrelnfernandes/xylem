@@ -77,7 +77,7 @@ die mittlere Taste oder Ctrl+Klick jede Datei einzeln.
 Das Mausrad bewegt die Liste unter dem Zeiger, nicht die mit dem Fokus: Das
 kleine Dateifenster unter dem Baum scrollt, ohne den Baum zu verlassen.
 
-In den Ctrl- und Alt-Menüs (gehalten oder mit F9 geöffnet) steht ein Wort für
+In den Ctrl- und Alt-Menüs (gehalten oder mit F4 geöffnet) steht ein Wort für
 seinen Buchstaben mit Ctrl oder Alt: Ein Klick auf `Copy` im Ctrl-Menü kopiert
 die markierten Dateien.
 

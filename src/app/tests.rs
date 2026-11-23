@@ -1087,6 +1087,24 @@ fn release_events_do_nothing() {
 }
 
 #[test]
+fn f4_cycles_the_menus_as_in_ztreewin_and_f9_still_does() {
+    let (_tmp, mut app) = sample();
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::F(4));
+    assert_eq!(app.menu_mode(), MenuMode::Ctrl);
+    press(&mut app, KeyCode::F(4));
+    assert_eq!(app.menu_mode(), MenuMode::Alt);
+    // F4 and F9 are the same key: they can be mixed.
+    press(&mut app, KeyCode::F(9));
+    assert_eq!(app.menu_mode(), MenuMode::Normal);
+    // F4 + T = Ctrl+T (tags the whole list).
+    press(&mut app, KeyCode::F(4));
+    press(&mut app, KeyCode::Char('t'));
+    assert_eq!(tagged(&app).len(), 2);
+    assert_eq!(app.menu_mode(), MenuMode::Normal);
+}
+
+#[test]
 fn f9_cycles_menus_and_applies_modifier_once() {
     let (_tmp, mut app) = sample();
     press(&mut app, KeyCode::Enter);

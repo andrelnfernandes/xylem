@@ -20,6 +20,12 @@ of each version are on
   and `x'4D5A'`, as W's `contains()`: `invoice AND NOT draft`.
   [Search](search.md)
 
+**Changed.**
+
+- F4 shows the Ctrl and Alt menus, as in ZTreeWin, and the footer says so; F9
+  still does the same, until it gets a command of its own. Thanks to zoomosis,
+  who pointed it out. [The menus](menus.md)
+
 **Fixed.**
 
 - Showall (and Branch) of a tree with millions of files froze the screen for

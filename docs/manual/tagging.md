@@ -42,7 +42,7 @@ In eXecute, `%t` stands for the tagged files ([eXecute](execute.md)).
   tree, the tagged files with their paths in the file window.
 
 [The menus](menus.md) explains the rule and how to show the Ctrl and Alt
-menus with F9. [The Ctrl menu](commands-ctrl.md) and
+menus with F4. [The Ctrl menu](commands-ctrl.md) and
 [the Alt menu](commands-alt.md) list every command.
 
 **Changed in version 0.8.** Alt no longer repeats Ctrl: Alt+A, Alt+D, Alt+R,

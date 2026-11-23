@@ -16,7 +16,7 @@ Esta página describe esos casos y la combinación alternativa que se debe usar.
 ## Ctrl+M
 
 La mayoría de las terminales envían el mismo byte para Ctrl+M y Enter. Xylem
-interpreta Enter. Para mover los archivos marcados en ellas, pulsa `F9` y luego
+interpreta Enter. Para mover los archivos marcados en ellas, pulsa `F4` y luego
 `M`, o utiliza Alt+M y pulsa F6 en el prompt para no recrear las rutas.
 
 En una terminal con el protocolo de teclado de kitty las dos teclas son
@@ -30,7 +30,7 @@ soporta.
 
 | Con el protocolo | Sin el protocolo |
 |---|---|
-| Mantener pulsado Ctrl o Alt muestra el menú CTRL o ALT | F9 los muestra |
+| Mantener pulsado Ctrl o Alt muestra el menú CTRL o ALT | F4 los muestra |
 | Ctrl+M mueve archivos | Ctrl+M actúa como Enter |
 
 | Terminal | Protocolo |

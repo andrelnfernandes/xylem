@@ -7,8 +7,8 @@ existe quatre menus. Le titre à gauche indique lequel est affiché.
 |---|---|---|
 | DIR | l'arborescence a le focus | le répertoire sous le curseur |
 | FILE | la fenêtre de fichiers a le focus | le fichier sous le curseur |
-| CTRL | Ctrl est maintenu enfoncé, ou après F9 | les fichiers marqués |
-| ALT | Alt est maintenu enfoncé, ou après F9 deux fois | voir [le menu Alt](#alt--lautre-version-dune-commande) |
+| CTRL | Ctrl est maintenu enfoncé, ou après F4 | les fichiers marqués |
+| ALT | Alt est maintenu enfoncé, ou après F4 deux fois | voir [le menu Alt](#alt--lautre-version-dune-commande) |
 
 Dans une archive, le titre devient ARCHIVE, et sur une machine distante REMOTE.
 Tous deux masquent les commandes qui n'y fonctionnent pas.
@@ -63,23 +63,26 @@ Alt ne répète pas Ctrl. Son action dépend de la fenêtre active :
 
 ## Afficher les menus Ctrl et Alt
 
-**F9** affiche le menu CTRL, un second appui sur F9 affiche le menu ALT, et un
+**F4** affiche le menu CTRL, un second appui sur F4 affiche le menu ALT, et un
 troisième revient au menu initial. Pendant qu'un de ces menus est visible, la
-lettre suivante est prise avec ce modificateur : `F9` `C` équivaut à Ctrl+C.
+lettre suivante est prise avec ce modificateur : `F4` `C` équivaut à Ctrl+C.
 Esc annule sans rien lancer.
+
+F4 est la touche de ZTreeWin. F9, qui le faisait avant dans Xylem, fait
+toujours la même chose, jusqu'à ce qu'il reçoive une commande à lui.
 
 Sous kitty, Ghostty, WezTerm, foot et Alacritty récent, maintenir Ctrl ou Alt
 affiche le menu correspondant, et relâcher la touche ramène DIR ou FILE. Ces
 terminaux transmettent l'appui d'un modificateur isolé (protocole clavier
 kitty). GNOME Terminal, Ptyxis, Terminator et Tilix ne le font pas ; les menus
-n'y changent donc qu'avec F9.
+n'y changent donc qu'avec F4.
 
 ## Ctrl+M
 
 La plupart des terminaux envoient le même octet pour Ctrl+M et Enter. Xylem ne
 peut alors pas les distinguer. Dans les terminaux gérant le protocole clavier
 kitty, les deux touches sont distinctes et Ctrl+M déplace les fichiers marqués.
-Dans les autres, appuyez sur `F9` `M`.
+Dans les autres, appuyez sur `F4` `M`.
 
 ## Modifié dans la version 0.8
 

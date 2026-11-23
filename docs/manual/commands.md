@@ -40,7 +40,7 @@ In the order of the menus. "Tree" and "Files" say where the key works.
 | `Q` | Quit | yes | yes | Quits, after asking. [Quitting](quit.md) |
 
 The keys on the last line of the menu (F1, `*`, `?`, `\`, F3, Enter, F5, F7,
-F8, F9) are in [function keys and symbols](commands-keys.md).
+F8, F4) are in [function keys and symbols](commands-keys.md).
 
 ## Keys that are not in the menu
 

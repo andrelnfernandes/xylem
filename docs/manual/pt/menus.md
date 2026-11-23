@@ -7,8 +7,8 @@ menus. O título à esquerda indica qual deles está sendo exibido.
 |---|---|---|
 | DIR | a árvore tem o foco | o diretório sob o cursor |
 | FILE | a janela de arquivos tem o foco | o arquivo sob o cursor |
-| CTRL | Ctrl é mantido pressionado, ou após F9 | os arquivos marcados |
-| ALT | Alt é mantido pressionado, ou após F9 duas vezes | veja [o menu Alt](#alt-a-outra-versão-de-um-comando) |
+| CTRL | Ctrl é mantido pressionado, ou após F4 | os arquivos marcados |
+| ALT | Alt é mantido pressionado, ou após F4 duas vezes | veja [o menu Alt](#alt-a-outra-versão-de-um-comando) |
 
 Dentro de um arquivo compactado o título é ARCHIVE, e em uma máquina remota
 REMOTE. Ambos deixam de fora os comandos que não funcionam ali.
@@ -63,22 +63,25 @@ O Alt não repete o Ctrl. O que ele faz depende da janela:
 
 ## Como exibir os menus Ctrl e Alt
 
-**F9** exibe o menu CTRL, F9 novamente o menu ALT, e uma terceira vez volta ao
+**F4** exibe o menu CTRL, F4 novamente o menu ALT, e uma terceira vez volta ao
 anterior. Enquanto um deles estiver visível, a próxima letra é recebida com
-aquele modificador: `F9` `C` equivale a Ctrl+C. Esc volta sem executar nada.
+aquele modificador: `F4` `C` equivale a Ctrl+C. Esc volta sem executar nada.
+
+O F4 é a tecla do ZTreeWin. O F9, que fazia isso no Xylem antes, continua
+fazendo o mesmo, até ganhar um comando próprio.
 
 No kitty, Ghostty, WezTerm, foot e Alacritty recente, segurar Ctrl ou Alt exibe
 o menu, e soltar a tecla traz de volta DIR ou FILE. Esses terminais informam um
 modificador pressionado isoladamente (protocolo de teclado do kitty). O GNOME
 Terminal, Ptyxis, Terminator e Tilix não fazem isso, então neles os menus
-alternam apenas com F9.
+alternam apenas com F4.
 
 ## Ctrl+M
 
 A maioria dos terminais envia o mesmo byte para Ctrl+M e Enter, de modo que o
 Xylem não consegue diferenciá-los. Nos terminais com o protocolo de teclado do
 kitty ele consegue, e Ctrl+M move os arquivos marcados. Nos demais, pressione
-`F9` `M`.
+`F4` `M`.
 
 ## Mudou na versão 0.8
 
