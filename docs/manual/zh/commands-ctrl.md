@@ -4,7 +4,7 @@ Ctrl 配合字母会在已标记的文件上执行命令。在文件窗口中，
 
 如果没有标记任何文件，这些命令会提示 `No tagged files` 且不执行任何操作。
 
-若要显示此菜单，可按住 Ctrl 或按 F9。参见[菜单](menus.md)。
+若要显示此菜单，可按住 Ctrl 或按 F4。参见[菜单](menus.md)。
 
 ## 命令列表
 
@@ -18,7 +18,7 @@ Ctrl 配合字母会在已标记的文件上执行命令。在文件窗口中，
 | Ctrl+C | Copy | 是 | 是 | 将已标记的文件复制到同一目标目录中，不保留其路径。Alt+C 则保留路径。[复制与移动](copy-move.md) |
 | Ctrl+D | Delete | 是 | 是 | 询问后删除已标记的文件。启用 `delete_to_trash` 时放入回收站。[删除](delete.md) |
 | Ctrl+G | Git | 是 | 是 | 打开 Git 菜单。仅在启用 Git 选项时显示。[Git](git.md) |
-| Ctrl+M | Move | 是 | 是 | 将已标记的文件移动到同一目标目录中。在不支持 kitty 键盘协议的终端中，请按 `F9` `M`。[复制与移动](copy-move.md) |
+| Ctrl+M | Move | 是 | 是 | 将已标记的文件移动到同一目标目录中。在不支持 kitty 键盘协议的终端中，请按 `F4` `M`。[复制与移动](copy-move.md) |
 | Ctrl+N | New date | | 是 | 修改已标记文件的修改日期。[权限与日期](attributes.md) |
 | Ctrl+O | Open | | 是 | 用系统默认程序逐个打开已标记的文件。[文件窗口](files.md) |
 | Ctrl+P | Phrase | 是 | 是 | 在已标记的文件上打开搜索框：列出包含所输入词语的文件。[搜索框](sql.md#搜索框-p) |

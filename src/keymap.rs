@@ -861,7 +861,7 @@ impl Keymap {
         }
         out.push_str(
             "\nFIXED KEYS\n  \
-             F9                      Ctrl/Alt menus; the next letter gets the modifier\n  \
+             F4 (or F9)              Ctrl/Alt menus; the next letter gets the modifier\n  \
              F6                      in Copy/Move of tagged files: with/without paths\n  \
              F7                      in Alt+C/Alt+M: paths from the disk root / tree root / current / below it\n  \
              F2                      in prompts that ask for a folder: pick it in a tree\n  \

@@ -5,7 +5,7 @@ the whole branch under the cursor. In the file window, Alt+C and Alt+M act on
 the tagged files and keep their paths. The other entries open tools that do
 not act on one file.
 
-To show this menu, hold Alt or press F9 twice. See [the menus](menus.md).
+To show this menu, hold Alt or press F4 twice. See [the menus](menus.md).
 
 ## Commands
 

@@ -43,7 +43,7 @@ Dans eXecute, `%t` représente les fichiers marqués ([eXecute](execute.md)).
   fichiers.
 
 [Les menus](menus.md) explique la règle et comment afficher les menus Ctrl et
-Alt avec F9. [Le menu Ctrl](commands-ctrl.md) et [le menu Alt](commands-alt.md)
+Alt avec F4. [Le menu Ctrl](commands-ctrl.md) et [le menu Alt](commands-alt.md)
 détaillent chaque commande.
 
 **Modifié dans la version 0.8.** Alt ne répète plus Ctrl : Alt+A, Alt+D, Alt+R,

@@ -9,7 +9,7 @@ como "todo lo registrado" son las excepciones.
 Si no hay ningún archivo marcado, estos comandos muestran `No tagged files` y
 no realizan ninguna acción.
 
-Para mostrar este menú, mantén pulsado Ctrl o pulsa F9. Consulta
+Para mostrar este menú, mantén pulsado Ctrl o pulsa F4. Consulta
 [los menús](menus.md).
 
 ## Comandos
@@ -24,7 +24,7 @@ En el orden del menú. "Árbol" y "Archivos" indican dónde funciona la tecla.
 | Ctrl+C | Copy | sí | sí | Copia los archivos marcados en un directorio de destino, sin recrear sus rutas. Alt+C conserva las rutas. [Copiar y mover](copy-move.md) |
 | Ctrl+D | Delete | sí | sí | Elimina los archivos marcados, tras pedir confirmación. Van a la papelera si `delete_to_trash` está activo. [Eliminar](delete.md) |
 | Ctrl+G | Git | sí | sí | Abre el menú Git. Solo se muestra si la opción de Git está activada. [Git](git.md) |
-| Ctrl+M | Move | sí | sí | Mueve los archivos marcados a un directorio de destino. En terminales sin el protocolo de teclado de kitty, pulsa `F9` `M`. [Copiar y mover](copy-move.md) |
+| Ctrl+M | Move | sí | sí | Mueve los archivos marcados a un directorio de destino. En terminales sin el protocolo de teclado de kitty, pulsa `F4` `M`. [Copiar y mover](copy-move.md) |
 | Ctrl+N | New date | | sí | Modifica la fecha de modificación de los archivos marcados. [Permisos y fechas](attributes.md) |
 | Ctrl+O | Open | | sí | Abre cada archivo marcado en la aplicación predeterminada del sistema. [La ventana de archivos](files.md) |
 | Ctrl+P | Phrase | sí | sí | Abre la caja de búsqueda sobre los archivos marcados: lista aquellos que contienen las palabras escritas. [La caja de búsqueda](sql.md#la-caja-de-búsqueda-p) |

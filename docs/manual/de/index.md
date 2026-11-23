@@ -36,7 +36,7 @@ wurden nicht von Muttersprachlern geprüft. Korrekturen:
 - [Was Xylem ist](overview.md): Einlesen, Markierungen und was die Befehle abdecken
 - [Installieren und die ersten fünf Minuten](start.md)
 - [Der Bildschirm](screen.md): Baum, Dateifenster, Statistiken, Menüleiste
-- [Die Menüs, Ctrl und Alt](menus.md): Buchstabe allein, mit Ctrl, mit Alt, und F9
+- [Die Menüs, Ctrl und Alt](menus.md): Buchstabe allein, mit Ctrl, mit Alt, und F4
 - [Die Maus](mouse.md): Einschalten in F12, das Mausrad, Klicks und die Fußzeile
 - [Vokabular](glossary.md): Log, Branch, Tag, Filespec
 

@@ -2578,15 +2578,16 @@ const ALT_FILE_WORDS: &[&str] = &[
 ];
 
 /// Footer menu when nothing is in progress: the normal one or the Ctrl/Alt
-/// one, depending on the key held down (or chosen with F9).
+/// one, depending on the key held down (or chosen with F4).
 fn idle_menu_spec(app: &App, focus: Focus, mode: MenuMode) -> MenuSpec {
     let tree = focus == Focus::Tree;
-    // With F9, the next letter gets the modifier: tell how to back out.
+    // With F4, the next letter gets the modifier: tell how to back out. The
+    // footer shows F4, as in ZTreeWin; F9 still works, unannounced.
     let sticky = app.held.is_none() && app.sticky != MenuMode::Normal;
     let next = if sticky {
         ("Esc".to_string(), "cancel", vec![])
     } else {
-        ("F9".to_string(), "next menu", vec![])
+        ("F4".to_string(), "next menu", vec![])
     };
     let help_key = help_key(app);
     let help_bind = if help_key == "F1" { "f1" } else { "alt+h" };
@@ -2636,7 +2637,7 @@ fn idle_menu_spec(app: &App, focus: Focus, mode: MenuMode) -> MenuSpec {
                 keys.push(key("F7", "autoview", &["f7"]));
             }
             keys.push(key("F8", "split", &["f8"]));
-            keys.push(key("F9", "menus", &[]));
+            keys.push(key("F4", "menus", &[]));
             MenuSpec {
                 focus,
                 title,
@@ -5756,7 +5757,7 @@ const WORD_FLOOR: usize = 3;
 /// Makes a menu line fit in `width` columns, never cutting an entry by
 /// accident: first the words of `menu_words` are shortened, all to the same
 /// number of letters and never losing their key; then entries go from the end,
-/// with a `…` where they were. In a line of keys the last entry (F9, Esc)
+/// with a `…` where they were. In a line of keys the last entry (F4, Esc)
 /// stays. A line that does not end with an entry (a message added to it) is
 /// left as it is.
 fn fit_menu(line: Line<'static>, width: usize) -> Line<'static> {
@@ -5805,7 +5806,7 @@ fn fit_menu(line: Line<'static>, width: usize) -> Line<'static> {
     }
 
     // Entries go from the end; the first (the title) always stays, and so does
-    // the last of a line of keys when it is a key (F9, Esc), not a legend.
+    // the last of a line of keys when it is a key (F4, Esc), not a legend.
     let starts_with_key = |e: &[Span]| e.first().is_some_and(|s| s.style == key("x").style);
     let keep_last =
         !words && entries.len() > 2 && entries.last().is_some_and(|e| starts_with_key(e));
@@ -6128,7 +6129,7 @@ mod tests {
         assert!(rows[0].starts_with("CTRL "), "{rows:?}");
         assert!(rows[0].contains("New date"), "{rows:?}");
         assert!(rows[1].contains("on tagged files in list"), "{rows:?}");
-        assert!(rows[1].contains("F9 next menu"), "{rows:?}");
+        assert!(rows[1].contains("F4 next menu"), "{rows:?}");
     }
 
     #[test]
@@ -6339,17 +6340,17 @@ mod tests {
             "         F3 reread   …"
         );
 
-        // A long hint loses its last parts, not all of it, and F9 stays.
+        // A long hint loses its last parts, not all of it, and F4 stays.
         let hint = menu_line(
             "",
             &[
                 ("", "on tagged files · Copy/Move: no paths"),
-                ("F9", "next menu"),
+                ("F4", "next menu"),
             ],
         );
         assert_eq!(
             text_of(&fit_menu(hint, 50)).trim_end(),
-            "          on tagged files … F9 next menu"
+            "          on tagged files … F4 next menu"
         );
     }
 

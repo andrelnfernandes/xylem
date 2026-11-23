@@ -5,7 +5,7 @@ den gesamten Zweig unter dem Cursor ab. Im Dateifenster wirken Alt+C und Alt+M
 auf die markierten Dateien und behalten deren Pfade bei. Die übrigen Einträge
 öffnen Werkzeuge, die sich nicht auf eine einzelne Datei beziehen.
 
-Um dieses Menü anzuzeigen, halten Sie Alt gedrückt oder drücken Sie F9 zweimal.
+Um dieses Menü anzuzeigen, halten Sie Alt gedrückt oder drücken Sie F4 zweimal.
 Siehe [die Menüs](menus.md).
 
 ## Befehle

@@ -1,8 +1,8 @@
 # Teclas de función y símbolos
 
 Estas teclas figuran en la última línea de los menús DIR y FILE, o no aparecen
-en los menús porque solo mueven el cursor. No se combinan con los menús de F9:
-tras F9, únicamente la siguiente letra admite Ctrl o Alt.
+en los menús porque solo mueven el cursor. No se combinan con los menús de F4:
+tras F4, únicamente la siguiente letra admite Ctrl o Alt.
 
 ## Teclas de función
 
@@ -14,7 +14,7 @@ tras F9, únicamente la siguiente letra admite Ctrl o Alt.
 | F5 | Archivos | Empaqueta el archivo en un archivo comprimido. Ctrl+F5: con los archivos marcados. Alt+F5: abre un archivo comprimido. [Archivos comprimidos](archives.md) |
 | F7 | Archivos | Autoview: muestra el contenido del archivo bajo el cursor al lado de la lista. [La ventana de archivos](files.md) |
 | F8 | ambas | Abre una segunda ventana al lado de la primera, o la cierra. [Pantalla dividida](split.md) |
-| F9 | ambas | Muestra el menú CTRL, luego el menú ALT y regresa al normal. [Los menús](menus.md) |
+| F4 (F9) | ambas | Muestra el menú CTRL, luego el menú ALT y regresa al normal. [Los menús](menus.md) |
 | F10 | ambas | Sale del programa, igual que `Q`. |
 | F11 | ambas | Abre el gestor de marcadores, igual que Alt+B. Ctrl+F11 guarda el directorio actual. [Marcadores](bookmarks.md) |
 | F12 | ambas | Abre la configuración. [Configuración](configuration.md) |

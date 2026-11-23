@@ -5,7 +5,7 @@ rama bajo el cursor. En la ventana de archivos, Alt+C y Alt+M actúan sobre los
 archivos marcados conservando sus rutas. Las demás opciones abren herramientas
 que no operan sobre un único archivo.
 
-Para mostrar este menú, mantén pulsado Alt o pulsa F9 dos veces. Consulta
+Para mostrar este menú, mantén pulsado Alt o pulsa F4 dos veces. Consulta
 [los menús](menus.md).
 
 ## Comandos

@@ -7,7 +7,7 @@ cursor. The rows marked "everything logged" are the exceptions.
 
 With no file tagged, these commands show `No tagged files` and do nothing.
 
-To show this menu, hold Ctrl or press F9. See [the menus](menus.md).
+To show this menu, hold Ctrl or press F4. See [the menus](menus.md).
 
 ## Commands
 
@@ -21,7 +21,7 @@ In the order of the menu. "Tree" and "Files" say where the key works.
 | Ctrl+C | Copy | yes | yes | Copies the tagged files into one destination directory, without their paths. Alt+C keeps the paths. [Copy and Move](copy-move.md) |
 | Ctrl+D | Delete | yes | yes | Deletes the tagged files, after asking. They go to the trash when `delete_to_trash` is on. [Delete](delete.md) |
 | Ctrl+G | Git | yes | yes | Opens the Git menu. Shows only with the Git option on. [Git](git.md) |
-| Ctrl+M | Move | yes | yes | Moves the tagged files into one destination directory. In terminals without the kitty keyboard protocol, press `F9` `M`. [Copy and Move](copy-move.md) |
+| Ctrl+M | Move | yes | yes | Moves the tagged files into one destination directory. In terminals without the kitty keyboard protocol, press `F4` `M`. [Copy and Move](copy-move.md) |
 | Ctrl+N | New date | | yes | Sets the modification date of the tagged files. [Permissions and dates](attributes.md) |
 | Ctrl+O | Open | | yes | Opens each tagged file in the system's default program. [The file window](files.md) |
 | Ctrl+P | Phrase | yes | yes | Opens the search box on the tagged files: it lists the ones that contain the words typed. [The search box](sql.md#the-search-box-p) |

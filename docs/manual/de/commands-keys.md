@@ -2,7 +2,7 @@
 
 Diese Tasten stehen in der letzten Zeile der Menüs DIR und FILE, oder sie fehlen
 in den Menüs, weil sie lediglich den Cursor bewegen. Sie werden nicht mit den
-F9-Menüs kombiniert: nach F9 nimmt nur der nächste Buchstabe Ctrl oder Alt an.
+F4-Menüs kombiniert: nach F4 nimmt nur der nächste Buchstabe Ctrl oder Alt an.
 
 ## Funktionstasten
 
@@ -14,7 +14,7 @@ F9-Menüs kombiniert: nach F9 nimmt nur der nächste Buchstabe Ctrl oder Alt an.
 | F5 | Dateien | Erstellt ein Archiv mit der Datei. Ctrl+F5: mit den markierten Dateien. Alt+F5: öffnet ein Archiv. [Archive](archives.md) |
 | F7 | Dateien | Autoview: zeigt den Inhalt der Datei unter dem Cursor neben der Liste an. [Das Dateifenster](files.md) |
 | F8 | beide | Öffnet ein zweites Fenster neben dem ersten oder schließt es. [Geteilter Bildschirm](split.md) |
-| F9 | beide | Zeigt das CTRL-Menü an, dann das ALT-Menü, und kehrt zurück. [Die Menüs](menus.md) |
+| F4 (F9) | beide | Zeigt das CTRL-Menü an, dann das ALT-Menü, und kehrt zurück. [Die Menüs](menus.md) |
 | F10 | beide | Beendet das Programm, wie `Q`. |
 | F11 | beide | Öffnet die Lesezeichenverwaltung, wie Alt+B. Ctrl+F11 speichert das aktuelle Verzeichnis. [Lesezeichen](bookmarks.md) |
 | F12 | beide | Öffnet die Konfiguration. [Konfiguration](configuration.md) |

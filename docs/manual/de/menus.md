@@ -8,8 +8,8 @@ wird.
 |---|---|---|
 | DIR | der Baum den Fokus hat | das Verzeichnis unter dem Cursor |
 | FILE | das Dateifenster den Fokus hat | die Datei unter dem Cursor |
-| CTRL | Ctrl gehalten wird, oder nach F9 | die markierten Dateien |
-| ALT | Alt gehalten wird, oder nach zweimal F9 | siehe [das Alt-Menü](#alt-die-andere-fassung-eines-befehls) |
+| CTRL | Ctrl gehalten wird, oder nach F4 | die markierten Dateien |
+| ALT | Alt gehalten wird, oder nach zweimal F4 | siehe [das Alt-Menü](#alt-die-andere-fassung-eines-befehls) |
 
 In einem Archiv lautet der Titel ARCHIVE, auf einem entfernten Rechner REMOTE.
 Beide lassen die Befehle weg, die dort nicht funktionieren.
@@ -65,23 +65,26 @@ Alt wiederholt Ctrl nicht. Seine Wirkung hängt vom aktiven Fenster ab:
 
 ## Die Menüs Ctrl und Alt anzeigen
 
-**F9** zeigt das CTRL-Menü an, ein weiteres F9 das ALT-Menü, und ein drittes
+**F4** zeigt das CTRL-Menü an, ein weiteres F4 das ALT-Menü, und ein drittes
 kehrt zurück. Während eines dieser Menüs sichtbar ist, gilt der nächste
-Buchstabe mit diesem Modifikator: `F9` `C` entspricht Ctrl+C. Esc bricht ab,
+Buchstabe mit diesem Modifikator: `F4` `C` entspricht Ctrl+C. Esc bricht ab,
 ohne etwas auszuführen.
+
+F4 ist die Taste von ZTreeWin. F9, das dies zuvor in Xylem tat, macht
+weiterhin dasselbe, bis es einen eigenen Befehl bekommt.
 
 Unter kitty, Ghostty, WezTerm, foot und aktuellem Alacritty zeigt das Halten von
 Ctrl oder Alt das Menü an, und das Loslassen bringt DIR oder FILE zurück. Diese
 Terminals melden das isolierte Drücken einer Modifikatortaste
 (Kitty-Tastaturprotokoll). GNOME Terminal, Ptyxis, Terminator und Tilix tun dies
-nicht; dort wechseln die Menüs daher nur mit F9.
+nicht; dort wechseln die Menüs daher nur mit F4.
 
 ## Ctrl+M
 
 Die meisten Terminals senden für Ctrl+M und Enter dasselbe Byte. Xylem kann sie
 dann nicht unterscheiden. In Terminals mit dem Kitty-Tastaturprotokoll sind die
 beiden Tasten getrennt und Ctrl+M verschiebt die markierten Dateien. In den
-übrigen drücken Sie `F9` `M`.
+übrigen drücken Sie `F4` `M`.
 
 ## Geändert in Version 0.8
 

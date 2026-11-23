@@ -9,7 +9,7 @@ gekennzeichneten Zeilen bilden die Ausnahme.
 Sind keine Dateien markiert, zeigen diese Befehle `No tagged files` an und tun
 nichts.
 
-Um dieses Menü anzuzeigen, halten Sie Ctrl gedrückt oder drücken Sie F9. Siehe
+Um dieses Menü anzuzeigen, halten Sie Ctrl gedrückt oder drücken Sie F4. Siehe
 [die Menüs](menus.md).
 
 ## Befehle
@@ -25,7 +25,7 @@ funktioniert.
 | Ctrl+C | Copy | ja | ja | Kopiert die markierten Dateien in ein Zielverzeichnis, ohne Pfade. Alt+C behält die Pfade bei. [Kopieren und Verschieben](copy-move.md) |
 | Ctrl+D | Delete | ja | ja | Löscht die markierten Dateien nach Bestätigung. Sie wandern in den Papierkorb, wenn `delete_to_trash` aktiv ist. [Löschen](delete.md) |
 | Ctrl+G | Git | ja | ja | Öffnet das Git-Menü. Erscheint nur bei aktivierter Git-Option. [Git](git.md) |
-| Ctrl+M | Move | ja | ja | Verschiebt die markierten Dateien in ein Zielverzeichnis. Drücken Sie in Terminals ohne Kitty-Tastaturprotokoll `F9` `M`. [Kopieren und Verschieben](copy-move.md) |
+| Ctrl+M | Move | ja | ja | Verschiebt die markierten Dateien in ein Zielverzeichnis. Drücken Sie in Terminals ohne Kitty-Tastaturprotokoll `F4` `M`. [Kopieren und Verschieben](copy-move.md) |
 | Ctrl+N | New date | | ja | Ändert das Änderungsdatum der markierten Dateien. [Berechtigungen und Datum](attributes.md) |
 | Ctrl+O | Open | | ja | Öffnet jede markierte Datei im Standardprogramm des Systems. [Das Dateifenster](files.md) |
 | Ctrl+P | Phrase | ja | ja | Öffnet das Suchfeld für markierte Dateien: listet diejenigen auf, die die eingegebenen Wörter enthalten. [Das Suchfeld](sql.md#das-suchfeld-p) |

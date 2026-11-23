@@ -39,7 +39,7 @@ Na ordem dos menus. "Árvore" e "Arquivos" indicam onde a tecla funciona.
 | `Y` | Yank | sim | sim | Copia o caminho do arquivo ou diretório para a área de transferência. |
 | `Q` | Quit | sim | sim | Sai do programa, após confirmação. [Sair](quit.md) |
 
-As teclas na última linha do menu (F1, `*`, `?`, `\`, F3, Enter, F5, F7, F8, F9)
+As teclas na última linha do menu (F1, `*`, `?`, `\`, F3, Enter, F5, F7, F8, F4)
 estão em [teclas de função e símbolos](commands-keys.md).
 
 ## Teclas que não estão no menu

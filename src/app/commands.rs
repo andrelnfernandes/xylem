@@ -402,7 +402,10 @@ impl App {
             self.timeline_key(key);
             return;
         }
-        if key.code == KeyCode::F(9) {
+        // F4 cycles the Normal, Ctrl and Alt menus, as in ZTreeWin (where F9
+        // is the applications menu). F9 did it first in Xylem, and keeps doing
+        // it until it gets a command of its own, so that no habit breaks.
+        if matches!(key.code, KeyCode::F(4) | KeyCode::F(9)) {
             self.sticky = match self.sticky {
                 MenuMode::Normal => MenuMode::Ctrl,
                 MenuMode::Ctrl => MenuMode::Alt,
@@ -410,7 +413,7 @@ impl App {
             };
             return;
         }
-        // With the Ctrl/Alt menu opened by F9, the next letter counts as
+        // With the Ctrl/Alt menu opened by F4 (or F9), the next letter counts as
         // Ctrl+letter / Alt+letter. Useful where the terminal does not let the
         // combination through (Ctrl+M in Terminator, for example).
         match std::mem::take(&mut self.sticky) {

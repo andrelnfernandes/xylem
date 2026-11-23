@@ -74,7 +74,7 @@ middle button or Ctrl+click tags each file.
 The wheel moves the list under the pointer, not the one with the focus: the
 small file window under the tree scrolls without leaving the tree.
 
-In the Ctrl and Alt menus (held down, or opened with F9), a word stands for
+In the Ctrl and Alt menus (held down, or opened with F4), a word stands for
 its letter with Ctrl or Alt: a click on `Copy` in the Ctrl menu copies the
 tagged files.
 

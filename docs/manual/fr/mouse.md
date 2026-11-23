@@ -79,7 +79,7 @@ La molette déplace la liste sous le pointeur, pas celle qui a le focus : la
 petite fenêtre de fichiers sous l'arborescence défile sans quitter
 l'arborescence.
 
-Dans les menus Ctrl et Alt (maintenus enfoncés, ou ouverts avec F9), un mot
+Dans les menus Ctrl et Alt (maintenus enfoncés, ou ouverts avec F4), un mot
 vaut sa lettre avec Ctrl ou Alt : un clic sur `Copy` dans le menu Ctrl copie
 les fichiers marqués.
 

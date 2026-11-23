@@ -1,8 +1,8 @@
 # Teclas de função e símbolos
 
 Estas teclas ficam na última linha dos menus DIR e FILE, ou não aparecem nos
-menus porque apenas movem o cursor. Elas não se combinam com os menus do F9:
-após o F9, apenas a letra seguinte aceita Ctrl ou Alt.
+menus porque apenas movem o cursor. Elas não se combinam com os menus do F4:
+após o F4, apenas a letra seguinte aceita Ctrl ou Alt.
 
 ## Teclas de função
 
@@ -14,7 +14,7 @@ após o F9, apenas a letra seguinte aceita Ctrl ou Alt.
 | F5 | Arquivos | Cria um arquivo compactado com o arquivo sob o cursor. Ctrl+F5: com os arquivos marcados. Alt+F5: abre um arquivo compactado. [Arquivos compactados](archives.md) |
 | F7 | Arquivos | Autoview: exibe o conteúdo do arquivo sob o cursor ao lado da lista. [A janela de arquivos](files.md) |
 | F8 | ambas | Abre uma segunda janela ao lado da primeira, ou a fecha. [Tela dividida](split.md) |
-| F9 | ambas | Exibe o menu CTRL, depois o menu ALT, e volta. [Os menus](menus.md) |
+| F4 (F9) | ambas | Exibe o menu CTRL, depois o menu ALT, e volta. [Os menus](menus.md) |
 | F10 | ambas | Sai do programa, como `Q`. |
 | F11 | ambas | Abre o gerenciador de favoritos, como Alt+B. Ctrl+F11 salva o diretório atual. [Favoritos](bookmarks.md) |
 | F12 | ambas | Abre a tela de configuração. [Configuração](configuration.md) |
