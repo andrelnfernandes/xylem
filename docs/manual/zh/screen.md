@@ -34,9 +34,9 @@
 当 Xylem 以高于平常的权限运行，或运行在另一台机器上时，屏幕会明确提示：
 
 - **`ROOT`**（Windows 上以管理员身份运行时为 **`ADMIN`**），红色，位于顶部标题行最左端。所有窗口边框也会变成红色，获得焦点的窗口使用粗边框。Delete、Prune、Copy、Move、Rename、Attributes 和 New date 的询问在可能修改本机文件时，以同样的标记开头；在远程窗口所在的机器上，执行操作的是连接所用的用户而不是 root，因此不显示该标记。
-- **`SSH 机器名`**，紧随其后：Xylem 运行在一个 SSH 会话中，位于 `机器名`，而不是你面前的这台电脑。它通过 `SSH_CONNECTION`、`SSH_CLIENT` 和 `SSH_TTY` 变量得知这一点；在 Linux 上，也会在启动它的进程中查找 `sshd` 或 `mosh-server`，因此即使 `sudo` 或 `su -` 清除了这些变量也能识别。
+- **`SSH 机器名`**，紧随其后：Xylem 运行在一个 SSH 会话中，位于 `机器名`，而不是你面前的这台电脑。它通过 `SSH_CONNECTION`、`SSH_CLIENT` 和 `SSH_TTY` 变量得知这一点；在 Linux、macOS 和 FreeBSD 上，也会在启动它的进程中查找 `sshd` 或 `mosh-server`，因此即使 `sudo` 或 `su -` 清除了这些变量也能识别。
 
-在 tmux 或 screen 中，这些变量来自启动 tmux 或 screen 服务器的那个会话。在 macOS 上使用 `sudo` 时，无法识别 SSH 会话。
+在 tmux 或 screen 中，这些变量来自启动 tmux 或 screen 服务器的那个会话。在其他系统上使用 `sudo` 时，无法识别 SSH 会话。
 
 ## 目录树
 

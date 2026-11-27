@@ -43,13 +43,13 @@ avisa:
   o selo fica de fora.
 - **`SSH máquina`**, depois dele: o Xylem roda dentro de uma sessão SSH, em
   `máquina`, não no computador à sua frente. Ele sabe disso pelas variáveis
-  `SSH_CONNECTION`, `SSH_CLIENT` e `SSH_TTY` ou, no Linux, por um `sshd` ou
-  `mosh-server` entre os processos que o iniciaram, o que funciona mesmo
-  depois que `sudo` ou `su -` apagaram as variáveis.
+  `SSH_CONNECTION`, `SSH_CLIENT` e `SSH_TTY` ou, no Linux, no macOS e no
+  FreeBSD, por um `sshd` ou `mosh-server` entre os processos que o iniciaram,
+  o que funciona mesmo depois que `sudo` ou `su -` apagaram as variáveis.
 
 Dentro do tmux ou do screen, as variáveis são as da sessão que iniciou o
-servidor do tmux ou do screen. No macOS, sob `sudo`, a sessão SSH não é
-detectada.
+servidor do tmux ou do screen. Nos outros sistemas, sob `sudo`, a sessão SSH
+não é detectada.
 
 ## A árvore
 

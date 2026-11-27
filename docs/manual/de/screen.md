@@ -43,13 +43,14 @@ der Bildschirm das an:
   nicht root, und das Abzeichen entfällt.
 - **`SSH Rechner`**, danach: Xylem läuft in einer SSH-Sitzung, auf `Rechner`,
   nicht auf dem Computer vor Ihnen. Es erkennt das an den Variablen
-  `SSH_CONNECTION`, `SSH_CLIENT` und `SSH_TTY` oder, unter Linux, an einem
-  `sshd` oder `mosh-server` unter den Prozessen, die es gestartet haben; das
-  funktioniert auch, nachdem `sudo` oder `su -` die Variablen gelöscht haben.
+  `SSH_CONNECTION`, `SSH_CLIENT` und `SSH_TTY` oder, unter Linux, macOS und
+  FreeBSD, an einem `sshd` oder `mosh-server` unter den Prozessen, die es
+  gestartet haben; das funktioniert auch, nachdem `sudo` oder `su -` die
+  Variablen gelöscht haben.
 
 In tmux oder screen gelten die Variablen der Sitzung, die den tmux- oder
-screen-Server gestartet hat. Unter macOS wird die SSH-Sitzung mit `sudo` nicht
-erkannt.
+screen-Server gestartet hat. Auf anderen Systemen wird die SSH-Sitzung mit
+`sudo` nicht erkannt.
 
 ## Der Baum
 

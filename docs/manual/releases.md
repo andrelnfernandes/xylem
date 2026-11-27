@@ -35,6 +35,9 @@ of each version are on
 - On macOS, O opens a file with `open` when no `opener` is set. It used to
   call `xdg-open`, which macOS does not have, and nothing happened. Thanks to
   zoomosis, who tested Xylem on a Mac. [The file window](files.md)
+- On macOS and FreeBSD, the statistics (`?`) show the system, kernel, CPU,
+  uptime, load and memory, read from `sysctl`; they showed little more than
+  the thread count. [Information](info.md)
 - Showall (and Branch) of a tree with millions of files froze the screen for
   seconds while it sorted the list: about 5 s with 2,000,000 files. It now
   takes well under a second (0.66 s on the same machine), in every sort order,

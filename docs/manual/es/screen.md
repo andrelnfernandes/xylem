@@ -43,12 +43,14 @@ pantalla lo indica:
   conexión, no root, y la insignia se omite.
 - **`SSH máquina`**, a continuación: Xylem se ejecuta dentro de una sesión
   SSH, en `máquina`, no en el ordenador que tiene delante. Lo sabe por las
-  variables `SSH_CONNECTION`, `SSH_CLIENT` y `SSH_TTY` o, en Linux, por un
-  `sshd` o `mosh-server` entre los procesos que lo iniciaron, lo que sigue
-  funcionando después de que `sudo` o `su -` borren las variables.
+  variables `SSH_CONNECTION`, `SSH_CLIENT` y `SSH_TTY` o, en Linux, macOS y
+  FreeBSD, por un `sshd` o `mosh-server` entre los procesos que lo iniciaron,
+  lo que sigue funcionando después de que `sudo` o `su -` borren las
+  variables.
 
 Dentro de tmux o screen, las variables son las de la sesión que inició el
-servidor de tmux o screen. En macOS, bajo `sudo`, la sesión SSH no se detecta.
+servidor de tmux o screen. En los demás sistemas, bajo `sudo`, la sesión SSH
+no se detecta.
 
 ## El árbol
 

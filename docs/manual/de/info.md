@@ -11,7 +11,8 @@
   darunter der Rechner (System und Kernel, CPU, Laufzeit, Auslastung,
   Arbeitsspeicher und Swap, Shell, Terminal), das Netzwerk (Adressen jeder
   Schnittstelle, Gateway und DNS) sowie Xylem selbst (Version, PID,
-  Speicherverbrauch, Programmdatei und Konfigurationsdatei).
+  Speicherverbrauch, Programmdatei und Konfigurationsdatei). Unter macOS und
+  FreeBSD stammen die Rechnerdaten aus `sysctl` (unter FreeBSD ohne Swap).
 
 ## Verzeichnisgrößen (Alt+K)
 

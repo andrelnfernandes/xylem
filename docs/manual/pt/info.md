@@ -10,7 +10,8 @@
   marcados e o disco (ponto de montagem, livre e usado); logo abaixo, a máquina
   (sistema e kernel, CPU, tempo de atividade, carga, memória e swap, shell,
   terminal), a rede (endereços de cada interface, gateway e DNS) e o próprio
-  Xylem (versão, PID, memória, executável e arquivo de configuração).
+  Xylem (versão, PID, memória, executável e arquivo de configuração). No macOS
+  e no FreeBSD, a máquina vem do `sysctl` (sem swap no FreeBSD).
 
 ## Tamanhos de diretórios (Alt+K)
 
