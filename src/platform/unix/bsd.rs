@@ -91,7 +91,7 @@ pub(super) fn run_capped(
 }
 
 /// The lines of `ps -o pid=,ppid=,comm=`, as pid → (name, parent's pid). The
-/// name is what follows the last `/` (macOS gives the whole path). A line
+/// name is what follows the last `/`, should a `ps` give a path. A line
 /// without both numbers and a name is skipped, and a repeated pid keeps its
 /// first line.
 fn parse_ps(text: &str) -> HashMap<u32, (String, u32)> {
@@ -114,10 +114,15 @@ fn ps_line(line: &str) -> Option<(u32, u32, &str)> {
     Some((pid.parse().ok()?, parent.parse().ok()?, name))
 }
 
+/// Every process, as `pid ppid name`: one column per `-o`, since after `=`
+/// the rest of an argument is the column's header (POSIX; FreeBSD keeps to
+/// it), and `ucomm`, the executable's name as the kernel keeps it, not
+/// `comm`, which on macOS is argv[0] as sshd rewrites it.
+const PS_ARGS: &[&str] = &["-A", "-o", "pid=", "-o", "ppid=", "-o", "ucomm="];
+
 /// The names of the ancestors from `start` up, from one `ps -A`.
 pub(super) fn ancestor_names(start: u32) -> Vec<String> {
-    let args = ["-A", "-o", "pid=,ppid=,comm="];
-    let Some(text) = run_capped(Path::new(PS), &args, PS_MAX, LIMIT) else {
+    let Some(text) = run_capped(Path::new(PS), PS_ARGS, PS_MAX, LIMIT) else {
         return Vec::new();
     };
     let table = parse_ps(&text);
@@ -373,13 +378,31 @@ mod tests {
     }
 
     #[test]
-    fn ancestor_names_runs_the_real_ps() {
-        // Linux also has /bin/ps (procps), with the same options.
+    fn ps_asks_for_one_column_per_option_and_the_kernel_name() {
+        // POSIX: after `=` the rest of the argument is the column's header,
+        // so FreeBSD reads `-o pid=,ppid=` as one column. And `comm` is
+        // argv[0] on macOS, which sshd rewrites ("sshd: user@ttys000");
+        // `ucomm` is the executable's name, as the kernel keeps it.
+        let columns: Vec<&str> = PS_ARGS
+            .windows(2)
+            .filter(|w| w[0] == "-o")
+            .map(|w| w[1])
+            .collect();
+        assert_eq!(columns, ["pid=", "ppid=", "ucomm="]);
+        assert_eq!(PS_ARGS[0], "-A");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_walk_over_the_real_ps_matches_proc() {
+        // Linux has /bin/ps too (procps), whose ucomm is /proc's name.
         let parent = std::os::unix::process::parent_id();
         if !Path::new("/bin/ps").exists() || parent <= 1 {
             return;
         }
-        assert!(!ancestor_names(parent).is_empty());
+        let names = ancestor_names(parent);
+        assert!(!names.is_empty());
+        assert_eq!(names, super::super::ancestor_names());
     }
 
     const MAC: &str = "kern.ostype: Darwin\nkern.osrelease: 24.1.0\nkern.osproductversion: 15.1\nkern.hostname: mac-mini.local\nmachdep.cpu.brand_string: Apple M1\nkern.boottime: { sec = 1764000000, usec = 123456 } Mon Nov 24 16:00:00 2025\nvm.loadavg: { 1.23 1.10 0.98 }\nhw.memsize: 17179869184\nhw.pagesize: 16384\nvm.page_free_count: 1000\nvm.page_pageable_external_count: 2000\nvm.page_purgeable_count: 500\nvm.swapusage: total = 2048.00M  used = 1024.50M  free = 1023.50M  (encrypted)\n";

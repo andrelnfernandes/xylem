@@ -71,12 +71,20 @@ desconhecido sai só na saída de erro e não desalinha os outros. Cada linha
 
 Abrir as estatísticas roda dois processos: o `sysctl` e o `ps`.
 
-**Selo SSH.** Uma chamada a `/bin/ps -A -o pid=,ppid=,comm=` lista os
-processos.
+**Selo SSH.** Uma chamada a `/bin/ps -A -o pid= -o ppid= -o ucomm=` lista os
+processos. Esse formato corrige o da primeira versão deste desenho
+(`-o pid=,ppid=,comm=`), apontado na revisão final:
+
+- **Uma coluna por `-o`:** pelo POSIX, o texto depois do `=` é o título da
+  coluna e vai até o fim do argumento. O FreeBSD segue isso à risca, e
+  `-o pid=,ppid=,comm=` dá uma coluna só. O procps do Linux aceita os dois
+  formatos.
+- **`ucomm` e não `comm`:** no macOS, `comm` é o argv[0], que o sshd reescreve
+  (`sshd: usuario@ttys000`). `ucomm` é o nome do executável guardado pelo
+  kernel, com até 16 caracteres, o mesmo no FreeBSD e no Linux.
 
 - **Leitura de cada linha:** pid, ppid e o resto como nome. O nome pode ter
-  espaços, e no macOS vem com o caminho inteiro, então vale o que vem depois
-  da última `/`.
+  espaços. Se algum `ps` der um caminho, vale o que vem depois da última `/`.
 - **Linhas descartadas:** as que não começam com dois números. Um pid repetido
   fica com a primeira linha.
 - **Busca:** o `ancestors_with` de hoje passa a receber uma função

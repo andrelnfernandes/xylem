@@ -153,7 +153,7 @@ Expected: erro de compilação (`run_capped`, `parse_ps` e `ancestor_names` não
   - No tempo esgotado: `kill`, `wait` e `None`. No sucesso, ou quando a saída chega ao limite: `kill` (sem efeito se já terminou), `wait` e `Some(from_utf8_lossy)`.
   - Uma falha no `spawn` dá `None`.
 - **`parse_ps`:** cada linha passa por `trim_start`; o pid e o ppid são os dois primeiros campos separados por espaço, e o resto, com `trim`, é o nome. Vale o que vem depois da última `/`. Uma linha sem os dois números ou com nome vazio é descartada; um pid repetido fica com a primeira.
-- **`ancestor_names(start)`:** `run_capped("/bin/ps", ["-A", "-o", "pid=,ppid=,comm="], 4 MiB, 1 s)` e depois `parse_ps` e `super::ancestors_with(start, |pid| tabela.get(&pid).cloned())`.
+- **`ancestor_names(start)`:** `run_capped("/bin/ps", ["-A", "-o", "pid=,ppid=,comm="], 4 MiB, 1 s)` e depois `parse_ps` e `super::ancestors_with(start, |pid| tabela.get(&pid).cloned())`. (Corrigido na revisão final para `-o pid= -o ppid= -o ucomm=`; ver o desenho.)
 - **`unix.rs`:**
   - `ancestors_with` recebe o `lookup`.
   - O `ancestor_names()` público despacha por `std::env::consts::OS`: `"linux"` e `"android"` vão para `/proc`, com o `parse_stat` dentro do `lookup`; `"macos"` e `"freebsd"` vão para `bsd::ancestor_names(parent_id())`; os demais dão `Vec::new()`.
