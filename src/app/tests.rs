@@ -665,6 +665,54 @@ fn declining_to_create_the_folder_copies_nothing() {
 }
 
 #[test]
+fn delete_and_move_change_local_files() {
+    let (_tmp, mut app) = sample();
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Char('d'));
+    let kind = &app.confirm.as_ref().unwrap().kind;
+    assert!(app.confirm_changes_local_files(kind));
+    press(&mut app, KeyCode::Esc);
+    assert!(app.confirm.is_none());
+    press(&mut app, KeyCode::Char('m'));
+    assert!(app.prompt_changes_local_files(&app.prompt.as_ref().unwrap().kind));
+}
+
+#[test]
+fn filespec_and_quit_change_nothing() {
+    let (_tmp, app) = sample();
+    assert!(!app.prompt_changes_local_files(&PromptKind::Filespec));
+    assert!(!app.confirm_changes_local_files(&ConfirmKind::Quit));
+}
+
+#[cfg(unix)]
+#[test]
+fn delete_on_a_remote_window_does_not_change_local_files() {
+    let Some((_tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Char('d'));
+    let kind = &app.confirm.as_ref().unwrap().kind;
+    assert!(matches!(kind, ConfirmKind::DeleteFiles { .. }));
+    assert!(!app.confirm_changes_local_files(kind));
+}
+
+#[test]
+fn overwrite_here_changes_local_files() {
+    let (tmp, mut app) = sample();
+    write(tmp.path().join("sub/b.txt"), "old").unwrap();
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Char('m'));
+    answer_prompt(&mut app, "sub");
+    let op = app.op.as_ref().unwrap();
+    assert!(op.conflict.is_some());
+    assert!(op.dst_is_local());
+}
+
+#[test]
 fn move_with_conflict_prompt() {
     let (tmp, mut app) = sample();
     write(tmp.path().join("sub/b.txt"), "old").unwrap();

@@ -1025,6 +1025,16 @@ fn session_spans(session: &Session) -> Vec<Span<'static>> {
     spans
 }
 
+/// Before a question that `changes` files of this machine, as root: the root
+/// badge and a space. Nothing otherwise.
+fn root_lead(app: &App, changes: bool) -> Vec<Span<'static>> {
+    if app.session.admin && changes {
+        vec![session_badge(ADMIN_LABEL, theme().error), Span::raw(" ")]
+    } else {
+        Vec::new()
+    }
+}
+
 /// `text` with a space on each side, in [`badge_style`].
 fn session_badge(text: &str, color: Color) -> Span<'static> {
     Span::styled(format!(" {text} "), badge_style(&theme(), color))
@@ -2176,7 +2186,8 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
     // in the Ctrl menu is Ctrl+C.
     let mut mods = KeyModifiers::NONE;
     let lines = if let Some(prompt) = &app.prompt {
-        prompt_lines(frame, prompt, area)
+        let lead = root_lead(app, app.prompt_changes_local_files(&prompt.kind));
+        prompt_lines(frame, prompt, area, lead)
     } else if app.terminal_focus {
         let key_for = |cmd| app.keymap.key_for(cmd).unwrap_or_default();
         let remote = app.terminal.as_ref().is_some_and(term::Terminal::is_remote);
@@ -2444,9 +2455,14 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                 .into_iter()
                 .skip(1),
         );
-        vec![Line::styled(confirm.question.clone(), bold), options]
+        let mut first = root_lead(app, app.confirm_changes_local_files(&confirm.kind));
+        first.push(Span::styled(confirm.question.clone(), bold));
+        vec![Line::from(first), options]
     } else if let Some(op) = &app.op {
-        op_lines(op)
+        op_lines(
+            op,
+            root_lead(app, op.conflict.is_some() && op.dst_is_local()),
+        )
     } else if let Some(job) = &app.job {
         let counts = format!(
             "{} dirs, {} waiting  ",
@@ -2896,11 +2912,23 @@ fn footer_height(app: &App, width: usize) -> u16 {
 }
 
 /// Footer prompt: the label, the typed text (with the cursor) and the keys.
-fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line<'static>> {
+/// The prompt's line and its keys. `lead` goes before the label (the root
+/// badge, [`root_lead`]); the cursor and the clicks move past it.
+fn prompt_lines(
+    frame: &mut Frame,
+    prompt: &app::Prompt,
+    area: Rect,
+    lead: Vec<Span<'static>>,
+) -> Vec<Line<'static>> {
     let bold = Style::new().add_modifier(Modifier::BOLD);
-    let col = area.x + (prompt.label.chars().count() + prompt.input.cursor) as u16;
+    let before = lead
+        .iter()
+        .map(|s| s.content.chars().count())
+        .sum::<usize>()
+        + prompt.label.chars().count();
+    let col = area.x + (before + prompt.input.cursor) as u16;
     frame.set_cursor_position((col.min(area.right().saturating_sub(1)), area.y));
-    let start = area.x + prompt.label.chars().count() as u16;
+    let start = area.x + before as u16;
     hit(
         Rect::new(area.x, area.y, area.width, 1),
         Spot::Prompt { start },
@@ -3008,17 +3036,14 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
         }
         help
     };
-    vec![
-        Line::from(vec![
-            Span::styled(prompt.label.clone(), bold),
-            Span::raw(if prompt.is_secret() {
-                "•".repeat(prompt.input.text.chars().count())
-            } else {
-                prompt.input.text.clone()
-            }),
-        ]),
-        menu_line("", &help),
-    ]
+    let mut first = lead;
+    first.push(Span::styled(prompt.label.clone(), bold));
+    first.push(Span::raw(if prompt.is_secret() {
+        "•".repeat(prompt.input.text.chars().count())
+    } else {
+        prompt.input.text.clone()
+    }));
+    vec![Line::from(first), menu_line("", &help)]
 }
 
 /// The prompt's history as a list (↑), just above it, over whatever is on
@@ -3328,8 +3353,9 @@ fn draw_search_box(frame: &mut Frame, sb: &mut crate::search_box::SearchBox, scr
 }
 
 /// Footer during Copy/Move/Delete: current file and progress bar,
-/// or the conflict question with the size and date of both files.
-fn op_lines(op: &Operation) -> Vec<Line<'static>> {
+/// or the conflict question with the size and date of both files, after
+/// `lead` (the root badge, [`root_lead`]).
+fn op_lines(op: &Operation, lead: Vec<Span<'static>>) -> Vec<Line<'static>> {
     let bold = Style::new().add_modifier(Modifier::BOLD);
     let name = |p: &std::path::Path| {
         p.file_name()
@@ -3374,7 +3400,9 @@ fn op_lines(op: &Operation) -> Vec<Line<'static>> {
     };
 
     if let Some(c) = &op.conflict {
-        return vec![first, conflict_facts(c)];
+        let mut question = lead;
+        question.extend(first.spans);
+        return vec![Line::from(question), conflict_facts(c)];
     }
 
     const BAR: usize = 30;
@@ -3766,7 +3794,7 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
 
     // The name of a bookmark is typed here, over the list.
     if let Some(prompt) = app.prompt.as_ref().filter(|p| p.is_bookmark_name()) {
-        let lines = prompt_lines(frame, prompt, menu);
+        let lines = prompt_lines(frame, prompt, menu, Vec::new());
         render_footer(frame, lines, menu, KeyModifiers::NONE);
         return;
     }
@@ -4539,7 +4567,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     let percent = ((top + v.page).min(total) * 100) / total;
     let note = v.note.clone();
     let lines = if let Some(prompt) = &app.prompt {
-        prompt_lines(frame, prompt, menu)
+        prompt_lines(frame, prompt, menu, Vec::new())
     } else if let (Some(_), Some(t)) = (&v.record_view, &v.table) {
         let second = note.unwrap_or_else(|| {
             format!(
@@ -6313,6 +6341,61 @@ mod tests {
         (20 - rows..20)
             .map(|y| (0..width).map(|x| buf[(x, y)].symbol()).collect())
             .collect()
+    }
+
+    /// An app on a folder with one file, `b.txt`, the focus on the files.
+    fn one_file_app() -> (tempfile::TempDir, App) {
+        let tmp = crate::testing::tempdir();
+        std::fs::write(tmp.path().join("b.txt"), "b").unwrap();
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        (tmp, app)
+    }
+
+    #[test]
+    fn root_badge_leads_the_delete_question() {
+        let label = crate::session::ADMIN_LABEL;
+        let (_tmp, mut app) = one_file_app();
+        app.handle_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+        assert!(app.confirm.is_some());
+        app.session.admin = true;
+        let rows = footer_rows(&mut app, 120);
+        assert!(
+            rows[0].starts_with(&format!(" {label}  DELETE ")),
+            "{rows:?}"
+        );
+        app.session.admin = false;
+        assert!(footer_rows(&mut app, 120)[0].starts_with("DELETE "));
+    }
+
+    #[test]
+    fn root_badge_is_not_on_the_filespec() {
+        let (_tmp, mut app) = one_file_app();
+        app.apply(Command::Filespec);
+        assert!(app.prompt.is_some());
+        app.session.admin = true;
+        let rows = footer_rows(&mut app, 120);
+        assert!(rows[0].starts_with("FILESPEC"), "{rows:?}");
+        assert!(!rows[0].contains(crate::session::ADMIN_LABEL), "{rows:?}");
+    }
+
+    #[test]
+    fn root_badge_moves_the_prompt_cursor() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let (_tmp, mut app) = one_file_app();
+        app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+        assert!(app.prompt.is_some());
+        let cursor = |app: &mut App| {
+            let mut term = Terminal::new(TestBackend::new(120, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            term.get_cursor_position().unwrap().x
+        };
+        app.session.admin = false;
+        let plain = cursor(&mut app);
+        app.session.admin = true;
+        // " ROOT " and the space after it.
+        let lead = crate::session::ADMIN_LABEL.len() as u16 + 3;
+        assert_eq!(cursor(&mut app), plain + lead);
     }
 
     #[test]

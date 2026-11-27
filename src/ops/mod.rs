@@ -270,6 +270,11 @@ pub struct Operation {
 }
 
 impl Operation {
+    /// The files go to this machine (not to a remote window's).
+    pub fn dst_is_local(&self) -> bool {
+        matches!(self.dst, Side::Local)
+    }
+
     pub fn delete(sources: Vec<Source>, to_trash: bool) -> Self {
         let items = sources
             .into_iter()
