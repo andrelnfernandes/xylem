@@ -333,9 +333,14 @@ pub fn memory() -> Option<Memory> {
     meminfo().0
 }
 
-/// The machine, from `/proc` and `/etc/os-release` (Linux; elsewhere most
-/// of it stays empty).
+/// The machine: on macOS and FreeBSD from `sysctl` and `ps`; elsewhere from
+/// `/proc` and `/etc/os-release` (Linux; on other systems most of it stays
+/// empty).
 pub fn system() -> System {
+    let os = std::env::consts::OS;
+    if matches!(os, "macos" | "freebsd") {
+        return bsd::system(os);
+    }
     let read = |path: &str| fs::read_to_string(path).ok();
     let line = |path: &str| {
         read(path)
@@ -514,6 +519,13 @@ mod tests {
         assert_eq!(ancestors_with(7, |_| Some(("x".to_string(), 7))), ["x"]);
         assert!(ancestors_with(10, |_| None).is_empty());
         assert!(ancestors_with(1, chain).is_empty());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_system_still_reads_proc() {
+        let kernel = system().kernel.unwrap();
+        assert!(kernel.starts_with("Linux "), "{kernel}");
     }
 
     #[cfg(target_os = "linux")]
