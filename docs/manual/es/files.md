@@ -45,11 +45,11 @@ salen. Muestra el primer 1 MiB de cada archivo (`V` muestra hasta 16 MiB).
 
 - `V`: el [visor](viewer.md) (texto o hexadecimal, con búsqueda).
 - `E`: el editor ([Editar](execute.md)).
-- `O`: el programa predeterminado del sistema (`xdg-open`: imágenes en el visor
-  de imágenes, PDF en el lector de PDF...), en segundo plano. Ctrl+O abre todos
-  los archivos marcados. Dentro de un archivo comprimido, la entrada se extrae
-  primero a una carpeta temporal que se elimina al salir de Xylem. Se puede
-  configurar otro programa en `opener`.
+- `O`: el programa predeterminado del sistema (`xdg-open`, `open` en macOS:
+  imágenes en el visor de imágenes, PDF en el lector de PDF...), en segundo
+  plano. Ctrl+O abre todos los archivos marcados. Dentro de un archivo
+  comprimido, la entrada se extrae primero a una carpeta temporal que se
+  elimina al salir de Xylem. Se puede configurar otro programa en `opener`.
 - Alt+F5: abrir un [archivo comprimido](archives.md) como directorio.
 
 ## Caracteres de dirección ocultos

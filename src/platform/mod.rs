@@ -376,6 +376,7 @@ fn system_restore_trash_paths(paths: &[PathBuf]) -> Result<usize, String> {
         )
     )))]
     {
+        let _ = paths;
         Err("Trash restore is not supported on this platform".into())
     }
 }

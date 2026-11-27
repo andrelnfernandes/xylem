@@ -65,8 +65,10 @@ type Page = (&'static str, &'static [(char, &'static str, Opt)]);
 
 #[cfg(unix)]
 const EDITOR_LABEL: &str = "Editor (empty: $VISUAL, $EDITOR, vi)";
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "macos")))]
 const OPENER_LABEL: &str = "Open with (empty: xdg-open)";
+#[cfg(target_os = "macos")]
+const OPENER_LABEL: &str = "Open with (empty: open)";
 #[cfg(unix)]
 const BINARY_EDITOR_LABEL: &str = "Binary editor (empty: auto — hexedit, heh, bvi, dhex)";
 #[cfg(windows)]

@@ -44,10 +44,11 @@ wrap, `#` toggles line numbers; F7, Esc or Enter leave. It shows the first
 
 - `V`: the [viewer](viewer.md) (text or hex, with search).
 - `E`: the editor ([Edit](execute.md)).
-- `O`: the system's default program (`xdg-open`: images in the image viewer,
-  PDFs in the PDF reader...), in the background. Ctrl+O opens all the tagged
-  files. Inside an archive, the entry is first extracted to a temporary folder,
-  deleted when Xylem exits. Another program can be set in `opener`.
+- `O`: the system's default program (`xdg-open`, `open` on macOS: images in
+  the image viewer, PDFs in the PDF reader...), in the background. Ctrl+O
+  opens all the tagged files. Inside an archive, the entry is first extracted
+  to a temporary folder, deleted when Xylem exits. Another program can be set
+  in `opener`.
 - Alt+F5: open an [archive](archives.md) as a directory.
 
 ## Hidden direction characters

@@ -48,11 +48,11 @@ ligne ; F7, Esc ou Enter quittent. Il affiche le premier 1 Mio de chaque fichier
 
 - `V` : la [visionneuse](viewer.md) (texte ou hexadécimal, avec recherche).
 - `E` : l'éditeur ([Éditer](execute.md)).
-- `O` : le programme par défaut du système (`xdg-open` : les images dans la
-  visionneuse d'images, les PDF dans le lecteur PDF...), en arrière-plan.
-  Ctrl+O ouvre tous les fichiers marqués. Dans une archive, l'entrée est
-  d'abord extraite vers un dossier temporaire, supprimé à la fermeture de
-  Xylem. Un autre programme peut être défini dans `opener`.
+- `O` : le programme par défaut du système (`xdg-open`, `open` sur macOS : les
+  images dans la visionneuse d'images, les PDF dans le lecteur PDF...), en
+  arrière-plan. Ctrl+O ouvre tous les fichiers marqués. Dans une archive,
+  l'entrée est d'abord extraite vers un dossier temporaire, supprimé à la
+  fermeture de Xylem. Un autre programme peut être défini dans `opener`.
 - Alt+F5 : ouvrir une [archive](archives.md) comme un répertoire.
 
 ## Caractères de direction cachés

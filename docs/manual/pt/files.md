@@ -44,11 +44,11 @@ Exibe o primeiro 1 MiB de cada arquivo (`V` exibe até 16 MiB).
 
 - `V`: o [visualizador](viewer.md) (texto ou hexadecimal, com busca).
 - `E`: o editor ([Edit](execute.md)).
-- `O`: o programa padrão do sistema (`xdg-open`: imagens no visualizador de
-  imagens, PDFs no leitor de PDF...), em segundo plano. Ctrl+O abre todos os
-  arquivos marcados. Dentro de um arquivo compactado, o item é primeiro
-  extraído para uma pasta temporária, excluída quando o Xylem fecha. Outro
-  programa pode ser definido em `opener`.
+- `O`: o programa padrão do sistema (`xdg-open`, `open` no macOS: imagens no
+  visualizador de imagens, PDFs no leitor de PDF...), em segundo plano. Ctrl+O
+  abre todos os arquivos marcados. Dentro de um arquivo compactado, o item é
+  primeiro extraído para uma pasta temporária, excluída quando o Xylem fecha.
+  Outro programa pode ser definido em `opener`.
 - Alt+F5: abre um [arquivo compactado](archives.md) como um diretório.
 
 ## Caracteres de direção escondidos
