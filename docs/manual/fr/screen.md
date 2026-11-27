@@ -43,13 +43,14 @@ machine, l'écran le signale :
   l'utilisateur de la connexion qui agit, pas root, et le badge est omis.
 - **`SSH machine`**, ensuite : Xylem tourne dans une session SSH, sur
   `machine`, et non sur l'ordinateur devant vous. Il le sait par les variables
-  `SSH_CONNECTION`, `SSH_CLIENT` et `SSH_TTY` ou, sous Linux, par un `sshd` ou
-  un `mosh-server` parmi les processus qui l'ont lancé, ce qui fonctionne
-  encore après que `sudo` ou `su -` ont effacé les variables.
+  `SSH_CONNECTION`, `SSH_CLIENT` et `SSH_TTY` ou, sous Linux, macOS et
+  FreeBSD, par un `sshd` ou un `mosh-server` parmi les processus qui l'ont
+  lancé, ce qui fonctionne encore après que `sudo` ou `su -` ont effacé les
+  variables.
 
 Dans tmux ou screen, les variables sont celles de la session qui a lancé le
-serveur tmux ou screen. Sous macOS, avec `sudo`, la session SSH n'est pas
-détectée.
+serveur tmux ou screen. Sur les autres systèmes, avec `sudo`, la session SSH
+n'est pas détectée.
 
 ## L'arborescence
 

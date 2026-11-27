@@ -10,6 +10,8 @@ use std::time::{Duration, SystemTime};
 
 use super::{DiskSpace, Memory, Mount, Network, System, env_dir};
 
+mod bsd;
+
 /// Permission bits (and file type), as in `st_mode`.
 pub fn mode(meta: &Metadata) -> u32 {
     meta.permissions().mode()
@@ -240,37 +242,34 @@ pub fn hostname() -> Option<String> {
     nix::unistd::gethostname().ok()?.into_string().ok()
 }
 
-/// The names of this process's ancestors, its parent first: on Linux, from
-/// `/proc`; elsewhere, none.
+/// The names of this process's ancestors, its parent first: from `/proc` on
+/// Linux, from `ps` on macOS and FreeBSD; elsewhere, none.
 pub fn ancestor_names() -> Vec<String> {
-    #[cfg(target_os = "linux")]
-    {
-        use std::io::Read;
-        ancestors_with(std::os::unix::process::parent_id(), |pid| {
+    use std::io::Read;
+    let parent = std::os::unix::process::parent_id();
+    match std::env::consts::OS {
+        "linux" | "android" => ancestors_with(parent, |pid| {
             let mut bytes = Vec::new();
             fs::File::open(format!("/proc/{pid}/stat"))
                 .ok()?
                 .take(STAT_MAX)
                 .read_to_end(&mut bytes)
                 .ok()?;
-            Some(String::from_utf8_lossy(&bytes).into_owned())
-        })
+            parse_stat(&String::from_utf8_lossy(&bytes))
+        }),
+        "macos" | "freebsd" => bsd::ancestor_names(parent),
+        _ => Vec::new(),
     }
-    #[cfg(not(target_os = "linux"))]
-    Vec::new()
 }
 
 /// Of `/proc/<pid>/stat`, at most: the name and the parent come first.
-#[cfg(target_os = "linux")]
 const STAT_MAX: u64 = 4096;
 /// Ancestors read, at most.
-#[cfg(target_os = "linux")]
 const ANCESTORS_MAX: usize = 64;
 
 /// The name and the parent's pid from a `/proc/<pid>/stat` line:
 /// `pid (name) state ppid ...`. The name may hold anything, `)` included: it
 /// ends at the last `)`.
-#[cfg(target_os = "linux")]
 fn parse_stat(text: &str) -> Option<(String, u32)> {
     let open = text.find('(')?;
     let close = text.rfind(')')?;
@@ -281,14 +280,14 @@ fn parse_stat(text: &str) -> Option<(String, u32)> {
     Some((name.to_string(), parent))
 }
 
-/// The names from `start` up, read by `read`, until init, a process that
-/// cannot be read, a loop onto itself or [`ANCESTORS_MAX`] of them.
-#[cfg(target_os = "linux")]
-fn ancestors_with(start: u32, read: impl Fn(u32) -> Option<String>) -> Vec<String> {
+/// The names from `start` up, with `lookup` giving each process's name and
+/// parent, until init, a process it does not know, a loop onto itself or
+/// [`ANCESTORS_MAX`] of them.
+fn ancestors_with(start: u32, lookup: impl Fn(u32) -> Option<(String, u32)>) -> Vec<String> {
     let mut names = Vec::new();
     let mut pid = start;
     while pid > 1 && names.len() < ANCESTORS_MAX {
-        let Some((name, parent)) = read(pid).and_then(|text| parse_stat(&text)) else {
+        let Some((name, parent)) = lookup(pid) else {
             break;
         };
         names.push(name);
@@ -334,9 +333,14 @@ pub fn memory() -> Option<Memory> {
     meminfo().0
 }
 
-/// The machine, from `/proc` and `/etc/os-release` (Linux; elsewhere most
-/// of it stays empty).
+/// The machine: on macOS and FreeBSD from `sysctl` and `ps`; elsewhere from
+/// `/proc` and `/etc/os-release` (Linux; on other systems most of it stays
+/// empty).
 pub fn system() -> System {
+    let os = std::env::consts::OS;
+    if matches!(os, "macos" | "freebsd") {
+        return bsd::system(os);
+    }
     let read = |path: &str| fs::read_to_string(path).ok();
     let line = |path: &str| {
         read(path)
@@ -498,23 +502,30 @@ mod tests {
         }
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn ancestors_stop_at_init_at_a_loop_and_at_64() {
-        let stat = |pid: u32, name: &str, ppid: u32| format!("{pid} ({name}) S {ppid} 0");
         let chain = |pid| match pid {
-            10 => Some(stat(10, "bash", 9)),
-            9 => Some(stat(9, "sshd-session", 1)),
+            10 => Some(("bash".to_string(), 9)),
+            9 => Some(("sshd-session".to_string(), 1)),
             _ => None,
         };
         assert_eq!(ancestors_with(10, chain), ["bash", "sshd-session"]);
         // A loop (10 → 9 → 10) and an endless chain stop at 64.
-        let looped = |pid| Some(stat(pid, "x", if pid == 10 { 9 } else { 10 }));
+        let looped = |pid| Some(("x".to_string(), if pid == 10 { 9 } else { 10 }));
         assert_eq!(ancestors_with(10, looped).len(), 64);
-        let endless = |pid| Some(stat(pid, "x", pid + 1));
+        let endless = |pid| Some(("x".to_string(), pid + 1));
         assert_eq!(ancestors_with(2, endless).len(), 64);
+        // A process that is its own parent ends the walk.
+        assert_eq!(ancestors_with(7, |_| Some(("x".to_string(), 7))), ["x"]);
         assert!(ancestors_with(10, |_| None).is_empty());
         assert!(ancestors_with(1, chain).is_empty());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_system_still_reads_proc() {
+        let kernel = system().kernel.unwrap();
+        assert!(kernel.starts_with("Linux "), "{kernel}");
     }
 
     #[cfg(target_os = "linux")]

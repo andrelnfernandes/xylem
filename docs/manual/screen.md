@@ -42,13 +42,13 @@ screen says so:
   the connection acts, not root, and the badge is left out.
 - **`SSH machine`**, after it: Xylem runs inside an SSH session, on
   `machine`, not on the computer in front of you. It knows from the
-  `SSH_CONNECTION`, `SSH_CLIENT` and `SSH_TTY` variables or, on Linux, from an
-  `sshd` or `mosh-server` among the processes that started it, which still
-  works after `sudo` or `su -` cleared the variables.
+  `SSH_CONNECTION`, `SSH_CLIENT` and `SSH_TTY` variables or, on Linux, macOS
+  and FreeBSD, from an `sshd` or `mosh-server` among the processes that
+  started it, which still works after `sudo` or `su -` cleared the variables.
 
 Inside tmux or screen, the variables are those of the session that started
-the tmux or screen server. On macOS, under `sudo`, the SSH session is not
-detected.
+the tmux or screen server. On other systems, under `sudo`, the SSH session is
+not detected.
 
 ## The tree
 

@@ -11,7 +11,8 @@
   la machine (système et noyau, processeur, durée de fonctionnement, charge,
   mémoire et swap, shell, terminal), le réseau (adresses de chaque interface,
   passerelle et DNS) et Xylem lui-même (version, PID, mémoire, exécutable et
-  fichier de configuration).
+  fichier de configuration). Sur macOS et FreeBSD, la machine est lue avec
+  `sysctl` (pas de swap sur FreeBSD).
 
 ## Tailles des répertoires (Alt+K)
 

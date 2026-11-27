@@ -10,7 +10,8 @@
   and the disk (mount point, free and used); below it, the machine (system and
   kernel, CPU, uptime, load, memory and swap, shell, terminal), the network
   (addresses of each interface, gateway and DNS) and Xylem itself (version,
-  PID, memory, executable and configuration file).
+  PID, memory, executable and configuration file). On macOS and FreeBSD the
+  machine comes from `sysctl` (no swap on FreeBSD).
 
 ## Directory sizes (Alt+K)
 

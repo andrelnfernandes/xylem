@@ -47,7 +47,7 @@ binary_editor = ""
 # "auto" (from $LC_ALL / $LANG), "en", "pt", "es"...
 help_language = "auto"
 # Program for the O key (open with the default program). Empty: xdg-open
-# (start on Windows).
+# (open on macOS, start on Windows).
 opener = ""
 # Dates: "yyyy-mm-dd", "dd/mm/yyyy" or "mm/dd/yyyy".
 date_format = "yyyy-mm-dd"
@@ -261,7 +261,7 @@ pub struct Options {
     pub binary_editor: String,
     /// Language of the help (F1) and `xy --man`: `"auto"` or an ISO code (`"en"`, `"pt"`, `"es"`, ...).
     pub help_language: String,
-    /// Program for the O key; empty uses xdg-open (start on Windows).
+    /// Program for the O key; empty uses xdg-open (open on macOS, start on Windows).
     pub opener: String,
     pub date_format: DateFormat,
     pub number_format: NumberFormat,

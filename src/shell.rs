@@ -200,8 +200,8 @@ thread_local! {
     pub static OPENED: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Opens `file` in the system's default program (`xdg-open`, `start` on
-/// Windows, or `opener`), without handing over the terminal: the program
+/// Opens `file` in the system's default program (`xdg-open`, `open` on
+/// macOS, `start` on Windows, or `opener`), without handing over the terminal: the program
 /// runs detached in the background.
 pub fn open_detached(file: &Path, opener: &str) -> std::io::Result<()> {
     use std::process::Stdio;
@@ -212,7 +212,7 @@ pub fn open_detached(file: &Path, opener: &str) -> std::io::Result<()> {
         return Ok(());
     }
     let opener = match opener.trim() {
-        "" => DEFAULT_OPENER,
+        "" => default_opener(),
         other => other,
     };
     let mut child = shell(&with_file(opener, file))
@@ -364,8 +364,16 @@ pub fn batch_header(file: &Path) -> Option<&'static [u8]> {
         .then_some(b"#!/bin/sh\n".as_slice())
 }
 
+/// The O key's program when none is set: `open` on macOS, `xdg-open` on the
+/// other Unix systems.
 #[cfg(unix)]
-const DEFAULT_OPENER: &str = "xdg-open";
+fn default_opener_for(os: &str) -> &'static str {
+    if os == "macos" { "open" } else { "xdg-open" }
+}
+#[cfg(unix)]
+fn default_opener() -> &'static str {
+    default_opener_for(std::env::consts::OS)
+}
 #[cfg(unix)]
 fn default_editor() -> &'static str {
     if in_path("editor") { "editor" } else { "vi" }
@@ -414,7 +422,9 @@ pub fn batch_header(file: &Path) -> Option<&'static [u8]> {
 }
 
 #[cfg(windows)]
-const DEFAULT_OPENER: &str = "start \"\"";
+fn default_opener() -> &'static str {
+    "start \"\""
+}
 #[cfg(windows)]
 fn default_editor() -> &'static str {
     "notepad"
@@ -525,6 +535,13 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
         panic!("opener did not run");
+    }
+
+    #[test]
+    fn the_default_opener_is_open_on_macos_and_xdg_open_elsewhere() {
+        assert_eq!(default_opener_for("macos"), "open");
+        assert_eq!(default_opener_for("linux"), "xdg-open");
+        assert_eq!(default_opener_for("freebsd"), "xdg-open");
     }
 
     #[test]

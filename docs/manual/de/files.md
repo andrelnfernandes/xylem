@@ -48,11 +48,11 @@ zeigt bis zu 16 MiB).
 
 - `V`: der [Betrachter](viewer.md) (Text oder Hex, mit Suche).
 - `E`: der Editor ([Bearbeiten](execute.md)).
-- `O`: das Standardprogramm des Systems (`xdg-open`: Bilder im Bildbetrachter,
-  PDFs im PDF-Reader...) im Hintergrund. Ctrl+O öffnet alle markierten Dateien.
-  Innerhalb eines Archivs wird der Eintrag zuerst in einen temporären Ordner
-  entpackt, der beim Beenden von Xylem gelöscht wird. Ein anderes Programm kann
-  unter `opener` eingestellt werden.
+- `O`: das Standardprogramm des Systems (`xdg-open`, `open` unter macOS:
+  Bilder im Bildbetrachter, PDFs im PDF-Reader...) im Hintergrund. Ctrl+O
+  öffnet alle markierten Dateien. Innerhalb eines Archivs wird der Eintrag
+  zuerst in einen temporären Ordner entpackt, der beim Beenden von Xylem
+  gelöscht wird. Ein anderes Programm kann unter `opener` eingestellt werden.
 - Alt+F5: ein [Archiv](archives.md) wie ein Verzeichnis öffnen.
 
 ## Versteckte Richtungszeichen
