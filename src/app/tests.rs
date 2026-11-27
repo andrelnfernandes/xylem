@@ -18,6 +18,13 @@ fn sample() -> (tempfile::TempDir, App) {
     (tmp, app)
 }
 
+#[test]
+fn a_new_app_has_no_session() {
+    // Even when the tests run as root: only main.rs detects.
+    let (_tmp, app) = sample();
+    assert_eq!(app.session, crate::session::Session::default());
+}
+
 fn names(app: &App) -> Vec<String> {
     app.files
         .iter()

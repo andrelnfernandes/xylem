@@ -250,6 +250,9 @@ pub struct App {
     pub external: Option<External>,
     /// Options from the configuration file.
     pub options: Options,
+    /// Root and/or an SSH session: the screen says so. Detected by `main`
+    /// only; empty in the tests.
+    pub session: crate::session::Session,
     /// Largest part of a file the viewer reads (from `viewer_max_size` and the RAM).
     pub viewer_limit: u64,
     /// The configuration in effect (the config screen starts from it).
@@ -393,6 +396,7 @@ impl App {
             history_file: None,
             external: None,
             options: Options::default(),
+            session: crate::session::Session::default(),
             viewer_limit: ViewerMaxSize::default().bytes(platform::memory().map(|m| m.total)),
             config: Config::default(),
             config_file: None,

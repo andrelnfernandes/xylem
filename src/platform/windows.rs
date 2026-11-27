@@ -14,7 +14,7 @@ use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use windows_sys::Win32::Foundation::ERROR_BUFFER_OVERFLOW;
+use windows_sys::Win32::Foundation::{CloseHandle, ERROR_BUFFER_OVERFLOW, HANDLE};
 use windows_sys::Win32::NetworkManagement::IpHelper::{
     GAA_FLAG_INCLUDE_GATEWAYS, GAA_FLAG_SKIP_ANYCAST, GAA_FLAG_SKIP_MULTICAST,
     GetAdaptersAddresses, IF_TYPE_SOFTWARE_LOOPBACK, IP_ADAPTER_ADDRESSES_LH,
@@ -22,6 +22,9 @@ use windows_sys::Win32::NetworkManagement::IpHelper::{
 use windows_sys::Win32::NetworkManagement::Ndis::IfOperStatusUp;
 use windows_sys::Win32::Networking::WinSock::{
     AF_INET, AF_INET6, AF_UNSPEC, SOCKADDR_IN, SOCKADDR_IN6, SOCKET_ADDRESS,
+};
+use windows_sys::Win32::Security::{
+    GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_HIDDEN,
@@ -37,7 +40,7 @@ use windows_sys::Win32::System::Registry::{
 use windows_sys::Win32::System::SystemInformation::{
     GetTickCount64, GlobalMemoryStatusEx, MEMORYSTATUSEX,
 };
-use windows_sys::Win32::System::Threading::GetCurrentProcess;
+use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 use super::{DiskSpace, Memory, Mount, Network, System, env_dir};
 
@@ -313,6 +316,43 @@ pub fn owner(_path: &Path) -> Option<String> {
 
 pub fn home_dir() -> Option<PathBuf> {
     env_dir("USERPROFILE")
+}
+
+/// Elevated: run as Administrator, past UAC.
+pub fn is_elevated() -> bool {
+    let mut token: HANDLE = std::ptr::null_mut();
+    // SAFETY: the pseudo handle of the current process; `token` receives a
+    // handle, closed below.
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return false;
+    }
+    let mut elevation = TOKEN_ELEVATION::default();
+    let mut size = 0u32;
+    // SAFETY: `token` is open, and the buffer is a TOKEN_ELEVATION of the
+    // size given.
+    let ok = unsafe {
+        GetTokenInformation(
+            token,
+            TokenElevation,
+            (&raw mut elevation).cast(),
+            size_of::<TOKEN_ELEVATION>() as u32,
+            &mut size,
+        )
+    } != 0;
+    // SAFETY: opened above, closed once.
+    unsafe { CloseHandle(token) };
+    ok && elevation.TokenIsElevated != 0
+}
+
+/// The machine's name, as the statistics screen has it.
+pub fn hostname() -> Option<String> {
+    std::env::var("COMPUTERNAME").ok()
+}
+
+/// Not needed on Windows: its OpenSSH server sets the SSH variables, and
+/// there is no `sudo` to clear them.
+pub fn ancestor_names() -> Vec<String> {
+    Vec::new()
 }
 
 /// `%APPDATA%` (roaming: goes with the user to other machines).
