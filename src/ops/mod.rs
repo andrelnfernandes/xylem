@@ -270,9 +270,12 @@ pub struct Operation {
 }
 
 impl Operation {
-    /// The files go to this machine (not to a remote window's).
-    pub fn dst_is_local(&self) -> bool {
+    /// The operation changes files of this machine: they go to it (not to a
+    /// remote window's), or it is a Move from it, whose files here go once
+    /// copied.
+    pub fn changes_local_files(&self) -> bool {
         matches!(self.dst, Side::Local)
+            || (matches!(self.kind, OpKind::Move) && matches!(self.src, Side::Local))
     }
 
     pub fn delete(sources: Vec<Source>, to_trash: bool) -> Self {

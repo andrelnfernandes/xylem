@@ -699,6 +699,44 @@ fn delete_on_a_remote_window_does_not_change_local_files() {
     assert!(!app.confirm_changes_local_files(kind));
 }
 
+/// A Move from here to a remote window deletes the files here after the
+/// upload: its later questions (the missing folder, an overwrite) change
+/// local files too. A Copy does not.
+#[cfg(unix)]
+#[test]
+fn moving_from_here_to_a_remote_window_changes_local_files() {
+    let Some((tmp, app)) = remote_sample() else {
+        return;
+    };
+    let remote = app.panes[0].remote.clone().unwrap();
+    let sources = || {
+        vec![Source {
+            path: tmp.path().join("b.txt"),
+            size: 1,
+        }]
+    };
+    let create = |kind| ConfirmKind::CreateDest {
+        kind,
+        sources: sources(),
+        dest: remote.root.join("new"),
+        paths_from: None,
+    };
+    assert!(app.confirm_changes_local_files(&create(OpKind::Move)));
+    assert!(!app.confirm_changes_local_files(&create(OpKind::Copy)));
+    let op = |kind| {
+        Operation::transfer_to(
+            kind,
+            sources(),
+            &remote.root,
+            None,
+            Side::Remote(remote.clone()),
+        )
+        .unwrap()
+    };
+    assert!(op(OpKind::Move).changes_local_files());
+    assert!(!op(OpKind::Copy).changes_local_files());
+}
+
 #[test]
 fn overwrite_here_changes_local_files() {
     let (tmp, mut app) = sample();
@@ -709,7 +747,7 @@ fn overwrite_here_changes_local_files() {
     answer_prompt(&mut app, "sub");
     let op = app.op.as_ref().unwrap();
     assert!(op.conflict.is_some());
-    assert!(op.dst_is_local());
+    assert!(op.changes_local_files());
 }
 
 #[test]

@@ -521,7 +521,12 @@ mod tests {
     #[test]
     fn ancestor_names_reads_this_process() {
         let names = ancestor_names();
-        assert!(!names.is_empty() && names.len() <= 64, "{names:?}");
+        assert!(names.len() <= 64, "{names:?}");
+        // Under a parent that is init (`docker run ... cargo test`), there
+        // is no ancestor to read.
+        if std::os::unix::process::parent_id() > 1 {
+            assert!(!names.is_empty());
+        }
     }
 
     #[test]

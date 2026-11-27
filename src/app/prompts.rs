@@ -970,7 +970,19 @@ impl App {
             ConfirmKind::DeleteFiles { .. }
             | ConfirmKind::DeleteDir { .. }
             | ConfirmKind::DeleteFolders { .. } => self.remote.is_none(),
-            ConfirmKind::CreateDest { dest, .. } => matches!(self.side_of(dest), Side::Local),
+            // A Move from here deletes the files here once copied.
+            ConfirmKind::CreateDest {
+                kind,
+                sources,
+                dest,
+                ..
+            } => {
+                matches!(self.side_of(dest), Side::Local)
+                    || (matches!(kind, OpKind::Move)
+                        && sources
+                            .iter()
+                            .any(|s| matches!(self.side_of(&s.path), Side::Local)))
+            }
             _ => false,
         }
     }

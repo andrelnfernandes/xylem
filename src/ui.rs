@@ -1281,17 +1281,24 @@ fn draw_scroll_thumb(
     let Some((start, size)) = thumb(area, len, page, offset) else {
         return;
     };
-    let color = if active {
-        theme().active_border
-    } else {
-        theme().border
-    };
+    let (symbol, color) = thumb_cell(&theme(), ADMIN.get(), active);
     let x = area.right() - 1;
     let buf = frame.buffer_mut();
     for i in start..start + size {
         let y = area.y + 1 + i as u16;
-        buf[(x, y)].set_symbol("┃").set_fg(color);
+        buf[(x, y)].set_symbol(symbol).set_fg(color);
     }
+}
+
+/// The symbol and color of the scroll thumb on the border of a window of
+/// [`panel_with`]`(t, admin, _, active)`: a thick stroke on the thin border,
+/// a block on the thick one (as root, with the focus), where a stroke would
+/// vanish into it in a theme whose focus color is the error color (light)
+/// or that has no colors (mono).
+fn thumb_cell(t: &Theme, admin: bool, active: bool) -> (&'static str, Color) {
+    let color = if active { t.active_border } else { t.border };
+    let symbol = if admin && active { "█" } else { "┃" };
+    (symbol, color)
 }
 
 /// The lines from the root to the cursor, for the rows in `range`: for each
@@ -2461,7 +2468,7 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
     } else if let Some(op) = &app.op {
         op_lines(
             op,
-            root_lead(app, op.conflict.is_some() && op.dst_is_local()),
+            root_lead(app, op.conflict.is_some() && op.changes_local_files()),
         )
     } else if let Some(job) = &app.job {
         let counts = format!(
@@ -6269,6 +6276,36 @@ mod tests {
             // Without root, nothing changes.
             assert_eq!(corner(&t, false, true), (normal.into(), t.active_border));
             assert_eq!(corner(&t, false, false), (normal.into(), t.border));
+        }
+    }
+
+    /// As root, the focused border is thick (`┃`) and red: in `light` (red
+    /// focus) and `mono` (no colors) a `┃` thumb in the focus color would be
+    /// the border itself.
+    #[test]
+    fn the_scroll_thumb_stands_out_from_every_border() {
+        use ratatui::{Terminal, backend::TestBackend};
+        for t in [
+            Theme::classic(),
+            Theme::light(),
+            Theme::nord(),
+            Theme::mono(),
+        ] {
+            for admin in [false, true] {
+                for active in [false, true] {
+                    let mut term = Terminal::new(TestBackend::new(5, 10)).unwrap();
+                    term.draw(|f| f.render_widget(panel_with(&t, admin, "", active), f.area()))
+                        .unwrap();
+                    let side = term.backend().buffer()[(4, 2)].clone();
+                    let (symbol, color) = thumb_cell(&t, admin, active);
+                    assert_ne!(
+                        (symbol, color),
+                        (side.symbol(), side.fg),
+                        "{:?} admin={admin} active={active}",
+                        t.background
+                    );
+                }
+            }
         }
     }
 
