@@ -21,13 +21,35 @@
 
 | | Bereich | Was angezeigt wird |
 |---|---|---|
-| 1 | Kopfzeile | Pfad des Verzeichnisses unter dem Cursor, Programmname und -version, Datum und Uhrzeit. Name und Version entfallen bei weniger als 72 Spalten. |
+| 1 | Kopfzeile | Die Abzeichen einer Root- oder SSH-Sitzung (siehe *Root und SSH* unten), Pfad des Verzeichnisses unter dem Cursor, Programmname und -version, Datum und Uhrzeit. Name und Version entfallen bei weniger als 72 Spalten. |
 | 2 | Baum | Die eingelesenen Verzeichnisse. Die Zahl im oberen Rahmen nennt Cursor- und Gesamtzeilenzahl. |
 | 3 | Dateifenster | Dateien des Verzeichnisses unter dem Baum-Cursor. Der Titel enthält Filespec, Dateianzahl und Sortierung. |
 | 4 | Statistiken | Filespec, Festplatte sowie die unten beschriebenen Datei- und Byte-Zähler. |
 | 5 | Fußzeile | Das Menü des aktiven Fensters. Eine Eingabezeile oder Meldung belegt die erste Zeile, falls vorhanden. |
 
 Das aktive Fenster mit dem Fokus hebt sich durch einen hellen Rahmen ab.
+
+## Root und SSH
+
+Läuft Xylem mit mehr Rechten als üblich oder auf einem anderen Rechner, zeigt
+der Bildschirm das an:
+
+- **`ROOT`** (**`ADMIN`** unter Windows, als Administrator ausgeführt), in
+  Rot, am linken Ende der Kopfzeile. Alle Fensterrahmen werden ebenfalls rot,
+  und das Fenster mit dem Fokus erhält einen dicken Rahmen. Die Fragen von
+  Delete, Prune, Copy, Move, Rename, Attributes und New date beginnen mit
+  demselben Abzeichen, wenn sie Dateien auf diesem Rechner ändern können; auf
+  dem Rechner eines entfernten Fensters handelt der Benutzer der Verbindung,
+  nicht root, und das Abzeichen entfällt.
+- **`SSH Rechner`**, danach: Xylem läuft in einer SSH-Sitzung, auf `Rechner`,
+  nicht auf dem Computer vor Ihnen. Es erkennt das an den Variablen
+  `SSH_CONNECTION`, `SSH_CLIENT` und `SSH_TTY` oder, unter Linux, an einem
+  `sshd` oder `mosh-server` unter den Prozessen, die es gestartet haben; das
+  funktioniert auch, nachdem `sudo` oder `su -` die Variablen gelöscht haben.
+
+In tmux oder screen gelten die Variablen der Sitzung, die den tmux- oder
+screen-Server gestartet hat. Unter macOS wird die SSH-Sitzung mit `sudo` nicht
+erkannt.
 
 ## Der Baum
 

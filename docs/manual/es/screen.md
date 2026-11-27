@@ -21,13 +21,34 @@
 
 | | Parte | Qué muestra |
 |---|---|---|
-| 1 | Encabezado | La ruta del directorio bajo el cursor, nombre y versión del programa, fecha y hora. Nombre y versión se omiten por debajo de 72 columnas. |
+| 1 | Encabezado | Las insignias de una sesión root o SSH (véase *Root y SSH* más abajo), la ruta del directorio bajo el cursor, nombre y versión del programa, fecha y hora. Nombre y versión se omiten por debajo de 72 columnas. |
 | 2 | Árbol | Los directorios registrados. El número en el borde superior indica la línea del cursor y el total de líneas. |
 | 3 | Ventana de archivos | Los archivos del directorio bajo el cursor del árbol. Su título muestra el Filespec, cantidad de archivos y orden de clasificación. |
 | 4 | Estadísticas | El Filespec, el disco y los conteos de archivos y bytes descritos más abajo. |
 | 5 | Pie de página | El menú correspondiente a la ventana con el foco. Si hay un prompt o mensaje activo, ocupa la primera línea. |
 
 La ventana activa con el foco presenta un borde resaltado.
+
+## Root y SSH
+
+Cuando Xylem se ejecuta con más poder del habitual, o en otra máquina, la
+pantalla lo indica:
+
+- **`ROOT`** (**`ADMIN`** en Windows, ejecutado como Administrador), en rojo,
+  en el extremo izquierdo del encabezado. Todos los bordes de las ventanas
+  también se vuelven rojos, y la ventana con el foco recibe un borde grueso.
+  Las preguntas de Delete, Prune, Copy, Move, Rename, Attributes y New date
+  empiezan con la misma insignia cuando pueden modificar archivos de esta
+  máquina; en la máquina de una ventana remota actúa el usuario de la
+  conexión, no root, y la insignia se omite.
+- **`SSH máquina`**, a continuación: Xylem se ejecuta dentro de una sesión
+  SSH, en `máquina`, no en el ordenador que tiene delante. Lo sabe por las
+  variables `SSH_CONNECTION`, `SSH_CLIENT` y `SSH_TTY` o, en Linux, por un
+  `sshd` o `mosh-server` entre los procesos que lo iniciaron, lo que sigue
+  funcionando después de que `sudo` o `su -` borren las variables.
+
+Dentro de tmux o screen, las variables son las de la sesión que inició el
+servidor de tmux o screen. En macOS, bajo `sudo`, la sesión SSH no se detecta.
 
 ## El árbol
 

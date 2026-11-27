@@ -21,13 +21,35 @@
 
 | | Partie | Ce qu'elle affiche |
 |---|---|---|
-| 1 | En-tête | Le chemin du répertoire sous le curseur, le nom et la version du programme, la date et l'heure. Le nom et la version disparaissent en dessous de 72 colonnes. |
+| 1 | En-tête | Les badges d'une session root ou SSH (voir *Root et SSH* ci-dessous), le chemin du répertoire sous le curseur, le nom et la version du programme, la date et l'heure. Le nom et la version disparaissent en dessous de 72 colonnes. |
 | 2 | Arborescence | Les répertoires lus. Le nombre sur la bordure supérieure indique la ligne du curseur et le total des lignes. |
 | 3 | Fenêtre de fichiers | Les fichiers du répertoire sous le curseur de l'arborescence. Son titre indique le Filespec, le nombre de fichiers et l'ordre de tri. |
 | 4 | Statistiques | Le Filespec, le disque et les décomptes de fichiers et d'octets décrits ci-dessous. |
 | 5 | Pied de page | Le menu de la fenêtre active. Une invite ou un message en occupe la première ligne lorsqu'il y en a un. |
 
 La fenêtre ayant le focus se distingue par sa bordure lumineuse.
+
+## Root et SSH
+
+Quand Xylem tourne avec plus de pouvoir que d'habitude, ou sur une autre
+machine, l'écran le signale :
+
+- **`ROOT`** (**`ADMIN`** sous Windows, lancé en tant qu'Administrateur), en
+  rouge, à l'extrémité gauche de l'en-tête. Toutes les bordures des fenêtres
+  passent aussi au rouge, et la fenêtre ayant le focus reçoit une bordure
+  épaisse. Les questions de Delete, Prune, Copy, Move, Rename, Attributes et
+  New date commencent par le même badge quand elles peuvent modifier des
+  fichiers de cette machine ; sur la machine d'une fenêtre distante, c'est
+  l'utilisateur de la connexion qui agit, pas root, et le badge est omis.
+- **`SSH machine`**, ensuite : Xylem tourne dans une session SSH, sur
+  `machine`, et non sur l'ordinateur devant vous. Il le sait par les variables
+  `SSH_CONNECTION`, `SSH_CLIENT` et `SSH_TTY` ou, sous Linux, par un `sshd` ou
+  un `mosh-server` parmi les processus qui l'ont lancé, ce qui fonctionne
+  encore après que `sudo` ou `su -` ont effacé les variables.
+
+Dans tmux ou screen, les variables sont celles de la session qui a lancé le
+serveur tmux ou screen. Sous macOS, avec `sudo`, la session SSH n'est pas
+détectée.
 
 ## L'arborescence
 
