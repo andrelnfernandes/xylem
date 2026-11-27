@@ -18,6 +18,13 @@ fn sample() -> (tempfile::TempDir, App) {
     (tmp, app)
 }
 
+#[test]
+fn a_new_app_has_no_session() {
+    // Even when the tests run as root: only main.rs detects.
+    let (_tmp, app) = sample();
+    assert_eq!(app.session, crate::session::Session::default());
+}
+
 fn names(app: &App) -> Vec<String> {
     app.files
         .iter()
@@ -655,6 +662,92 @@ fn declining_to_create_the_folder_copies_nothing() {
     answer_prompt(&mut app, tmp.path().join("copy.rs").to_str().unwrap());
     assert!(app.confirm.is_none());
     assert!(tmp.path().join("copy.rs").exists());
+}
+
+#[test]
+fn delete_and_move_change_local_files() {
+    let (_tmp, mut app) = sample();
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Char('d'));
+    let kind = &app.confirm.as_ref().unwrap().kind;
+    assert!(app.confirm_changes_local_files(kind));
+    press(&mut app, KeyCode::Esc);
+    assert!(app.confirm.is_none());
+    press(&mut app, KeyCode::Char('m'));
+    assert!(app.prompt_changes_local_files(&app.prompt.as_ref().unwrap().kind));
+}
+
+#[test]
+fn filespec_and_quit_change_nothing() {
+    let (_tmp, app) = sample();
+    assert!(!app.prompt_changes_local_files(&PromptKind::Filespec));
+    assert!(!app.confirm_changes_local_files(&ConfirmKind::Quit));
+}
+
+#[cfg(unix)]
+#[test]
+fn delete_on_a_remote_window_does_not_change_local_files() {
+    let Some((_tmp, mut app)) = remote_sample() else {
+        return;
+    };
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Char('d'));
+    let kind = &app.confirm.as_ref().unwrap().kind;
+    assert!(matches!(kind, ConfirmKind::DeleteFiles { .. }));
+    assert!(!app.confirm_changes_local_files(kind));
+}
+
+/// A Move from here to a remote window deletes the files here after the
+/// upload: its later questions (the missing folder, an overwrite) change
+/// local files too. A Copy does not.
+#[cfg(unix)]
+#[test]
+fn moving_from_here_to_a_remote_window_changes_local_files() {
+    let Some((tmp, app)) = remote_sample() else {
+        return;
+    };
+    let remote = app.panes[0].remote.clone().unwrap();
+    let sources = || {
+        vec![Source {
+            path: tmp.path().join("b.txt"),
+            size: 1,
+        }]
+    };
+    let create = |kind| ConfirmKind::CreateDest {
+        kind,
+        sources: sources(),
+        dest: remote.root.join("new"),
+        paths_from: None,
+    };
+    assert!(app.confirm_changes_local_files(&create(OpKind::Move)));
+    assert!(!app.confirm_changes_local_files(&create(OpKind::Copy)));
+    let op = |kind| {
+        Operation::transfer_to(
+            kind,
+            sources(),
+            &remote.root,
+            None,
+            Side::Remote(remote.clone()),
+        )
+        .unwrap()
+    };
+    assert!(op(OpKind::Move).changes_local_files());
+    assert!(!op(OpKind::Copy).changes_local_files());
+}
+
+#[test]
+fn overwrite_here_changes_local_files() {
+    let (tmp, mut app) = sample();
+    write(tmp.path().join("sub/b.txt"), "old").unwrap();
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Char('m'));
+    answer_prompt(&mut app, "sub");
+    let op = app.op.as_ref().unwrap();
+    assert!(op.conflict.is_some());
+    assert!(op.changes_local_files());
 }
 
 #[test]

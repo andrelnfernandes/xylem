@@ -230,6 +230,76 @@ pub fn home_dir() -> Option<PathBuf> {
     env_dir("HOME")
 }
 
+/// Root: the effective user is 0.
+pub fn is_elevated() -> bool {
+    nix::unistd::geteuid().is_root()
+}
+
+/// The machine's name, as the system has it.
+pub fn hostname() -> Option<String> {
+    nix::unistd::gethostname().ok()?.into_string().ok()
+}
+
+/// The names of this process's ancestors, its parent first: on Linux, from
+/// `/proc`; elsewhere, none.
+pub fn ancestor_names() -> Vec<String> {
+    #[cfg(target_os = "linux")]
+    {
+        use std::io::Read;
+        ancestors_with(std::os::unix::process::parent_id(), |pid| {
+            let mut bytes = Vec::new();
+            fs::File::open(format!("/proc/{pid}/stat"))
+                .ok()?
+                .take(STAT_MAX)
+                .read_to_end(&mut bytes)
+                .ok()?;
+            Some(String::from_utf8_lossy(&bytes).into_owned())
+        })
+    }
+    #[cfg(not(target_os = "linux"))]
+    Vec::new()
+}
+
+/// Of `/proc/<pid>/stat`, at most: the name and the parent come first.
+#[cfg(target_os = "linux")]
+const STAT_MAX: u64 = 4096;
+/// Ancestors read, at most.
+#[cfg(target_os = "linux")]
+const ANCESTORS_MAX: usize = 64;
+
+/// The name and the parent's pid from a `/proc/<pid>/stat` line:
+/// `pid (name) state ppid ...`. The name may hold anything, `)` included: it
+/// ends at the last `)`.
+#[cfg(target_os = "linux")]
+fn parse_stat(text: &str) -> Option<(String, u32)> {
+    let open = text.find('(')?;
+    let close = text.rfind(')')?;
+    let name = text.get(open + 1..close)?;
+    let mut rest = text[close + 1..].split_whitespace();
+    let _state = rest.next()?;
+    let parent = rest.next()?.parse().ok()?;
+    Some((name.to_string(), parent))
+}
+
+/// The names from `start` up, read by `read`, until init, a process that
+/// cannot be read, a loop onto itself or [`ANCESTORS_MAX`] of them.
+#[cfg(target_os = "linux")]
+fn ancestors_with(start: u32, read: impl Fn(u32) -> Option<String>) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut pid = start;
+    while pid > 1 && names.len() < ANCESTORS_MAX {
+        let Some((name, parent)) = read(pid).and_then(|text| parse_stat(&text)) else {
+            break;
+        };
+        names.push(name);
+        if parent == pid {
+            break;
+        }
+        pid = parent;
+    }
+    names
+}
+
 /// `$XDG_CONFIG_HOME` or `~/.config`.
 pub(super) fn config_base() -> Option<PathBuf> {
     env_dir("XDG_CONFIG_HOME").or_else(|| Some(home_dir()?.join(".config")))
@@ -405,6 +475,59 @@ fn kb_field(text: &str, key: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn parse_stat_reads_name_and_parent() {
+        assert_eq!(
+            parse_stat("1234 (sshd-session) S 1000 1234 1234 0 -1"),
+            Some(("sshd-session".into(), 1000))
+        );
+        // The name may hold spaces and parentheses: it ends at the last `)`.
+        assert_eq!(
+            parse_stat("77 (a) b (c) S 5 77"),
+            Some(("a) b (c".into(), 5))
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn parse_stat_rejects_garbage() {
+        for bad in ["", "12 (x", "12 (x) S", "12 (x) S parent", "12 x) S 5"] {
+            assert_eq!(parse_stat(bad), None, "{bad:?}");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn ancestors_stop_at_init_at_a_loop_and_at_64() {
+        let stat = |pid: u32, name: &str, ppid: u32| format!("{pid} ({name}) S {ppid} 0");
+        let chain = |pid| match pid {
+            10 => Some(stat(10, "bash", 9)),
+            9 => Some(stat(9, "sshd-session", 1)),
+            _ => None,
+        };
+        assert_eq!(ancestors_with(10, chain), ["bash", "sshd-session"]);
+        // A loop (10 → 9 → 10) and an endless chain stop at 64.
+        let looped = |pid| Some(stat(pid, "x", if pid == 10 { 9 } else { 10 }));
+        assert_eq!(ancestors_with(10, looped).len(), 64);
+        let endless = |pid| Some(stat(pid, "x", pid + 1));
+        assert_eq!(ancestors_with(2, endless).len(), 64);
+        assert!(ancestors_with(10, |_| None).is_empty());
+        assert!(ancestors_with(1, chain).is_empty());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn ancestor_names_reads_this_process() {
+        let names = ancestor_names();
+        assert!(names.len() <= 64, "{names:?}");
+        // Under a parent that is init (`docker run ... cargo test`), there
+        // is no ancestor to read.
+        if std::os::unix::process::parent_id() > 1 {
+            assert!(!names.is_empty());
+        }
+    }
 
     #[test]
     fn modes() {

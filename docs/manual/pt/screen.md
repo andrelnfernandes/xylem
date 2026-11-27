@@ -21,13 +21,35 @@
 
 | | Parte | O que mostra |
 |---|---|---|
-| 1 | Cabeçalho | O caminho do diretório sob o cursor, o nome e versão do programa, a data e hora. O nome e a versão são omitidos abaixo de 72 colunas. |
+| 1 | Cabeçalho | Os selos de uma sessão root ou SSH (veja *Root e SSH* abaixo), o caminho do diretório sob o cursor, o nome e versão do programa, a data e hora. O nome e a versão são omitidos abaixo de 72 colunas. |
 | 2 | Árvore | Os diretórios lidos. O número na borda superior indica a linha do cursor e a quantidade de linhas. |
 | 3 | Janela de arquivos | Os arquivos do diretório sob o cursor da árvore. O título traz o Filespec, a quantidade de arquivos e a ordenação. |
 | 4 | Estatísticas | O Filespec, o disco e as contagens de arquivos e bytes descritas abaixo. |
 | 5 | Rodapé | O menu da janela que tem o foco. Um prompt ou mensagem ocupa sua primeira linha quando presente. |
 
 A janela com o foco possui a borda brilhante.
+
+## Root e SSH
+
+Quando o Xylem roda com mais poder que o normal, ou em outra máquina, a tela
+avisa:
+
+- **`ROOT`** (**`ADMIN`** no Windows, executado como Administrador), em
+  vermelho, na ponta esquerda do cabeçalho. Todas as bordas das janelas
+  também ficam vermelhas, e a janela com o foco ganha borda grossa. As
+  perguntas de Delete, Prune, Copy, Move, Rename, Attributes e New date
+  começam com o mesmo selo quando podem alterar arquivos desta máquina; na
+  máquina de uma janela remota quem age é o usuário da conexão, não o root, e
+  o selo fica de fora.
+- **`SSH máquina`**, depois dele: o Xylem roda dentro de uma sessão SSH, em
+  `máquina`, não no computador à sua frente. Ele sabe disso pelas variáveis
+  `SSH_CONNECTION`, `SSH_CLIENT` e `SSH_TTY` ou, no Linux, por um `sshd` ou
+  `mosh-server` entre os processos que o iniciaram, o que funciona mesmo
+  depois que `sudo` ou `su -` apagaram as variáveis.
+
+Dentro do tmux ou do screen, as variáveis são as da sessão que iniciou o
+servidor do tmux ou do screen. No macOS, sob `sudo`, a sessão SSH não é
+detectada.
 
 ## A árvore
 

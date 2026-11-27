@@ -35,6 +35,7 @@ use crate::mouse::{self, HitMap, Owner, Spot};
 use crate::ops::{Conflict, Facts, Operation};
 use crate::pane::{Count, FileDisplay, FileRef};
 use crate::platform;
+use crate::session::{ADMIN_LABEL, Session};
 use crate::settings::{self, Settings};
 use crate::term::{self, Terminal};
 use crate::viewer::table::TableGrid;
@@ -53,6 +54,10 @@ thread_local! {
     /// the screen says what it is as it is drawn, and the map goes to
     /// `App::hits` at the end, for the clicks on what is on screen.
     static HITS: std::cell::RefCell<HitMap> = std::cell::RefCell::default();
+    /// Xylem runs as root (or an elevated Administrator): every window of
+    /// the frame being drawn has red borders. Set from `App::session` at the
+    /// start of [`draw`].
+    static ADMIN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// `area` of this frame is `spot`, over what was added before.
@@ -73,6 +78,7 @@ fn render_footer(frame: &mut Frame, lines: Vec<Line<'static>>, area: Rect, mods:
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
     HITS.with_borrow_mut(|h| *h = HitMap::default());
+    ADMIN.set(app.session.admin);
     draw_frame(frame, app);
     app.hits = HITS.take();
 }
@@ -809,13 +815,25 @@ fn small_file_window(height: u16) -> u16 {
 }
 
 fn panel(title: impl Into<Line<'static>>, active: bool) -> Block<'static> {
-    let border = if active {
-        theme().active_border
-    } else {
-        theme().border
+    panel_with(&theme(), ADMIN.get(), title, active)
+}
+
+/// A window in theme `t`. As root (`admin`), every border is in the error
+/// color, and the one with the focus is thick, still apart from the others.
+fn panel_with(
+    t: &Theme,
+    admin: bool,
+    title: impl Into<Line<'static>>,
+    active: bool,
+) -> Block<'static> {
+    let (border, kind) = match (admin, active) {
+        (true, true) => (t.error, BorderType::Thick),
+        (true, false) => (t.error, border_type(t)),
+        (false, true) => (t.active_border, border_type(t)),
+        (false, false) => (t.border, border_type(t)),
     };
     Block::bordered()
-        .border_type(border_type(&theme()))
+        .border_type(kind)
         .border_style(Style::new().fg(border))
         .title(title)
 }
@@ -950,10 +968,18 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
         ));
     }
     right_spans.push(Span::raw(clock));
-    let width: usize = right_spans.iter().map(|s| s.content.chars().count()).sum();
+    // Root and SSH first: they are about the session, not the path, and the
+    // clock gives way to them.
+    let mut spans = session_spans(&app.session);
+    let lead: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+    let mut width: usize = right_spans.iter().map(|s| s.content.chars().count()).sum();
+    if lead > 0 && (area.width as usize) < lead + width + 1 {
+        right_spans.clear();
+        width = 0;
+    }
     let [left, right] =
         Layout::horizontal([Constraint::Min(1), Constraint::Length(width as u16)]).areas(area);
-    let mut spans = vec![Span::styled("Path: ", Style::new().fg(theme().key))];
+    spans.push(Span::styled("Path: ", Style::new().fg(theme().key)));
     // On a remote machine or a container: its name stands out first, so that
     // where a change goes is never in doubt; then the path there.
     let (text, separator) = match &app.remote {
@@ -977,6 +1003,51 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     spans.extend(path_spans(&fit_tail(&text, room), separator));
     frame.render_widget(Line::from(spans), left);
     frame.render_widget(Line::from(right_spans), right);
+}
+
+/// The badges of the session: root (or an elevated Administrator) and the
+/// SSH session, each followed by a space.
+fn session_spans(session: &Session) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    if session.admin {
+        spans.push(session_badge(ADMIN_LABEL, theme().error));
+        spans.push(Span::raw(" "));
+    }
+    if let Some(host) = &session.ssh {
+        let text = if host.is_empty() {
+            "SSH".to_string()
+        } else {
+            format!("SSH {host}")
+        };
+        spans.push(session_badge(&text, theme().special));
+        spans.push(Span::raw(" "));
+    }
+    spans
+}
+
+/// Before a question that `changes` files of this machine, as root: the root
+/// badge and a space. Nothing otherwise.
+fn root_lead(app: &App, changes: bool) -> Vec<Span<'static>> {
+    if app.session.admin && changes {
+        vec![session_badge(ADMIN_LABEL, theme().error), Span::raw(" ")]
+    } else {
+        Vec::new()
+    }
+}
+
+/// `text` with a space on each side, in [`badge_style`].
+fn session_badge(text: &str, color: Color) -> Span<'static> {
+    Span::styled(format!(" {text} "), badge_style(&theme(), color))
+}
+
+/// The theme's background on `color`, bold; without colors (mono), reversed.
+fn badge_style(t: &Theme, color: Color) -> Style {
+    let bold = Style::new().add_modifier(Modifier::BOLD);
+    if color == Color::Reset {
+        bold.add_modifier(Modifier::REVERSED)
+    } else {
+        bold.fg(t.background).bg(color)
+    }
 }
 
 /// `path` with the home directory as `~`.
@@ -1210,17 +1281,24 @@ fn draw_scroll_thumb(
     let Some((start, size)) = thumb(area, len, page, offset) else {
         return;
     };
-    let color = if active {
-        theme().active_border
-    } else {
-        theme().border
-    };
+    let (symbol, color) = thumb_cell(&theme(), ADMIN.get(), active);
     let x = area.right() - 1;
     let buf = frame.buffer_mut();
     for i in start..start + size {
         let y = area.y + 1 + i as u16;
-        buf[(x, y)].set_symbol("┃").set_fg(color);
+        buf[(x, y)].set_symbol(symbol).set_fg(color);
     }
+}
+
+/// The symbol and color of the scroll thumb on the border of a window of
+/// [`panel_with`]`(t, admin, _, active)`: a thick stroke on the thin border,
+/// a block on the thick one (as root, with the focus), where a stroke would
+/// vanish into it in a theme whose focus color is the error color (light)
+/// or that has no colors (mono).
+fn thumb_cell(t: &Theme, admin: bool, active: bool) -> (&'static str, Color) {
+    let color = if active { t.active_border } else { t.border };
+    let symbol = if admin && active { "█" } else { "┃" };
+    (symbol, color)
 }
 
 /// The lines from the root to the cursor, for the rows in `range`: for each
@@ -2115,7 +2193,8 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
     // in the Ctrl menu is Ctrl+C.
     let mut mods = KeyModifiers::NONE;
     let lines = if let Some(prompt) = &app.prompt {
-        prompt_lines(frame, prompt, area)
+        let lead = root_lead(app, app.prompt_changes_local_files(&prompt.kind));
+        prompt_lines(frame, prompt, area, lead)
     } else if app.terminal_focus {
         let key_for = |cmd| app.keymap.key_for(cmd).unwrap_or_default();
         let remote = app.terminal.as_ref().is_some_and(term::Terminal::is_remote);
@@ -2383,9 +2462,14 @@ fn draw_menu(frame: &mut Frame, app: &App, area: Rect) {
                 .into_iter()
                 .skip(1),
         );
-        vec![Line::styled(confirm.question.clone(), bold), options]
+        let mut first = root_lead(app, app.confirm_changes_local_files(&confirm.kind));
+        first.push(Span::styled(confirm.question.clone(), bold));
+        vec![Line::from(first), options]
     } else if let Some(op) = &app.op {
-        op_lines(op)
+        op_lines(
+            op,
+            root_lead(app, op.conflict.is_some() && op.changes_local_files()),
+        )
     } else if let Some(job) = &app.job {
         let counts = format!(
             "{} dirs, {} waiting  ",
@@ -2835,11 +2919,23 @@ fn footer_height(app: &App, width: usize) -> u16 {
 }
 
 /// Footer prompt: the label, the typed text (with the cursor) and the keys.
-fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line<'static>> {
+/// The prompt's line and its keys. `lead` goes before the label (the root
+/// badge, [`root_lead`]); the cursor and the clicks move past it.
+fn prompt_lines(
+    frame: &mut Frame,
+    prompt: &app::Prompt,
+    area: Rect,
+    lead: Vec<Span<'static>>,
+) -> Vec<Line<'static>> {
     let bold = Style::new().add_modifier(Modifier::BOLD);
-    let col = area.x + (prompt.label.chars().count() + prompt.input.cursor) as u16;
+    let before = lead
+        .iter()
+        .map(|s| s.content.chars().count())
+        .sum::<usize>()
+        + prompt.label.chars().count();
+    let col = area.x + (before + prompt.input.cursor) as u16;
     frame.set_cursor_position((col.min(area.right().saturating_sub(1)), area.y));
-    let start = area.x + prompt.label.chars().count() as u16;
+    let start = area.x + before as u16;
     hit(
         Rect::new(area.x, area.y, area.width, 1),
         Spot::Prompt { start },
@@ -2947,17 +3043,14 @@ fn prompt_lines(frame: &mut Frame, prompt: &app::Prompt, area: Rect) -> Vec<Line
         }
         help
     };
-    vec![
-        Line::from(vec![
-            Span::styled(prompt.label.clone(), bold),
-            Span::raw(if prompt.is_secret() {
-                "•".repeat(prompt.input.text.chars().count())
-            } else {
-                prompt.input.text.clone()
-            }),
-        ]),
-        menu_line("", &help),
-    ]
+    let mut first = lead;
+    first.push(Span::styled(prompt.label.clone(), bold));
+    first.push(Span::raw(if prompt.is_secret() {
+        "•".repeat(prompt.input.text.chars().count())
+    } else {
+        prompt.input.text.clone()
+    }));
+    vec![Line::from(first), menu_line("", &help)]
 }
 
 /// The prompt's history as a list (↑), just above it, over whatever is on
@@ -3267,8 +3360,9 @@ fn draw_search_box(frame: &mut Frame, sb: &mut crate::search_box::SearchBox, scr
 }
 
 /// Footer during Copy/Move/Delete: current file and progress bar,
-/// or the conflict question with the size and date of both files.
-fn op_lines(op: &Operation) -> Vec<Line<'static>> {
+/// or the conflict question with the size and date of both files, after
+/// `lead` (the root badge, [`root_lead`]).
+fn op_lines(op: &Operation, lead: Vec<Span<'static>>) -> Vec<Line<'static>> {
     let bold = Style::new().add_modifier(Modifier::BOLD);
     let name = |p: &std::path::Path| {
         p.file_name()
@@ -3313,7 +3407,9 @@ fn op_lines(op: &Operation) -> Vec<Line<'static>> {
     };
 
     if let Some(c) = &op.conflict {
-        return vec![first, conflict_facts(c)];
+        let mut question = lead;
+        question.extend(first.spans);
+        return vec![Line::from(question), conflict_facts(c)];
     }
 
     const BAR: usize = 30;
@@ -3705,7 +3801,7 @@ fn draw_bookmarks(frame: &mut Frame, app: &App, view: &BookmarksView) {
 
     // The name of a bookmark is typed here, over the list.
     if let Some(prompt) = app.prompt.as_ref().filter(|p| p.is_bookmark_name()) {
-        let lines = prompt_lines(frame, prompt, menu);
+        let lines = prompt_lines(frame, prompt, menu, Vec::new());
         render_footer(frame, lines, menu, KeyModifiers::NONE);
         return;
     }
@@ -4478,7 +4574,7 @@ fn draw_viewer(frame: &mut Frame, app: &mut App) {
     let percent = ((top + v.page).min(total) * 100) / total;
     let note = v.note.clone();
     let lines = if let Some(prompt) = &app.prompt {
-        prompt_lines(frame, prompt, menu)
+        prompt_lines(frame, prompt, menu, Vec::new())
     } else if let (Some(_), Some(t)) = (&v.record_view, &v.table) {
         let second = note.unwrap_or_else(|| {
             format!(
@@ -6097,6 +6193,177 @@ mod tests {
         assert!(!header(&mut app, 80).contains("is out"), "only with room");
     }
 
+    /// Row 0 of a screen `width` columns wide and 20 high: as text, and the
+    /// cells.
+    fn header_row(app: &mut App, width: u16) -> (String, Vec<ratatui::buffer::Cell>) {
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut term = Terminal::new(TestBackend::new(width, 20)).unwrap();
+        term.draw(|f| draw(f, app)).unwrap();
+        let buf = term.backend().buffer();
+        let cells: Vec<_> = (0..width).map(|x| buf[(x, 0)].clone()).collect();
+        (cells.iter().map(|c| c.symbol()).collect(), cells)
+    }
+
+    #[test]
+    fn header_shows_root_and_ssh_before_the_path() {
+        use crate::session::{ADMIN_LABEL, Session};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let t = theme();
+        app.session = Session {
+            admin: true,
+            ssh: Some("srv01".into()),
+        };
+        let (text, cells) = header_row(&mut app, 100);
+        assert!(
+            text.starts_with(&format!(" {ADMIN_LABEL}   SSH srv01  Path: ")),
+            "{text:?}"
+        );
+        // The cells of each badge: text in `background` on `error` / `special`.
+        assert_eq!((cells[1].fg, cells[1].bg), (t.background, t.error));
+        let s = text.find("SSH").unwrap();
+        assert_eq!((cells[s].fg, cells[s].bg), (t.background, t.special));
+        app.session = Session {
+            admin: false,
+            ssh: Some(String::new()),
+        };
+        assert!(header_row(&mut app, 100).0.starts_with(" SSH  Path: "));
+        app.session = Session::default();
+        assert!(header_row(&mut app, 100).0.starts_with("Path: "));
+    }
+
+    #[test]
+    fn header_keeps_root_whole_on_a_narrow_screen() {
+        use crate::session::{ADMIN_LABEL, Session};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.session = Session {
+            admin: true,
+            ssh: Some("a-long-machine-name".into()),
+        };
+        for width in [12, 22, 30, 40] {
+            let (text, _) = header_row(&mut app, width);
+            assert!(
+                text.starts_with(&format!(" {ADMIN_LABEL} ")),
+                "{width}: {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn root_borders_are_red_and_the_focus_thick() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let corner = |t: &Theme, admin: bool, active: bool| {
+            let mut term = Terminal::new(TestBackend::new(10, 3)).unwrap();
+            term.draw(|f| f.render_widget(panel_with(t, admin, "", active), f.area()))
+                .unwrap();
+            let c = term.backend().buffer()[(0, 0)].clone();
+            (c.symbol().to_string(), c.fg)
+        };
+        for t in [
+            Theme::classic(),
+            Theme::light(),
+            Theme::nord(),
+            Theme::mono(),
+        ] {
+            assert_eq!(corner(&t, true, true), ("┏".into(), t.error));
+            let normal = if border_type(&t) == BorderType::Rounded {
+                "╭"
+            } else {
+                "┌"
+            };
+            assert_eq!(corner(&t, true, false), (normal.into(), t.error));
+            // Without root, nothing changes.
+            assert_eq!(corner(&t, false, true), (normal.into(), t.active_border));
+            assert_eq!(corner(&t, false, false), (normal.into(), t.border));
+        }
+    }
+
+    /// As root, the focused border is thick (`┃`) and red: in `light` (red
+    /// focus) and `mono` (no colors) a `┃` thumb in the focus color would be
+    /// the border itself.
+    #[test]
+    fn the_scroll_thumb_stands_out_from_every_border() {
+        use ratatui::{Terminal, backend::TestBackend};
+        for t in [
+            Theme::classic(),
+            Theme::light(),
+            Theme::nord(),
+            Theme::mono(),
+        ] {
+            for admin in [false, true] {
+                for active in [false, true] {
+                    let mut term = Terminal::new(TestBackend::new(5, 10)).unwrap();
+                    term.draw(|f| f.render_widget(panel_with(&t, admin, "", active), f.area()))
+                        .unwrap();
+                    let side = term.backend().buffer()[(4, 2)].clone();
+                    let (symbol, color) = thumb_cell(&t, admin, active);
+                    assert_ne!(
+                        (symbol, color),
+                        (side.symbol(), side.fg),
+                        "{:?} admin={admin} active={active}",
+                        t.background
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_drawn_screen_follows_the_session() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        // (0, 1): the top left corner of the tree, under the header.
+        let corner = |app: &mut App| {
+            let mut term = Terminal::new(TestBackend::new(100, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            let c = term.backend().buffer()[(0, 1)].clone();
+            (c.symbol().to_string(), c.fg)
+        };
+        app.session.admin = true;
+        assert_eq!(corner(&mut app), ("┏".into(), theme().error));
+        app.session.admin = false;
+        assert_ne!(corner(&mut app).0, "┏");
+    }
+
+    #[test]
+    fn badges_in_mono_are_reversed() {
+        let mono = Theme::mono();
+        assert!(
+            badge_style(&mono, mono.error)
+                .add_modifier
+                .contains(Modifier::REVERSED)
+        );
+        let classic = Theme::classic();
+        let style = badge_style(&classic, classic.error);
+        assert_eq!(
+            (style.fg, style.bg),
+            (Some(classic.background), Some(classic.error))
+        );
+        assert!(!style.add_modifier.contains(Modifier::REVERSED));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn session_badges_come_before_the_remote_one() {
+        use crate::session::{ADMIN_LABEL, Session};
+        let tmp = crate::testing::tempdir();
+        let Some(remote) = crate::remote::for_tests(tmp.path()) else {
+            return;
+        };
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.panes[0] = Pane::from_remote(remote);
+        app.session = Session {
+            admin: true,
+            ssh: Some("srv01".into()),
+        };
+        let (text, _) = header_row(&mut app, 120);
+        let at = |s: &str| text.find(s).unwrap_or_else(|| panic!("{s} in {text:?}"));
+        assert!(at(ADMIN_LABEL) < at("SSH srv01") && at("SSH srv01") < at("Path: "));
+        assert!(at("Path: ") < at("test@testhost"), "{text:?}");
+    }
+
     /// The footer's rows on a screen `width` columns wide and 20 high.
     fn footer_rows(app: &mut App, width: u16) -> Vec<String> {
         use ratatui::{Terminal, backend::TestBackend};
@@ -6111,6 +6378,61 @@ mod tests {
         (20 - rows..20)
             .map(|y| (0..width).map(|x| buf[(x, y)].symbol()).collect())
             .collect()
+    }
+
+    /// An app on a folder with one file, `b.txt`, the focus on the files.
+    fn one_file_app() -> (tempfile::TempDir, App) {
+        let tmp = crate::testing::tempdir();
+        std::fs::write(tmp.path().join("b.txt"), "b").unwrap();
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        (tmp, app)
+    }
+
+    #[test]
+    fn root_badge_leads_the_delete_question() {
+        let label = crate::session::ADMIN_LABEL;
+        let (_tmp, mut app) = one_file_app();
+        app.handle_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+        assert!(app.confirm.is_some());
+        app.session.admin = true;
+        let rows = footer_rows(&mut app, 120);
+        assert!(
+            rows[0].starts_with(&format!(" {label}  DELETE ")),
+            "{rows:?}"
+        );
+        app.session.admin = false;
+        assert!(footer_rows(&mut app, 120)[0].starts_with("DELETE "));
+    }
+
+    #[test]
+    fn root_badge_is_not_on_the_filespec() {
+        let (_tmp, mut app) = one_file_app();
+        app.apply(Command::Filespec);
+        assert!(app.prompt.is_some());
+        app.session.admin = true;
+        let rows = footer_rows(&mut app, 120);
+        assert!(rows[0].starts_with("FILESPEC"), "{rows:?}");
+        assert!(!rows[0].contains(crate::session::ADMIN_LABEL), "{rows:?}");
+    }
+
+    #[test]
+    fn root_badge_moves_the_prompt_cursor() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let (_tmp, mut app) = one_file_app();
+        app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+        assert!(app.prompt.is_some());
+        let cursor = |app: &mut App| {
+            let mut term = Terminal::new(TestBackend::new(120, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            term.get_cursor_position().unwrap().x
+        };
+        app.session.admin = false;
+        let plain = cursor(&mut app);
+        app.session.admin = true;
+        // " ROOT " and the space after it.
+        let lead = crate::session::ADMIN_LABEL.len() as u16 + 3;
+        assert_eq!(cursor(&mut app), plain + lead);
     }
 
     #[test]

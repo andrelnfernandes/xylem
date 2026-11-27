@@ -34,6 +34,7 @@ mod remote;
 mod scan;
 mod search;
 mod search_box;
+mod session;
 mod settings;
 mod shell;
 mod state;
@@ -199,6 +200,7 @@ fn main() -> anyhow::Result<()> {
     let migrated = platform::migrate_from_xt();
     let (config, config_error) = config::Config::load();
     let mut app = App::new(root);
+    app.session = session::Session::detect();
     app.set_sort(config.options.initial_sort());
     app.display = config.options.file_display;
     // `load` already validated; with an error in the file, `config` is the defaults.

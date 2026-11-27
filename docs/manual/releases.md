@@ -9,6 +9,10 @@ of each version are on
 
 **New.**
 
+- Xylem says when it runs as root (`ROOT`; `ADMIN` on Windows, as
+  Administrator) or inside an SSH session (`SSH machine`): badges at the left
+  end of the header, red window borders as root, and the root badge on the
+  questions that change files on this machine. [The screen](screen.md)
 - The Filespec takes regular expressions between slashes, mixed with globs,
   dates and sizes: `/^report-\d{4}/`, `/\.jpe?g$/i`. [Filespec](filespec.md)
 - The batch Rename (Ctrl+R) takes regular expressions with the `r` flag:

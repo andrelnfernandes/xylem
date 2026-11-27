@@ -948,6 +948,45 @@ impl App {
         }
     }
 
+    /// The prompt `kind` changes or deletes files that already exist on
+    /// this machine: as root, it says so. Copy and Move always do, as far as
+    /// it can tell: the destination is still being typed.
+    pub(crate) fn prompt_changes_local_files(&self, kind: &PromptKind) -> bool {
+        match kind {
+            PromptKind::Transfer { .. } => true,
+            PromptKind::RenameFile(_)
+            | PromptKind::RenameDir(_)
+            | PromptKind::RenameTagged { .. }
+            | PromptKind::Chmod(_)
+            | PromptKind::NewDate(_)
+            | PromptKind::Prune { .. } => self.remote.is_none(),
+            _ => false,
+        }
+    }
+
+    /// The same for the confirmation `kind`.
+    pub(crate) fn confirm_changes_local_files(&self, kind: &ConfirmKind) -> bool {
+        match kind {
+            ConfirmKind::DeleteFiles { .. }
+            | ConfirmKind::DeleteDir { .. }
+            | ConfirmKind::DeleteFolders { .. } => self.remote.is_none(),
+            // A Move from here deletes the files here once copied.
+            ConfirmKind::CreateDest {
+                kind,
+                sources,
+                dest,
+                ..
+            } => {
+                matches!(self.side_of(dest), Side::Local)
+                    || (matches!(kind, OpKind::Move)
+                        && sources
+                            .iter()
+                            .any(|s| matches!(self.side_of(&s.path), Side::Local)))
+            }
+            _ => false,
+        }
+    }
+
     /// The machine `path` is on: the remote one of the window whose tree it
     /// is in, or this one.
     pub(crate) fn side_of(&self, path: &Path) -> Side {
