@@ -54,6 +54,10 @@ thread_local! {
     /// the screen says what it is as it is drawn, and the map goes to
     /// `App::hits` at the end, for the clicks on what is on screen.
     static HITS: std::cell::RefCell<HitMap> = std::cell::RefCell::default();
+    /// Xylem runs as root (or an elevated Administrator): every window of
+    /// the frame being drawn has red borders. Set from `App::session` at the
+    /// start of [`draw`].
+    static ADMIN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// `area` of this frame is `spot`, over what was added before.
@@ -74,6 +78,7 @@ fn render_footer(frame: &mut Frame, lines: Vec<Line<'static>>, area: Rect, mods:
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
     HITS.with_borrow_mut(|h| *h = HitMap::default());
+    ADMIN.set(app.session.admin);
     draw_frame(frame, app);
     app.hits = HITS.take();
 }
@@ -810,13 +815,25 @@ fn small_file_window(height: u16) -> u16 {
 }
 
 fn panel(title: impl Into<Line<'static>>, active: bool) -> Block<'static> {
-    let border = if active {
-        theme().active_border
-    } else {
-        theme().border
+    panel_with(&theme(), ADMIN.get(), title, active)
+}
+
+/// A window in theme `t`. As root (`admin`), every border is in the error
+/// color, and the one with the focus is thick, still apart from the others.
+fn panel_with(
+    t: &Theme,
+    admin: bool,
+    title: impl Into<Line<'static>>,
+    active: bool,
+) -> Block<'static> {
+    let (border, kind) = match (admin, active) {
+        (true, true) => (t.error, BorderType::Thick),
+        (true, false) => (t.error, border_type(t)),
+        (false, true) => (t.active_border, border_type(t)),
+        (false, false) => (t.border, border_type(t)),
     };
     Block::bordered()
-        .border_type(border_type(&theme()))
+        .border_type(kind)
         .border_style(Style::new().fg(border))
         .title(title)
 }
@@ -6196,6 +6213,53 @@ mod tests {
                 "{width}: {text:?}"
             );
         }
+    }
+
+    #[test]
+    fn root_borders_are_red_and_the_focus_thick() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let corner = |t: &Theme, admin: bool, active: bool| {
+            let mut term = Terminal::new(TestBackend::new(10, 3)).unwrap();
+            term.draw(|f| f.render_widget(panel_with(t, admin, "", active), f.area()))
+                .unwrap();
+            let c = term.backend().buffer()[(0, 0)].clone();
+            (c.symbol().to_string(), c.fg)
+        };
+        for t in [
+            Theme::classic(),
+            Theme::light(),
+            Theme::nord(),
+            Theme::mono(),
+        ] {
+            assert_eq!(corner(&t, true, true), ("┏".into(), t.error));
+            let normal = if border_type(&t) == BorderType::Rounded {
+                "╭"
+            } else {
+                "┌"
+            };
+            assert_eq!(corner(&t, true, false), (normal.into(), t.error));
+            // Without root, nothing changes.
+            assert_eq!(corner(&t, false, true), (normal.into(), t.active_border));
+            assert_eq!(corner(&t, false, false), (normal.into(), t.border));
+        }
+    }
+
+    #[test]
+    fn the_drawn_screen_follows_the_session() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        // (0, 1): the top left corner of the tree, under the header.
+        let corner = |app: &mut App| {
+            let mut term = Terminal::new(TestBackend::new(100, 20)).unwrap();
+            term.draw(|f| draw(f, app)).unwrap();
+            let c = term.backend().buffer()[(0, 1)].clone();
+            (c.symbol().to_string(), c.fg)
+        };
+        app.session.admin = true;
+        assert_eq!(corner(&mut app), ("┏".into(), theme().error));
+        app.session.admin = false;
+        assert_ne!(corner(&mut app).0, "┏");
     }
 
     #[test]
