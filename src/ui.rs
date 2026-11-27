@@ -35,6 +35,7 @@ use crate::mouse::{self, HitMap, Owner, Spot};
 use crate::ops::{Conflict, Facts, Operation};
 use crate::pane::{Count, FileDisplay, FileRef};
 use crate::platform;
+use crate::session::{ADMIN_LABEL, Session};
 use crate::settings::{self, Settings};
 use crate::term::{self, Terminal};
 use crate::viewer::table::TableGrid;
@@ -950,10 +951,18 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
         ));
     }
     right_spans.push(Span::raw(clock));
-    let width: usize = right_spans.iter().map(|s| s.content.chars().count()).sum();
+    // Root and SSH first: they are about the session, not the path, and the
+    // clock gives way to them.
+    let mut spans = session_spans(&app.session);
+    let lead: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+    let mut width: usize = right_spans.iter().map(|s| s.content.chars().count()).sum();
+    if lead > 0 && (area.width as usize) < lead + width + 1 {
+        right_spans.clear();
+        width = 0;
+    }
     let [left, right] =
         Layout::horizontal([Constraint::Min(1), Constraint::Length(width as u16)]).areas(area);
-    let mut spans = vec![Span::styled("Path: ", Style::new().fg(theme().key))];
+    spans.push(Span::styled("Path: ", Style::new().fg(theme().key)));
     // On a remote machine or a container: its name stands out first, so that
     // where a change goes is never in doubt; then the path there.
     let (text, separator) = match &app.remote {
@@ -977,6 +986,41 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     spans.extend(path_spans(&fit_tail(&text, room), separator));
     frame.render_widget(Line::from(spans), left);
     frame.render_widget(Line::from(right_spans), right);
+}
+
+/// The badges of the session: root (or an elevated Administrator) and the
+/// SSH session, each followed by a space.
+fn session_spans(session: &Session) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    if session.admin {
+        spans.push(session_badge(ADMIN_LABEL, theme().error));
+        spans.push(Span::raw(" "));
+    }
+    if let Some(host) = &session.ssh {
+        let text = if host.is_empty() {
+            "SSH".to_string()
+        } else {
+            format!("SSH {host}")
+        };
+        spans.push(session_badge(&text, theme().special));
+        spans.push(Span::raw(" "));
+    }
+    spans
+}
+
+/// `text` with a space on each side, in [`badge_style`].
+fn session_badge(text: &str, color: Color) -> Span<'static> {
+    Span::styled(format!(" {text} "), badge_style(&theme(), color))
+}
+
+/// The theme's background on `color`, bold; without colors (mono), reversed.
+fn badge_style(t: &Theme, color: Color) -> Style {
+    let bold = Style::new().add_modifier(Modifier::BOLD);
+    if color == Color::Reset {
+        bold.add_modifier(Modifier::REVERSED)
+    } else {
+        bold.fg(t.background).bg(color)
+    }
 }
 
 /// `path` with the home directory as `~`.
@@ -6095,6 +6139,100 @@ mod tests {
         )));
         assert!(header(&mut app, 100).contains("999.0.0 is out"));
         assert!(!header(&mut app, 80).contains("is out"), "only with room");
+    }
+
+    /// Row 0 of a screen `width` columns wide and 20 high: as text, and the
+    /// cells.
+    fn header_row(app: &mut App, width: u16) -> (String, Vec<ratatui::buffer::Cell>) {
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut term = Terminal::new(TestBackend::new(width, 20)).unwrap();
+        term.draw(|f| draw(f, app)).unwrap();
+        let buf = term.backend().buffer();
+        let cells: Vec<_> = (0..width).map(|x| buf[(x, 0)].clone()).collect();
+        (cells.iter().map(|c| c.symbol()).collect(), cells)
+    }
+
+    #[test]
+    fn header_shows_root_and_ssh_before_the_path() {
+        use crate::session::{ADMIN_LABEL, Session};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        let t = theme();
+        app.session = Session {
+            admin: true,
+            ssh: Some("srv01".into()),
+        };
+        let (text, cells) = header_row(&mut app, 100);
+        assert!(
+            text.starts_with(&format!(" {ADMIN_LABEL}   SSH srv01  Path: ")),
+            "{text:?}"
+        );
+        // The cells of each badge: text in `background` on `error` / `special`.
+        assert_eq!((cells[1].fg, cells[1].bg), (t.background, t.error));
+        let s = text.find("SSH").unwrap();
+        assert_eq!((cells[s].fg, cells[s].bg), (t.background, t.special));
+        app.session = Session {
+            admin: false,
+            ssh: Some(String::new()),
+        };
+        assert!(header_row(&mut app, 100).0.starts_with(" SSH  Path: "));
+        app.session = Session::default();
+        assert!(header_row(&mut app, 100).0.starts_with("Path: "));
+    }
+
+    #[test]
+    fn header_keeps_root_whole_on_a_narrow_screen() {
+        use crate::session::{ADMIN_LABEL, Session};
+        let tmp = crate::testing::tempdir();
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.session = Session {
+            admin: true,
+            ssh: Some("a-long-machine-name".into()),
+        };
+        for width in [12, 22, 30, 40] {
+            let (text, _) = header_row(&mut app, width);
+            assert!(
+                text.starts_with(&format!(" {ADMIN_LABEL} ")),
+                "{width}: {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn badges_in_mono_are_reversed() {
+        let mono = Theme::mono();
+        assert!(
+            badge_style(&mono, mono.error)
+                .add_modifier
+                .contains(Modifier::REVERSED)
+        );
+        let classic = Theme::classic();
+        let style = badge_style(&classic, classic.error);
+        assert_eq!(
+            (style.fg, style.bg),
+            (Some(classic.background), Some(classic.error))
+        );
+        assert!(!style.add_modifier.contains(Modifier::REVERSED));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn session_badges_come_before_the_remote_one() {
+        use crate::session::{ADMIN_LABEL, Session};
+        let tmp = crate::testing::tempdir();
+        let Some(remote) = crate::remote::for_tests(tmp.path()) else {
+            return;
+        };
+        let mut app = App::new(tmp.path().to_path_buf());
+        app.panes[0] = Pane::from_remote(remote);
+        app.session = Session {
+            admin: true,
+            ssh: Some("srv01".into()),
+        };
+        let (text, _) = header_row(&mut app, 120);
+        let at = |s: &str| text.find(s).unwrap_or_else(|| panic!("{s} in {text:?}"));
+        assert!(at(ADMIN_LABEL) < at("SSH srv01") && at("SSH srv01") < at("Path: "));
+        assert!(at("Path: ") < at("test@testhost"), "{text:?}");
     }
 
     /// The footer's rows on a screen `width` columns wide and 20 high.

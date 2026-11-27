@@ -6,6 +6,12 @@ use std::ffi::OsString;
 
 use crate::platform;
 
+/// The badge of an all-powerful user.
+#[cfg(windows)]
+pub const ADMIN_LABEL: &str = "ADMIN";
+#[cfg(not(windows))]
+pub const ADMIN_LABEL: &str = "ROOT";
+
 /// Set by sshd for the session (and kept by `sudo -E`, not by `sudo`).
 const SSH_VARS: [&str; 3] = ["SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"];
 /// An ancestor process with one of these names: the session came in through
